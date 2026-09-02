@@ -78,14 +78,57 @@ function isAttributeLine(line: string): boolean {
   return ATTRIBUTE_PREFIXES.some(prefix => lower.startsWith(prefix));
 }
 
+// Common conversational sentences in emails that should never be items
+
+const CONVERSATIONAL_PATTERNS = [
+  /^(prezado|caro|olá|ola|bom dia|boa tarde|boa noite|oi\b)/i,
+  /^(solicito|solicitamos|gostaria|favor|pedimos|segue|enviamos|encaminho|venho por meio)/i,
+  /^(orçamento|cotacao|cotação|proposta|valores|preços|precos)\s+(para|de|dos|das|referente)/i,
+  /^(em anexo|conforme|atenciosamente|att|grato|obrigado|agradeço|abraço|cordialmente)/i,
+  /^(qualquer dúvida|ficamos à disposição|no aguardo|aguardo retorno|urgente)/i,
+  /^(prazo de entrega|condições de pagamento|condicoes de pagamento|faturamento|local de entrega|dados para faturamento)/i,
+  /^(cnpj|inscrição|inscricao|endereço|endereco|telefone|contato|e-mail|email)/i,
+  /^(total|subtotal|vlr|valor total|valor unitário|condições)/i
+];
+
+function isConversationalLine(line: string): boolean {
+  const lower = line.toLowerCase().trim();
+  if (lower.length < 4) return true;
+  return CONVERSATIONAL_PATTERNS.some(regex => regex.test(lower));
+}
+
 function isHeaderOrMetadata(line: string): boolean {
   const lower = line.toLowerCase().trim();
   if (!lower) return true;
-  if (lower === 'req' || lower === 'descrição' || lower === 'descricao' || lower === 'qtd' || lower === 'un' || lower === 'item') return true;
-  if (lower.startsWith('prezado') || lower.startsWith('bom dia') || lower.startsWith('boa tarde') || lower.startsWith('olá') || lower.startsWith('ola')) return true;
-  if (lower.startsWith('solicitamos') || lower.startsWith('em atenção') || lower.startsWith('em atencao') || lower.startsWith('segue cotação')) return true;
+  if (['req', 'descrição', 'descricao', 'qtd', 'quant', 'un', 'item', 'cód', 'cod', 'discriminacao', 'discriminação'].includes(lower)) return true;
+  return isConversationalLine(line);
+}
+
+/**
+ * Returns true if a line has strong signals of being an actual product:
+ * - Starts with a quantity pattern: 1x, 2 UN, Item 1, 01 - ...
+ * - Contains technical/product keywords with specs (ex: mm, cm, v, w, polegadas, cabo, disco, cadeira, etc.)
+ * - Matches part-number or sku format
+ */
+function isLikelyProductStart(line: string): boolean {
+  const clean = line.trim();
+  if (isConversationalLine(clean) || isTableFooterLine(clean) || isAttributeLine(clean)) return false;
+
+  // Numbered list: "1.", "1 -", "Item 1", "01)"
+  if (/^(?:item\s*\d+|\d+[\.\)\-–])\s+/i.test(clean)) return true;
+
+  // Quantity + Unit: "1 UN -", "5 pçs", "10 caixas de", "2x"
+  if (/^\d+(?:[.,]\d+)?\s*(?:unidades?|un\.?|und\.?|pçs?|peças?|cx\.?|caixas?|kg|litros?|mts?|m²?|pares?|kits?|x)\b/i.test(clean)) return true;
+
+  // Standalone product structure (ex: "Disco de Serra 250mm...", "Cadeira Giratória NR17...", "Monitor 27...")
+  // Must not look like a conversational sentence (e.g. "Precisamos disso com urgência")
+  const productNounPattern = /^(disco|cadeira|mesa|teclado|mouse|monitor|cabo|fonte|nobreak|switch|roteador|impressora|toner|cartucho|papel|bateria|lampada|lâmpada|ferramenta|parafuso|filtro|oleo|óleo|placa|modulo|módulo|leitor|suporte|armario|armário|gaveteiro|estante|projetor|sensor|adaptador|conversor|alicativo|alicativo|furadeira|parafusadeira|chave|conector|tubo|bomba|motor|válvula|valvula|pneu|rolamento|correia|engrenagem|disco|broca|solda|painel|disjuntor|rele|relé|transformador|camera|câmera|dvr|hd|ssd|memoria|memória|processador|gabinete|servidor|rack)\b/i;
+  
+  if (productNounPattern.test(clean) && clean.length >= 6) return true;
+
   return false;
 }
+
 
 /**
  * Returns true for lines that represent table footers, signatures or column-header rows
@@ -359,10 +402,14 @@ export function parseSmartText(text: string): ParsedItem[] {
     // Pattern 1: Numbered item list
     const numberedMatch = line.match(/^(?:item\s*\d+[:.‐-]?|\d+[\.\)\-])\s*(?:(\d+([.,]\d+)?)\s*(un|unidades?|pçs?|cx|x)?\s*(?:de|da|do)?)?\s*(.+)$/i);
     
-    // Pattern 2: Quantity prefix
+    // Pattern 2: Quantity prefix "5 unidades de ..."
     const qtyPrefixMatch = line.match(/^(\d+)\s*(?:\([a-zA-Zà-ÿ\s]+\))?\s*(unidades?|un|peças?|pçs?|cx|caixas?|x)\s*(?:de|da|do)?\s*(.+)$/i);
 
-    if (numberedMatch || qtyPrefixMatch) {
+    // Pattern 3: "1 UN - Descrição do produto..." or "1 UN – descrição"
+    // Handles lines like: "1 UN - Disco de Serra Circular 250 x 30 mm com 80 Dentes LU3A0200 -"
+    const qtyUnitDashMatch = line.match(/^(\d+(?:[.,]\d+)?)\s+(UN\.?|UNID\.?|CX\.?|KG\.?|PC\.?|PÇ\.?|MT?\.?|LT?\.?|M²?|ROLO|PARES?|KITS?)\s*[-–]\s*(.+?)(?:\s*[-–]\s*)?$/i);
+
+    if (numberedMatch || qtyPrefixMatch || qtyUnitDashMatch) {
       // Save previous item
       if (currentItem && currentItem.name) {
         const fullSearchContext = Array.from(new Set([currentItem.name, ...currentItem.specs])).filter(Boolean).join(' | ');
@@ -370,7 +417,7 @@ export function parseSmartText(text: string): ParsedItem[] {
         items.push({
           name: currentItem.name,
           description: '',
-          rawSearchQuery: fullSearchContext,
+          rawSearchQuery: [fullSearchContext, currentItem.itemCode].filter(Boolean).join(' | '),
           quantity: currentItem.quantity || 1,
           unit: currentItem.unit || 'Un.',
           itemCode: currentItem.itemCode,
@@ -379,39 +426,48 @@ export function parseSmartText(text: string): ParsedItem[] {
         });
       }
 
-      if (numberedMatch) {
+      if (qtyUnitDashMatch) {
+        const rawQty = qtyUnitDashMatch[1];
+        const unitStr = qtyUnitDashMatch[2];
+        const namePart = qtyUnitDashMatch[3].replace(/\s*[-–]\s*$/, '').trim();
+        const unit = unitStr.toLowerCase().startsWith('cx') ? 'Cx.'
+          : unitStr.toLowerCase().startsWith('kg') ? 'Kg'
+          : unitStr.toLowerCase().startsWith('lt') || unitStr.toLowerCase() === 'l' ? 'Lt.'
+          : 'Un.';
+        currentItem = { name: namePart, specs: [namePart], quantity: parseQuantity(rawQty), unit };
+      } else if (numberedMatch) {
         const rawQty = numberedMatch[1] || '1';
         const namePart = numberedMatch[4].trim();
         const unit = numberedMatch[3]?.toLowerCase().startsWith('cx') ? 'Cx.' : 'Un.';
-
-        currentItem = {
-          name: namePart,
-          specs: [namePart],
-          quantity: parseQuantity(rawQty),
-          unit
-        };
+        currentItem = { name: namePart, specs: [namePart], quantity: parseQuantity(rawQty), unit };
       } else if (qtyPrefixMatch) {
         const rawQty = qtyPrefixMatch[1];
         const unitStr = qtyPrefixMatch[2];
         const namePart = qtyPrefixMatch[3].trim();
         const unit = unitStr.toLowerCase().startsWith('cx') ? 'Cx.' : 'Un.';
-
-        currentItem = {
-          name: namePart,
-          specs: [namePart],
-          quantity: parseQuantity(rawQty),
-          unit
-        };
+        currentItem = { name: namePart, specs: [namePart], quantity: parseQuantity(rawQty), unit };
       }
+      continue;
+    }
+
+    // Detect orphaned reference/part-number line following a product item
+    // e.g. "FREUD-F03FS05061-000" — standalone alphanumeric code, no spaces or description words
+    // Detect orphaned reference/part-number line following a product item
+    // e.g. "FREUD-F03FS05061-000" — standalone alphanumeric code, no spaces or description words
+    const isOrphanRefCode = /^[A-Z][A-Z0-9]{1,15}[-\/][A-Z0-9\-]{3,25}$/i.test(line) && line.split(' ').length <= 2;
+    if (isOrphanRefCode && currentItem) {
+      currentItem.itemCode = line.trim();
+      currentItem.specs.push(line.trim());
       continue;
     }
 
     // If we already have an active item and this line is part of its specifications for search reference
     if (currentItem && currentItem.name) {
-      if (line.length > 2 && !line.match(/^(solicito|favor|obrigado|atenciosamente|prazo)/i)) {
+      if (line.length > 2 && !isConversationalLine(line)) {
         currentItem.specs.push(line);
       }
-    } else if (line.length > 3 && !line.match(/^(prezado|bom dia|boa tarde|olá|solicito|atenciosamente)/i)) {
+    } else if (isLikelyProductStart(line)) {
+      // Only start an item if the line actually looks like a product (has noun/specs, not greeting or conversational)
       currentItem = {
         name: line.trim(),
         specs: [line.trim()],
@@ -437,24 +493,18 @@ export function parseSmartText(text: string): ParsedItem[] {
     });
   }
 
-  // Fallback if nothing matched
-  if (items.length === 0 && text.trim().length > 5) {
-    const cleanFirstLine = lines.find(l => l.length > 10 && !isHeaderOrMetadata(l)) || lines[0] || 'Item Solicitado';
-    const fullSearch = text.replace(/\s+/g, ' ').slice(0, 300).trim();
-    const query = encodeURIComponent(fullSearch);
-    items.push({
-      name: cleanFirstLine.slice(0, 80),
-      description: '',
-      rawSearchQuery: fullSearch,
-      quantity: 1,
-      unit: 'Un.',
-      estimatedCost: 150,
-      sourceUrl: `https://www.google.com/search?q=${query}`
-    });
-  }
+  // Final validation: filter out any accidental conversational items
+  const validItems = items.filter(it => {
+    const n = it.name.toLowerCase().trim();
+    if (n.length < 3) return false;
+    if (isConversationalLine(n)) return false;
+    if (isTableFooterLine(n)) return false;
+    return true;
+  });
 
-  return items;
+  return validItems;
 }
+
 
 /**
  * Unified extractor for both HTML emails (with tables) and plain text.
