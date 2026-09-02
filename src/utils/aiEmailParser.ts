@@ -503,15 +503,44 @@ export function parseSmartText(text: string): ParsedItem[] {
 
 
 /**
+ * Helper to convert HTML to clean plain text with preserved linebreaks.
+ */
+function htmlToPlainText(html: string): string {
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    // Replace breaks with newlines
+    doc.querySelectorAll('br').forEach(b => b.replaceWith('\n'));
+    // Append newlines to block elements
+    doc.querySelectorAll('tr, p, div, li, h1, h2, h3, h4, td, th').forEach(el => el.append('\n'));
+    return doc.body.textContent || '';
+  } catch {
+    return html.replace(/<[^>]+>/g, '\n');
+  }
+}
+
+/**
  * Unified extractor for both HTML emails (with tables) and plain text.
  */
 export function extractItemsFromEmailContent(rawTextOrHtml: string): ParsedItem[] {
-  if (rawTextOrHtml.includes('<table') || rawTextOrHtml.includes('<tr')) {
+  if (!rawTextOrHtml || rawTextOrHtml.trim().length === 0) return [];
+
+  const isHtml = rawTextOrHtml.includes('<table') || rawTextOrHtml.includes('<tr') || rawTextOrHtml.includes('</div>') || rawTextOrHtml.includes('</p>');
+
+  if (isHtml) {
+    // 1. Try extracting from true product HTML tables first
     const tableItems = parseHtmlTable(rawTextOrHtml);
     if (tableItems.length > 0) return tableItems;
+
+    // 2. If no product table was found in the HTML, extract clean plain text and parse line-by-line
+    const textContent = htmlToPlainText(rawTextOrHtml);
+    const textItems = parseSmartText(textContent);
+    if (textItems.length > 0) return textItems;
   }
+
+  // 3. Fallback: Parse as raw text
   return parseSmartText(rawTextOrHtml);
 }
+
 
 /**
  * Extracts the full company/institution name from email headers, sender, subject and body.
