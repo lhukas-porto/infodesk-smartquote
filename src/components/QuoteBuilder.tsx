@@ -439,104 +439,94 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
       </div>
 
-      {/* Fast Pricing Composition Controls (Margem, Alíquota de Imposto e Frete) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-sky-50 border border-sky-200 rounded-lg text-sky-600">
-              <Percent className="w-4 h-4" />
-            </div>
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Painel de Composição de Preço (Margem + Imposto + Frete)
-            </h4>
+      {/* Fast Pricing Composition Controls — compact single bar */}
+      <div className="bg-white border border-slate-200 rounded-2xl px-5 py-3.5 shadow-xs flex flex-wrap items-center gap-4">
+
+        {/* Formula label */}
+        <span className="text-[11px] text-slate-400 hidden lg:inline-block whitespace-nowrap">
+          Fórmula: <strong className="text-slate-600">(Custo + Frete) × (1 + Margem%) × (1 + Imposto%)</strong>
+        </span>
+
+        <div className="flex-1 h-px bg-slate-100 hidden lg:block" />
+
+        {/* Margem de Lucro — editável */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Percent className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+          <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Margem de Lucro:</span>
+          <div className="flex items-center bg-sky-50 border border-sky-200 rounded-lg overflow-hidden">
+            <input
+              type="number"
+              min={0}
+              max={200}
+              step={1}
+              value={globalMarkup}
+              onChange={(e) => handleApplyGlobalMarkup(parseFloat(e.target.value) || 0)}
+              className="w-16 bg-transparent px-2 py-1 text-xs font-bold text-sky-800 font-mono focus:outline-none text-center"
+            />
+            <span className="text-xs font-bold text-sky-600 pr-2">%</span>
           </div>
-          <span className="text-[11px] text-slate-500 hidden sm:inline-block">
-            Fórmula: <strong className="text-slate-800">(Custo + Frete) × (1 + Lucro%) × (1 + Imposto%)</strong>
+        </div>
+
+        {/* Alíquota de Imposto — somente leitura (vem das configurações) */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Receipt className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+          <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Imposto (Simples):</span>
+          <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-bold text-indigo-700 font-mono">
+            {globalTax}%
           </span>
+          <span className="text-[10px] text-slate-400 hidden sm:inline">fixo nas configurações</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-          {/* 1. Margem de Lucro Global */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <label className="font-bold text-slate-700 flex items-center gap-1.5">
-                <Percent className="w-3.5 h-3.5 text-sky-600" /> Margem de Lucro (% Lucro)
-              </label>
-              <span className="font-mono font-bold text-sky-700">{globalMarkup}%</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {[15, 20, 25, 30, 35, 40, 50].map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => handleApplyGlobalMarkup(pct)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition ${globalMarkup === pct
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                    }`}
-                >
-                  +{pct}%
-                </button>
-              ))}
-            </div>
+        {/* Frete por Unidade */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Truck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Frete/Un.:</span>
+          <div className="flex items-center bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
+            <span className="text-[10px] text-amber-600 pl-2">R$</span>
+            <input
+              type="number"
+              step="1"
+              value={globalShipping}
+              onChange={(e) => handleApplyGlobalShipping(parseFloat(e.target.value) || 0)}
+              placeholder="0"
+              className="w-16 bg-transparent px-2 py-1 text-xs font-bold text-amber-800 font-mono focus:outline-none text-center"
+            />
           </div>
-
-          {/* 2. Frete Rateado por Item */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <label className="font-bold text-slate-700 flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 text-amber-600" /> Frete por Unidade (R$)
-              </label>
-              <span className="font-mono font-bold text-amber-700">R$ {globalShipping.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <span className="absolute left-2.5 top-1.5 text-xs text-slate-400">R$</span>
-                <input
-                  type="number"
-                  step="1"
-                  value={globalShipping}
-                  onChange={(e) => handleApplyGlobalShipping(parseFloat(e.target.value) || 0)}
-                  placeholder="0,00"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-1.5 text-xs font-bold text-slate-900 font-mono focus:outline-none focus:border-amber-500"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => handleApplyGlobalShipping(globalShipping)}
-                className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition whitespace-nowrap"
-              >
-                Aplicar em Todos
-              </button>
-            </div>
-          </div>
-
+          <button
+            type="button"
+            onClick={() => handleApplyGlobalShipping(globalShipping)}
+            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-bold transition whitespace-nowrap"
+          >
+            Aplicar em Todos
+          </button>
         </div>
 
-        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-3">
-          <span className="text-xs text-slate-600 font-medium whitespace-nowrap">Puxar do Catálogo Infodesk:</span>
+        <div className="w-px h-6 bg-slate-200 hidden md:block shrink-0" />
+
+        {/* Puxar do Catálogo */}
+        <div className="flex items-center gap-2 flex-1 min-w-[220px]">
           <select
             value={selectedProductId}
             onChange={(e) => setSelectedProductId(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-sky-500"
+            className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-sky-500"
           >
-            <option value="">Selecione um produto da sua base...</option>
+            <option value="">📦 Puxar do catálogo Infodesk...</option>
             {products.map(p => (
               <option key={p.id} value={p.id}>
-                {p.name} — Custo: R$ {p.costPrice.toFixed(2)} ({p.category})
+                {p.name} — R$ {p.costPrice.toFixed(2)} ({p.category})
               </option>
             ))}
           </select>
           <button
             onClick={handleAddFromCatalog}
             disabled={!selectedProductId}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-sky-700 border border-slate-300 rounded-xl text-xs font-semibold transition disabled:opacity-40 whitespace-nowrap flex items-center gap-1.5"
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-sky-700 border border-slate-300 rounded-xl text-xs font-semibold transition disabled:opacity-40 whitespace-nowrap flex items-center gap-1"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Inserir Item</span>
+            <span>Inserir</span>
           </button>
         </div>
+
       </div>
 
       {/* Client Destination Info */}
