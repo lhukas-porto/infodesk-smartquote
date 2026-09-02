@@ -79,7 +79,6 @@ function isAttributeLine(line: string): boolean {
 }
 
 // Common conversational sentences in emails that should never be items
-
 const CONVERSATIONAL_PATTERNS = [
   /^(prezado|caro|olá|ola|bom dia|boa tarde|boa noite|oi\b)/i,
   /^(solicito|solicitamos|gostaria|favor|pedimos|segue|enviamos|encaminho|venho por meio)/i,
@@ -97,12 +96,32 @@ function isConversationalLine(line: string): boolean {
   return CONVERSATIONAL_PATTERNS.some(regex => regex.test(lower));
 }
 
+/**
+ * Detects lines containing CNPJs, phone numbers, zip codes, URLs or registration numbers
+ * that should NEVER be parsed as a product item.
+ */
+function isRegistrationOrContactLine(line: string): boolean {
+  const clean = line.trim();
+  // CNPJ pattern (formatted or broken like "00.180.842/0001-11" or "/0001-11")
+  if (/\b\d{2}\.?\d{3}\.?\d{3}\/\d{4}-\d{2}\b/.test(clean)) return true;
+  if (/^\/?\d{4}-\d{2}$/.test(clean)) return true;
+  if (/\bcnpj\b|\bie\b|\binscrição\b/i.test(clean)) return true;
+  // CEP pattern: "70000-000" or "CEP:"
+  if (/\b\d{5}-\d{3}\b/.test(clean) || /\bcep\b/i.test(clean)) return true;
+  // Phone/WhatsApp pattern
+  if (/(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9\d{4}|\d{4})[-\s]?\d{4}\b/.test(clean) && !/[a-zA-Z]{4,}/.test(clean)) return true;
+  // URLs or emails
+  if (/^(?:https?:\/\/|www\.)\S+$/i.test(clean) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return true;
+  return false;
+}
+
 function isHeaderOrMetadata(line: string): boolean {
   const lower = line.toLowerCase().trim();
   if (!lower) return true;
   if (['req', 'descrição', 'descricao', 'qtd', 'quant', 'un', 'item', 'cód', 'cod', 'discriminacao', 'discriminação'].includes(lower)) return true;
-  return isConversationalLine(line);
+  return isConversationalLine(line) || isRegistrationOrContactLine(line);
 }
+
 
 /**
  * Returns true if a line has strong signals of being an actual product:
@@ -395,17 +414,46 @@ export function parseSmartText(text: string): ParsedItem[] {
       continue;
     }
 
-    // Pattern 1: Numbered item list
-    const numberedMatch = line.match(/^(?:item\s*\d+[:.‐-]?|\d+[\.\)\-])\s*(?:(\d+([.,]\d+)?)\s*(un|unidades?|pçs?|cx|x)?\s*(?:de|da|do)?)?\s*(.+)$/i);
+    // Pattern 1: Numbered item list (e.g. "1. Cabo flexível..." or "Item 01 - ...")
+    // NOTE: Must strictly require a valid separator and NOT match CNPJ prefixes or date formats
+    const numberedMatch = line.match(/^(?:item\s*(\d+)[:.‐-]?|(\d{1,3})[\.\)\-–]\s+)\s*(?:(\d+([.,]\d+)?)\s*(un|unidades?|pçs?|cx|x)?\s*(?:de|da|do)?)?\s*([a-zA-ZÀ-ÿ].+)$/i);
     
     // Pattern 2: Quantity prefix "5 unidades de ..."
-    const qtyPrefixMatch = line.match(/^(\d+)\s*(?:\([a-zA-Zà-ÿ\s]+\))?\s*(unidades?|un|peças?|pçs?|cx|caixas?|x)\s*(?:de|da|do)?\s*(.+)$/i);
+    const qtyPrefixMatch = line.match(/^(\d{1,4})\s*(?:\([a-zA-Zà-ÿ\s]+\))?\s*(unidades?|un|peças?|pçs?|cx|caixas?|x)\s*(?:de|da|do)?\s*([a-zA-ZÀ-ÿ].+)$/i);
 
     // Pattern 3: "1 UN - Descrição do produto..." or "1 UN – descrição"
     // Handles lines like: "1 UN - Disco de Serra Circular 250 x 30 mm com 80 Dentes LU3A0200 -"
-    const qtyUnitDashMatch = line.match(/^(\d+(?:[.,]\d+)?)\s+(UN\.?|UNID\.?|CX\.?|KG\.?|PC\.?|PÇ\.?|MT?\.?|LT?\.?|M²?|ROLO|PARES?|KITS?)\s*[-–]\s*(.+?)(?:\s*[-–]\s*)?$/i);
+    const qtyUnitDashMatch = line.match(/^(\d+(?:[.,]\d+)?)\s+(UN\.?|UNID\.?|CX\.?|KG\.?|PC\.?|PÇ\.?|MT?\.?|LT?\.?|M²?|ROLO|PARES?|KITS?)\s*[-–]\s*([a-zA-ZÀ-ÿ0-9].+?)(?:\s*[-–]\s*)?$/i);
 
     if (numberedMatch || qtyPrefixMatch || qtyUnitDashMatch) {
+      let namePart = '';
+      let rawQty = '1';
+      let unit = 'Un.';
+
+      if (qtyUnitDashMatch) {
+        rawQty = qtyUnitDashMatch[1];
+        const unitStr = qtyUnitDashMatch[2];
+        namePart = qtyUnitDashMatch[3].replace(/\s*[-–]\s*$/, '').trim();
+        unit = unitStr.toLowerCase().startsWith('cx') ? 'Cx.'
+          : unitStr.toLowerCase().startsWith('kg') ? 'Kg'
+          : unitStr.toLowerCase().startsWith('lt') || unitStr.toLowerCase() === 'l' ? 'Lt.'
+          : 'Un.';
+      } else if (numberedMatch) {
+        rawQty = numberedMatch[3] || '1';
+        namePart = numberedMatch[6].trim();
+        unit = numberedMatch[5]?.toLowerCase().startsWith('cx') ? 'Cx.' : 'Un.';
+      } else if (qtyPrefixMatch) {
+        rawQty = qtyPrefixMatch[1];
+        const unitStr = qtyPrefixMatch[2];
+        namePart = qtyPrefixMatch[3].trim();
+        unit = unitStr.toLowerCase().startsWith('cx') ? 'Cx.' : 'Un.';
+      }
+
+      // Check if extracted name is actually metadata, CNPJ or contact
+      if (isHeaderOrMetadata(namePart) || isRegistrationOrContactLine(namePart) || isConversationalLine(namePart)) {
+        continue;
+      }
+
       // Save previous item
       if (currentItem && currentItem.name) {
         const fullSearchContext = Array.from(new Set([currentItem.name, ...currentItem.specs])).filter(Boolean).join(' | ');
@@ -422,36 +470,14 @@ export function parseSmartText(text: string): ParsedItem[] {
         });
       }
 
-      if (qtyUnitDashMatch) {
-        const rawQty = qtyUnitDashMatch[1];
-        const unitStr = qtyUnitDashMatch[2];
-        const namePart = qtyUnitDashMatch[3].replace(/\s*[-–]\s*$/, '').trim();
-        const unit = unitStr.toLowerCase().startsWith('cx') ? 'Cx.'
-          : unitStr.toLowerCase().startsWith('kg') ? 'Kg'
-          : unitStr.toLowerCase().startsWith('lt') || unitStr.toLowerCase() === 'l' ? 'Lt.'
-          : 'Un.';
-        currentItem = { name: namePart, specs: [namePart], quantity: parseQuantity(rawQty), unit };
-      } else if (numberedMatch) {
-        const rawQty = numberedMatch[1] || '1';
-        const namePart = numberedMatch[4].trim();
-        const unit = numberedMatch[3]?.toLowerCase().startsWith('cx') ? 'Cx.' : 'Un.';
-        currentItem = { name: namePart, specs: [namePart], quantity: parseQuantity(rawQty), unit };
-      } else if (qtyPrefixMatch) {
-        const rawQty = qtyPrefixMatch[1];
-        const unitStr = qtyPrefixMatch[2];
-        const namePart = qtyPrefixMatch[3].trim();
-        const unit = unitStr.toLowerCase().startsWith('cx') ? 'Cx.' : 'Un.';
-        currentItem = { name: namePart, specs: [namePart], quantity: parseQuantity(rawQty), unit };
-      }
+      currentItem = { name: namePart, specs: [namePart], quantity: parseQuantity(rawQty), unit };
       continue;
     }
 
     // Detect orphaned reference/part-number line following a product item
     // e.g. "FREUD-F03FS05061-000" — standalone alphanumeric code, no spaces or description words
-    // Detect orphaned reference/part-number line following a product item
-    // e.g. "FREUD-F03FS05061-000" — standalone alphanumeric code, no spaces or description words
     const isOrphanRefCode = /^[A-Z][A-Z0-9]{1,15}[-\/][A-Z0-9\-]{3,25}$/i.test(line) && line.split(' ').length <= 2;
-    if (isOrphanRefCode && currentItem) {
+    if (isOrphanRefCode && currentItem && !isRegistrationOrContactLine(line)) {
       currentItem.itemCode = line.trim();
       currentItem.specs.push(line.trim());
       continue;
@@ -459,10 +485,10 @@ export function parseSmartText(text: string): ParsedItem[] {
 
     // If we already have an active item and this line is part of its specifications for search reference
     if (currentItem && currentItem.name) {
-      if (line.length > 2 && !isConversationalLine(line)) {
+      if (line.length > 2 && !isConversationalLine(line) && !isRegistrationOrContactLine(line)) {
         currentItem.specs.push(line);
       }
-    } else if (isLikelyProductStart(line)) {
+    } else if (isLikelyProductStart(line) && !isRegistrationOrContactLine(line)) {
       // Only start an item if the line actually looks like a product (has noun/specs, not greeting or conversational)
       currentItem = {
         name: line.trim(),
@@ -489,17 +515,23 @@ export function parseSmartText(text: string): ParsedItem[] {
     });
   }
 
-  // Final validation: filter out any accidental conversational items
+  // Final validation: filter out any accidental conversational items or contact/CNPJ lines
   const validItems = items.filter(it => {
     const n = it.name.toLowerCase().trim();
     if (n.length < 3) return false;
     if (isConversationalLine(n)) return false;
+    if (isRegistrationOrContactLine(n)) return false;
     if (isTableFooterLine(n)) return false;
+    // Quantity sanity check: reject unreal quantities generated by CNPJ fragments (ex: > 100,000 without keyword)
+    if (it.quantity > 50000 && !/^(parafuso|arruela|rebite|prego|resistor|capacitor|conector)\b/i.test(n)) {
+      return false;
+    }
     return true;
   });
 
   return validItems;
 }
+
 
 
 /**
