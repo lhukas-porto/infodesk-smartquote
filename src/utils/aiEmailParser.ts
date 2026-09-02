@@ -174,7 +174,7 @@ export function parseHtmlTable(html: string): ParsedItem[] {
 
     tables.forEach(table => {
       const rows = Array.from(table.querySelectorAll('tr'));
-      if (rows.length === 0) return;
+      if (rows.length < 2) return; // Need at least header + 1 row
 
       let descColIdx = -1;
       let qtyColIdx = -1;
@@ -185,17 +185,22 @@ export function parseHtmlTable(html: string): ParsedItem[] {
       const headerCells = Array.from(headerRow.querySelectorAll('th, td'));
       headerCells.forEach((cell, idx) => {
         const text = cell.textContent?.toLowerCase().trim() || '';
-        if (text.includes('descri') || text.includes('produto') || text.includes('especifica') || text.includes('material')) {
+        if (text.includes('descri') || text.includes('produto') || text.includes('especifica') || text.includes('material') || text.includes('item')) {
           descColIdx = idx;
         } else if (text.includes('qtd') || text.includes('quant') || text === 'q' || text === 'qt') {
           qtyColIdx = idx;
-        } else if (text.includes('req') || text.includes('item') || text.includes('código') || text.includes('codigo')) {
+        } else if (text.includes('req') || text.includes('código') || text.includes('codigo') || text.includes('ref')) {
           reqColIdx = idx;
         }
       });
 
-      // If headers weren't named, use heuristics based on cell count
-      const dataRows = (descColIdx >= 0 || qtyColIdx >= 0) ? rows.slice(1) : rows;
+      // ONLY parse table if it clearly has a product description column or both quantity + description
+      if (descColIdx < 0 && qtyColIdx < 0) {
+        // Layout table or email template (not a product table) - skip
+        return;
+      }
+
+      const dataRows = rows.slice(1);
 
       dataRows.forEach(row => {
         const cells = Array.from(row.querySelectorAll('td, th'));
@@ -211,19 +216,9 @@ export function parseHtmlTable(html: string): ParsedItem[] {
           if (reqColIdx >= 0 && cells[reqColIdx]) {
             reqCode = cells[reqColIdx].textContent?.trim() || '';
           }
-        } else if (cells.length >= 2) {
-          // Assume longest text is description, numeric is quantity
-          cells.forEach(c => {
-            const txt = c.textContent?.trim() || '';
-            if (txt.match(/^[\d,.\s]+$/) && txt.length < 10) {
-              rawQty = txt;
-            } else if (txt.length > rawDesc.length) {
-              rawDesc = txt;
-            }
-          });
         }
 
-        if (rawDesc && rawDesc.length > 3 && !isHeaderOrMetadata(rawDesc)) {
+        if (rawDesc && rawDesc.length > 3 && !isHeaderOrMetadata(rawDesc) && !isTableFooterLine(rawDesc) && !isConversationalLine(rawDesc)) {
           const lines = rawDesc.split(/\n|<br\s*\/?>/i).map(l => l.trim()).filter(Boolean);
           const name = lines[0] || rawDesc;
           const qty = parseQuantity(rawQty);
@@ -232,7 +227,7 @@ export function parseHtmlTable(html: string): ParsedItem[] {
 
           items.push({
             name: name.slice(0, 100).trim(),
-            description: '', // Full email text is strictly for search reference, not for proposal
+            description: '',
             rawSearchQuery: fullSearchRef,
             quantity: qty,
             unit: 'Un.',
@@ -249,6 +244,7 @@ export function parseHtmlTable(html: string): ParsedItem[] {
     return [];
   }
 }
+
 
 /**
  * Parses multi-line unstructured text, preserving grouped item specs for search reference only.
