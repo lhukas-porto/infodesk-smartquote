@@ -87,12 +87,36 @@ function isHeaderOrMetadata(line: string): boolean {
   return false;
 }
 
+/**
+ * Returns true for lines that represent table footers, signatures or column-header rows
+ * that must NOT be treated as product items.
+ */
+function isTableFooterLine(line: string): boolean {
+  const lower = line.toLowerCase().trim();
+  if (!lower || lower.length < 2) return true;
+  // Footer keywords
+  if (/^total\b/i.test(lower)) return true;
+  if (/^subtotal\b/i.test(lower)) return true;
+  if (/^(atenciosamente|att,?|grato,?|obrigado,?|abraços)/i.test(lower)) return true;
+  // Column-header rows: lines that contain ONLY label words (no description words)
+  if (/^(item|quant\.?|qtd\.?|un\.?|und\.?|vlr\.?|valor|unit\.?|total|descri|discrimin|material|especif)/i.test(lower) &&
+    lower.length < 80 && /^[\w\s.,/]+$/.test(lower)) {
+    // If the line itself looks like a header row (all caps labels)
+    const words = lower.split(/\s+/);
+    const headerWords = ['item', 'quant', 'qtd', 'un', 'und', 'vlr', 'valor', 'unit', 'total', 'descri', 'discrimin', 'material', 'especif'];
+    const matchCount = words.filter(w => headerWords.some(h => w.startsWith(h))).length;
+    if (matchCount >= 2) return true;
+  }
+  return false;
+}
+
 function parseQuantity(rawQty: string): number {
   if (!rawQty) return 1;
   const clean = rawQty.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
   const parsed = parseFloat(clean);
   return isNaN(parsed) || parsed <= 0 ? 1 : Math.round(parsed * 100) / 100;
 }
+
 
 /**
  * Parses HTML tables if present in the email content.
@@ -188,7 +212,117 @@ export function parseHtmlTable(html: string): ParsedItem[] {
  */
 export function parseSmartText(text: string): ParsedItem[] {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const items: ParsedItem[] = [];
+  const items: ParsedItem[] = []
+
+  // ─── TABULAR TEXT FORMAT DETECTOR ─────────────────────────────────────────
+  // Detects emails formatted as plain-text tables like:
+  //   ITEM  QUANT.  UN.  DISCRIMINAÇÃO  VLR. UNIT.  VALOR TOTAL
+  //   1     5       UN.  CADEIRA P/ ARQUIBANCADAS NA COR AZUL   -
+  //
+  // Strategy: look for a header row containing "discrimin" (or "descri" / "material")
+  // alongside "quant" or "qtd" — then parse subsequent data rows.
+  const tableHeaderLineIdx = lines.findIndex(l => {
+    const lower = l.toLowerCase();
+    return (
+      (lower.includes('discrimin') || lower.includes('descri') || lower.includes('especif') || lower.includes('material')) &&
+      (lower.includes('quant') || lower.includes('qtd') || lower.includes('un.') || lower.includes('item'))
+    );
+  });
+
+  if (tableHeaderLineIdx >= 0) {
+    // Parse columns from the header
+    const headerLine = lines[tableHeaderLineIdx].toLowerCase();
+    // Find column keyword positions by splitting on 2+ spaces or tab
+    const headerParts = lines[tableHeaderLineIdx].split(/\s{2,}|\t/).map(p => p.trim());
+
+    // Map column indices
+    let itemColIdx = -1, qtyColIdx = -1, unColIdx = -1, descColIdx = -1;
+    headerParts.forEach((h, idx) => {
+      const hl = h.toLowerCase();
+      if (hl === 'item' || hl === 'nº' || hl === 'n') itemColIdx = idx;
+      else if (hl.startsWith('quant') || hl.startsWith('qtd') || hl === 'q') qtyColIdx = idx;
+      else if (hl === 'un.' || hl === 'un' || hl === 'und' || hl === 'unidade') unColIdx = idx;
+      else if (hl.startsWith('discrimin') || hl.startsWith('descri') || hl.startsWith('material') || hl.startsWith('especif')) descColIdx = idx;
+    });
+    // Fallback if split didn't work well — use regex heuristics on data rows
+    const hasGoodColumns = descColIdx >= 0 || qtyColIdx >= 0;
+
+    const dataLines = lines.slice(tableHeaderLineIdx + 1);
+    for (const line of dataLines) {
+      // Skip footer lines (TOTAL, subtotal, blank rows, signatures)
+      if (isTableFooterLine(line)) continue;
+
+      const parts = line.split(/\s{2,}|\t/).map(p => p.trim());
+      if (parts.length < 2) continue;
+
+      let qty = 1;
+      let unit = 'Un.';
+      let descRaw = '';
+
+      if (hasGoodColumns && parts.length >= 3) {
+        // Use detected column positions
+        if (qtyColIdx >= 0 && parts[qtyColIdx]) qty = parseQuantity(parts[qtyColIdx]);
+        if (unColIdx >= 0 && parts[unColIdx]) {
+          const u = parts[unColIdx].toLowerCase();
+          unit = u.startsWith('cx') ? 'Cx.' : u.startsWith('kg') ? 'Kg' : 'Un.';
+        }
+        if (descColIdx >= 0 && parts[descColIdx]) {
+          descRaw = parts.slice(descColIdx).join(' ');
+        } else {
+          // Take the longest part as description
+          descRaw = parts.reduce((a, b) => (b.length > a.length ? b : a), '');
+        }
+      } else {
+        // Fallback: first numeric = qty, first short alpha = unit, rest = description
+        const firstNumMatch = line.match(/^(\d+)\s+(\d+(?:[.,]\d+)?)\s+(un\.?|cx\.?|kg|pç\.?|pc\.?)\s+(.+)$/i);
+        if (firstNumMatch) {
+          // "1  5  UN.  CADEIRA ..."  format
+          qty = parseQuantity(firstNumMatch[2]);
+          unit = firstNumMatch[3].toLowerCase().startsWith('cx') ? 'Cx.' : 'Un.';
+          descRaw = firstNumMatch[4];
+        } else {
+          descRaw = parts.reduce((a, b) => (b.length > a.length ? b : a), '');
+          const numericParts = parts.filter(p => /^\d+([.,]\d+)?$/.test(p));
+          if (numericParts.length >= 2) qty = parseQuantity(numericParts[1]);
+          else if (numericParts.length === 1) qty = parseQuantity(numericParts[0]);
+        }
+      }
+
+      // Clean up description — remove trailing dashes, prices, asterisks
+      descRaw = descRaw.replace(/\*+/g, '').replace(/\s*[-–]\s*$/, '').replace(/R?\$[\d.,\s]+$/, '').trim();
+      if (!descRaw || descRaw.length < 3) continue;
+      if (isTableFooterLine(descRaw)) continue;
+
+      const fullSearchContext = descRaw;
+      const query = encodeURIComponent(fullSearchContext.slice(0, 200));
+      items.push({
+        name: descRaw.slice(0, 120).trim(),
+        description: '',
+        rawSearchQuery: fullSearchContext,
+        quantity: qty,
+        unit,
+        estimatedCost: 150,
+        sourceUrl: `https://lista.mercadolivre.com.br/${query}`
+      });
+    }
+
+    // If we found items with the table parser, look for follow-up description lines (* description *)
+    // and append them as rawSearchQuery context to the last parsed item
+    if (items.length > 0) {
+      const followUpLines = lines.slice(tableHeaderLineIdx + 1 + items.length);
+      followUpLines.forEach(fl => {
+        const clean = fl.replace(/\*/g, '').trim();
+        if (clean.length > 5 && !isTableFooterLine(clean) && items.length > 0) {
+          const last = items[items.length - 1];
+          if (!last.rawSearchQuery?.includes(clean)) {
+            last.rawSearchQuery = `${last.rawSearchQuery} | ${clean}`;
+          }
+        }
+      });
+      return items;
+    }
+  }
+  // ─── END TABULAR DETECTOR ─────────────────────────────────────────────────
 
   let currentItem: {
     name: string;
@@ -202,6 +336,7 @@ export function parseSmartText(text: string): ParsedItem[] {
     const line = lines[i];
 
     if (isHeaderOrMetadata(line)) continue;
+    if (isTableFooterLine(line)) continue;
 
     const reqCodeMatch = line.match(/(?:código|item|cód|solicitação|ref|part\s*number|código\/referência|referência)[:.\s]+([A-Z0-9\-_]+)/i);
     if (reqCodeMatch && currentItem) {
@@ -222,7 +357,7 @@ export function parseSmartText(text: string): ParsedItem[] {
     }
 
     // Pattern 1: Numbered item list
-    const numberedMatch = line.match(/^(?:item\s*\d+[:.-]?|\d+[\.\)\-])\s*(?:(\d+([.,]\d+)?)\s*(un|unidades?|pçs?|cx|x)?\s*(?:de|da|do)?)?\s*(.+)$/i);
+    const numberedMatch = line.match(/^(?:item\s*\d+[:.‐-]?|\d+[\.\)\-])\s*(?:(\d+([.,]\d+)?)\s*(un|unidades?|pçs?|cx|x)?\s*(?:de|da|do)?)?\s*(.+)$/i);
     
     // Pattern 2: Quantity prefix
     const qtyPrefixMatch = line.match(/^(\d+)\s*(?:\([a-zA-Zà-ÿ\s]+\))?\s*(unidades?|un|peças?|pçs?|cx|caixas?|x)\s*(?:de|da|do)?\s*(.+)$/i);
@@ -234,7 +369,7 @@ export function parseSmartText(text: string): ParsedItem[] {
         const query = encodeURIComponent(`${fullSearchContext} ${currentItem.itemCode || ''}`.slice(0, 200).trim());
         items.push({
           name: currentItem.name,
-          description: '', // Full email text is strictly for search reference, not for proposal
+          description: '',
           rawSearchQuery: fullSearchContext,
           quantity: currentItem.quantity || 1,
           unit: currentItem.unit || 'Un.',
@@ -292,7 +427,7 @@ export function parseSmartText(text: string): ParsedItem[] {
     const query = encodeURIComponent(`${fullSearchContext} ${currentItem.itemCode || ''}`.slice(0, 200).trim());
     items.push({
       name: currentItem.name,
-      description: '', // Full email text is strictly for search reference, not for proposal
+      description: '',
       rawSearchQuery: fullSearchContext,
       quantity: currentItem.quantity || 1,
       unit: currentItem.unit || 'Un.',
@@ -335,6 +470,7 @@ export function extractItemsFromEmailContent(rawTextOrHtml: string): ParsedItem[
 /**
  * Extracts the full company/institution name from email headers, sender, subject and body.
  */
+
 export function extractFullCompanyName(
   senderName: string = '',
   senderCompany: string = '',
