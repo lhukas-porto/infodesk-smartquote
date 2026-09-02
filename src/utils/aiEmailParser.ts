@@ -746,14 +746,46 @@ const knownProductKnowledgeBase: {
 
 /**
  * Searches and standardizes product description, clean Part Number, clean NCM, HD photo, and direct Marketplace links.
+ * Accepts the full rawSearchQuery from the email (e.g. "Caixa de setor... | Tipo: Mecânica | Marca: NAKATA | Código: 10320041S | Aplicação: Kombi 1.4")
  */
 export function resolveProductDetails(nameOrQuery: string, specs?: string): StandardizedProductData {
-  const query = `${nameOrQuery} ${specs || ''}`.toLowerCase();
+  const raw = `${nameOrQuery} ${specs || ''}`;
+  const query = raw.toLowerCase();
 
-  // 1. Check knowledge base
+  // 1. Extract explicit part number / código from the full query (e.g. "Código/Referência: 10320041S")
+  const explicitCodeMatch = raw.match(
+    /(?:código\/referência|código|referência|ref|part\s*number|p\/n|pn|cód)[:\s.]+([A-Za-z0-9\-_]{4,20})/i
+  );
+  const explicitCode = explicitCodeMatch ? explicitCodeMatch[1].trim() : '';
+
+  // 2. If we have an explicit code, try to match against knowledge base by that code first
+  if (explicitCode) {
+    const codeUpper = explicitCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    for (const item of knownProductKnowledgeBase) {
+      const itemPN = item.partNumber.replace(/[^A-Z0-9]/g, '').toUpperCase();
+      if (itemPN === codeUpper || item.keywords.some(k => codeUpper.includes(k.toUpperCase().replace(/[^A-Z0-9]/g, '')))) {
+        return {
+          standardizedName: item.name,
+          partNumber: cleanAlphanumericCode(item.partNumber),
+          ncm: cleanNcmCode(item.ncm),
+          imageUrl: item.imageUrl,
+          category: item.category,
+          estimatedCost: item.cost,
+          supplier: item.supplier,
+          sourceUrl: item.directUrl,
+          candidateListings: item.candidates
+        };
+      }
+    }
+  }
+
+  // 3. Check knowledge base by keyword scoring — use lower threshold for full spec queries
+  const isFullSpecQuery = raw.includes('|') || raw.includes('Tipo:') || raw.includes('Marca') || raw.includes('Aplicação');
+  const matchThreshold = isFullSpecQuery ? 1 : 2;
+
   for (const item of knownProductKnowledgeBase) {
     const matchCount = item.keywords.filter(k => query.includes(k)).length;
-    if (matchCount >= 2) {
+    if (matchCount >= matchThreshold) {
       return {
         standardizedName: item.name,
         partNumber: cleanAlphanumericCode(item.partNumber),
@@ -768,15 +800,18 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string): Stan
     }
   }
 
-  // 2. Dynamic generation for arbitrary product queries
-  const cleanName = nameOrQuery
+  // 4. Dynamic generation for arbitrary product queries
+  const cleanName = (nameOrQuery.split('|')[0])
     .replace(/^item\s*\d*[:\-.]?\s*/i, '')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Try extracting an explicit part number from text if present
-  const pnMatch = query.match(/(?:pn|p\/n|part\s*number|código|ref|referência|modelo)[:\s]*([a-zA-Z0-9\-_]{4,20})/i);
-  let generatedPartNumber = pnMatch ? cleanAlphanumericCode(pnMatch[1]) : '';
+  // Use the explicitly found part number if any, otherwise try to infer
+  let generatedPartNumber = explicitCode ? cleanAlphanumericCode(explicitCode) : '';
+  if (!generatedPartNumber) {
+    const pnMatch = query.match(/(?:pn|p\/n|part\s*number|código|ref|referência|modelo)[:\s]*([a-zA-Z0-9\-_]{4,20})/i);
+    generatedPartNumber = pnMatch ? cleanAlphanumericCode(pnMatch[1]) : '';
+  }
   if (!generatedPartNumber) {
     const cleanToken = cleanName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     generatedPartNumber = cleanToken.slice(0, 10) || `INF${Math.floor(10000 + Math.random() * 90000)}`;
@@ -799,18 +834,18 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string): Stan
       cost = 520.00;
       defaultImage = 'https://http2.mlstatic.com/D_NQ_NP_2X_784534-MLB54942918848_042023-F.webp';
       if (query.includes('kombi')) {
-        generatedPartNumber = '2374150531';
+        generatedPartNumber = generatedPartNumber || '2374150531';
       }
     } else if (query.includes('freio') || query.includes('pastilha') || query.includes('disco')) {
-      ncm = '87083090'; // Freios e suas partes
+      ncm = '87083090';
       cost = 180.00;
       defaultImage = 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=500&auto=format&fit=crop&q=80';
     } else if (query.includes('amortecedor') || query.includes('suspensão')) {
-      ncm = '87088000'; // Suspensão
+      ncm = '87088000';
       cost = 340.00;
       defaultImage = 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=500&auto=format&fit=crop&q=80';
     } else {
-      ncm = '87089990'; // Outras partes de veículos
+      ncm = '87089990';
       cost = 280.00;
       defaultImage = 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=500&auto=format&fit=crop&q=80';
     }
@@ -858,8 +893,10 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string): Stan
     supplier = 'Mercado Livre / Tramontina Store';
   }
 
-  const mlSlug = cleanName.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim().replace(/\s+/g, '-');
-  const directMarketplaceUrl = `https://lista.mercadolivre.com.br/${encodeURIComponent(mlSlug)}#D[A:${encodeURIComponent(cleanName)}]`;
+  // Build a precise Mercado Livre search URL from the clean product name + explicit code
+  const searchTerms = [cleanName, explicitCode].filter(Boolean).join(' ');
+  const mlSlug = searchTerms.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim().replace(/\s+/g, '-');
+  const directMarketplaceUrl = `https://lista.mercadolivre.com.br/${encodeURIComponent(mlSlug)}#D[A:${encodeURIComponent(searchTerms)}]`;
 
   return {
     standardizedName: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),

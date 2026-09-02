@@ -40,3 +40,5 @@ interativa_doc.txt
 *.pyc
 __pycache__/
 generate_svg.py
+
+.vercel
