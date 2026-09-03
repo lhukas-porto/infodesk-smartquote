@@ -1,5 +1,5 @@
 import { IncomingEmail } from '../types';
-import { extractItemsFromEmailContent, extractFullCompanyName, extractDeliveryLocation } from '../utils/aiEmailParser';
+import { extractItemsFromEmailContent, extractFullCompanyName, extractDeliveryLocation, extractContactPhone } from '../utils/aiEmailParser';
 
 declare global {
   interface Window {
@@ -138,9 +138,99 @@ function extractRawHtmlAndText(payload: any): { html: string; text: string } {
   return { html, text };
 }
 
-export const fetchRealGmailMessages = async (accessToken: string): Promise<IncomingEmail[]> => {
-  const query = encodeURIComponent('in:inbox');
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=15`, {
+async function resolveInlineImagesAndHtml(msgId: string, payload: any, accessToken: string): Promise<{ html: string; text: string }> {
+  let { html, text } = extractRawHtmlAndText(payload);
+  if (!html) return { html, text };
+
+  // Find all inline image parts in payload
+  const imageParts: { cid: string; mimeType: string; data?: string; attachmentId?: string }[] = [];
+
+  const findImages = (part: any) => {
+    if (part.mimeType?.startsWith('image/')) {
+      const headers = part.headers || [];
+      const cidHeader = headers.find((h: any) => h.name.toLowerCase() === 'content-id');
+      let cid = cidHeader ? cidHeader.value.replace(/[<>]/g, '').trim() : '';
+      if (!cid && part.filename) {
+        cid = part.filename;
+      }
+      if (cid) {
+        imageParts.push({
+          cid,
+          mimeType: part.mimeType,
+          data: part.body?.data,
+          attachmentId: part.body?.attachmentId
+        });
+      }
+    }
+    if (part.parts && Array.isArray(part.parts)) {
+      part.parts.forEach(findImages);
+    }
+  };
+
+  findImages(payload);
+
+  if (imageParts.length === 0) return { html, text };
+
+  // Resolve data URLs for each image
+  for (const img of imageParts) {
+    let base64Data = '';
+    if (img.data) {
+      base64Data = img.data.replace(/-/g, '+').replace(/_/g, '/');
+    } else if (img.attachmentId) {
+      try {
+        const attRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/attachments/${img.attachmentId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (attRes.ok) {
+          const attJson = await attRes.json();
+          if (attJson.data) {
+            base64Data = attJson.data.replace(/-/g, '+').replace(/_/g, '/');
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching attachment:', e);
+      }
+    }
+
+    if (base64Data) {
+      const dataUrl = `data:${img.mimeType};base64,${base64Data}`;
+      const safeCid = img.cid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const cidRegex = new RegExp(`src=["']cid:${safeCid}["']`, 'gi');
+      html = html.replace(cidRegex, `src="${dataUrl}"`);
+    }
+  }
+
+  return { html, text };
+}
+
+export type EmailPeriodFilter = '3d' | '7d' | '15d' | '30d' | 'all';
+
+export const fetchRealGmailMessages = async (
+  accessToken: string, 
+  period: EmailPeriodFilter = '7d'
+): Promise<IncomingEmail[]> => {
+  let q = 'in:inbox';
+  let maxCount = 25;
+
+  if (period === '3d') {
+    q = 'in:inbox newer_than:3d';
+    maxCount = 25;
+  } else if (period === '7d') {
+    q = 'in:inbox newer_than:7d';
+    maxCount = 35;
+  } else if (period === '15d') {
+    q = 'in:inbox newer_than:15d';
+    maxCount = 50;
+  } else if (period === '30d') {
+    q = 'in:inbox newer_than:30d';
+    maxCount = 75;
+  } else {
+    q = 'in:inbox';
+    maxCount = 30;
+  }
+
+  const query = encodeURIComponent(q);
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=${maxCount}`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
@@ -156,7 +246,7 @@ export const fetchRealGmailMessages = async (accessToken: string): Promise<Incom
   const messageList = data.messages || [];
 
   const detailedMessages = await Promise.all(
-    messageList.slice(0, 10).map(async (msgItem: any) => {
+    messageList.slice(0, Math.min(messageList.length, maxCount)).map(async (msgItem: any) => {
       try {
         const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgItem.id}?format=full`, {
           headers: { Authorization: `Bearer ${accessToken}` }
@@ -175,31 +265,34 @@ export const fetchRealGmailMessages = async (accessToken: string): Promise<Incom
         if (!senderName) senderName = fromRaw;
 
         const emailMatch = fromRaw.match(/<([^>]+)>/);
-        const senderEmail = emailMatch ? emailMatch[1] : fromRaw;
+        const senderEmail = (emailMatch ? emailMatch[1] : fromRaw).toLowerCase().trim();
 
         const subject = subjectHeader ? subjectHeader.value : '(Sem Assunto)';
         const dateStr = dateHeader ? new Date(dateHeader.value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Hoje';
 
-        const { html, text } = extractRawHtmlAndText(msg.payload);
+        const { html, text } = await resolveInlineImagesAndHtml(msg.id, msg.payload, accessToken);
         const bodyContent = text.trim() || msg.snippet || 'Sem conteúdo de texto.';
         const suggestedItems = extractItemsFromEmailContent(html || text || msg.snippet || '');
 
         const senderCompany = extractFullCompanyName(fromRaw, senderEmail, subject, bodyContent);
         const deliveryLocation = extractDeliveryLocation(bodyContent, `${msg.snippet || ''} ${senderCompany}`);
+        const senderPhone = extractContactPhone(html || text || '');
 
         const emailObj: IncomingEmail = {
-          id: msg.id,
-          senderName,
-          senderEmail,
-          senderCompany,
-          deliveryLocation,
-          subject,
-          date: dateStr,
-          snippet: msg.snippet || bodyContent.slice(0, 100),
-          body: bodyContent,
-          unread: msg.labelIds?.includes('UNREAD') ?? false,
+          id: String(msg.id),
+          senderName: String(senderName || 'Cliente / Solicitante'),
+          senderEmail: String(senderEmail || 'cliente@empresa.com.br'),
+          senderCompany: String(senderCompany || 'Empresa / Solicitante'),
+          senderPhone: senderPhone ? String(senderPhone) : '',
+          deliveryLocation: deliveryLocation ? String(deliveryLocation) : 'Brasília - DF',
+          subject: String(subject || '(Sem Assunto)'),
+          date: String(dateStr || 'Hoje'),
+          snippet: String(msg.snippet || bodyContent.slice(0, 100) || ''),
+          body: String(bodyContent || ''),
+          bodyHtml: html ? String(html) : undefined,
+          unread: Boolean(msg.labelIds?.includes('UNREAD')),
           status: 'new',
-          suggestedItems
+          suggestedItems: Array.isArray(suggestedItems) ? suggestedItems : []
         };
 
         return emailObj;
@@ -224,7 +317,7 @@ export const sendRealGmailMessage = async (
   const utf8Subject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(params.subject)))}?=`;
   const messageParts = [
     `From: ${params.from}`,
-    `To: ${params.to}`,
+    `To: ${(params.to || '').toLowerCase().trim()}`,
     `Subject: ${utf8Subject}`,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',

@@ -6,6 +6,9 @@ export interface ParsedItem {
   unit: string;
   estimatedCost?: number;
   itemCode?: string;
+  partNumber?: string;
+  ncm?: string;
+  imageUrl?: string;
   sourceUrl?: string;
 }
 
@@ -119,6 +122,7 @@ function isHeaderOrMetadata(line: string): boolean {
   const lower = line.toLowerCase().trim();
   if (!lower) return true;
   if (['req', 'descrição', 'descricao', 'qtd', 'quant', 'un', 'item', 'cód', 'cod', 'discriminacao', 'discriminação'].includes(lower)) return true;
+  if (/^(convite enviado por|código da cotação|codigo da cotacao|rodada|empresa|cnpj|endereço de entrega|endereco de entrega|endereço de cobrança|endereco de cobranca|contato|email|e-mail|telefone|dados para faturamento|local de entrega)\b/i.test(lower)) return true;
   return isConversationalLine(line) || isRegistrationOrContactLine(line);
 }
 
@@ -181,7 +185,12 @@ function parseQuantity(rawQty: string): number {
 
 
 /**
- * Parses HTML tables if present in the email content.
+ * Enhanced HTML Table Parser supporting complex quotation tables:
+ * - Multi-level headers (e.g. MATERIAL/SERVIÇO spanning top, sub-headers below)
+ * - Headers: REQ, ITEM, TEXTO BREVE, DESCRIÇÃO TÉCNICA, MARCA, MODELO, QNTD/QUANTIDADE
+ * - Sub-rows for Observações / Especificações Técnicas attached to the main item
+ * - Inline product images (<img> tags)
+ * - Table footer filtering (notes like "A marca pode ser substituída...")
  */
 export function parseHtmlTable(html: string): ParsedItem[] {
   try {
@@ -193,68 +202,296 @@ export function parseHtmlTable(html: string): ParsedItem[] {
 
     tables.forEach(table => {
       const rows = Array.from(table.querySelectorAll('tr'));
-      if (rows.length < 2) return; // Need at least header + 1 row
+      if (rows.length < 2) return;
 
-      let descColIdx = -1;
-      let qtyColIdx = -1;
-      let reqColIdx = -1;
-
-      // Find headers
-      const headerRow = rows[0];
-      const headerCells = Array.from(headerRow.querySelectorAll('th, td'));
-      headerCells.forEach((cell, idx) => {
-        const text = cell.textContent?.toLowerCase().trim() || '';
-        if (text.includes('descri') || text.includes('produto') || text.includes('especifica') || text.includes('material') || text.includes('item')) {
-          descColIdx = idx;
-        } else if (text.includes('qtd') || text.includes('quant') || text === 'q' || text === 'qt') {
-          qtyColIdx = idx;
-        } else if (text.includes('req') || text.includes('código') || text.includes('codigo') || text.includes('ref')) {
-          reqColIdx = idx;
-        }
+      // 0. Check if table is a 2-column Key-Value Form / Portal Notification (e.g. CONVITE ENVIADO POR)
+      // where column 0 has labels (Empresa, CNPJ, Endereço, Contato, Itens da Cotação, etc.)
+      const isKeyValueCard = rows.some(r => {
+        const firstCell = r.querySelector('th, td')?.textContent?.toLowerCase().trim() || '';
+        return (
+          firstCell.includes('itens da cotação') || 
+          firstCell.includes('itens da cotacao') || 
+          firstCell.includes('itens do pedido') ||
+          firstCell.includes('itens solicitados') ||
+          firstCell.includes('itens da proposta')
+        );
       });
 
-      // ONLY parse table if it clearly has a product description column or both quantity + description
-      if (descColIdx < 0 && qtyColIdx < 0) {
-        // Layout table or email template (not a product table) - skip
+      if (isKeyValueCard) {
+        rows.forEach(r => {
+          const cells = Array.from(r.querySelectorAll('th, td'));
+          if (cells.length >= 2) {
+            const label = cells[0].textContent?.toLowerCase().trim() || '';
+            if (
+              label.includes('itens da cotação') || 
+              label.includes('itens da cotacao') || 
+              label.includes('itens do pedido') || 
+              label.includes('itens solicitados') ||
+              label.includes('itens da proposta')
+            ) {
+              // The items are located strictly in cells[1]!
+              const valueCell = cells[1];
+              if (valueCell.querySelector('table')) {
+                const subTableItems = parseHtmlTable(valueCell.innerHTML);
+                items.push(...subTableItems);
+              } else {
+                const textContent = valueCell.textContent?.trim() || '';
+                const extracted = parseSmartText(textContent);
+                if (extracted.length > 0) {
+                  items.push(...extracted);
+                } else if (textContent.length > 3) {
+                  const match = textContent.match(/^(\d+(?:[.,]\d+)?)\s*([a-zA-Z]{1,5})\s*[-–]\s*(.+)$/);
+                  if (match) {
+                    items.push({
+                      name: match[3].trim(),
+                      description: '',
+                      rawSearchQuery: match[3].trim(),
+                      quantity: parseQuantity(match[1]),
+                      unit: match[2].toUpperCase().startsWith('CX') ? 'Cx.' : 'Un.',
+                      estimatedCost: 150,
+                      sourceUrl: `https://lista.mercadolivre.com.br/${encodeURIComponent(match[3].trim())}`
+                    });
+                  }
+                }
+              }
+            }
+          }
+        });
         return;
       }
 
-      const dataRows = rows.slice(1);
+      // 1. Identify Header Row (look in the first 4 rows for the row with most column indicators)
+      let headerRowIdx = -1;
+      let bestScore = 0;
+
+      for (let r = 0; r < Math.min(rows.length, 4); r++) {
+        const cells = Array.from(rows[r].querySelectorAll('th, td'));
+        let score = 0;
+        cells.forEach(c => {
+          const t = c.textContent?.toLowerCase().trim() || '';
+          if (/\b(qntd|qtd|quant|quantidade)\b/i.test(t)) score += 3;
+          if (/\b(texto breve|item\s*\(material\)|descri[çc][aã]o|especifica[çc][aã]o|discrimin|material|produto)\b/i.test(t)) score += 3;
+          if (/\b(marca|fabricante|origem)\b/i.test(t)) score += 2;
+          if (/\b(modelo|model|ref|req|c[oó]digo)\b/i.test(t)) score += 2;
+          if (t === 'item' || t === 'un' || t === 'und') score += 1;
+        });
+
+        if (score > bestScore) {
+          bestScore = score;
+          headerRowIdx = r;
+        }
+      }
+
+      if (headerRowIdx === -1 || bestScore < 3) {
+        // Not a standard product table
+        return;
+      }
+
+      // 2. Map Column Indices from the identified Header Row
+      const headerCells = Array.from(rows[headerRowIdx].querySelectorAll('th, td'));
+      let qtyColIdx = -1;
+      let unitColIdx = -1;
+      let shortNameColIdx = -1;
+      let descColIdx = -1;
+      let brandColIdx = -1;
+      let modelColIdx = -1;
+      let reqColIdx = -1;
+      let itemNumColIdx = -1;
+
+      headerCells.forEach((cell, idx) => {
+        const text = cell.textContent?.toLowerCase().trim() || '';
+        
+        if (/\b(qntd|qtd|quant|quantidade)\b/i.test(text)) {
+          qtyColIdx = idx;
+        } else if (/\b(und|unidade)\b/i.test(text) || text === 'un') {
+          unitColIdx = idx;
+        } else if (/\b(texto breve|item\s*\(material\)|material|produto)\b/i.test(text)) {
+          shortNameColIdx = idx;
+        } else if (/\b(descri[çc][aã]o|especifica[çc][aã]o|especifica[çc][oõ]es|detalhes|discrimin)\b/i.test(text)) {
+          descColIdx = idx;
+        } else if (/\b(marca|fabricante|marca\/origem|marca\/fabricante)\b/i.test(text)) {
+          brandColIdx = idx;
+        } else if (/\b(modelo|model)\b/i.test(text)) {
+          modelColIdx = idx;
+        } else if (/\b(req|c[oó]digo|codigo|ref|refer[eê]ncia|part\s*number|p\/n|pn)\b/i.test(text)) {
+          reqColIdx = idx;
+        } else if (text === 'item' || text === 'nº' || text === 'n') {
+          // If next rows have "UND", "UN", this column is unit; otherwise item number
+          itemNumColIdx = idx;
+        }
+      });
+
+      // If unit column wasn't explicitly named but itemNum column exists and first data row has "UND"/"UN", assign unitColIdx
+      const firstDataRow = rows[headerRowIdx + 1];
+      if (firstDataRow && itemNumColIdx >= 0 && unitColIdx < 0) {
+        const sampleCellText = firstDataRow.querySelectorAll('td, th')[itemNumColIdx]?.textContent?.trim().toUpperCase() || '';
+        if (['UND', 'UN', 'PC', 'PÇ', 'CX', 'KG', 'M', 'LT'].includes(sampleCellText)) {
+          unitColIdx = itemNumColIdx;
+          itemNumColIdx = -1;
+        }
+      }
+
+      // If no separate shortName column, let descCol serve as name
+      if (shortNameColIdx < 0 && descColIdx >= 0) {
+        shortNameColIdx = descColIdx;
+      } else if (descColIdx < 0 && shortNameColIdx >= 0) {
+        descColIdx = shortNameColIdx;
+      }
+
+      // If neither was identified, check if there are at least 2 columns
+      if (shortNameColIdx < 0 && descColIdx < 0) {
+        // Fallback: use first non-qty column
+        headerCells.forEach((_, idx) => {
+          if (idx !== qtyColIdx && shortNameColIdx < 0) {
+            shortNameColIdx = idx;
+            descColIdx = idx;
+          }
+        });
+      }
+
+      if (shortNameColIdx < 0 && qtyColIdx < 0) return;
+
+      // 3. Process Data Rows
+      const dataRows = rows.slice(headerRowIdx + 1);
+      let lastItem: ParsedItem | null = null;
 
       dataRows.forEach(row => {
         const cells = Array.from(row.querySelectorAll('td, th'));
         if (cells.length === 0) return;
 
-        let rawDesc = '';
-        let rawQty = '';
-        let reqCode = '';
+        const fullRowText = cells.map(c => c.textContent?.trim() || '').join(' ').trim();
+        const fullRowLower = fullRowText.toLowerCase();
 
-        if (descColIdx >= 0 && cells[descColIdx]) {
-          rawDesc = cells[descColIdx].textContent?.trim() || '';
-          rawQty = qtyColIdx >= 0 && cells[qtyColIdx] ? cells[qtyColIdx].textContent?.trim() || '1' : '1';
-          if (reqColIdx >= 0 && cells[reqColIdx]) {
-            reqCode = cells[reqColIdx].textContent?.trim() || '';
+        // 3a. Ignore table footer or generic condition lines
+        if (
+          fullRowLower.includes('a marca pode ser substituída') ||
+          fullRowLower.includes('marca pode ser substituida') ||
+          fullRowLower.startsWith('total') ||
+          fullRowLower.startsWith('subtotal') ||
+          fullRowLower.includes('condições de pagamento') ||
+          fullRowLower.includes('prazo de entrega')
+        ) {
+          return;
+        }
+
+        // 3b. Check for Observation / Sub-specs row attached to the previous item
+        // e.g. Left cell: "Observações" and Right cell: technical specs
+        const firstCellText = cells[0]?.textContent?.trim().toLowerCase() || '';
+        const isObsRow = (
+          firstCellText.includes('observa') ||
+          firstCellText.includes('especifica') ||
+          firstCellText.includes('detalhes') ||
+          (cells.length <= 2 && (fullRowLower.includes('especificações técnicas') || fullRowLower.includes('especificacoes tecnicas') || fullRowLower.includes('frequência:')))
+        );
+
+        if (isObsRow && lastItem) {
+          const obsContent = cells.slice(cells.length > 1 ? 1 : 0).map(c => c.textContent?.trim() || '').filter(Boolean).join('\n');
+          if (obsContent) {
+            lastItem.description = lastItem.description ? `${lastItem.description}\n${obsContent}` : obsContent;
+            lastItem.rawSearchQuery = `${lastItem.rawSearchQuery} | ${obsContent.replace(/\s+/g, ' ')}`;
+            // Extract potential part number / code from observations (e.g. "D026319", "SN: 300-01384")
+            const subCodeMatch = obsContent.match(/\b([A-Z0-9]{5,15})\b/);
+            if (subCodeMatch && !lastItem.itemCode) {
+              lastItem.itemCode = subCodeMatch[1];
+            }
           }
+          return;
         }
 
-        if (rawDesc && rawDesc.length > 3 && !isHeaderOrMetadata(rawDesc) && !isTableFooterLine(rawDesc) && !isConversationalLine(rawDesc)) {
-          const lines = rawDesc.split(/\n|<br\s*\/?>/i).map(l => l.trim()).filter(Boolean);
-          const name = lines[0] || rawDesc;
-          const qty = parseQuantity(rawQty);
-          const fullSearchRef = [name, reqCode, ...lines.slice(1)].filter(Boolean).join(' - ');
-          const searchQuery = encodeURIComponent(`${fullSearchRef}`.slice(0, 150).trim());
+        // 3c. Extract fields from regular item row
+        let rawQty = qtyColIdx >= 0 && cells[qtyColIdx] ? cells[qtyColIdx].textContent?.trim() || '1' : '1';
+        let rawUnit = unitColIdx >= 0 && cells[unitColIdx] ? cells[unitColIdx].textContent?.trim() || 'Un.' : 'Un.';
+        let rawShortName = shortNameColIdx >= 0 && cells[shortNameColIdx] ? cells[shortNameColIdx].textContent?.trim() || '' : '';
+        let rawDesc = descColIdx >= 0 && cells[descColIdx] ? cells[descColIdx].textContent?.trim() || '' : '';
+        let rawBrand = brandColIdx >= 0 && cells[brandColIdx] ? cells[brandColIdx].textContent?.trim() || '' : '';
+        let rawModel = modelColIdx >= 0 && cells[modelColIdx] ? cells[modelColIdx].textContent?.trim() || '' : '';
+        let reqCode = reqColIdx >= 0 && cells[reqColIdx] ? cells[reqColIdx].textContent?.trim() || '' : '';
 
-          items.push({
-            name: name.slice(0, 100).trim(),
-            description: '',
-            rawSearchQuery: fullSearchRef,
-            quantity: qty,
-            unit: 'Un.',
-            itemCode: reqCode || undefined,
-            estimatedCost: 150,
-            sourceUrl: `https://www.google.com/search?q=${searchQuery}`
-          });
+        // Extract inline image if present (ignore broken or internal cid: URLs)
+        const imgElem = row.querySelector('img');
+        let inlineImageUrl: string | undefined = imgElem?.getAttribute('src') || undefined;
+        if (inlineImageUrl && (inlineImageUrl.startsWith('cid:') || (!inlineImageUrl.startsWith('http') && !inlineImageUrl.startsWith('data:')))) {
+          inlineImageUrl = undefined;
         }
+
+        // Clean up multi-line descriptions inside a single cell (e.g. Kombi example)
+        let detailedLines: string[] = [];
+        if (rawDesc) {
+          detailedLines = rawDesc.split(/\n|<br\s*\/?>/i).map(l => l.trim()).filter(Boolean);
+        }
+
+        // If no shortName was provided, use the first line of the detailed description
+        let mainName = rawShortName || detailedLines[0] || rawDesc;
+
+        // Skip invalid or conversational rows
+        if (!mainName || mainName.length < 3 || isHeaderOrMetadata(mainName) || isConversationalLine(mainName)) {
+          return;
+        }
+
+        // Clean up brand if it includes label "Marca: X"
+        if (rawBrand) {
+          rawBrand = rawBrand.replace(/^marca[:\s]*/i, '').trim();
+        }
+        if (rawModel) {
+          rawModel = rawModel.replace(/^modelo[:\s]*/i, '').trim();
+        }
+
+        // If brand/model were not separate columns, extract from multiline specs if present
+        if (!rawBrand) {
+          const brandMatch = rawDesc.match(/(?:marca|marca\/origem|fabricante)[:\s]+([^\n\r,;]+)/i);
+          if (brandMatch) rawBrand = brandMatch[1].trim();
+        }
+        if (!reqCode) {
+          const codeMatch = rawDesc.match(/(?:código\/referência|código|referência|ref|cód)[:\s.]+([A-Za-z0-9\-_.]+)/i);
+          if (codeMatch) reqCode = codeMatch[1].trim();
+        }
+
+        // Format clean standardized product name
+        let formattedName = mainName;
+        if (rawBrand && !formattedName.toLowerCase().includes(rawBrand.toLowerCase())) {
+          formattedName = `${formattedName} - ${rawBrand}`;
+        }
+        if (rawModel && !formattedName.toLowerCase().includes(rawModel.toLowerCase())) {
+          formattedName = `${formattedName} (${rawModel})`;
+        }
+
+        // Normalize unit
+        const u = rawUnit.toUpperCase();
+        let normalizedUnit = 'Un.';
+        if (u.includes('CX') || u.includes('CAIXA')) normalizedUnit = 'Cx.';
+        else if (u.includes('KG')) normalizedUnit = 'Kg';
+        else if (u.includes('LT') || u.includes('LITRO')) normalizedUnit = 'Lt.';
+        else if (u.includes('MT') || u.includes('METRO')) normalizedUnit = 'M';
+        else if (u.includes('PAR')) normalizedUnit = 'Par';
+        else if (u.includes('KIT')) normalizedUnit = 'Kit';
+
+        const qty = parseQuantity(rawQty);
+
+        // Build comprehensive search query preserving all technical keywords
+        const searchParts = [
+          formattedName,
+          reqCode,
+          rawBrand,
+          rawModel,
+          ...detailedLines.slice(1)
+        ].filter(Boolean);
+        const fullSearchRef = Array.from(new Set(searchParts)).join(' - ');
+        const searchQuery = encodeURIComponent(fullSearchRef.slice(0, 180).trim());
+
+        const parsedItem: ParsedItem = {
+          name: formattedName.slice(0, 120).trim(),
+          description: rawDesc !== mainName ? rawDesc : '',
+          rawSearchQuery: fullSearchRef,
+          quantity: qty,
+          unit: normalizedUnit,
+          itemCode: reqCode || undefined,
+          imageUrl: inlineImageUrl,
+          estimatedCost: 150,
+          sourceUrl: `https://www.google.com/search?q=${searchQuery}`
+        };
+
+        items.push(parsedItem);
+        lastItem = parsedItem;
       });
     });
 
@@ -391,7 +628,13 @@ export function parseSmartText(text: string): ParsedItem[] {
   } | null = null;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    let line = lines[i];
+
+    // If line starts with "Itens da Cotação: 2 UN..." or similar, strip prefix to parse the product
+    const itemsHeaderMatch = line.match(/^(?:itens\s+da\s+cota[çc][aã]o|itens\s+do\s+pedido|itens\s+solicitados|itens\s+da\s+proposta)[:\s-]+(.+)$/i);
+    if (itemsHeaderMatch) {
+      line = itemsHeaderMatch[1].trim();
+    }
 
     if (isHeaderOrMetadata(line)) continue;
     if (isTableFooterLine(line)) continue;
@@ -584,26 +827,111 @@ export function extractFullCompanyName(
   subject: string = '',
   body: string = ''
 ): string {
+  // 1. Procurar nome de empresa entre colchetes no Assunto (padrão muito comum em portais corporativos)
+  // Exemplo: Cotação-[018808][CONDOMINIO DO CONJUNTO COMERCIAL BRASILIA SHOPPING AND TOWERS]
+  if (subject) {
+    const bracketMatches = Array.from(subject.matchAll(/\[([A-Za-zÀ-ÿ0-9\s.\-&/]{4,90})\]/g));
+    for (const bMatch of bracketMatches) {
+      const candidate = bMatch[1].trim();
+      // Descartar se for puramente números (ex: [018808]) ou tags de assunto gerais
+      if (
+        !/^\d+$/.test(candidate) && 
+        !/^(cotação|cotacao|urgente|proposta|solicitação|pedido|sp|df|mg|rj|compras)$/i.test(candidate)
+      ) {
+        return candidate;
+      }
+    }
+  }
+
+  // 2. Procurar em tabelas estruturadas de convite/portal no corpo do e-mail
+  // Exemplo: "Empresa: CONDOMINIO DO CONJUNTO COMERCIAL BRASILIA SHOPPING AND TOWERS"
+  if (body) {
+    const tableMatch = body.match(/(?:^|[\r\n\t])\s*(?:empresa|cliente|raz[aã]o\s+social|institui[çc][aã]o)\s*[:\t]+\s*([A-Za-zÀ-ÿ0-9\s.\-&/]{4,90})/i);
+    if (tableMatch) {
+      let candidate = tableMatch[1].trim();
+      candidate = candidate.split(/\b(?:cnpj|endere[çc]o|contato|telefone|inscri[çc][aã]o|c[oó]digo|rodada)\b/i)[0].trim();
+      if (
+        candidate.length >= 4 &&
+        !/^(foi convidada|solicita|gostaria|favor|prezado|informamos|acesso|portal|sua empresa)/i.test(candidate) &&
+        !/^(solicitante|comprador|compras|empresa|cliente)$/i.test(candidate)
+      ) {
+        return candidate;
+      }
+    }
+  }
+
   const fullText = `${senderCompany} ${senderName} ${subject} ${body}`;
 
-  // 1. Look for explicit institutional names
-  const explicitMatch = fullText.match(/(?:Centro Universit[aá]rio|Universidade|Faculdade|Col[eé]gio|Hospital|Fundação|Instituto|Prefeitura|Secretaria|Tribunal|Minist[eé]rio|C[aâ]mara|Associação|Empresa|Ind[uú]stria|Com[eé]rcio|Distribuidora|Transportadora)\s+[A-Za-zÀ-ÿ0-9\s.\-]{3,60}/i);
+  // 3. Verificar empresas conhecidas ou condomínios expressos
+  const knownCompanies = [
+    { name: 'Iate Clube de Brasília', keywords: ['iate clube', 'iatebsb', 'iate de brasilia'] },
+    { name: 'Universidade Brasileira de Educação Católica - UBEC', keywords: ['ubec', 'educação católica', 'catolica de brasilia', 'unileste', 'catolica de santa catarina'] },
+    { name: 'Casa Shopping Paulo Octávio', keywords: ['paulo octávio', 'paulo octavio', 'pauloctavio', 'casa shopping'] },
+    { name: 'CNC — Confederação Nacional do Comércio', keywords: ['cnc', 'confederação nacional do comércio', 'confederacao nacional do comercio'] },
+    { name: 'Inframerica Concessionária do Aeroporto de Brasília', keywords: ['inframerica', 'aeroporto de brasília', 'aeroporto de brasilia'] },
+    { name: 'Condomínio Shopping Terraço', keywords: ['terraço shopping', 'terraco shopping'] }
+  ];
+
+  const lower = fullText.toLowerCase();
+  for (const comp of knownCompanies) {
+    if (comp.keywords.some(k => lower.includes(k))) {
+      return comp.name;
+    }
+  }
+
+  // 4. Procurar nomes que comecem com CONDOMÍNIO / SHOPPING no texto
+  const condoMatch = fullText.match(/\b(CONDOM[IÍ]NIO\s+[A-ZÀ-ÿ0-9\s.\-&/]{6,70})\b/i);
+  if (condoMatch) {
+    const c = condoMatch[1].trim().replace(/[\n\r]+/g, ' ');
+    if (c.length >= 10 && !c.toLowerCase().includes('foi convidada')) return c;
+  }
+
+  // 5. Procurar nomes institucionais explícitos (Universidades, Clubes, Hospitais, Fundações, etc.)
+  const explicitMatch = fullText.match(/(?:Centro Universit[aá]rio|Universidade|Faculdade|Col[eé]gio|Hospital|Fundação|Instituto|Prefeitura|Secretaria|Tribunal|Minist[eé]rio|C[aâ]mara|Associação|Ind[uú]stria|Com[eé]rcio|Distribuidora|Transportadora|Iate\s+Clube|Clube|Country\s+Club|Sindicato|Federa[çc][aã]o|Confedera[çc][aã]o|Conselho|Ordem|SESC|SENAC|SESI|SENAI)\s+[A-Za-zÀ-ÿ0-9\s.\-]{3,60}/i);
   if (explicitMatch) {
-    const cleaned = explicitMatch[0].trim().replace(/[\n\r]+/g, ' ');
-    if (cleaned.length > 8) return cleaned;
+    let cleaned = explicitMatch[0].trim().replace(/[\n\r]+/g, ' ');
+    // Se no assunto colou o nome do comprador após hífen (ex: "IATE CLUBE DE BRASÍLIA - DANIEL"):
+    cleaned = cleaned.split(/\s*[-—]\s*(?:sr\.|sra\.|contato|comprador|[A-Z][a-z]+|[A-Z]{3,})/)[0].trim();
+    if (cleaned.length > 5 && !/^(solicita|or[çc]amento|urgente|cota[çc][aã]o)/i.test(cleaned)) {
+      return cleaned;
+    }
   }
 
-  // 2. Look for CNPJ or corporate suffix
-  const corpMatch = fullText.match(/([A-ZÀ-ÿ0-9\s.\-&]{4,50}\s*(?:LTDA|S\/A|S\.A\.|ME|EPP|EIRELI))/i);
+  // 6. Procurar rótulo explícito "Empresa:", "Cliente:" que EXIJA dois pontos ou tab (NÃO espaço solto!)
+  const labelMatch = fullText.match(/(?:empresa|cliente|raz[aã]o\s+social|institui[çc][aã]o)[:\t]+\s*([A-Za-zÀ-ÿ0-9\s.\-&]{3,70})/i);
+  if (labelMatch) {
+    let candidate = labelMatch[1].trim();
+    candidate = candidate.split(/\b(?:cnpj|endere[çc]o|contato|telefone|inscri[çc][aã]o|c[oó]digo|rodada)\b/i)[0].trim();
+    if (
+      candidate.length >= 3 && 
+      !/^(foi convidada|solicita|gostaria|favor|prezado|informamos|acesso|portal|sua empresa)/i.test(candidate) &&
+      !/^(solicitante|comprador|compras|empresa|cliente)$/i.test(candidate)
+    ) {
+      return candidate;
+    }
+  }
+
+  // 7. Procurar sufixo societário (LTDA, S/A, ME, EPP, EIRELI) com limites estritos de palavra \b
+  // ATENÇÃO: É terminantemente proibido casar com letras soltas sem limite de palavra (para não casar com "ORÇAMENTO" ou "daniel.melo")
+  const corpMatch = fullText.match(/\b([A-ZÀ-ÿ0-9\s.&]{4,50}\s+\b(?:LTDA|S\/A|S\.A\.|ME|EPP|EIRELI)\b)/i);
   if (corpMatch) {
-    return corpMatch[1].trim().replace(/[\n\r]+/g, ' ');
+    const candidate = corpMatch[1].trim().replace(/[\n\r]+/g, ' ');
+    if (
+      !/^(solicita|or[çc]amento|urgente|cota[çc][aã]o|pedido|proposta|prezado)/i.test(candidate) &&
+      !candidate.toLowerCase().includes('solicita') &&
+      !candidate.toLowerCase().includes('orçamento') &&
+      !candidate.toLowerCase().includes('orcamento')
+    ) {
+      return candidate;
+    }
   }
 
-  if (senderCompany && senderCompany.length > 3 && !senderCompany.includes('@')) {
+  if (senderCompany && senderCompany.length > 3 && !senderCompany.includes('@') && !senderCompany.toLowerCase().includes('solicitante')) {
     return senderCompany;
   }
 
-  return senderName || 'Empresa / Solicitante';
+  // Se não encontrou, NUNCA inventar: retorna vazio!
+  return '';
 }
 
 /**
@@ -623,6 +951,8 @@ export function extractDeliveryLocation(emailBody: string = '', fullEmailContext
 
   const knownCities = [
     { city: 'Coronel Fabriciano - MG', keywords: ['coronel fabriciano', 'fabriciano', 'ipatinga', 'timoteo', 'timóteo', 'vale do aço', 'leste de minas'] },
+    { city: 'Joinville - SC', keywords: ['joinville', 'joinvile', 'santa catarina', 'sc '] },
+    { city: 'Itabira - MG', keywords: ['itabira'] },
     { city: 'Belo Horizonte - MG', keywords: ['belo horizonte', 'bh ', 'contagem', 'betim'] },
     { city: 'Brasília - DF', keywords: ['brasília', 'brasilia', 'distrito federal', ' df', 'asa norte', 'asa sul', 'taguatinga'] },
     { city: 'Goiânia - GO', keywords: ['goiânia', 'goiania', 'aparecida de goiânia', ' anapolis', 'anápolis'] },
@@ -797,6 +1127,149 @@ const knownProductKnowledgeBase: {
   directUrl: string;
   candidates?: ProductCandidateListing[];
 }[] = [
+  {
+    keywords: ['sacola', 'plastica', 'plástica', '25x35', '1000'],
+    name: 'Sacola Plástica Alça Camiseta 25x35cm Branca (Pacote com 1000 Unidades)',
+    partNumber: 'SAC-2535-1000',
+    ncm: '39232190',
+    imageUrl: 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=500&auto=format&fit=crop&q=80',
+    category: 'Embalagens & Descartáveis',
+    cost: 48.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['carbon block', 'frisbel', '4.1/2', 'filtro', '127815'],
+    name: 'Refil Elemento Filtrante Carbon Block 4.1/2" Compatível Frisbel',
+    partNumber: '127815',
+    ncm: '84212100',
+    imageUrl: '/carbon-block-frisbel.jpg',
+    category: 'Filtros & Purificadores',
+    cost: 32.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['torneira boia', '1.1/2', 'caixa de água', 'caixa de agua', '127936'],
+    name: 'Torneira Boia 1.1/2 Polegada para Caixa de Água Alta Vazão',
+    partNumber: '127936',
+    ncm: '84818099',
+    imageUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&auto=format&fit=crop&q=80',
+    category: 'Hidráulica',
+    cost: 65.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['base de corte', 'brw', 'dupla face a3', '127956'],
+    name: 'Base de Corte Dupla Face A3 45x30cm BRW',
+    partNumber: '127956',
+    ncm: '39269090',
+    imageUrl: 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=500&auto=format&fit=crop&q=80',
+    category: 'Papelaria & Escritório',
+    cost: 42.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['antena', 'panorama', 'ebf-s4-5bl', 'd026319', 'rádio', 'radio', 'antenas'],
+    name: 'Antena Móvel Panorama Antennas EBF-S4-5BL 450-470 MHz BNC Macho',
+    partNumber: 'EBF-S4-5BL',
+    ncm: '85177110',
+    imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&auto=format&fit=crop&q=80',
+    category: 'Radiocomunicação & Antenas',
+    cost: 280.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['sepura', '300-01384', '30001384', 'sc2020', 'sc2021', 'cabo usb'],
+    name: 'Cabo de Programação USB Sepura para Rádio SC2020 / SC2021 (300-01384)',
+    partNumber: '30001384',
+    ncm: '85444200',
+    imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&auto=format&fit=crop&q=80',
+    category: 'Cabos & Conectores',
+    cost: 350.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['motorola', 'moto g35', 'g35', 'smartphone'],
+    name: 'Smartphone Motorola Moto G35 5G 128GB 4GB RAM',
+    partNumber: 'MOTOG35',
+    ncm: '85171300',
+    imageUrl: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=500&auto=format&fit=crop&q=80',
+    category: 'Smartphones & Celulares',
+    cost: 890.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['samsung', 'galaxy tab', 'tab a11', 'tab a9', 'tablet', 'sansung'],
+    name: 'Tablet Samsung Galaxy Tab A9/A11 64GB 4GB RAM Wi-Fi 8.7"',
+    partNumber: 'SMX110',
+    ncm: '84713012',
+    imageUrl: 'https://images.unsplash.com/photo-1561154464-82e9adf32764?w=500&auto=format&fit=crop&q=80',
+    category: 'Tablets',
+    cost: 780.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['rotulador', 'pt80', 'brother', 'eletrônico', 'pt-80'],
+    name: 'Rotulador Eletrônico Portátil Brother PT80 Azul',
+    partNumber: 'PT80',
+    ncm: '84433299',
+    imageUrl: 'https://m.media-amazon.com/images/I/71YyM5nZ0NL._AC_SL1500_.jpg',
+    category: 'Identificação & Rotuladores',
+    cost: 180.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['refil', 'filtro', 'cix08ax', 'consul', 'purificador'],
+    name: 'Refil Filtro Purificador de Água Consul CIX08AX',
+    partNumber: 'CIX08AX',
+    ncm: '84212100',
+    imageUrl: 'https://images.unsplash.com/photo-1585837575652-267c041d77d4?w=500&auto=format&fit=crop&q=80',
+    category: 'Filtros & Purificadores',
+    cost: 89.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['escada', 'aluminio', 'alumínio', 'degraus', '120kg'],
+    name: 'Escada de Alumínio Doméstica Reforçada 120kg',
+    partNumber: 'ESC-ALUM',
+    ncm: '76169900',
+    imageUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=500&auto=format&fit=crop&q=80',
+    category: 'Ferramentas & Acesso',
+    cost: 140.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['relogio', 'relógio', 'parede', 'redondo'],
+    name: 'Relógio de Parede Redondo Silencioso Fundo Branco 30cm',
+    partNumber: 'REL-PAR',
+    ncm: '91052100',
+    imageUrl: 'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?w=500&auto=format&fit=crop&q=80',
+    category: 'Utilidades & Escritório',
+    cost: 45.00,
+    supplier: '',
+    directUrl: ''
+  },
+  {
+    keywords: ['post-it', 'post it', '3m', 'hb004657233', 'bloco de notas'],
+    name: 'Bloco de Notas Adesivas Post-it 3M 76x76mm 540 folhas Multicor (HB004657233)',
+    partNumber: 'HB004657233',
+    ncm: '48201000',
+    imageUrl: 'https://m.media-amazon.com/images/I/71wLp8n-2lL._AC_SL1500_.jpg',
+    category: 'Papelaria & Escritório',
+    cost: 28.50,
+    supplier: '',
+    directUrl: ''
+  },
   {
     keywords: ['kombi', '10320041s', 'nakata', 'setor', 'direcao', 'direção'],
     name: 'Caixa de Setor de Direção Mecânica Nakata 10320041S Kombi 1.4 Flex (2006 a 2014) Peça Completa',
@@ -987,19 +1460,158 @@ const knownProductKnowledgeBase: {
   }
 ];
 
+export function isExactProductUrl(url?: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.toLowerCase().trim();
+  if (!lower.startsWith('http://') && !lower.startsWith('https://')) return false;
+  if (lower.includes('lista.mercadolivre.com.br')) return false;
+  if (lower.includes('google.com') || lower.includes('google.com.br')) return false;
+  if (lower.includes('amazon.com.br/s') || lower.includes('amazon.com/s')) return false;
+  if (lower.includes('/busca') || lower.includes('/search') || lower.includes('search?') || lower.includes('query=') || lower.includes('#d[a:')) return false;
+  return true;
+}
+
+export function extractStoreNameFromUrl(url?: string): string {
+  if (!url) return '';
+  try {
+    const domain = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+    if (domain.includes('mercadolivre')) return 'Mercado Livre';
+    if (domain.includes('kabum')) return 'KaBuM!';
+    if (domain.includes('amazon')) return 'Amazon';
+    if (domain.includes('magazineluiza') || domain.includes('magalu')) return 'Magazine Luiza';
+    if (domain.includes('dell')) return 'Dell Brasil';
+    if (domain.includes('pichau')) return 'Pichau';
+    if (domain.includes('terabyteshop')) return 'Terabyte';
+    if (domain.includes('kalunga')) return 'Kalunga';
+    if (domain.includes('casasbahia')) return 'Casas Bahia';
+    if (domain.includes('fastshop')) return 'Fast Shop';
+    if (domain.includes('fischer')) return 'Fischer Oficial';
+    if (domain.includes('eletrolux') || domain.includes('electrolux')) return 'Electrolux';
+    if (domain.includes('brastemp')) return 'Brastemp';
+    if (domain.includes('consul')) return 'Consul';
+    if (domain.includes('suggar')) return 'Suggar';
+    if (domain.includes('philco')) return 'Philco';
+    return domain.split('.')[0].toUpperCase();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Busca e retorna a imagem correta em alta definição estritamente de acordo com a
+ * Descrição Padronizada do Produto (Comercial).
+ */
+export function resolveImageForDescription(description: string): string {
+  if (!description) return '';
+  const query = description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // 1. Match em catálogo de produtos conhecidos
+  for (const item of knownProductKnowledgeBase) {
+    if (item.imageUrl && item.keywords.some(k => query.includes(k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')))) {
+      return item.imageUrl;
+    }
+  }
+
+  // 2. Classificação precisa por termos da Descrição Padronizada Comercial
+  if (query.includes('adega') || query.includes('vinho')) {
+    return 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('cervejeira') || query.includes('cerveja')) {
+    return 'https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('cooktop') || query.includes('fogao') || query.includes('inducao') || query.includes('bocas')) {
+    return 'https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('forno') || query.includes('microondas') || query.includes('micro-ondas')) {
+    return 'https://images.unsplash.com/photo-1585659722983-3a675dabf23d?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('coifa') || query.includes('depurador') || query.includes('exaustor')) {
+    return 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('refrigerador') || query.includes('geladeira') || query.includes('frost free') || query.includes('bottom')) {
+    return 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('frigobar')) {
+    return 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('purificador') || query.includes('filtro') || query.includes('bebedouro') || query.includes('carbon block') || query.includes('refil')) {
+    return 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('smart tv') || query.includes('televis') || query.includes('tv 4k') || query.includes('tv 65') || query.includes('tv 55') || query.includes('polegadas')) {
+    return 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('churrasqueira') || query.includes('grill') || query.includes('espeto')) {
+    return 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('cirandinha') || query.includes('lavatorio') || query.includes('manicure') || query.includes('salao') || query.includes('poltrona') || query.includes('tulipa') || query.includes('cabecote')) {
+    return 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('cabo de rede') || query.includes('cat6') || query.includes('cat5') || query.includes('furukawa')) {
+    return 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('switch') || query.includes('roteador') || query.includes('cisco') || query.includes('ubiquiti')) {
+    return 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('notebook') || query.includes('laptop') || query.includes('dell inspiron') || query.includes('macbook')) {
+    return 'https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/dell-client-products/notebooks/inspiron-notebooks/15-3520/media-gallery/black/notebook-inspiron-15-3520-black-gallery-1.psd?fmt=png-alpha&wid=600';
+  }
+  if (query.includes('monitor')) {
+    return 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('teclado') || query.includes('mouse')) {
+    return 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('nobreak') || query.includes('estabilizador')) {
+    return 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('smartphone') || query.includes('celular') || query.includes('motorola') || query.includes('samsung galaxy')) {
+    return 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('tablet') || query.includes('ipad')) {
+    return 'https://images.unsplash.com/photo-1561154464-82e9adf32764?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('kombi') || query.includes('setor de direcao') || query.includes('nakata')) {
+    return 'https://http2.mlstatic.com/D_NQ_NP_2X_784534-MLB54942918848_042023-F.webp';
+  }
+  if (query.includes('organizador de pia') || query.includes('plurale') || query.includes('tramontina')) {
+    return 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('base de corte') || query.includes('brw') || query.includes('papelaria')) {
+    return 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('torneira') || query.includes('hidraulica')) {
+    return 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600&auto=format&fit=crop&q=80';
+  }
+
+  return 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80';
+}
+
 /**
  * Searches and standardizes product description, clean Part Number, clean NCM, HD photo, and direct Marketplace links.
  * Accepts the full rawSearchQuery from the email (e.g. "Caixa de setor... | Tipo: Mecânica | Marca: NAKATA | Código: 10320041S | Aplicação: Kombi 1.4")
  */
-export function resolveProductDetails(nameOrQuery: string, specs?: string): StandardizedProductData {
+export function resolveProductDetails(nameOrQuery: string, specs?: string, existingPartNumber?: string): StandardizedProductData {
   const raw = `${nameOrQuery} ${specs || ''}`;
   const query = raw.toLowerCase();
 
-  // 1. Extract explicit part number / código from the full query (e.g. "Código/Referência: 10320041S")
-  const explicitCodeMatch = raw.match(
-    /(?:código\/referência|código|referência|ref|part\s*number|p\/n|pn|cód)[:\s.]+([A-Za-z0-9\-_]{4,20})/i
-  );
-  const explicitCode = explicitCodeMatch ? explicitCodeMatch[1].trim() : '';
+  // 1. Extract explicit part number / código from existing item or query
+  let explicitCode = existingPartNumber && existingPartNumber.trim().length >= 2 ? existingPartNumber.trim() : '';
+  if (!explicitCode) {
+    const explicitCodeMatch = raw.match(
+      /(?:código\/referência|código|referência|ref|part\s*number|p\/n|pn|cód)[:\s.]+([A-Za-z0-9\-_]{2,20})/i
+    );
+    if (explicitCodeMatch) {
+      explicitCode = explicitCodeMatch[1].trim();
+    }
+  }
+
+  // Also check for trailing or isolated numerical product code (e.g. "— 28003", " 28003", "Ref 10320041S")
+  if (!explicitCode) {
+    const trailingCodeMatch = raw.match(/(?:—|-|\b)\s*(?:cód[:\s]*)?([0-9]{4,8})\b/i);
+    if (trailingCodeMatch) {
+      explicitCode = trailingCodeMatch[1].trim();
+    }
+  }
 
   // 2. If we have an explicit code, try to match against knowledge base by that code first
   if (explicitCode) {
@@ -1007,16 +1619,17 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string): Stan
     for (const item of knownProductKnowledgeBase) {
       const itemPN = item.partNumber.replace(/[^A-Z0-9]/g, '').toUpperCase();
       if (itemPN === codeUpper || item.keywords.some(k => codeUpper.includes(k.toUpperCase().replace(/[^A-Z0-9]/g, '')))) {
+        const hasExact = isExactProductUrl(item.directUrl);
         return {
           standardizedName: item.name,
-          partNumber: cleanAlphanumericCode(item.partNumber),
+          partNumber: cleanAlphanumericCode(explicitCode || item.partNumber),
           ncm: cleanNcmCode(item.ncm),
           imageUrl: item.imageUrl,
           category: item.category,
           estimatedCost: item.cost,
-          supplier: item.supplier,
-          sourceUrl: item.directUrl,
-          candidateListings: item.candidates
+          supplier: hasExact ? (item.supplier || extractStoreNameFromUrl(item.directUrl)) : '',
+          sourceUrl: hasExact ? item.directUrl : '',
+          candidateListings: item.candidates?.filter(c => isExactProductUrl(c.directUrl))
         };
       }
     }
@@ -1029,16 +1642,17 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string): Stan
   for (const item of knownProductKnowledgeBase) {
     const matchCount = item.keywords.filter(k => query.includes(k)).length;
     if (matchCount >= matchThreshold) {
+      const hasExact = isExactProductUrl(item.directUrl);
       return {
         standardizedName: item.name,
-        partNumber: cleanAlphanumericCode(item.partNumber),
+        partNumber: cleanAlphanumericCode(explicitCode || item.partNumber),
         ncm: cleanNcmCode(item.ncm),
         imageUrl: item.imageUrl,
         category: item.category,
         estimatedCost: item.cost,
-        supplier: item.supplier,
-        sourceUrl: item.directUrl,
-        candidateListings: item.candidates
+        supplier: hasExact ? (item.supplier || extractStoreNameFromUrl(item.directUrl)) : '',
+        sourceUrl: hasExact ? item.directUrl : '',
+        candidateListings: item.candidates?.filter(c => isExactProductUrl(c.directUrl))
       };
     }
   }
@@ -1049,26 +1663,87 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string): Stan
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Use the explicitly found part number if any, otherwise try to infer
+  // Preservar o part number real explicitamente encontrado
   let generatedPartNumber = explicitCode ? cleanAlphanumericCode(explicitCode) : '';
   if (!generatedPartNumber) {
-    const pnMatch = query.match(/(?:pn|p\/n|part\s*number|código|ref|referência|modelo)[:\s]*([a-zA-Z0-9\-_]{4,20})/i);
+    const pnMatch = query.match(/(?:pn|p\/n|part\s*number|código|ref|referência|modelo)[:\s]*([a-zA-Z0-9\-_]{2,20})/i);
     generatedPartNumber = pnMatch ? cleanAlphanumericCode(pnMatch[1]) : '';
   }
-  if (!generatedPartNumber) {
-    const cleanToken = cleanName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    generatedPartNumber = cleanToken.slice(0, 10) || `INF${Math.floor(10000 + Math.random() * 90000)}`;
-  }
 
-  // Category, NCM, Cost & Image heuristics
+  // Category, NCM, Cost & Image heuristics — Curadoria visual HD por categoria real
   let ncm = '84713019';
   let category = 'Informática & Tecnologia';
   let cost = 250.00;
-  let defaultImage = 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=500&auto=format&fit=crop&q=80';
-  let supplier = 'Mercado Livre / Vendedor Homologado';
+  let defaultImage = resolveImageForDescription(cleanName);
+  let supplier = '';
 
-  // Automotive / Mechanical Parts
-  if (query.includes('kombi') || query.includes('direção') || query.includes('direcao') || query.includes('setor') || query.includes('veículo') || query.includes('carro') || query.includes('auto') || query.includes('motor') || query.includes('freio') || query.includes('suspensão') || query.includes('amortecedor') || query.includes('peça')) {
+  if (query.includes('adega') || query.includes('vinho')) {
+    category = 'Eletrodomésticos & Refrigeração';
+    ncm = '84185090';
+    cost = 1890.00;
+    defaultImage = 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Venax Oficial';
+  } else if (query.includes('cervejeira') || query.includes('cerveja')) {
+    category = 'Refrigeração Comercial';
+    ncm = '84185090';
+    cost = 2150.00;
+    defaultImage = 'https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Venax Brasil';
+  } else if (query.includes('refrigerador') || query.includes('geladeira') || query.includes('frost free') || query.includes('bottom freez')) {
+    category = 'Eletrodomésticos & Refrigeração';
+    ncm = '84181000';
+    cost = 2890.00;
+    defaultImage = 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Eletrolux & LG';
+  } else if (query.includes('frigobar')) {
+    category = 'Eletrodomésticos & Refrigeração';
+    ncm = '84182100';
+    cost = 1450.00;
+    defaultImage = 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Brastemp Loja Oficial';
+  } else if (query.includes('coifa') || query.includes('depurador') || query.includes('exaustor')) {
+    category = 'Eletrodomésticos & Cozinha';
+    ncm = '84146000';
+    cost = 1680.00;
+    defaultImage = 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Suggar Oficial';
+  } else if (query.includes('cooktop') || query.includes('fogão') || query.includes('fogao')) {
+    category = 'Eletrodomésticos & Cozinha';
+    ncm = '85166020';
+    cost = 580.00;
+    defaultImage = 'https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Philco & Fischer';
+  } else if (query.includes('forno') || query.includes('microondas') || query.includes('micro-ondas')) {
+    category = 'Eletrodomésticos & Cozinha';
+    ncm = query.includes('micro') ? '85165000' : '85166010';
+    cost = 990.00;
+    defaultImage = 'https://images.unsplash.com/photo-1585659722983-3a675dabf23d?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Eletrolux Store';
+  } else if (query.includes('purificador') || query.includes('filtro') || query.includes('bebedouro')) {
+    category = 'Purificação & Tratamento de Água';
+    ncm = '84212100';
+    cost = 650.00;
+    defaultImage = 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Eletrolux & IBBL';
+  } else if (query.includes('smart tv') || query.includes('televis') || query.includes('polegadas') || query.includes('tv 65')) {
+    category = 'Áudio & Vídeo';
+    ncm = '85287200';
+    cost = 3490.00;
+    defaultImage = 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Samsung & LG';
+  } else if (query.includes('churrasqueira') || query.includes('grill') || query.includes('espetos')) {
+    category = 'Eletrodomésticos & Lazer';
+    ncm = '85167990';
+    cost = 1490.00;
+    defaultImage = 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Fischer Oficial';
+  } else if (query.includes('cirandinha') || query.includes('lavatório') || query.includes('lavatorio') || query.includes('poltrona') || query.includes('tulipa') || query.includes('salão') || query.includes('cabeçote')) {
+    category = 'Mobiliário Profissional & Beleza';
+    ncm = '94021000';
+    cost = 890.00;
+    defaultImage = 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Mercado Livre / Móveis p/ Salão de Beleza';
+  } else if (query.includes('kombi') || query.includes('direção') || query.includes('direcao') || query.includes('setor') || query.includes('veículo') || query.includes('carro') || query.includes('auto') || query.includes('motor') || query.includes('freio') || query.includes('suspensão') || query.includes('amortecedor') || query.includes('peça')) {
     category = 'Autopeças & Mecânica';
     supplier = 'Mercado Livre / Distribuidora de Peças Automotivas';
     
@@ -1077,7 +1752,7 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string): Stan
       cost = 520.00;
       defaultImage = 'https://http2.mlstatic.com/D_NQ_NP_2X_784534-MLB54942918848_042023-F.webp';
       if (query.includes('kombi')) {
-        generatedPartNumber = generatedPartNumber || '2374150531';
+        generatedPartNumber = generatedPartNumber || '10320041S';
       }
     } else if (query.includes('freio') || query.includes('pastilha') || query.includes('disco')) {
       ncm = '87083090';
@@ -1136,11 +1811,6 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string): Stan
     supplier = 'Mercado Livre / Tramontina Store';
   }
 
-  // Build a precise Mercado Livre search URL from the clean product name + explicit code
-  const searchTerms = [cleanName, explicitCode].filter(Boolean).join(' ');
-  const mlSlug = searchTerms.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim().replace(/\s+/g, '-');
-  const directMarketplaceUrl = `https://lista.mercadolivre.com.br/${encodeURIComponent(mlSlug)}#D[A:${encodeURIComponent(searchTerms)}]`;
-
   return {
     standardizedName: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
     partNumber: cleanAlphanumericCode(generatedPartNumber),
@@ -1148,7 +1818,274 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string): Stan
     imageUrl: defaultImage,
     category,
     estimatedCost: cost,
-    supplier,
-    sourceUrl: directMarketplaceUrl
+    supplier: '',
+    sourceUrl: ''
   };
+}
+
+/**
+ * Automatically applies grammatical gender agreement for the recipient company:
+ * - Feminine entities (Universidade, Faculdade, Escola, Fundação, Associação, Prefeitura, Secretaria, etc.) -> "À Universidade..."
+ * - Masculine entities (Condomínio, Hospital, Instituto, Shopping, Tribunal, Banco, Grupo, etc.) -> "Ao Condomínio...", "Ao Hospital..."
+ * - Companies, concessionárias, and general legal entities -> "À Inframerica...", "À UBEC...", "À Interativa...", "À Frisbel..."
+ */
+export function formatCompanyPrefix(companyName: string): string {
+  if (!companyName) return '';
+  const clean = companyName.trim();
+
+  // If already starts with "Ao ", "À ", "A ", "Para "
+  const match = clean.match(/^(ao|à|a|para)\s+(.*)/i);
+  let baseName = clean;
+  let hasExplicitPrefix = false;
+  let userPrefix = '';
+
+  if (match) {
+    hasExplicitPrefix = true;
+    userPrefix = match[1].toLowerCase();
+    baseName = match[2].trim();
+  }
+
+  // Normalize lower base for linguistic detection
+  const lower = baseName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Masculine entities in Portuguese
+  const masculineKeywords = [
+    'condominio', 'shopping', 'hospital', 'instituto', 'tribunal', 'ministerio',
+    'banco', 'colegio', 'centro', 'fundo', 'grupo', 'clube', 'departamento',
+    'sindicato', 'cartorio', 'laboratorio', 'governo', 'municipio', 'posto',
+    'hotel', 'parque', 'aeroporto', 'comando', 'senado', 'congresso',
+    'tjdft', 'stj', 'stf', 'tcu', 'trf', 'tre', 'trt', 'mpt', 'mpf',
+    'sesc', 'senai', 'sebrae', 'senac', 'sesi', 'cnc', 'crea', 'crm', 'cro'
+  ];
+
+  const isMasculine = masculineKeywords.some(kw => {
+    const regex = new RegExp(`(^|\\s|[—–-])${kw}(\\s|[—–-]|\$|s)`, 'i');
+    return regex.test(lower);
+  });
+
+  // If already prefixed with "Ao" but it's an obviously feminine company like Inframerica, correct it
+  if (hasExplicitPrefix) {
+    if (!isMasculine && userPrefix === 'ao' && (
+      lower.includes('inframerica') || 
+      lower.includes('concessionaria') || 
+      lower.includes('ubec') ||
+      lower.includes('empresa') ||
+      lower.endsWith('a')
+    )) {
+      return `À ${baseName}`;
+    }
+    const prefixNormalized = (userPrefix === 'ao') ? 'Ao' : (userPrefix === 'à' || userPrefix === 'a' ? 'À' : 'Para');
+    return `${prefixNormalized} ${baseName}`;
+  }
+
+  // Corporate entities, companies, concessionárias are feminine in Portuguese ("a empresa") -> "À"
+  const correctPrefix = isMasculine ? 'Ao' : 'À';
+  return `${correctPrefix} ${baseName}`;
+}
+
+/**
+ * Automatically adds the respectful title (Sr. or Srta.) based on the recipient's name:
+ * - "Alex Pereira da Silva Vasconcellos" -> "A/C Sr. Alex Pereira da Silva Vasconcellos"
+ * - "Alexandra Oliveira" -> "A/C Srta. Alexandra Oliveira"
+ */
+export function formatContactPerson(contactPerson: string): string {
+  if (!contactPerson) return '';
+  let clean = contactPerson.trim();
+  
+  // Strip existing "A/C" prefix if present
+  clean = clean.replace(/^a\/c\s*/i, '').trim();
+
+// Se for vazio ou nome genérico fictício, retorna vazio!
+  if (!clean || /^(responsavel|responsável|cliente|comprador|solicitante|usuario|usuário)$/i.test(clean)) {
+    return '';
+  }
+
+  // If already has title like "Sr.", "Srta.", "Sra.", "Dr.", "Dra."
+  if (/^(sr\.|srta\.|sra\.|dr\.|dra\.|prof\.|profa\.)\s+/i.test(clean)) {
+    return `A/C ${clean}`;
+  }
+
+  const firstName = clean.split(/\s+/)[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  const femaleNames = new Set([
+    'alexandra', 'gabriela', 'maria', 'ana', 'patricia', 'camila', 'juliana',
+    'bruna', 'mariana', 'fernanda', 'beatriz', 'carolina', 'aline', 'amanda', 'larissa',
+    'leticia', 'jessica', 'daniela', 'vanessa', 'renata', 'luana',
+    'bianca', 'roberta', 'claudia', 'monica', 'paula', 'carla',
+    'simone', 'luciana', 'andreia', 'viviane', 'cristina', 'helena', 'marina',
+    'debora', 'priscila', 'sabrina', 'tamires', 'flavia', 'tatiane',
+    'adriana', 'regina', 'solange', 'teresa', 'tereza', 'valeria', 'eliane',
+    'isabela', 'isabella', 'clara', 'laura', 'sophia', 'sofia', 'livia', 'luiza',
+    'lorena', 'alice', 'sarah', 'sara', 'yasmin', 'raquel', 'fatima', 'elisangela'
+  ]);
+
+  const maleExceptions = new Set(['lucas', 'luca', 'joshua', 'elias', 'isaia', 'matias', 'alex', 'alessandro']);
+
+  const isFemale = femaleNames.has(firstName) || 
+    (firstName.endsWith('a') && !maleExceptions.has(firstName));
+
+  const title = isFemale ? 'Srta.' : 'Sr.';
+  return `A/C ${title} ${clean}`;
+}
+
+/**
+ * Extracts telephone / WhatsApp number of the sender from text, tables or signatures
+ */
+export function extractContactPhone(text: string): string | undefined {
+  if (!text) return undefined;
+
+  // 1. Procurar por rótulos explícitos (telefone, tel, fone, whatsapp, whats, celular, cel, ramal, contato)
+  const labeled = text.match(/(?:telefone|tel|fone|whatsapp|whats|celular|cel|contato|ramal)[:\s]*(\+?55\s*)?(?:\(?0?[1-9]{2}\)?\s*)?(?:9\s*)?[0-9]{4,5}[-\s.]?[0-9]{4}\b/i);
+  if (labeled) {
+    const raw = labeled[0].replace(/^(?:telefone|tel|fone|whatsapp|whats|celular|cel|contato|ramal)[:\s]*/i, '').trim();
+    return formatCleanPhone(raw);
+  }
+
+  // 2. Procurar padrão com DDD explícito: (XX) 9XXXX-XXXX ou (XX) XXXX-XXXX
+  const dddMatch = text.match(/(?:\+?55\s*)?(?:\([1-9]{2}\)\s*|[1-9]{2}\s+)(?:9\s*)?[0-9]{4}[-\s.]?[0-9]{4}\b/);
+  if (dddMatch) {
+    return formatCleanPhone(dddMatch[0]);
+  }
+
+  // Se não encontrou, NUNCA inventar: retorna undefined!
+  return undefined;
+}
+
+function formatCleanPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 13 && digits.startsWith('55')) {
+    return `(${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+  if (digits.length === 12 && digits.startsWith('55')) {
+    return `(${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
+  return raw.trim();
+}
+
+/**
+ * Extracts a real e-mail address from text or document
+ */
+export function isSystemOrNoReplyEmail(email: string): boolean {
+  if (!email) return true;
+  const lower = email.toLowerCase().trim();
+  return (
+    lower.includes('noreply') ||
+    lower.includes('no-reply') ||
+    lower.includes('naoresponder') ||
+    lower.includes('nãoresponder') ||
+    lower.includes('notificacao') ||
+    lower.includes('notificacoes') ||
+    lower.includes('mailer-daemon') ||
+    lower.includes('portal@') ||
+    lower.includes('baseb.com.br') ||
+    lower.includes('nimbi.com.br') ||
+    lower.includes('bionexo') ||
+    lower.includes('bbmnet') ||
+    lower.includes('exemplo') ||
+    lower.includes('teste') ||
+    lower.includes('cliente@empresa') ||
+    lower.includes('google.com') ||
+    lower.includes('microsoft.com')
+  );
+}
+
+/**
+ * Extracts a real e-mail address from text or document.
+ * Prioritizes explicit labels ("Email: contato@...") and ignores automated system / portal senders.
+ */
+export function extractEmailFromText(text: string): string {
+  if (!text) return '';
+
+  // 1. Prioridade máxima: rótulo explícito "Email: ...", "E-mail: ..."
+  const labelMatches = Array.from(text.matchAll(/(?:email|e-mail|contato|correio)[:\s\t]+([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/gi));
+  for (const m of labelMatches) {
+    const candidate = m[1].toLowerCase().trim();
+    if (!isSystemOrNoReplyEmail(candidate)) {
+      return candidate;
+    }
+  }
+
+  // 2. Todos os emails válidos, filtrando remetentes de no-reply/portais
+  const allEmails = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g);
+  if (allEmails) {
+    for (const em of allEmails) {
+      const candidate = em.toLowerCase().trim();
+      if (!isSystemOrNoReplyEmail(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Extracts real contact buyer name from text
+ */
+export function extractContactPersonFromText(text: string): string {
+  if (!text) return '';
+
+  // 1. Rótulos como Contato, Comprador, Solicitante, Responsável, A/C
+  const labelMatch = text.match(/(?:Contato|Comprador|Solicitante|Respons[aá]vel|A\/C|Aos\s+cuidados\s+de|Att\.?)[:\s\t]+([A-Za-zÀ-ÿ\s]{3,60})/i);
+  if (labelMatch) {
+    let candidate = labelMatch[1].trim();
+    // Trunca imediatamente caso o texto colado inclua o próximo campo (ex: "Sandra Costa Emailsandra...")
+    candidate = candidate.split(/\b(?:email|e-mail|telefone|tel|fone|cel|cnpj|endere[çc]o|cargo|departamento|setor|itens|c[oó]digo|rodada)\b/i)[0].trim();
+    if (candidate.length >= 3 && !/^(empresa|solicitante|responsavel|responsável|cliente|compras|ti|suprimentos|departamento|portal)$/i.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  // 2. Padrão "De: Nome <email>" ou "From: Nome <email>"
+  const fromMatch = text.match(/(?:De|From)[:\s]+([A-Za-zÀ-ÿ\s]{3,40})\s*<[^>]+>/i);
+  if (fromMatch) {
+    let candidate = fromMatch[1].trim();
+    candidate = candidate.split(/\b(?:email|e-mail|telefone|cnpj|endere[çc]o)\b/i)[0].trim();
+    if (candidate.length >= 3 && !/^(nao responder|no-reply|noreply|sistema|portal|atendimento)$/i.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Gera o Código / Referência oficial da proposta no padrão exigido por Lucas:
+ * "[NOME DA EMPRESA] [DATA SÓ COM NÚMEROS: DDMMAA]"
+ * Exemplo: UBEC 090926
+ */
+export function generateQuoteCode(companyName?: string, date: Date = new Date()): string {
+  let cleanName = (companyName || 'COTACAO')
+    .replace(/^(ao|à|a|para)\s+/i, '')
+    .replace(/[^a-zA-Z0-9À-ÿ\s_-]/g, '')
+    .trim() || 'COTACAO';
+
+  // Se for nome institucional longo com hífen/sigla (ex: "Universidade Brasileira de Educação Católica - UBEC"), priorizar a sigla
+  const dashParts = cleanName.split(/[-—]/);
+  if (dashParts.length > 1) {
+    const candidateSigla = dashParts[dashParts.length - 1].trim();
+    if (candidateSigla.length >= 2 && candidateSigla.length <= 12) {
+      cleanName = candidateSigla;
+    }
+  } else {
+    const siglaMatch = cleanName.match(/\b([A-Z]{2,10})\b/);
+    if (siglaMatch && cleanName.length > 15) {
+      cleanName = siglaMatch[1];
+    } else if (cleanName.length > 18) {
+      cleanName = cleanName.slice(0, 18).trim();
+    }
+  }
+
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yy = String(date.getFullYear()).slice(-2);
+  const dateOnlyDigits = `${dd}${mm}${yy}`;
+
+  return `${cleanName.toUpperCase().trim()} ${dateOnlyDigits}`;
 }

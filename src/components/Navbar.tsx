@@ -8,18 +8,22 @@ import {
   Settings, 
   Sparkles, 
   PlusCircle, 
-  Layers
+  Layers,
+  Users,
+  Camera
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 
 interface NavbarProps {
-  activeTab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch';
-  setActiveTab: (tab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch') => void;
+  activeTab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses';
+  setActiveTab: (tab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses') => void;
   unreadCount: number;
   openSettings: () => void;
   openWebSearch: () => void;
+  openClientsModal?: () => void;
   settings: CompanySettings;
   onNewQuote: () => void;
+  analysesCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -28,8 +32,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   unreadCount,
   openSettings,
   openWebSearch,
+  openClientsModal,
   settings,
-  onNewQuote
+  onNewQuote,
+  analysesCount = 0
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 shadow-xs">
@@ -83,7 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>Montador</span>
+              <span>Cotação</span>
             </button>
 
             <button
@@ -111,6 +117,35 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
+              onClick={() => setActiveTab('analyses')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                activeTab === 'analyses'
+                  ? 'bg-white text-violet-700 border border-slate-200 shadow-xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Análises Avulsas</span>
+              {analysesCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-violet-500 text-white text-[10px] font-bold rounded-full">
+                  {analysesCount}
+                </span>
+              )}
+            </button>
+
+            {openClientsModal && (
+              <button
+                type="button"
+                onClick={openClientsModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap text-slate-700 hover:text-slate-900 hover:bg-slate-200/60"
+                title="Cadastro e Gestão de Empresas e Compradores"
+              >
+                <Users className="w-3.5 h-3.5 text-sky-600" />
+                <span>Empresas & Compradores</span>
+              </button>
+            )}
+
+            <button
               onClick={() => setActiveTab('history')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                 activeTab === 'history'
@@ -124,6 +159,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
+            {openClientsModal && (
+              <button
+                type="button"
+                onClick={openClientsModal}
+                className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition shadow-2xs whitespace-nowrap"
+                title="Empresas & Compradores"
+              >
+                <Users className="w-3.5 h-3.5 text-sky-600" />
+                <span>Empresas</span>
+              </button>
+            )}
+
             <button
               onClick={openWebSearch}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium transition shadow-xs whitespace-nowrap"

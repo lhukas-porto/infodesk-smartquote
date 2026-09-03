@@ -8,12 +8,18 @@ import { SentHistoryView } from './components/SentHistoryView';
 import { WebSearchModal } from './components/WebSearchModal';
 import { EmailSendModal } from './components/EmailSendModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ClientManagementModal } from './components/ClientManagementModal';
+import { EmailContactScannerModal } from './components/EmailContactScannerModal';
+import { ManualAnalysesView } from './components/ManualAnalysesView';
+import { ScannedContactCandidate } from './services/emailScannerService';
 import { 
   CompanySettings, 
   IncomingEmail, 
   Product, 
   Quote, 
-  QuoteItem 
+  QuoteItem,
+  ClientCompany,
+  ClientContact 
 } from './types';
 import { 
   getEmails, 
@@ -23,7 +29,17 @@ import {
   saveEmails, 
   saveProducts, 
   saveQuotes, 
-  saveSettings 
+  saveSettings,
+  registerOrUpdateClient,
+  sanitizeEmailObject,
+  getClientCompanies,
+  saveClientCompanies,
+  getCurrentDraftQuote,
+  saveCurrentDraftQuote,
+  getSavedActiveTab,
+  saveActiveTab,
+  getManualAnalyses,
+  saveManualAnalyses
 } from './utils/storage';
 import { 
   getStoredAccessToken, 
@@ -31,12 +47,44 @@ import {
   requestGmailAccessToken, 
   fetchRealGmailMessages, 
   sendRealGmailMessage, 
-  disconnectGmailAccount 
+  disconnectGmailAccount,
+  EmailPeriodFilter 
 } from './services/gmailService';
-import { extractItemsFromEmailContent, extractDeliveryLocation, extractFullCompanyName, calculateCommercialUnitPrice } from './utils/aiEmailParser';
+import { 
+  extractItemsFromEmailContent, 
+  extractDeliveryLocation, 
+  extractFullCompanyName, 
+  calculateCommercialUnitPrice, 
+  resolveProductDetails,
+  formatCompanyPrefix,
+  formatContactPerson,
+  extractContactPhone,
+  isExactProductUrl,
+  extractEmailFromText,
+  extractContactPersonFromText,
+  generateQuoteCode
+} from './utils/aiEmailParser';
+import {
+  isSupabaseConfigured,
+  fetchCompanySettingsFromSupabase,
+  syncCompanySettingsToSupabase,
+  fetchQuotesFromSupabase,
+  syncQuoteToSupabase,
+  fetchProductsFromSupabase,
+  syncProductToSupabase,
+  fetchClientCompaniesFromSupabase,
+  syncClientCompaniesToSupabase,
+  deleteCompanyFromSupabase,
+  deleteContactFromSupabase,
+  fetchIncomingEmailsFromSupabase,
+  syncIncomingEmailsToSupabase
+} from './services/supabase';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch'>('inbox');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses'>(() => {
+    const saved = getSavedActiveTab('inbox');
+    return (['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses'].includes(saved) ? saved : 'inbox') as any;
+  });
   const [settings, setSettings] = useState<CompanySettings>(getSettings());
   const [products, setProducts] = useState<Product[]>(getProducts());
   const [emails, setEmails] = useState<IncomingEmail[]>(getEmails());
@@ -45,25 +93,181 @@ export const App: React.FC = () => {
   const [isWebSearchOpen, setIsWebSearchOpen] = useState(false);
   const [webSearchQuery, setWebSearchQuery] = useState('');
   const [webSearchTargetIndex, setWebSearchTargetIndex] = useState<number | null>(null);
+  const [webSearchExistingItem, setWebSearchExistingItem] = useState<Partial<QuoteItem> | null>(null);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isClientsModalOpen, setIsClientsModalOpen] = useState(false);
+  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
+  const [clientCompanies, setClientCompanies] = useState<ClientCompany[]>(() => getClientCompanies());
+  const [manualAnalyses, setManualAnalyses] = useState<IncomingEmail[]>(() => getManualAnalyses());
+
+  const handleSaveCompanies = (updated: ClientCompany[]) => {
+    setClientCompanies(updated);
+    saveClientCompanies(updated);
+    syncClientCompaniesToSupabase(updated);
+  };
+
+  const handleAddManualAnalysis = (email: IncomingEmail) => {
+    setManualAnalyses(prev => {
+      // evitar duplicatas por id
+      const exists = prev.some(a => a.id === email.id);
+      if (exists) return prev;
+      const next = [email, ...prev];
+      saveManualAnalyses(next);
+      return next;
+    });
+  };
+
+  const handleDeleteManualAnalysis = (id: string) => {
+    setManualAnalyses(prev => {
+      const next = prev.filter(a => a.id !== id);
+      saveManualAnalyses(next);
+      return next;
+    });
+  };
+
+  const handleUpdateManualAnalysis = (id: string, updates: Partial<IncomingEmail>) => {
+    setManualAnalyses(prev => {
+      const next = prev.map(a => a.id === id ? { ...a, ...updates } : a);
+      saveManualAnalyses(next);
+      return next;
+    });
+  };
+
+  const handleDeleteCompany = async (companyId: string) => {
+    const updated = clientCompanies.filter(c => c.id !== companyId);
+    setClientCompanies(updated);
+    saveClientCompanies(updated);
+    await deleteCompanyFromSupabase(companyId);
+  };
+
+  const handleDeleteContact = async (contactId: string, companyId: string) => {
+    await deleteContactFromSupabase(contactId);
+    const updated = clientCompanies.map(c => {
+      if (c.id === companyId) {
+        return {
+          ...c,
+          contacts: c.contacts.filter(ct => ct.id !== contactId)
+        };
+      }
+      return c;
+    });
+    setClientCompanies(updated);
+    saveClientCompanies(updated);
+    syncClientCompaniesToSupabase(updated);
+  };
+
+  const handleSaveScannedCandidate = async (candidate: ScannedContactCandidate) => {
+    const fullName = `${candidate.title} ${candidate.contactName}`.trim();
+    const updated = registerOrUpdateClient(
+      candidate.companyName,
+      fullName,
+      candidate.email,
+      candidate.phone,
+      candidate.deliveryLocation
+    );
+    setClientCompanies(updated);
+    saveClientCompanies(updated);
+    await syncClientCompaniesToSupabase(updated);
+  };
+
+  const handleSaveAllScannedCandidates = async (candidatesList: ScannedContactCandidate[]) => {
+    let current = clientCompanies;
+    for (const candidate of candidatesList) {
+      const fullName = `${candidate.title} ${candidate.contactName}`.trim();
+      current = registerOrUpdateClient(
+        candidate.companyName,
+        fullName,
+        candidate.email,
+        candidate.phone,
+        candidate.deliveryLocation
+      );
+    }
+    setClientCompanies(current);
+    saveClientCompanies(current);
+    await syncClientCompaniesToSupabase(current);
+  };
+
+  const handleSaveSettings = (newSettings: CompanySettings) => {
+    setSettings(newSettings);
+    saveSettings(newSettings);
+    syncCompanySettingsToSupabase(newSettings);
+  };
+
+  // Carregamento e sincronização com banco de dados do Supabase
+  useEffect(() => {
+    async function hydrateFromSupabase() {
+      if (!isSupabaseConfigured) return;
+      try {
+        // 1. Configurações
+        const remoteSettings = await fetchCompanySettingsFromSupabase();
+        if (remoteSettings) {
+          setSettings(remoteSettings);
+          saveSettings(remoteSettings);
+        }
+
+        // 2. Orçamentos
+        const remoteQuotes = await fetchQuotesFromSupabase();
+        if (remoteQuotes && remoteQuotes.length > 0) {
+          setQuotes(remoteQuotes);
+          saveQuotes(remoteQuotes);
+          setCurrentQuote(prev => {
+            if (prev.code === 'CNC 280826' && remoteQuotes[0]) {
+              return remoteQuotes[0];
+            }
+            return prev;
+          });
+        }
+
+        // 3. Catálogo de Produtos
+        const remoteProducts = await fetchProductsFromSupabase();
+        if (remoteProducts && remoteProducts.length > 0) {
+          setProducts(remoteProducts);
+          saveProducts(remoteProducts);
+        }
+
+        // 4. Empresas e Cidades de Frete
+        const remoteCompanies = await fetchClientCompaniesFromSupabase();
+        if (remoteCompanies && remoteCompanies.length > 0) {
+          setClientCompanies(remoteCompanies);
+          saveClientCompanies(remoteCompanies);
+        }
+
+        // 5. E-mails e Cotações Capturadas
+        const remoteEmails = await fetchIncomingEmailsFromSupabase();
+        if (remoteEmails && remoteEmails.length > 0) {
+          setEmails(remoteEmails);
+          saveEmails(remoteEmails);
+        }
+      } catch (err) {
+        console.warn('Sincronização inicial com Supabase:', err);
+      }
+    }
+
+    hydrateFromSupabase();
+  }, []);
 
   // Google Workspace / Gmail Real Integration State
   const [isGoogleConnected, setIsGoogleConnected] = useState<boolean>(() => !!getStoredAccessToken());
   const [connectedUserEmail, setConnectedUserEmail] = useState<string | null>(() => getStoredUserEmail() || settings.email || 'lucas@infodesk.com.br');
   const [isSyncingEmails, setIsSyncingEmails] = useState(false);
   const [emailSyncError, setEmailSyncError] = useState<string | null>(null);
+  const [emailPeriod, setEmailPeriod] = useState<EmailPeriodFilter>('7d');
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '219637540127-tle29vean1bmjgm5irhs1n3eer1iqiep.apps.googleusercontent.com';
 
   const [currentQuote, setCurrentQuote] = useState<Quote>(() => {
+    const draft = getCurrentDraftQuote();
+    if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+      return draft;
+    }
     const existing = quotes[0];
     if (existing) return existing;
     return {
       id: `quote-${Date.now()}`,
       code: 'CNC 280826',
       clientCompany: 'CNC — Confederação Nacional do Comércio',
-      contactPerson: 'Sra. Alexandra',
+      contactPerson: 'Srta. Alexandra',
       clientEmail: 'alexandraoliveira@cnc.org.br',
       clientPhone: '',
       subject: 'Fornecimento de produtos para informática',
@@ -102,6 +306,9 @@ export const App: React.FC = () => {
   useEffect(() => { saveProducts(products); }, [products]);
   useEffect(() => { saveEmails(emails); }, [emails]);
   useEffect(() => { saveQuotes(quotes); }, [quotes]);
+  useEffect(() => { saveClientCompanies(clientCompanies); }, [clientCompanies]);
+  useEffect(() => { saveCurrentDraftQuote(currentQuote); }, [currentQuote]);
+  useEffect(() => { saveActiveTab(activeTab); }, [activeTab]);
 
   const handleConnectGoogle = async () => {
     try {
@@ -112,9 +319,11 @@ export const App: React.FC = () => {
       setConnectedUserEmail(email);
       setSettings(prev => ({ ...prev, googleAccountEmail: email, googleWorkspaceConnected: true }));
 
-      const realMessages = await fetchRealGmailMessages(token);
-      if (realMessages.length > 0) {
-        setEmails(realMessages);
+      const realMessages = await fetchRealGmailMessages(token, emailPeriod);
+      if (realMessages && realMessages.length > 0) {
+        const sanitized = realMessages.map(sanitizeEmailObject);
+        setEmails(sanitized);
+        saveEmails(sanitized);
       }
     } catch (err: any) {
       setEmailSyncError(err.message || 'Não foi possível autenticar com o Google. Verifique se o pop-up foi autorizado.');
@@ -123,18 +332,24 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleRefreshEmails = async () => {
+  const handleRefreshEmails = async (period?: EmailPeriodFilter) => {
+    const targetPeriod = period || emailPeriod;
+    if (period) {
+      setEmailPeriod(period);
+    }
     const token = getStoredAccessToken();
     if (!token) {
-      handleConnectGoogle();
+      // Quando não estiver conectado ao Google, apenas ajusta o filtro visual sem forçar pop-up
       return;
     }
     try {
       setEmailSyncError(null);
       setIsSyncingEmails(true);
-      const realMessages = await fetchRealGmailMessages(token);
-      if (realMessages.length > 0) {
-        setEmails(realMessages);
+      const realMessages = await fetchRealGmailMessages(token, targetPeriod);
+      if (realMessages && realMessages.length > 0) {
+        const sanitized = realMessages.map(sanitizeEmailObject);
+        setEmails(sanitized);
+        saveEmails(sanitized);
       }
     } catch (err: any) {
       setEmailSyncError(err.message || 'Erro ao buscar e-mails do Gmail.');
@@ -159,19 +374,41 @@ export const App: React.FC = () => {
     const shipping = settings.defaultShippingCost || 0;
 
     const items: QuoteItem[] = email.suggestedItems.map((item, idx) => {
-      const matchedProd = products.find(p => p.name.toLowerCase().includes(item.name.toLowerCase()));
-      const cost = matchedProd ? matchedProd.costPrice : (item.estimatedCost || 150);
+      // 1. Exact catalog search
+      const matchedProd = products.find(p => p.name.toLowerCase() === item.name.toLowerCase() || p.name.toLowerCase().includes(item.name.toLowerCase()));
+      
+      // 2. Automated search using the exact product description from the email/table
+      const exactSearchRef = item.rawSearchQuery || [item.name, item.description].filter(Boolean).join(' - ');
+      const resolved = resolveProductDetails(exactSearchRef, item.description);
+
+      // Cost price: catalog > resolved marketplace cost > suggested estimated cost
+      const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || item.estimatedCost || 150);
       const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
       const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
-      const itemUrl = item.sourceUrl || matchedProd?.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(item.name)}`;
+
+      // Image: inline image from table > catalog photo > resolved web photo
+      const finalImageUrl = item.imageUrl || matchedProd?.imageUrl || resolved.imageUrl;
+
+      // Part Number & NCM (clean codes)
+      const finalPartNumber = item.partNumber || item.itemCode || matchedProd?.partNumber || resolved.partNumber;
+      const finalNcm = item.ncm || matchedProd?.ncm || resolved.ncm;
+
+      // Exact marketplace URL (apenas se for link exato do produto)
+      const itemUrl = (item.sourceUrl && isExactProductUrl(item.sourceUrl)) 
+        ? item.sourceUrl 
+        : (isExactProductUrl(resolved.sourceUrl) ? resolved.sourceUrl : (isExactProductUrl(matchedProd?.sourceUrl) ? matchedProd?.sourceUrl : ''));
 
       return {
         id: `item-${Date.now()}-${idx}`,
         itemNumber: idx + 1,
         productId: matchedProd?.id,
-        name: item.name,
-        description: item.description,
-        rawSearchQuery: item.rawSearchQuery || item.name,
+        name: item.name || resolved.standardizedName,
+        description: item.description || resolved.standardizedName,
+        rawSearchQuery: exactSearchRef,
+        partNumber: finalPartNumber,
+        ncm: finalNcm,
+        imageUrl: finalImageUrl,
+        showImage: false,
         quantity: item.quantity,
         unit: item.unit || 'Un.',
         costPrice: cost,
@@ -210,11 +447,11 @@ export const App: React.FC = () => {
 
     const newQuote: Quote = {
       id: `quote-${Date.now()}`,
-      code: `${email.senderCompany.split(' ')[0].toUpperCase() || 'COT'} ${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`,
-      clientCompany: email.senderCompany,
-      contactPerson: email.senderName,
-      clientEmail: email.senderEmail,
-      clientPhone: '',
+      code: generateQuoteCode(email.senderCompany),
+      clientCompany: formatCompanyPrefix(email.senderCompany),
+      contactPerson: formatContactPerson(email.senderName),
+      clientEmail: (email.senderEmail || '').toLowerCase().trim(),
+      clientPhone: email.senderPhone || extractContactPhone(email.body) || extractContactPhone(email.bodyHtml || '') || '',
       subject: email.subject,
       city: 'Brasília',
       date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
@@ -234,9 +471,18 @@ export const App: React.FC = () => {
       averageMargin: Number(averageMargin.toFixed(1)),
       globalTaxPercent: tax,
       globalShipping: shipping,
+      showProductImages: true,
       status: 'draft',
       createdAt: new Date().toISOString()
     };
+
+    registerOrUpdateClient(
+      newQuote.clientCompany,
+      newQuote.contactPerson,
+      newQuote.clientEmail,
+      newQuote.clientPhone,
+      newQuote.deliveryLocation
+    );
 
     setCurrentQuote(newQuote);
     setActiveTab('builder');
@@ -249,19 +495,32 @@ export const App: React.FC = () => {
     const shipping = settings.defaultShippingCost || 0;
 
     const items: QuoteItem[] = parsedItems.map((item, idx) => {
-      const matchedProd = products.find(p => p.name.toLowerCase().includes(item.name.toLowerCase()));
-      const cost = matchedProd ? matchedProd.costPrice : (item.estimatedCost || 150);
+      const matchedProd = products.find(p => p.name.toLowerCase() === item.name.toLowerCase() || p.name.toLowerCase().includes(item.name.toLowerCase()));
+      const exactSearchRef = item.rawSearchQuery || [item.name, item.description].filter(Boolean).join(' - ');
+      const resolved = resolveProductDetails(exactSearchRef, item.description);
+
+      const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || item.estimatedCost || 150);
       const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
       const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
-      const itemUrl = item.sourceUrl || matchedProd?.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(item.name)}`;
+
+      const finalImageUrl = item.imageUrl || matchedProd?.imageUrl || resolved.imageUrl;
+      const finalPartNumber = item.partNumber || item.itemCode || matchedProd?.partNumber || resolved.partNumber;
+      const finalNcm = item.ncm || matchedProd?.ncm || resolved.ncm;
+      const itemUrl = (item.sourceUrl && isExactProductUrl(item.sourceUrl))
+        ? item.sourceUrl
+        : (isExactProductUrl(resolved.sourceUrl) ? resolved.sourceUrl : (isExactProductUrl(matchedProd?.sourceUrl) ? matchedProd?.sourceUrl : ''));
 
       return {
         id: `item-${Date.now()}-${idx}`,
         itemNumber: idx + 1,
         productId: matchedProd?.id,
-        name: item.name,
-        description: item.description,
-        rawSearchQuery: item.rawSearchQuery || item.name,
+        name: item.name || resolved.standardizedName,
+        description: item.description || resolved.standardizedName,
+        rawSearchQuery: exactSearchRef,
+        partNumber: finalPartNumber,
+        ncm: finalNcm,
+        imageUrl: finalImageUrl,
+        showImage: false,
         quantity: item.quantity,
         unit: item.unit || 'Un.',
         costPrice: cost,
@@ -298,18 +557,22 @@ export const App: React.FC = () => {
     const detectedLocation = extractDeliveryLocation(rawText);
     const shippingTerms = `Frete incluso p/ ${detectedLocation}.`;
     const detectedCompany = extractFullCompanyName('', '', '', rawText);
-    const companyName = detectedCompany && detectedCompany !== 'Empresa / Solicitante' ? detectedCompany : 'Cliente Solicitante';
-    const cleanPrefix = companyName.replace(/[^A-Za-z0-9]/g, ' ').trim().split(/\s+/)[0].toUpperCase();
-    const code = `${cleanPrefix || 'COT'} ${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`;
+    const companyName = detectedCompany || '';
+    const cleanPrefix = companyName ? companyName.replace(/[^A-Za-z0-9]/g, ' ').trim().split(/\s+/)[0].toUpperCase() : 'COT';
+    const code = `${cleanPrefix} ${new Date().toLocaleDateString('pt-BR').replace(/\//g, '')}`;
+
+    const detectedContactPerson = extractContactPersonFromText(rawText);
+    const detectedEmail = extractEmailFromText(rawText);
+    const detectedPhone = extractContactPhone(rawText) || '';
 
     const newQuote: Quote = {
       id: `quote-${Date.now()}`,
       code,
-      clientCompany: companyName,
-      contactPerson: 'Responsável',
-      clientEmail: 'contato@cliente.com.br',
-      clientPhone: '',
-      subject: 'Proposta Comercial Sob Demanda',
+      clientCompany: companyName ? formatCompanyPrefix(companyName) : '',
+      contactPerson: detectedContactPerson ? formatContactPerson(detectedContactPerson) : '',
+      clientEmail: detectedEmail,
+      clientPhone: detectedPhone,
+      subject: companyName ? `Proposta Comercial — ${companyName}` : 'Proposta Comercial',
       city: 'Brasília',
       date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
       validityDays: settings.defaultValidityDays,
@@ -339,7 +602,7 @@ export const App: React.FC = () => {
   const handleNewQuote = () => {
     const blank: Quote = {
       id: `quote-${Date.now()}`,
-      code: `CNC ${new Date().getDate().toString().padStart(2, '0')}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getFullYear().toString().slice(-2)}`,
+      code: generateQuoteCode('COTACAO'),
       clientCompany: '',
       contactPerson: '',
       clientEmail: '',
@@ -365,19 +628,40 @@ export const App: React.FC = () => {
   };
 
   const handleSaveQuote = () => {
+    registerOrUpdateClient(
+      currentQuote.clientCompany,
+      currentQuote.contactPerson,
+      currentQuote.clientEmail,
+      currentQuote.clientPhone,
+      currentQuote.deliveryLocation
+    );
+
     setQuotes(prev => {
-      const idx = prev.findIndex(q => q.id === currentQuote.id);
+      const idx = prev.findIndex(q => q.id === currentQuote.id || q.code === currentQuote.code);
+      let next: Quote[];
       if (idx >= 0) {
-        const next = [...prev];
+        next = [...prev];
         next[idx] = currentQuote;
-        return next;
+      } else {
+        next = [currentQuote, ...prev];
       }
-      return [currentQuote, ...prev];
+      saveQuotes(next);
+      return next;
     });
+
+    syncQuoteToSupabase(currentQuote);
     alert('Orçamento salvo com sucesso!');
   };
 
   const handleConfirmSendEmail = async (sentQuote: Quote) => {
+    registerOrUpdateClient(
+      sentQuote.clientCompany,
+      sentQuote.contactPerson,
+      sentQuote.clientEmail,
+      sentQuote.clientPhone,
+      sentQuote.deliveryLocation
+    );
+
     const token = getStoredAccessToken();
     if (token) {
       try {
@@ -394,9 +678,13 @@ export const App: React.FC = () => {
 
     setCurrentQuote(sentQuote);
     setQuotes(prev => {
-      const filtered = prev.filter(q => q.id !== sentQuote.id);
-      return [sentQuote, ...filtered];
+      const filtered = prev.filter(q => q.id !== sentQuote.id && q.code !== sentQuote.code);
+      const next = [sentQuote, ...filtered];
+      saveQuotes(next);
+      return next;
     });
+
+    syncQuoteToSupabase(sentQuote);
     setActiveTab('history');
   };
 
@@ -485,8 +773,10 @@ export const App: React.FC = () => {
         unreadCount={emails.filter(e => e.unread).length}
         openSettings={() => setIsSettingsOpen(true)}
         openWebSearch={() => setIsWebSearchOpen(true)}
+        openClientsModal={() => setIsClientsModalOpen(true)}
         settings={settings}
         onNewQuote={handleNewQuote}
+        analysesCount={manualAnalyses.length}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -495,13 +785,41 @@ export const App: React.FC = () => {
             emails={emails}
             onSelectEmailToQuote={handleSelectEmailToQuote}
             onParseCustomEmail={handleParseCustomEmail}
+            onAddCustomEmail={(newEmail) => {
+              setEmails(prev => {
+                const next = [newEmail, ...prev];
+                saveEmails(next);
+                return next;
+              });
+            }}
+            onAddManualAnalysis={handleAddManualAnalysis}
             isGoogleConnected={isGoogleConnected}
             connectedEmail={connectedUserEmail}
             isSyncing={isSyncingEmails}
             syncError={emailSyncError}
+            currentPeriod={emailPeriod}
             onConnectGoogle={handleConnectGoogle}
             onDisconnectGoogle={handleDisconnectGoogle}
             onRefreshEmails={handleRefreshEmails}
+            onOpenClientManagement={() => setIsClientsModalOpen(true)}
+            onUpdateEmailDetails={(emailId, updates) => {
+              setEmails(prev => {
+                const next = prev.map(e => e.id === emailId ? { ...e, ...updates } : e);
+                saveEmails(next);
+                return next;
+              });
+              if (updates.senderCompany && updates.senderName) {
+                const updatedComps = registerOrUpdateClient(
+                  updates.senderCompany,
+                  updates.senderName,
+                  undefined,
+                  updates.senderPhone,
+                  updates.deliveryLocation
+                );
+                setClientCompanies(updatedComps);
+                saveClientCompanies(updatedComps);
+              }
+            }}
           />
         )}
 
@@ -511,15 +829,28 @@ export const App: React.FC = () => {
             setCurrentQuote={setCurrentQuote}
             products={products}
             settings={settings}
+            clientCompanies={clientCompanies}
+            onSaveCompanies={handleSaveCompanies}
+            onDeleteCompany={handleDeleteCompany}
+            onDeleteContact={handleDeleteContact}
+            onOpenEmailScanner={() => setIsScannerModalOpen(true)}
             onPreview={() => setActiveTab('preview')}
             onSave={handleSaveQuote}
             onSendEmail={() => setIsEmailModalOpen(true)}
-            onOpenWebSearch={(query?: string, itemIdx?: number | null) => {
+            onOpenWebSearch={(query?: string, itemIdx?: number | null, existingItem?: Partial<QuoteItem>) => {
               setWebSearchQuery(query || '');
               setWebSearchTargetIndex(itemIdx !== undefined ? itemIdx : null);
+              setWebSearchExistingItem(existingItem || null);
               setIsWebSearchOpen(true);
             }}
-            onSaveToCatalog={(p) => setProducts(prev => [p, ...prev])}
+            onSaveToCatalog={(p) => {
+              setProducts(prev => {
+                const next = [p, ...prev];
+                saveProducts(next);
+                return next;
+              });
+              syncProductToSupabase(p);
+            }}
           />
         )}
 
@@ -549,13 +880,28 @@ export const App: React.FC = () => {
             }}
           />
         )}
+
+        {activeTab === 'analyses' && (
+          <ManualAnalysesView
+            analyses={manualAnalyses}
+            onSelectToQuote={(email) => {
+              handleSelectEmailToQuote(email);
+            }}
+            onDelete={handleDeleteManualAnalysis}
+            onUpdateAnalysis={handleUpdateManualAnalysis}
+          />
+        )}
       </main>
 
       <WebSearchModal
         isOpen={isWebSearchOpen}
-        onClose={() => setIsWebSearchOpen(false)}
+        onClose={() => {
+          setIsWebSearchOpen(false);
+          setWebSearchExistingItem(null);
+        }}
         initialQuery={webSearchQuery}
         targetItemIndex={webSearchTargetIndex}
+        existingItem={webSearchExistingItem}
         onAddToQuote={handleAddWebSearchItemToQuote}
         onUpdateQuoteItem={(idx, updatedData) => {
           setCurrentQuote(prev => {
@@ -583,7 +929,14 @@ export const App: React.FC = () => {
             };
           });
         }}
-        onSaveToCatalog={(p) => setProducts(prev => [p, ...prev])}
+        onSaveToCatalog={(p) => {
+          setProducts(prev => {
+            const next = [p, ...prev];
+            saveProducts(next);
+            return next;
+          });
+          syncProductToSupabase(p);
+        }}
       />
 
       <EmailSendModal
@@ -598,7 +951,37 @@ export const App: React.FC = () => {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
-        onSaveSettings={setSettings}
+        onSaveSettings={handleSaveSettings}
+      />
+
+      <ClientManagementModal
+        isOpen={isClientsModalOpen}
+        onClose={() => setIsClientsModalOpen(false)}
+        companies={clientCompanies}
+        onSaveCompanies={handleSaveCompanies}
+        onDeleteCompany={handleDeleteCompany}
+        onDeleteContact={handleDeleteContact}
+        onOpenEmailScanner={() => setIsScannerModalOpen(true)}
+        onSelectBuyerForQuote={(companyName, contact) => {
+          setCurrentQuote(prev => ({
+            ...prev,
+            clientCompany: formatCompanyPrefix(companyName),
+            contactPerson: formatContactPerson(contact.name),
+            clientEmail: (contact.email || prev.clientEmail || '').toLowerCase().trim(),
+            clientPhone: contact.phone || prev.clientPhone
+          }));
+          setActiveTab('builder');
+        }}
+      />
+
+      <EmailContactScannerModal
+        isOpen={isScannerModalOpen}
+        onClose={() => setIsScannerModalOpen(false)}
+        existingCompanies={clientCompanies}
+        localEmails={emails}
+        accessToken={getStoredAccessToken()}
+        onSaveCandidate={handleSaveScannedCandidate}
+        onSaveAllCandidates={handleSaveAllScannedCandidates}
       />
 
     </div>

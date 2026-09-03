@@ -11,6 +11,12 @@ import {
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Product } from '../types';
+import { saveProducts } from '../utils/storage';
+import { 
+  syncProductToSupabase, 
+  syncBatchProductsToSupabase, 
+  deleteProductFromSupabase 
+} from '../services/supabase';
 
 interface CatalogViewProps {
   products: Product[];
@@ -79,8 +85,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         });
 
         if (parsed.length > 0) {
-          setProducts(prev => [...parsed, ...prev]);
-          setImportStatus(`Sucesso! ${parsed.length} produtos importados da sua planilha CSV.`);
+          setProducts(prev => {
+            const next = [...parsed, ...prev];
+            saveProducts(next);
+            return next;
+          });
+          syncBatchProductsToSupabase(parsed);
+          setImportStatus(`Sucesso! ${parsed.length} produtos importados e sincronizados com o banco de dados.`);
           setTimeout(() => setImportStatus(null), 4000);
         }
       },
@@ -127,13 +138,27 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       lastUpdated: new Date().toISOString().split('T')[0]
     };
 
-    setProducts(prev => [created, ...prev]);
+    setProducts(prev => {
+      const next = [created, ...prev];
+      saveProducts(next);
+      return next;
+    });
+    syncProductToSupabase(created);
+
     setIsAddModalOpen(false);
     setNewProd({ sku: '', name: '', description: '', category: 'Hardware', costPrice: 0, unit: 'Un.', stock: 1 });
   };
 
   const handleDeleteProduct = (id: string) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
+    const toDelete = products.find(p => p.id === id);
+    if (toDelete?.sku) {
+      deleteProductFromSupabase(toDelete.sku);
+    }
+    setProducts(prev => {
+      const next = prev.filter(p => p.id !== id);
+      saveProducts(next);
+      return next;
+    });
   };
 
   return (

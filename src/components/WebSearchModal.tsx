@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   Sparkles, 
@@ -11,10 +11,13 @@ import {
   Eye,
   BookmarkPlus,
   RefreshCw,
-  ShoppingBag
+  ShoppingBag,
+  Upload,
+  X,
+  Clipboard
 } from 'lucide-react';
 import { Product, QuoteItem, WebSearchResult } from '../types';
-import { resolveProductDetails, cleanAlphanumericCode, cleanNcmCode, ProductCandidateListing } from '../utils/aiEmailParser';
+import { resolveProductDetails, cleanAlphanumericCode, cleanNcmCode, ProductCandidateListing, isExactProductUrl, extractStoreNameFromUrl, resolveImageForDescription } from '../utils/aiEmailParser';
 
 interface WebSearchModalProps {
   isOpen: boolean;
@@ -24,6 +27,7 @@ interface WebSearchModalProps {
   initialQuery?: string;
   targetItemIndex?: number | null;
   onUpdateQuoteItem?: (index: number, updatedData: Partial<QuoteItem>) => void;
+  existingItem?: Partial<QuoteItem> | null;
 }
 
 export const WebSearchModal: React.FC<WebSearchModalProps> = ({
@@ -33,7 +37,8 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
   onSaveToCatalog,
   initialQuery = '',
   targetItemIndex = null,
-  onUpdateQuoteItem
+  onUpdateQuoteItem,
+  existingItem = null
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [isSearching, setIsSearching] = useState(false);
@@ -46,7 +51,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
   const [partNumber, setPartNumber] = useState('');
   const [ncm, setNcm] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [showImageInQuote, setShowImageInQuote] = useState(true);
+  const [showImageInQuote, setShowImageInQuote] = useState(false);
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [supplier, setSupplier] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
@@ -54,29 +59,87 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState('Un.');
   const [candidateListings, setCandidateListings] = useState<ProductCandidateListing[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   // When modal opens or initialQuery changes, run the AI standardization
   useEffect(() => {
     if (isOpen) {
       const q = initialQuery || query || 'Monitor Dell 27 4K';
       setQuery(q);
+      setShowImageInQuote(existingItem?.showImage ?? false);
       runProductStandardization(q);
       setAddedSuccess(false);
       setSavedCatalogSuccess(false);
     }
-  }, [isOpen, initialQuery]);
+  }, [isOpen, initialQuery, existingItem]);
+
+  /** Converte um File ou Blob de imagem para Data URL (base64) e seta imageUrl */
+  const loadImageFile = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) setImageUrl(ev.target.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  /** Handler de paste global na zona de drop */
+  const handleZonePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imgItem = items.find(it => it.type.startsWith('image/'));
+    if (imgItem) {
+      e.preventDefault();
+      const blob = imgItem.getAsFile();
+      if (blob) loadImageFile(blob);
+    }
+  };
+
+  /** Drag and drop */
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) loadImageFile(file);
+  };
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
 
   const runProductStandardization = (searchTerm: string) => {
     setIsSearching(true);
     setTimeout(() => {
-      const details = resolveProductDetails(searchTerm);
+      const details = resolveProductDetails(searchTerm, undefined, existingItem?.partNumber);
+
+      // Prioridade absoluta: Se o item já possuía um Part Number real encontrado, preservá-lo!
+      const finalPartNumber = existingItem?.partNumber && existingItem.partNumber.trim().length >= 2
+        ? cleanAlphanumericCode(existingItem.partNumber)
+        : cleanAlphanumericCode(details.partNumber);
+
+      // Preservar NCM caso existente e válido
+      const finalNcm = existingItem?.ncm && existingItem.ncm.trim().length >= 4
+        ? cleanNcmCode(existingItem.ncm)
+        : cleanNcmCode(details.ncm);
+
+      // Buscar imagem correta de acordo com a Descrição Padronizada do Produto (Comercial)
+      const accurateImage = resolveImageForDescription(details.standardizedName) || details.imageUrl;
+      const finalImage = existingItem?.imageUrl && !existingItem.imageUrl.includes('photo-1526738549149-8e07eca6c147')
+        ? existingItem.imageUrl
+        : accurateImage;
+
+      const exactSourceUrl = (existingItem?.sourceUrl && isExactProductUrl(existingItem.sourceUrl))
+        ? existingItem.sourceUrl
+        : (isExactProductUrl(details.sourceUrl) ? details.sourceUrl : '');
+
+      const exactSupplier = exactSourceUrl
+        ? (existingItem?.supplier || details.supplier || extractStoreNameFromUrl(exactSourceUrl))
+        : '';
+
       setStandardizedName(details.standardizedName);
-      setPartNumber(cleanAlphanumericCode(details.partNumber));
-      setNcm(cleanNcmCode(details.ncm));
-      setImageUrl(details.imageUrl);
-      setEstimatedCost(details.estimatedCost);
-      setSupplier(details.supplier);
-      setSourceUrl(details.sourceUrl);
+      setPartNumber(finalPartNumber);
+      setNcm(finalNcm);
+      setImageUrl(finalImage);
+      setShowImageInQuote(existingItem?.showImage ?? false);
+      setEstimatedCost(existingItem?.costPrice || details.estimatedCost);
+      setSupplier(exactSupplier);
+      setSourceUrl(exactSourceUrl);
       setCategory(details.category);
       setCandidateListings(details.candidateListings || []);
       setIsSearching(false);
@@ -383,15 +446,84 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
                   </span>
                 </div>
 
-                {/* Photo URL input */}
+                {/* Foto: colar / upload / buscar */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Link da Imagem Nítida (Foto)</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-semibold text-slate-600">Foto do Produto</label>
+                    {!imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newImg = resolveImageForDescription(standardizedName);
+                          if (newImg) setImageUrl(newImg);
+                        }}
+                        className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold hover:underline flex items-center gap-1 transition"
+                      >
+                        <Sparkles className="w-3 h-3 text-sky-500" />
+                        <span>Buscar foto por esta descrição</span>
+                      </button>
+                    )}
+                    {imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setImageUrl('')}
+                        className="text-[10px] text-red-500 hover:text-red-700 font-semibold hover:underline flex items-center gap-1 transition"
+                      >
+                        <X className="w-3 h-3" />
+                        <span>Remover foto</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {imageUrl ? (
+                    /* Preview quando já há imagem */
+                    <div className="flex items-center gap-2 p-2 bg-white border border-green-200 rounded-xl">
+                      <img src={imageUrl} alt="preview" className="w-12 h-12 object-contain rounded-lg border border-slate-100" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-semibold text-green-700">Foto carregada</p>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {imageUrl.startsWith('data:') ? 'Imagem local (colada/enviada)' : imageUrl.substring(0, 50) + '...'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Zona de colar / arrastar / upload */
+                    <div
+                      ref={dropZoneRef}
+                      onPaste={handleZonePaste}
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      tabIndex={0}
+                      className="flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed border-slate-200 rounded-xl py-4 px-3 bg-white hover:border-sky-300 hover:bg-sky-50/40 focus:border-sky-400 focus:bg-sky-50/60 transition cursor-pointer outline-none"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-100 rounded-lg">
+                          <ImageIcon className="w-5 h-5 text-slate-400" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-xs font-semibold text-slate-600">
+                            Clique para escolher arquivo
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            ou arraste uma foto &bull; ou <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded text-[9px] font-mono">Ctrl+V</kbd> para colar um print
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Input de arquivo oculto */}
                   <input
-                    type="text"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://..."
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-sky-500"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) loadImageFile(file);
+                      e.target.value = '';
+                    }}
                   />
                 </div>
               </div>
@@ -484,31 +616,55 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
                   type="text"
                   value={supplier}
                   onChange={(e) => setSupplier(e.target.value)}
-                  placeholder="Ex: Mercado Livre / Distribuidor"
+                  placeholder="Ex: KaBuM!, Mercado Livre, Amazon..."
                   className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-sky-500 font-medium"
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Link Direto do Produto (Marketplace / Loja)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-semibold text-slate-600">Link Direto do Produto (Link Exato)</label>
+                  {!sourceUrl && (
+                    <span className="text-[10px] text-slate-400">Nenhum link exato cadastrado (use as buscas abaixo para achar)</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5">
                   <input
                     type="text"
                     value={sourceUrl}
-                    onChange={(e) => setSourceUrl(e.target.value)}
-                    placeholder="https://produto.mercadolivre.com.br/..."
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSourceUrl(val);
+                      if (val && !supplier) {
+                        const store = extractStoreNameFromUrl(val);
+                        if (store) setSupplier(store);
+                      }
+                    }}
+                    placeholder="Cole aqui o link exato do produto (Mercado Livre, Kabum, Amazon...)"
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-sky-500 font-mono"
                   />
-                  <a
-                    href={sourceUrl || `https://lista.mercadolivre.com.br/${encodeURIComponent(standardizedName.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, '-'))}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 font-bold bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg border border-amber-300 shrink-0 transition"
-                    title="Abrir anúncio ou busca direta no Mercado Livre"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Abrir</span>
-                  </a>
+                  {sourceUrl ? (
+                    <a
+                      href={sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-emerald-800 hover:text-emerald-950 font-bold bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-lg border border-emerald-300 shrink-0 transition"
+                      title="Abrir página exata do produto cadastrada"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Abrir</span>
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 shrink-0 cursor-not-allowed"
+                      title="Sem link exato do produto cadastrado"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-300" />
+                      <span>Sem Link</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

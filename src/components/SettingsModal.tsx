@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   Building, 
@@ -8,6 +8,7 @@ import {
   Calculator
 } from 'lucide-react';
 import { CompanySettings } from '../types';
+import { saveSettings } from '../utils/storage';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -25,10 +26,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [form, setForm] = useState<CompanySettings>(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) {
+      setForm(settings);
+    }
+  }, [isOpen, settings]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    saveSettings(form);
     onSaveSettings(form);
     setSavedSuccess(true);
     setTimeout(() => {

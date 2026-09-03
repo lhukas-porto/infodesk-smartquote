@@ -25,8 +25,6 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [isSentSuccess, setIsSentSuccess] = useState(false);
 
-  if (!isOpen) return null;
-
   const defaultSubject = `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
   const defaultBody = `Prezada(o) ${quote.contactPerson || 'Cliente'},
 
@@ -50,8 +48,11 @@ Telefone: ${settings.phone}
 WhatsApp: ${settings.whatsapp}
 ${settings.address} – ${settings.cityState}`;
 
+  // ⚠️ Todos os hooks devem ficar ANTES de qualquer early return (Rules of Hooks)
   const [subject, setSubject] = useState(defaultSubject);
   const [bodyText, setBodyText] = useState(defaultBody);
+
+  if (!isOpen) return null;
 
   const handleSend = () => {
     setIsSending(true);
@@ -104,16 +105,16 @@ ${settings.address} – ${settings.cityState}`;
               <label className="block text-slate-600 font-medium mb-1">Destinatário (Para:)</label>
               <input
                 type="email"
-                value={quote.clientEmail}
+                value={(quote.clientEmail || '').toLowerCase()}
                 readOnly
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none lowercase"
               />
             </div>
             <div>
               <label className="block text-slate-600 font-medium mb-1">Remetente (Google Workspace)</label>
               <input
                 type="text"
-                value={`${settings.representativeName} <${settings.email}>`}
+                value={`${settings.representativeName} <${(settings.email || '').toLowerCase()}>`}
                 readOnly
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-600 font-medium focus:outline-none"
               />

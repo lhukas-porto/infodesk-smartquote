@@ -35,6 +35,8 @@ export interface QuoteItem {
   unitPrice: number;
   totalPrice: number;
   sourceUrl?: string;
+  supplier?: string;
+  dollarPrice?: number;
 }
 
 export interface Quote {
@@ -71,6 +73,7 @@ export interface Quote {
 
 export interface IncomingEmail {
   id: string;
+  threadId?: string;
   senderName: string;
   senderEmail: string;
   senderCompany: string;
@@ -78,6 +81,8 @@ export interface IncomingEmail {
   date: string;
   snippet: string;
   body: string;
+  bodyHtml?: string;
+  senderPhone?: string;
   deliveryLocation?: string;
   unread: boolean;
   status: 'new' | 'parsed' | 'quoted' | 'ignored';
@@ -86,6 +91,7 @@ export interface IncomingEmail {
     description: string;
     rawSearchQuery?: string;
     partNumber?: string;
+    itemCode?: string;
     ncm?: string;
     imageUrl?: string;
     quantity: number;
@@ -133,4 +139,24 @@ export interface WebSearchResult {
   availability: string;
   category: string;
   url?: string;
+}
+
+export interface ClientContact {
+  id: string;
+  name: string;
+  title?: string;
+  email: string;
+  phone?: string;
+  role?: string;
+  location?: string;
+  lastUsed?: string;
+}
+
+export interface ClientCompany {
+  id: string;
+  name: string;
+  contacts: ClientContact[];
+  defaultDeliveryLocation?: string;
+  locations?: string[];
+  lastUsed?: string;
 }

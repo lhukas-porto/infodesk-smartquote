@@ -5,11 +5,10 @@ import {
   ArrowLeft, 
   Copy, 
   Check,
-  ExternalLink,
-  FileText,
   Download
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
+import { formatCompanyPrefix, formatContactPerson } from '../utils/aiEmailParser';
 
 interface QuotePreviewProps {
   quote: Quote;
@@ -28,6 +27,9 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
   const [copied, setCopied] = useState(false);
   const [downloadingDoc, setDownloadingDoc] = useState(false);
 
+  const cleanPhone = (settings.phone || '61 3033-5373').replace(/[()]/g, '').trim();
+  const cleanWhatsapp = (settings.whatsapp || '61 9 9627-2630').replace(/[()]/g, '').trim();
+
   const handlePrint = () => {
     window.print();
   };
@@ -36,22 +38,25 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
     setDownloadingDoc(true);
     const filename = `${quote.code.replace(/[^a-zA-Z0-9_-]/g, '_') || 'Proposta_Infodesk'}.doc`;
 
-    const clientCompanyFormatted = quote.clientCompany.startsWith('Ao ') ? quote.clientCompany : `Ao ${quote.clientCompany}`;
-    const contactPersonFormatted = quote.contactPerson.startsWith('A/C ') ? quote.contactPerson : `A/C ${quote.contactPerson}`;
+    const clientCompanyFormatted = formatCompanyPrefix(quote.clientCompany);
+    const contactPersonFormatted = formatContactPerson(quote.contactPerson);
 
     const itemsRows = quote.items.map(item => `
       <tr>
-        <td style="border: 1pt solid #475569; padding: 6pt; text-align: center;">${item.itemNumber}</td>
-        <td style="border: 1pt solid #475569; padding: 6pt;">
-          ${item.showImage && item.imageUrl ? `<img src="${item.imageUrl}" width="38" height="38" style="vertical-align: middle; margin-right: 6pt; border: 1pt solid #cbd5e1;" />` : ''}
-          <strong>${item.name}</strong>
-        </td>
-        <td style="border: 1pt solid #475569; padding: 6pt; text-align: center;">${item.quantity}</td>
-        <td style="border: 1pt solid #475569; padding: 6pt; text-align: center;">${item.unit || 'Un.'}</td>
-        <td style="border: 1pt solid #475569; padding: 6pt; text-align: center; white-space: nowrap;">R$ ${item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="border: 1pt solid #475569; padding: 6pt; text-align: center; white-space: nowrap;">R$ ${item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center;">${item.itemNumber}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: left;">${item.name}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center;">${item.quantity}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center;">${item.unit || 'Un.'}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">R$ ${item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">R$ ${item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
       </tr>
     `).join('');
+
+    const formattedShipping = quote.shippingTerms
+      ? (quote.shippingTerms.toLowerCase().startsWith('frete')
+          ? quote.shippingTerms
+          : `Frete: ${quote.shippingTerms}`)
+      : '';
 
     const fullDoc = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -70,7 +75,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
         <style>
           @page Section1 {
             size: 21.0cm 29.7cm;
-            margin: 2.0cm 2.0cm 2.2cm 2.0cm;
+            margin: 2.0cm 2.0cm 2.0cm 2.0cm;
             mso-header-margin: 35.4pt;
             mso-footer-margin: 35.4pt;
             mso-footer: f1;
@@ -79,41 +84,48 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
           div.Section1 { page: Section1; }
           div#f1 { mso-element: footer; }
           body {
-            font-family: Calibri, "Segoe UI", Arial, sans-serif;
-            font-size: 11pt;
-            line-height: 1.25;
+            font-family: Verdana, Geneva, sans-serif;
+            font-size: 10pt;
+            line-height: 1.35;
             color: #000000;
           }
-          p { margin: 0 0 8pt 0; }
+          p { margin: 0 0 6pt 0; }
           table {
             border-collapse: collapse;
             width: 100%;
-            margin-bottom: 12pt;
+            margin-bottom: 14pt;
+            font-family: Verdana, Geneva, sans-serif;
+            font-size: 10pt;
           }
           th {
-            background-color: #f1f5f9;
             font-weight: bold;
             text-align: center;
-            border: 1pt solid #475569;
-            padding: 6pt;
+            border: 1pt solid #000000;
+            padding: 4pt 6pt;
+            font-size: 10pt;
+            background-color: #ffffff;
+          }
+          td {
+            border: 1pt solid #000000;
+            padding: 4pt 6pt;
             font-size: 10pt;
           }
         </style>
       </head>
       <body>
         <div class="Section1">
-          <div style="margin-bottom: 18pt;">
-            <p style="font-size: 20pt; font-weight: bold; color: #0284c7; margin: 0;">INFODESK</p>
-            <p style="font-size: 9.5pt; color: #475569; margin: 0;">Informática & Tecnologia</p>
+          <div style="margin-bottom: 20pt;">
+            <img src="${window.location.origin}/infodesk-logo-original.svg" width="220" height="54" style="width: 220px; height: 54px;" />
           </div>
 
-          <div style="margin-bottom: 14pt; line-height: 1.3;">
-            <p style="margin: 0; font-weight: bold;">${clientCompanyFormatted}</p>
-            <p style="margin: 0; font-weight: bold;">${contactPersonFormatted}</p>
-            <p style="margin: 0;">E-mail: <a href="mailto:${quote.clientEmail}" style="color: #0000ee; text-decoration: underline;">${quote.clientEmail}</a></p>
+          <div style="margin-bottom: 14pt; line-height: 1.35; font-family: Verdana, Geneva, sans-serif;">
+            <p style="margin: 0; font-weight: bold; font-size: 12pt; font-family: Verdana, Geneva, sans-serif;">${clientCompanyFormatted}</p>
+            <p style="margin: 2pt 0 0 0; font-weight: bold; font-size: 12pt; font-family: Verdana, Geneva, sans-serif;">${contactPersonFormatted}</p>
+            <p style="margin: 3pt 0 0 0; font-size: 8pt; font-family: Verdana, Geneva, sans-serif;"><strong>E-mail:</strong> <a href="mailto:${(quote.clientEmail || '').toLowerCase()}" style="color: #0000ee; text-decoration: underline; font-size: 8pt;">${(quote.clientEmail || '').toLowerCase()}</a></p>
+            ${quote.clientPhone ? `<p style="margin: 2pt 0 0 0; font-size: 8pt; font-family: Verdana, Geneva, sans-serif;"><strong>Telefone:</strong> ${quote.clientPhone}</p>` : ''}
           </div>
 
-          <p style="text-align: justify; margin-bottom: 14pt;">
+          <p style="text-align: justify; margin-bottom: 12pt; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.35;">
             ${quote.openingText || settings.defaultOpeningText}
           </p>
 
@@ -121,11 +133,11 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
             <thead>
               <tr>
                 <th style="width: 8%;">Item</th>
-                <th style="width: 44%;">Descrição do Produto</th>
-                <th style="width: 10%;">Qtd.</th>
+                <th style="width: 48%; text-align: center;">Descrição do Produto</th>
+                <th style="width: 8%;">Qtd.</th>
                 <th style="width: 8%;">Un.</th>
-                <th style="width: 15%;">Preço unit.</th>
-                <th style="width: 15%;">Preço total</th>
+                <th style="width: 14%;">Preço unit.</th>
+                <th style="width: 14%;">Preço total</th>
               </tr>
             </thead>
             <tbody>
@@ -133,28 +145,28 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
             </tbody>
           </table>
 
-          <div style="margin-bottom: 18pt; font-size: 10.5pt; line-height: 1.3;">
-            <p style="margin: 0 0 4pt 0; font-weight: bold;">Condições gerais:</p>
-            <p style="margin: 0 0 2pt 0;"><span style="font-weight: bold;">Validade da proposta:</span> ${quote.validityDays}</p>
-            <p style="margin: 0 0 2pt 0;"><span style="font-weight: bold;">Condições de pagamento:</span> ${quote.paymentTerms}</p>
-            <p style="margin: 0 0 2pt 0;"><span style="font-weight: bold;">Prazo de entrega:</span> ${quote.deliveryDays}</p>
-            <p style="margin: 0 0 2pt 0;"><span style="font-weight: bold;">Garantia:</span> ${quote.warrantyTerms}</p>
-            <p style="margin: 2pt 0 0 0; font-weight: bold;">${quote.shippingTerms || `Frete incluso p/ ${quote.deliveryLocation || 'Brasília'}.`}</p>
+          <div style="margin-bottom: 20pt; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.45;">
+            <p style="margin: 0 0 6pt 0; font-weight: bold; text-decoration: underline;">Condições gerais:</p>
+            <p style="margin: 0 0 3pt 0;">➤&nbsp; Validade da proposta: ${quote.validityDays}</p>
+            <p style="margin: 0 0 3pt 0;">➤&nbsp; Condições de pagamento: ${quote.paymentTerms}</p>
+            <p style="margin: 0 0 3pt 0;">➤&nbsp; Prazo de entrega: ${quote.deliveryDays}</p>
+            <p style="margin: 0 0 3pt 0;">➤&nbsp; Garantia: ${quote.warrantyTerms}</p>
+            ${formattedShipping ? `<p style="margin: 0 0 3pt 0; font-weight: bold;">➤&nbsp; ${formattedShipping}</p>` : ''}
           </div>
 
-          <div style="text-align: right; margin-top: 24pt; margin-bottom: 36pt; line-height: 1.4;">
-            <p style="margin: 0 0 16pt 0;">${quote.city || 'Brasília'}, ${quote.date}.</p>
-            <p style="margin: 0; font-weight: bold;">${settings.representativeName}</p>
-            <p style="margin: 0;">&#9742; ${settings.phone}</p>
-            <p style="margin: 0;"><a href="https://api.whatsapp.com/send?phone=55${settings.whatsapp.replace(/\D/g, '')}" style="color: #0000ee; text-decoration: underline;">${settings.whatsapp}</a></p>
+          <div style="text-align: right; margin-top: 24pt; margin-bottom: 30pt; line-height: 1.4; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+            <p style="margin: 0 0 24pt 0;">${quote.city || 'Brasília'}, ${quote.date}.</p>
+            <p style="margin: 0; font-weight: normal;">${settings.representativeName || 'Lucas Porto'}</p>
+            <p style="margin: 0;">&#9742; ${cleanPhone}</p>
+            <p style="margin: 0;"><a href="https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}" style="color: #0000ee; text-decoration: underline;">${cleanWhatsapp}</a></p>
           </div>
 
           <!-- Official Native Word Document Footer -->
           <div style="mso-element:footer" id="f1">
-            <div style="border-top: 1pt solid #000000; padding-top: 6pt; text-align: center; font-size: 9pt; font-family: Calibri, sans-serif; line-height: 1.3;">
-              <p style="margin: 0; font-weight: bold;">${settings.companyName}</p>
-              <p style="margin: 0;">${settings.address} – ${settings.cityState}</p>
-              <p style="margin: 0;">CNPJ: ${settings.cnpj}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;I.E.: ${settings.stateRegistration}</p>
+            <div style="border-top: 1pt solid #000000; padding-top: 6pt; text-align: center; font-size: 10pt; font-family: Verdana, sans-serif; line-height: 1.35;">
+              <p style="margin: 0; font-weight: bold;">${settings.companyName || 'Lucas Porto da Fonseca-ME'}</p>
+              <p style="margin: 0;">${settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste'} – ${settings.cityState || 'Brasília - DF'}</p>
+              <p style="margin: 0;">CNPJ: ${settings.cnpj || '15.266.716/0001-02'}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;I.E.: ${settings.stateRegistration || '07.602.330/001-92'}</p>
             </div>
           </div>
         </div>
@@ -193,7 +205,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       `- ${quote.shippingTerms || `Frete incluso p/ ${quote.deliveryLocation || 'Brasília'}.`}\n\n` +
       `${quote.city || 'Brasília'}, ${quote.date}.\n\n` +
       `${settings.representativeName}\n` +
-      `${settings.phone} / ${settings.whatsapp}\n` +
+      `Tel: ${cleanPhone} / WhatsApp: ${cleanWhatsapp}\n` +
       `${settings.companyName}\n` +
       `${settings.address} – ${settings.cityState}\n` +
       `CNPJ: ${settings.cnpj}  I.E.: ${settings.stateRegistration}`;
@@ -206,181 +218,218 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
   return (
     <div className="space-y-6">
       
+      {/* Top Action Toolbar (Hidden during Print) */}
       <div className="no-print bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <button
           onClick={onBackToEdit}
           className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Voltar ao Montador</span>
+          <span>Voltar à Cotação</span>
         </button>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleCopyToClipboard}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 rounded-xl text-xs font-semibold transition"
+            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-medium transition"
+            title="Copiar texto puro para WhatsApp"
           >
-            {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
             <span>{copied ? 'Copiado!' : 'Copiar Texto'}</span>
           </button>
 
           <button
             onClick={handleDownloadDoc}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-xl text-xs font-bold transition shadow-xs"
-            title="Exportar orçamento diretamente em arquivo editável do Word (.doc)"
+            disabled={downloadingDoc}
+            className="flex items-center gap-1.5 px-3 py-2 border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 text-blue-700 rounded-xl text-xs font-semibold transition"
+            title="Baixar arquivo DOC editável padrão Infodesk"
           >
-            {downloadingDoc ? <Check className="w-4 h-4 text-emerald-600" /> : <FileText className="w-4 h-4 text-sky-600" />}
-            <span>{downloadingDoc ? 'Baixando...' : 'Baixar .doc (Word)'}</span>
+            <Download className="w-3.5 h-3.5 text-blue-600" />
+            <span>{downloadingDoc ? 'Gerando Word...' : 'Exportar Word (.doc)'}</span>
           </button>
 
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 rounded-xl text-xs font-semibold transition shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-medium transition"
+            title="Imprimir ou Salvar em PDF"
           >
-            <Printer className="w-4 h-4 text-sky-600" />
-            <span>Imprimir / Salvar PDF</span>
+            <Printer className="w-3.5 h-3.5" />
+            <span>Imprimir / PDF</span>
           </button>
 
           <button
             onClick={onSendEmail}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-sm transition"
+            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm shadow-blue-500/20 transition"
           >
-            <Send className="w-4 h-4" />
-            <span>Disparar E-mail</span>
+            <Send className="w-3.5 h-3.5" />
+            <span>Enviar ao Cliente</span>
           </button>
         </div>
       </div>
 
+      {/* Visual Proposal Page (Identical replica of Infodesk's official document) */}
       <div className="flex justify-center">
         <div 
           ref={documentRef}
-          className="print-page bg-white text-black w-full max-w-[794px] min-h-[1123px] p-12 md:p-14 shadow-2xl rounded-sm border border-slate-200 text-[13.5px] leading-normal font-sans flex flex-col justify-between"
-          style={{ fontFamily: 'Calibri, Arial, "Segoe UI", sans-serif' }}
+          className="print-page bg-white text-black w-full max-w-[794px] min-h-[1123px] p-12 md:p-14 shadow-2xl rounded-sm border border-slate-200 leading-normal flex flex-col justify-between"
+          style={{ fontFamily: 'Verdana, Geneva, sans-serif' }}
         >
           {/* Main Top & Center Content */}
           <div className="flex-1 flex flex-col">
             {/* Header with Original Infodesk Logo */}
-            <div className="mb-8">
+            <div className="mb-6">
               <img 
                 src="/infodesk-logo-original.svg" 
                 alt="Infodesk" 
-                className="h-14 w-auto object-contain"
+                className="w-auto object-contain"
+                style={{ height: '54px' }}
               />
             </div>
 
             {/* Client Destination Info */}
-            <div className="space-y-1 text-black text-[13.5px] mb-6">
-              <p className="font-bold">
-                {quote.clientCompany.startsWith('Ao ') ? quote.clientCompany : `Ao ${quote.clientCompany}`}
+            <div 
+              className="space-y-1 text-black mb-5 leading-snug"
+              style={{ fontFamily: 'Verdana, Geneva, sans-serif' }}
+            >
+              <p 
+                className="font-bold text-black tracking-normal"
+                style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '12pt', lineHeight: '1.3' }}
+              >
+                {formatCompanyPrefix(quote.clientCompany)}
               </p>
-              <p className="font-bold">
-                {quote.contactPerson.startsWith('A/C ') ? quote.contactPerson : `A/C ${quote.contactPerson}`}
+              <p 
+                className="font-bold text-black tracking-normal"
+                style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '12pt', lineHeight: '1.3' }}
+              >
+                {formatContactPerson(quote.contactPerson)}
               </p>
-              <p>
-                E-mail: <a href={`mailto:${quote.clientEmail}`} className="text-blue-700 underline">{quote.clientEmail}</a>
+              <p 
+                className="pt-0.5 text-black"
+                style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '8pt', lineHeight: '1.3' }}
+              >
+                E-mail: <a href={`mailto:${(quote.clientEmail || '').toLowerCase()}`} className="text-[#0000ff] underline">{(quote.clientEmail || '').toLowerCase()}</a>
               </p>
+              {quote.clientPhone && (
+                <p 
+                  className="pt-0.5 text-black"
+                  style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '8pt', lineHeight: '1.3' }}
+                >
+                  Telefone: <span>{quote.clientPhone}</span>
+                </p>
+              )}
             </div>
 
             {/* Opening Paragraph */}
-            <p className="text-justify text-black mb-6 text-[13.5px] leading-relaxed">
+            <p 
+              className="text-left text-black mb-5 leading-snug"
+              style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt' }}
+            >
               {quote.openingText || settings.defaultOpeningText}
             </p>
 
             {/* Product Items Table */}
-            <div className="mb-6">
-              <table className="w-full text-left text-[13px] border-collapse border border-slate-400">
+            <div className="mb-5">
+              <table 
+                className="w-full text-left border-collapse border border-black"
+                style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt' }}
+              >
                 <thead>
-                  <tr className="bg-slate-100/60 font-bold border-b border-slate-400 text-black">
-                    <th className="p-2 border-r border-slate-400 text-center w-12">Item</th>
-                    <th className="p-2 border-r border-slate-400 text-center">Descrição do Produto</th>
-                    <th className="p-2 border-r border-slate-400 text-center w-14">Qtd.</th>
-                    <th className="p-2 border-r border-slate-400 text-center w-14">Un.</th>
-                    <th className="p-2 border-r border-slate-400 text-center w-28">Preço unit.</th>
-                    <th className="p-2 text-center w-28">Preço total</th>
+                  <tr className="font-bold border-b border-black text-black">
+                    <th className="p-1.5 border border-black text-center w-12" style={{ fontSize: '10pt' }}>Item</th>
+                    <th className="p-1.5 border border-black text-center" style={{ fontSize: '10pt' }}>Descrição do Produto</th>
+                    <th className="p-1.5 border border-black text-center w-12" style={{ fontSize: '10pt' }}>Qtd.</th>
+                    <th className="p-1.5 border border-black text-center w-12" style={{ fontSize: '10pt' }}>Un.</th>
+                    <th className="p-1.5 border border-black text-center w-28" style={{ fontSize: '10pt' }}>Preço unit.</th>
+                    <th className="p-1.5 border border-black text-center w-28" style={{ fontSize: '10pt' }}>Preço total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {quote.items.map((item) => {
-                    const productUrl = item.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(item.name + ' ' + (item.description || ''))}`;
-                    return (
-                      <tr key={item.id} className="border-b border-slate-300">
-                        <td className="p-2 border-r border-slate-400 text-center">
-                          {item.itemNumber}
-                        </td>
-                        <td className="p-2 border-r border-slate-400">
-                          <div className="flex items-center gap-2.5">
-                            {item.showImage && item.imageUrl && (
-                              <img 
-                                src={item.imageUrl} 
-                                alt={item.name} 
-                                className="w-9 h-9 object-contain rounded border border-slate-200 p-0.5 bg-white shrink-0" 
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
-                            )}
-                            <a
-                              href={productUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="font-bold text-black hover:text-blue-700 hover:underline inline-flex items-center gap-1.5 cursor-pointer group"
-                              title="Clique para abrir o link do produto na web"
-                            >
-                              <span>{item.name}</span>
-                              <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-blue-600 inline opacity-60 group-hover:opacity-100 transition print:hidden" />
-                            </a>
+                  {quote.items.map((item) => (
+                    <tr key={item.id} className="border-b border-black">
+                      <td className="p-1.5 border border-black text-center" style={{ fontSize: '10pt' }}>
+                        {item.itemNumber}
+                      </td>
+                      <td className="p-1.5 border border-black text-left" style={{ fontSize: '10pt' }}>
+                        <div>{item.name}</div>
+                        {item.description && item.description !== item.name && (
+                          <div className="text-[8.5pt] text-slate-700 mt-0.5 whitespace-pre-line">{item.description}</div>
+                        )}
+                        {item.showImage && item.imageUrl && (
+                          <div className="mt-2 mb-1 flex justify-start">
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              style={{
+                                height: '4cm',
+                                maxHeight: '4cm',
+                                width: 'auto',
+                                objectFit: 'contain'
+                              }}
+                              className="border border-slate-300 rounded bg-white p-1"
+                            />
                           </div>
-                        </td>
-                        <td className="p-2 border-r border-slate-400 text-center">
-                          {item.quantity}
-                        </td>
-                        <td className="p-2 border-r border-slate-400 text-center">
-                          {item.unit}
-                        </td>
-                        <td className="p-2 border-r border-slate-400 text-center whitespace-nowrap">
-                          R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="p-2 text-center whitespace-nowrap">
-                          R$ {item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        )}
+                      </td>
+                      <td className="p-1.5 border border-black text-center" style={{ fontSize: '10pt' }}>
+                        {item.quantity}
+                      </td>
+                      <td className="p-1.5 border border-black text-center" style={{ fontSize: '10pt' }}>
+                        {item.unit || 'Un.'}
+                      </td>
+                      <td className="p-1.5 border border-black text-center whitespace-nowrap" style={{ fontSize: '10pt' }}>
+                        R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-1.5 border border-black text-center whitespace-nowrap" style={{ fontSize: '10pt' }}>
+                        R$ {item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
             {/* General Conditions */}
-            <div className="space-y-1 mb-8 text-[13.5px]">
-              <p className="font-bold mb-2">Condições gerais:</p>
-              <p><span className="font-bold">Validade da proposta:</span> {quote.validityDays}</p>
-              <p><span className="font-bold">Condições de pagamento:</span> {quote.paymentTerms}</p>
-              <p><span className="font-bold">Prazo de entrega:</span> {quote.deliveryDays}</p>
-              <p><span className="font-bold">Garantia:</span> {quote.warrantyTerms}</p>
-              <p className="font-bold text-black">{quote.shippingTerms || `Frete incluso p/ ${quote.deliveryLocation || 'Brasília'}.`}</p>
+            <div 
+              className="space-y-1 mb-8 leading-relaxed text-black"
+              style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt' }}
+            >
+              <p className="font-bold underline mb-2" style={{ fontSize: '10pt' }}>Condições gerais:</p>
+              <p style={{ fontSize: '10pt' }}>➤&nbsp; Validade da proposta: {quote.validityDays}</p>
+              <p style={{ fontSize: '10pt' }}>➤&nbsp; Condições de pagamento: {quote.paymentTerms}</p>
+              <p style={{ fontSize: '10pt' }}>➤&nbsp; Prazo de entrega: {quote.deliveryDays}</p>
+              <p style={{ fontSize: '10pt' }}>➤&nbsp; Garantia: {quote.warrantyTerms}</p>
+              {quote.shippingTerms && (
+                <p className="font-bold" style={{ fontSize: '10pt' }}>
+                  ➤&nbsp; {quote.shippingTerms.toLowerCase().startsWith('frete') ? quote.shippingTerms : `Frete: ${quote.shippingTerms}`}
+                </p>
+              )}
             </div>
 
             {/* Date & Signature (Right-aligned as in the original document) */}
-            <div className="flex flex-col items-end text-right ml-auto space-y-6 mb-8 text-[13.5px]">
+            <div 
+              className="flex flex-col items-end text-right ml-auto space-y-7 mb-8 text-black"
+              style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt' }}
+            >
               <div>
-                <p>{quote.city || 'Brasília'}, {quote.date}.</p>
+                <p style={{ fontSize: '10pt' }}>{quote.city || 'Brasília'}, {quote.date}.</p>
               </div>
 
-              <div className="space-y-1">
-                <p className="font-bold text-black">{settings.representativeName}</p>
-                <div className="flex items-center justify-end gap-2 text-black">
-                  <img src="/phone-icon.png" alt="Telefone" className="w-4 h-4 object-contain inline-block" />
-                  <span>{settings.phone}</span>
+              <div className="space-y-0.5 text-right" style={{ fontSize: '10pt' }}>
+                <p className="text-black font-normal" style={{ fontSize: '10pt' }}>{settings.representativeName || 'Lucas Porto'}</p>
+                <div className="flex items-center justify-end gap-1 text-black" style={{ fontSize: '10pt' }}>
+                  <span className="leading-none" style={{ fontSize: '10pt' }}>☎</span>
+                  <span style={{ fontSize: '10pt' }}>{cleanPhone}</span>
                 </div>
-                <div className="flex items-center justify-end gap-2">
-                  <img src="/whatsapp-icon.png" alt="WhatsApp" className="w-4 h-4 object-contain inline-block" />
+                <div className="flex items-center justify-end gap-1.5" style={{ fontSize: '10pt' }}>
+                  <img src="/whatsapp-icon.png" alt="WhatsApp" className="w-3.5 h-3.5 object-contain inline-block" />
                   <a 
-                    href={`https://api.whatsapp.com/send?phone=55${settings.whatsapp.replace(/\D/g, '')}`} 
+                    href={`https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}`} 
                     target="_blank" 
-                    rel="noreferrer"
-                    className="text-blue-700 underline"
+                    rel="noreferrer" 
+                    className="text-[#0000ff] underline"
+                    style={{ fontSize: '10pt' }}
                   >
-                    {settings.whatsapp}
+                    {cleanWhatsapp}
                   </a>
                 </div>
               </div>
@@ -388,12 +437,15 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
           </div>
 
           {/* Bottom Divider & Company Details (ALWAYS glued to the bottom of the sheet) */}
-          <div className="mt-auto pt-3 border-t border-slate-800 text-[12px] text-slate-800 space-y-0.5 text-center">
-            <p className="font-bold text-black">{settings.companyName}</p>
-            <p>{settings.address} – {settings.cityState}</p>
-            <p className="flex items-center justify-center gap-8">
-              <span>CNPJ: {settings.cnpj}</span>
-              <span>I.E.: {settings.stateRegistration}</span>
+          <div 
+            className="mt-auto pt-2 border-t border-black text-black space-y-0.5 text-center"
+            style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt' }}
+          >
+            <p className="font-bold" style={{ fontSize: '10pt' }}>{settings.companyName || 'Lucas Porto da Fonseca-ME'}</p>
+            <p style={{ fontSize: '10pt' }}>{settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste'} – {settings.cityState || 'Brasília - DF'}</p>
+            <p className="flex items-center justify-center gap-12" style={{ fontSize: '10pt' }}>
+              <span style={{ fontSize: '10pt' }}>CNPJ: {settings.cnpj || '15.266.716/0001-02'}</span>
+              <span style={{ fontSize: '10pt' }}>I.E.: {settings.stateRegistration || '07.602.330/001-92'}</span>
             </p>
           </div>
         </div>
