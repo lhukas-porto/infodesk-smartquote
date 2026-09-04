@@ -294,16 +294,184 @@ function parseLiberalFallback(lines: string[]): ExtractedImageQuoteData['items']
   return items;
 }
 
+// ─── Gemini Vision AI Extractor ──────────────────────────────────────────
+
+async function imageSourceToBase64(imageSource: string | File): Promise<{ base64: string; mimeType: string } | null> {
+  try {
+    if (typeof imageSource === 'string') {
+      if (imageSource.startsWith('data:image/')) {
+        const parts = imageSource.split(',');
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+        return { base64: parts[1], mimeType };
+      }
+      const resp = await fetch(imageSource);
+      const blob = await resp.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = reader.result as string;
+          const parts = res.split(',');
+          resolve({ base64: parts[1], mimeType: blob.type || 'image/png' });
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } else if (typeof imageSource === 'object' && imageSource !== null && 'type' in imageSource) {
+      const fileOrBlob = imageSource as Blob;
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = reader.result as string;
+          const parts = res.split(',');
+          resolve({ base64: parts[1], mimeType: fileOrBlob.type || 'image/png' });
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(fileOrBlob);
+      });
+    }
+  } catch (e) {
+    console.warn('[imageQuoteParser] Erro ao converter imagem para base64:', e);
+  }
+  return null;
+}
+
+async function extractWithGeminiVision(
+  imageSource: string | File,
+  apiKey: string,
+  onProgress?: (percent: number, message: string) => void
+): Promise<ExtractedImageQuoteData | null> {
+  try {
+    onProgress?.(25, 'Preparando imagem para a Inteligência Gemini Vision...');
+    const imgData = await imageSourceToBase64(imageSource);
+    if (!imgData) return null;
+
+    onProgress?.(50, 'Gemini Vision analisando produtos, marcas e quantidades...');
+
+    const prompt = 
+      'Você é um especialista sênior em cotações comerciais, suprimentos corporativos e compras públicas no Brasil.\n' +
+      'Analise a imagem desta cotação, pedido ou print com extrema precisão.\n\n' +
+      'DIRETRIZES OBRIGATÓRIAS:\n' +
+      '1. NOMENCLATURA PADRONIZADA DE CATÁLOGO / FABRICANTE: Para cada produto, defina um nome canônico e profissional no padrão:\n' +
+      '   [Tipo do Produto] [Marca] [Linha Especificação Sabor] [Embalagem Gramatura Tamanho]\n' +
+      '   - REGRA DE OURO DE PONTUAÇÃO: NUNCA use traços, hífens (- ou —) ou vírgulas (,) na descrição ou nome dos produtos. Use apenas espaços simples entre as palavras.\n' +
+      '   - Exemplo CORRETO de Café: "Café Torrado e Moído Tradicional Vácuo 500g Café do Sítio"\n' +
+      '   - Exemplo CORRETO de Chá: "Chá Twinings Sabores Diversos Caixa com 100 Sachês"\n' +
+      '   - PROIBIDO inventar palavras desnecessárias (ex: não troque para "Chá Preto e Verde", use o termo canônico solicitado: "Chá Twinings Sabores Diversos Caixa com 100 Sachês").\n' +
+      '   - PROIBIDO nomes informais ou redundantes como "Kit de chá", "Kit de...", ou duplicar a descrição dentro do nome.\n' +
+      '2. QUANTIDADES: Identifique com precisão absoluta a quantidade solicitada (ex: se na linha ou tabela constar 500 pct, quantidade = 500, unit = "Pct"). Não deixe passar pedidos em lote.\n' +
+      '3. NCM FISCAL REAL: Sugira o NCM exato do produto (ex: café torrado = 0901.21.00; chá preto/aromatizado = 0902.30.00; eletrônicos = 84/85; utilidades plásticas = 3924.90.00).\n' +
+      '4. DADOS DO CLIENTE: Identifique órgão, empresa solicitante, comprador, e-mail, telefone e cidade de entrega se visíveis.\n\n' +
+      'Retorne ESTRITAMENTE um JSON com esta estrutura:\n' +
+      '{\n' +
+      '  "senderCompany": "Nome da empresa ou órgão comprador",\n' +
+      '  "senderName": "Nome do comprador ou solicitante",\n' +
+      '  "senderEmail": "email se houver",\n' +
+      '  "senderPhone": "telefone se houver",\n' +
+      '  "deliveryLocation": "Cidade/UF de entrega",\n' +
+      '  "subject": "Cotação de Materiais",\n' +
+      '  "items": [\n' +
+      '    {\n' +
+      '      "name": "Nome padronizado canônico do fabricante",\n' +
+      '      "description": "Especificação técnica detalhada",\n' +
+      '      "quantity": 500,\n' +
+      '      "unit": "Pct",\n' +
+      '      "partNumber": "código ou SKU do fabricante se houver",\n' +
+      '      "ncm": "0901.21.00",\n' +
+      '      "estimatedCost": 22.50\n' +
+      '    }\n' +
+      '  ]\n' +
+      '}';
+
+    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    for (const model of modelsToTry) {
+      try {
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      mimeType: imgData.mimeType,
+                      data: imgData.base64
+                    }
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json'
+            }
+          })
+        });
+
+        if (!resp.ok) continue;
+
+        const data = await resp.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) continue;
+
+        const parsed = JSON.parse(text);
+        if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+          onProgress?.(95, 'Itens e detalhes identificados com precisão pelo Gemini!');
+          return {
+            senderName: parsed.senderName || '',
+            senderEmail: parsed.senderEmail || '',
+            senderCompany: parsed.senderCompany || '',
+            senderPhone: parsed.senderPhone || '',
+            deliveryLocation: parsed.deliveryLocation || 'Brasília',
+            subject: parsed.subject || (parsed.senderCompany ? `Cotação de Materiais — ${parsed.senderCompany}` : 'Cotação de Materiais'),
+            items: parsed.items.map((it: any) => ({
+              name: it.name || 'Produto',
+              description: it.description || '',
+              rawSearchQuery: `${it.name || ''} ${it.partNumber || ''}`.trim(),
+              quantity: Number(it.quantity) || 1,
+              unit: it.unit || 'Un.',
+              partNumber: it.partNumber || '',
+              itemCode: it.itemCode || it.partNumber || '',
+              estimatedCost: Number(it.estimatedCost) || 0
+            }))
+          };
+        }
+      } catch (errLoop) {
+        console.warn(`[imageQuoteParser] Falha no modelo ${model}:`, errLoop);
+      }
+    }
+  } catch (err) {
+    console.warn('[imageQuoteParser] Erro no Gemini Vision:', err);
+  }
+  return null;
+}
+
 // ─── Função principal ─────────────────────────────────────────────────────────
 
 /**
  * Extrai itens e metadados do comprador a partir de uma imagem de pedido/cotação.
- * Suporta: tabela estruturada, print de WhatsApp, foto de tela com produtos.
+ * Usa Gemini Vision AI com prioridade e fallback inteligente para OCR local.
  */
 export async function extractDataFromQuotationImage(
   imageSource: string | File,
   onProgress?: (percent: number, message: string) => void
 ): Promise<ExtractedImageQuoteData> {
+  const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('infodesk_gemini_api_key') || '').trim();
+
+  // ─── 1. Tentar Gemini Vision se a chave estiver configurada ─────────────────
+  if (geminiKey) {
+    onProgress?.(10, 'Conectando ao Gemini Vision...');
+    const visionResult = await extractWithGeminiVision(imageSource, geminiKey, onProgress);
+    if (visionResult && visionResult.items.length > 0) {
+      onProgress?.(100, `Concluído! ${visionResult.items.length} iten${visionResult.items.length !== 1 ? 's' : ''} identificado${visionResult.items.length !== 1 ? 's' : ''} pelo Gemini.`);
+      return visionResult;
+    }
+  }
+
+  // ─── 2. Fallback: OCR Local (Tesseract) ────────────────────────────────────
   onProgress?.(15, 'Otimizando imagem para leitura ótica...');
 
   let ocrText = '';
@@ -328,31 +496,28 @@ export async function extractDataFromQuotationImage(
 
   onProgress?.(88, 'Identificando produtos e dados de contato...');
 
-  // ─── Metadados do remetente ───────────────────────────────────────────────
+  // Metadados do remetente
   const senderEmail = extractEmailFromText(ocrText);
   const senderPhone = extractContactPhone(ocrText) || '';
   const senderCompany = extractFullCompanyName('', '', '', ocrText);
   const senderName = extractContactPersonFromText(ocrText);
   const deliveryLocation = extractDeliveryLocation(ocrText) || 'Brasília';
 
-  // ─── Cascata de parsers ───────────────────────────────────────────────────
+  // Cascata de parsers
   const lines = ocrText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   let items: ExtractedImageQuoteData['items'] = [];
 
   // 1ª: Tabela estruturada (planilha/PDF)
   items = parseTableFormat(lines);
-  console.log(`[imageQuoteParser] parseTableFormat → ${items.length} itens`);
 
-  // 2ª: Print de WhatsApp (agrupa linhas por bloco de mensagem)
+  // 2ª: Print de WhatsApp
   if (items.length === 0) {
     items = parseWhatsAppBlockFormat(ocrText);
-    console.log(`[imageQuoteParser] parseWhatsAppBlockFormat → ${items.length} itens`);
   }
 
-  // 3ª: Fallback liberal (linha a linha)
+  // 3ª: Fallback liberal
   if (items.length === 0) {
     items = parseLiberalFallback(lines);
-    console.log(`[imageQuoteParser] parseLiberalFallback → ${items.length} itens`);
   }
 
   onProgress?.(100, `Concluído! ${items.length} iten${items.length !== 1 ? 's' : ''} encontrado${items.length !== 1 ? 's' : ''}.`);

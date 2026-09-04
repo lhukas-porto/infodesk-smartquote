@@ -1008,14 +1008,78 @@ const numberToPortugueseWords: Record<number, string> = {
 };
 
 /**
+ * Converte número para extenso em português
+ */
+export function getPortugueseNumberWord(num: number): string {
+  const map: Record<number, string> = {
+    1: 'um',
+    2: 'dois',
+    3: 'três',
+    4: 'quatro',
+    5: 'cinco',
+    6: 'seis',
+    7: 'sete',
+    8: 'oito',
+    9: 'nove',
+    10: 'dez',
+    12: 'doze',
+    15: 'quinze',
+    20: 'vinte',
+    24: 'vinte e quatro',
+    25: 'vinte e cinco',
+    28: 'vinte e oito',
+    30: 'trinta',
+    36: 'trinta e seis',
+    45: 'quarenta e cinco',
+    60: 'sessenta',
+    90: 'noventa'
+  };
+  return map[num] || num.toString();
+}
+
+/**
  * Generates the standardized official phrase: "em até 10 (dez) dias úteis após autorização de fornecimento."
  */
 export function formatDeliveryDaysText(daysCount: number): string {
   const count = Math.max(1, Math.round(daysCount));
-  const word = numberToPortugueseWords[count] || count.toString();
+  const word = numberToPortugueseWords[count] || getPortugueseNumberWord(count);
   const dayUnit = count === 1 ? 'dia útil' : 'dias úteis';
   const padded = count < 10 ? `0${count}` : `${count}`;
   return `em até ${padded} (${word}) ${dayUnit} após autorização de fornecimento.`;
+}
+
+/**
+ * Generates the standardized official phrase with optional item exceptions:
+ * Ex: "em até 10 (dez) dias úteis após autorização de fornecimento. Exceto para os itens 1, 3 e 4 em até 20 (vinte) dias úteis após autorização de fornecimento."
+ */
+export function formatDeliveryDaysWithException(
+  standardDays: number,
+  exceptionItemNumbers: number[] = [],
+  exceptionDays?: number
+): string {
+  const basePhrase = formatDeliveryDaysText(standardDays);
+  if (!exceptionItemNumbers || exceptionItemNumbers.length === 0 || !exceptionDays) {
+    return basePhrase;
+  }
+
+  const sorted = [...new Set(exceptionItemNumbers)].sort((a, b) => a - b);
+  let itemsStr = '';
+  if (sorted.length === 1) {
+    itemsStr = `o item ${sorted[0]}`;
+  } else if (sorted.length === 2) {
+    itemsStr = `os itens ${sorted[0]} e ${sorted[1]}`;
+  } else {
+    const last = sorted[sorted.length - 1];
+    const initial = sorted.slice(0, -1).join(', ');
+    itemsStr = `os itens ${initial} e ${last}`;
+  }
+
+  const excCount = Math.max(1, Math.round(exceptionDays));
+  const excWord = numberToPortugueseWords[excCount] || getPortugueseNumberWord(excCount);
+  const excDayUnit = excCount === 1 ? 'dia útil' : 'dias úteis';
+  const excPadded = excCount < 10 ? `0${excCount}` : `${excCount}`;
+
+  return `${basePhrase} Exceto para ${itemsStr} em até ${excPadded} (${excWord}) ${excDayUnit} após autorização de fornecimento.`;
 }
 
 /**
@@ -1025,6 +1089,90 @@ export function extractDeliveryDaysNumber(text: string | undefined): number {
   if (!text) return 10;
   const match = text.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : 10;
+}
+
+/**
+ * Extracts exception items and exception days from delivery phrase if present:
+ * Ex: "... Exceto para o item 1 em até 25 (vinte e cinco) dias úteis..."
+ */
+export function extractDeliveryExceptionDetails(text: string | undefined): { itemNumbers: number[]; days: number; hasException: boolean } {
+  if (!text || !text.includes('Exceto para')) {
+    return { itemNumbers: [], days: 20, hasException: false };
+  }
+
+  const parts = text.split(/Exceto para/i);
+  const exceptionPart = parts[1] || '';
+
+  // Extract days from the exception part (ex: "em até 25 (vinte e cinco) dias úteis")
+  const daysMatch = exceptionPart.match(/em até (\d+)/i) || exceptionPart.match(/(\d+)\s*(?:\([^)]+\)\s*)?dias/i);
+  const days = daysMatch ? parseInt(daysMatch[1], 10) : 20;
+
+  // Extract item numbers before "em até"
+  const itemNumbers: number[] = [];
+  const itemsSection = exceptionPart.split(/em até/i)[0] || '';
+  const numMatches = itemsSection.match(/\d+/g);
+  if (numMatches) {
+    numMatches.forEach(n => {
+      const parsed = parseInt(n, 10);
+      if (!isNaN(parsed) && parsed > 0 && !itemNumbers.includes(parsed)) {
+        itemNumbers.push(parsed);
+      }
+    });
+  }
+
+  return {
+    itemNumbers,
+    days,
+    hasException: itemNumbers.length > 0
+  };
+}
+
+/**
+ * Formata Validade da Proposta no padrão oficial Infodesk: "05 (cinco) dias ou enquanto durar o estoque."
+ */
+export function formatValidityDaysText(daysCount: number): string {
+  const count = Math.max(1, Math.round(daysCount));
+  const word = getPortugueseNumberWord(count);
+  const dayUnit = count === 1 ? 'dia' : 'dias';
+  const padded = count < 10 ? `0${count}` : `${count}`;
+  return `${padded} (${word}) ${dayUnit} ou enquanto durar o estoque.`;
+}
+
+export function extractValidityDaysNumber(text: string | undefined): number {
+  if (!text) return 5;
+  const match = text.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : 5;
+}
+
+/**
+ * Formata Condições de Pagamento: "30 dias" ou "A vista" ou "28 dias faturado"
+ */
+export function formatPaymentTermsDays(daysCount: number): string {
+  if (daysCount === 0) return 'À vista.';
+  return `${daysCount} dias`;
+}
+
+export function extractPaymentDaysNumber(text: string | undefined): number {
+  if (!text) return 30;
+  const match = text.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : 30;
+}
+
+/**
+ * Formata Termos de Garantia: "12 (doze) meses balcão para defeitos de fabricação."
+ */
+export function formatWarrantyMonthsText(monthsCount: number): string {
+  const count = Math.max(1, Math.round(monthsCount));
+  const word = getPortugueseNumberWord(count);
+  const unit = count === 1 ? 'mês' : 'meses';
+  const padded = count < 10 ? `0${count}` : `${count}`;
+  return `${padded} (${word}) ${unit} balcão para defeitos de fabricação.`;
+}
+
+export function extractWarrantyMonthsNumber(text: string | undefined): number {
+  if (!text) return 12;
+  const match = text.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : 12;
 }
 
 /**
@@ -1042,54 +1190,49 @@ export function cleanNcmCode(ncm: string | undefined): string {
 }
 
 /**
- * Psychological and commercial price rounding based on Infodesk business rules:
- * - If calculated price is closest to ending in 9, round to ...9,00 (e.g. 157 -> 159,00; 108 -> 109,00).
- * - If calculated price is closest to 1 of decade, round down to ...99,00 (e.g. 101 -> 99,00; 100 -> 99,00).
- * - If calculated price is closest to 5, round to ...5,00 (e.g. 154 -> 155,00; 106 -> 105,00).
+ * Regra de arredondamento comercial solicitada por Lucas:
+ * - Se os centavos estiverem abaixo de 0,50 (ex: 59,20), arredonda para baixo (ex: 59,00).
+ * - Se os centavos estiverem iguais ou acima de 0,50 (ex: 59,50 ou 59,70), arredonda para cima (ex: 60,00).
+ * Na prática: Math.round(rawPrice).
  */
 export function applyCommercialPriceRounding(rawPrice: number): number {
   if (rawPrice <= 0) return 0;
-  if (rawPrice < 5) {
-    return Number(rawPrice.toFixed(2));
-  }
-
-  const baseDecade = Math.floor(rawPrice / 10) * 10;
-  const candidates = [
-    baseDecade - 5, // e.g. 145
-    baseDecade - 1, // e.g. 149 (ends in 9)
-    baseDecade + 5, // e.g. 155 (ends in 5)
-    baseDecade + 9, // e.g. 159 (ends in 9)
-    baseDecade + 15, // e.g. 165 (ends in 5)
-    baseDecade + 19  // e.g. 169 (ends in 9)
-  ].filter(c => c > 0);
-
-  let bestCandidate = candidates[0];
-  let minDiff = Infinity;
-
-  for (const cand of candidates) {
-    const diff = Math.abs(rawPrice - cand);
-    // Prefer higher ending in tie breaks (e.g. 157 has distance 2 to 155 and 2 to 159 -> choose 159)
-    if (diff < minDiff || (Math.abs(diff - minDiff) < 0.0001 && cand > bestCandidate)) {
-      minDiff = diff;
-      bestCandidate = cand;
-    }
-  }
-
-  return Number(bestCandidate.toFixed(2));
+  return Math.round(rawPrice);
 }
 
 /**
- * Calculates unit price with markup and tax, applying the Infodesk commercial rounding rule.
+ * Calcula o Preço de Venda garantindo que a porcentagem de Lucro Líquido
+ * incida diretamente sobre o Custo Real dos produtos, e o Imposto incida sobre o Preço de Venda.
+ *
+ * Regra de arredondamento:
+ * Se os centavos estiverem abaixo de 0,50 -> arredonda para baixo (ex: 59,20 -> 59,00).
+ * Se estiverem iguais ou acima de 0,50 -> arredonda para cima (ex: 59,50 -> 60,00).
+ *
+ * Exemplo prático:
+ * Custo = R$ 18,90 | Lucro = 21% | Imposto = 9,1%
+ * Preço Bruto = 18,90 * 1,21 / (1 - 0,091) = 25,158... -> Centavos abaixo de 0,50 -> R$ 25,00!
  */
 export function calculateCommercialUnitPrice(
   costPrice: number,
   shippingCost: number = 0,
-  markupPercent: number = 35,
-  taxPercent: number = 6
+  profitMarginPercent: number = 20,
+  taxPercent: number = 9.1
 ): number {
   const baseCost = Number(costPrice || 0) + Number(shippingCost || 0);
-  const rawPrice = (baseCost * (1 + Number(markupPercent || 0) / 100)) * (1 + Number(taxPercent || 0) / 100);
-  return applyCommercialPriceRounding(rawPrice);
+  if (baseCost <= 0) return 0;
+
+  const taxRate = Number(taxPercent || 0) / 100;
+  const marginRate = Number(profitMarginPercent || 0) / 100;
+  const netDivisor = 1 - taxRate;
+
+  // Evita divisão por zero se imposto >= 100%
+  if (netDivisor <= 0.01) {
+    return Math.round(baseCost * (1 + marginRate) / 0.01);
+  }
+
+  // Preço de venda com arredondamento padrão comercial (< 0.50 para baixo, >= 0.50 para cima)
+  const rawPrice = (baseCost * (1 + marginRate)) / netDivisor;
+  return Math.round(rawPrice);
 }
 
 export interface ProductCandidateListing {
@@ -1460,6 +1603,62 @@ const knownProductKnowledgeBase: {
   }
 ];
 
+export type WordCaseStyle = 'uppercase' | 'lowercase' | 'sentence' | 'title';
+
+/**
+ * Aplica estilos de capitalização estilo Microsoft Word:
+ * - 'uppercase': TODAS EM MAIÚSCULAS
+ * - 'lowercase': todas em minúsculas
+ * - 'sentence': Primeira da frase maiúscula
+ * - 'title': Primeira De Cada Palavra Maiúscula (mantendo conectivos menores em minúsculo se aplicável)
+ */
+export function applyTextCase(text: string, style: WordCaseStyle): string {
+  if (!text) return '';
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+
+  switch (style) {
+    case 'uppercase':
+      return trimmed.toUpperCase();
+
+    case 'lowercase':
+      return trimmed.toLowerCase();
+
+    case 'sentence': {
+      // Primeira letra de toda a frase em maiúscula, restante em minúsculo
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+    }
+
+    case 'title': {
+      // Primeira de cada palavra em maiúscula
+      const lowerConnectors = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em', 'com', 'para', 'por', 'a', 'o', 'as', 'os', 'um', 'uma', 'no', 'na', 'nos', 'nas']);
+      const words = trimmed.split(/(\s+|[-/])/);
+      return words.map((w, idx) => {
+        if (!w || /^\s+$/.test(w) || /^[-/]$/.test(w)) return w;
+        const lower = w.toLowerCase();
+        // Preservar minúsculo para conectivos no meio da frase
+        if (idx > 0 && lowerConnectors.has(lower)) {
+          return lower;
+        }
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      }).join('');
+    }
+
+    default:
+      return trimmed;
+  }
+}
+
+/**
+ * Formata a descrição do produto com apenas a primeira letra em maiúscula
+ * e todo o restante em minúsculo (sentence case estrito), conforme solicitado pelo usuário.
+ * Ex: "CHÁ PRETO E VERDE TWININGS..." -> "Chá preto e verde twinings..."
+ * Ex: "Cafe Torrado e Moido Tradicional Vacuo 500g" -> "Cafe torrado e moido tradicional vacuo 500g"
+ */
+export function formatProductSentenceCase(text: string): string {
+  return applyTextCase(text, 'sentence');
+}
+
 export function isExactProductUrl(url?: string): boolean {
   if (!url || typeof url !== 'string') return false;
   const lower = url.toLowerCase().trim();
@@ -1474,24 +1673,55 @@ export function isExactProductUrl(url?: string): boolean {
 export function extractStoreNameFromUrl(url?: string): string {
   if (!url) return '';
   try {
-    const domain = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
-    if (domain.includes('mercadolivre')) return 'Mercado Livre';
-    if (domain.includes('kabum')) return 'KaBuM!';
-    if (domain.includes('amazon')) return 'Amazon';
-    if (domain.includes('magazineluiza') || domain.includes('magalu')) return 'Magazine Luiza';
-    if (domain.includes('dell')) return 'Dell Brasil';
-    if (domain.includes('pichau')) return 'Pichau';
-    if (domain.includes('terabyteshop')) return 'Terabyte';
-    if (domain.includes('kalunga')) return 'Kalunga';
-    if (domain.includes('casasbahia')) return 'Casas Bahia';
-    if (domain.includes('fastshop')) return 'Fast Shop';
-    if (domain.includes('fischer')) return 'Fischer Oficial';
-    if (domain.includes('eletrolux') || domain.includes('electrolux')) return 'Electrolux';
-    if (domain.includes('brastemp')) return 'Brastemp';
-    if (domain.includes('consul')) return 'Consul';
-    if (domain.includes('suggar')) return 'Suggar';
-    if (domain.includes('philco')) return 'Philco';
-    return domain.split('.')[0].toUpperCase();
+    let cleanUrl = url.trim();
+    if (!cleanUrl) return '';
+
+    // Se o usuário digitou sem protocolo (ex: kalunga.com.br ou www.kabum.com.br)
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+      cleanUrl = `https://${cleanUrl}`;
+    }
+
+    let hostname = '';
+    try {
+      const parsed = new URL(cleanUrl);
+      hostname = parsed.hostname.replace(/^www\./, '').toLowerCase();
+    } catch {
+      // Se a URL ainda está incompleta durante a digitação
+      hostname = cleanUrl.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
+    }
+
+    if (hostname.includes('mercadolivre') || hostname.includes('mercado-livre')) return 'Mercado Livre';
+    if (hostname.includes('kabum')) return 'KaBuM!';
+    if (hostname.includes('amazon')) return 'Amazon';
+    if (hostname.includes('magazineluiza') || hostname.includes('magalu')) return 'Magazine Luiza';
+    if (hostname.includes('dell')) return 'Dell Brasil';
+    if (hostname.includes('lenovo')) return 'Lenovo';
+    if (hostname.includes('samsung')) return 'Samsung';
+    if (hostname.includes('apple')) return 'Apple';
+    if (hostname.includes('pichau')) return 'Pichau';
+    if (hostname.includes('terabyteshop') || hostname.includes('terabyte')) return 'Terabyte';
+    if (hostname.includes('kalunga')) return 'Kalunga';
+    if (hostname.includes('casasbahia')) return 'Casas Bahia';
+    if (hostname.includes('pontofrio') || hostname.includes('ponto.')) return 'Ponto Frio';
+    if (hostname.includes('extra.com')) return 'Extra';
+    if (hostname.includes('fastshop')) return 'Fast Shop';
+    if (hostname.includes('shopee')) return 'Shopee';
+    if (hostname.includes('aliexpress')) return 'AliExpress';
+    if (hostname.includes('fischer')) return 'Fischer Oficial';
+    if (hostname.includes('eletrolux') || hostname.includes('electrolux')) return 'Electrolux';
+    if (hostname.includes('brastemp')) return 'Brastemp';
+    if (hostname.includes('consul')) return 'Consul';
+    if (hostname.includes('suggar')) return 'Suggar';
+    if (hostname.includes('philco')) return 'Philco';
+    if (hostname.includes('leroymerlin')) return 'Leroy Merlin';
+    if (hostname.includes('carrefour')) return 'Carrefour';
+
+    // Para outros domínios, extrai o nome principal formatado (Ex: intelbras.com.br -> Intelbras)
+    const basePart = hostname.split('.')[0];
+    if (basePart && basePart.length > 2) {
+      return basePart.charAt(0).toUpperCase() + basePart.slice(1);
+    }
+    return '';
   } catch {
     return '';
   }
@@ -1579,8 +1809,20 @@ export function resolveImageForDescription(description: string): string {
   if (query.includes('base de corte') || query.includes('brw') || query.includes('papelaria')) {
     return 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=600&auto=format&fit=crop&q=80';
   }
+  if (query.includes('valvula') || query.includes('redutora') || query.includes('bermad')) {
+    return 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('junta') || query.includes('genebre') || query.includes('epdm') || query.includes('tubulacao')) {
+    return 'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=600&auto=format&fit=crop&q=80';
+  }
   if (query.includes('torneira') || query.includes('hidraulica')) {
     return 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('cafe') || query.includes('cafeteira') || query.includes('moido') || query.includes('graos')) {
+    return 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=600&auto=format&fit=crop&q=80';
+  }
+  if (query.includes('cha') || query.includes('twinings') || query.includes('sache') || query.includes('infusao')) {
+    return 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80';
   }
 
   return 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80';
@@ -1621,7 +1863,7 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string, exist
       if (itemPN === codeUpper || item.keywords.some(k => codeUpper.includes(k.toUpperCase().replace(/[^A-Z0-9]/g, '')))) {
         const hasExact = isExactProductUrl(item.directUrl);
         return {
-          standardizedName: item.name,
+          standardizedName: formatProductSentenceCase(item.name),
           partNumber: cleanAlphanumericCode(explicitCode || item.partNumber),
           ncm: cleanNcmCode(item.ncm),
           imageUrl: item.imageUrl,
@@ -1644,7 +1886,7 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string, exist
     if (matchCount >= matchThreshold) {
       const hasExact = isExactProductUrl(item.directUrl);
       return {
-        standardizedName: item.name,
+        standardizedName: formatProductSentenceCase(item.name),
         partNumber: cleanAlphanumericCode(explicitCode || item.partNumber),
         ncm: cleanNcmCode(item.ncm),
         imageUrl: item.imageUrl,
@@ -1809,10 +2051,22 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string, exist
     cost = 95.00;
     defaultImage = 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Tramontina Store';
+  } else if (query.includes('valvula') || query.includes('redutora') || query.includes('registro') || query.includes('bermad')) {
+    ncm = '84811000';
+    category = 'Válvulas & Hidráulica Industrial';
+    cost = 1580.00;
+    defaultImage = 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Distribuidor Especializado em Hidráulica';
+  } else if (query.includes('junta') || query.includes('expansao') || query.includes('genebre') || query.includes('epdm')) {
+    ncm = '40169990';
+    category = 'Conexões & Vedações Industriais';
+    cost = 480.00;
+    defaultImage = 'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=500&auto=format&fit=crop&q=80';
+    supplier = 'Distribuidor Genebre / Conexões';
   }
 
   return {
-    standardizedName: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
+    standardizedName: formatProductSentenceCase(cleanName),
     partNumber: cleanAlphanumericCode(generatedPartNumber),
     ncm: cleanNcmCode(ncm),
     imageUrl: defaultImage,
@@ -2058,28 +2312,33 @@ export function extractContactPersonFromText(text: string): string {
 /**
  * Gera o Código / Referência oficial da proposta no padrão exigido por Lucas:
  * "[NOME DA EMPRESA] [DATA SÓ COM NÚMEROS: DDMMAA]"
- * Exemplo: UBEC 090926
+ * Exemplo: SABIN 050926
+ * Com crítica inteligente: Se o código base já existir no banco/localStorage, gera incremental:
+ * SABIN 050926-2, SABIN 050926-3, etc.
  */
-export function generateQuoteCode(companyName?: string, date: Date = new Date()): string {
+export function generateQuoteCode(
+  companyName?: string, 
+  date: Date = new Date(),
+  existingCodesOrQuotes?: (string | { code?: string })[]
+): string {
   let cleanName = (companyName || 'COTACAO')
     .replace(/^(ao|à|a|para)\s+/i, '')
     .replace(/[^a-zA-Z0-9À-ÿ\s_-]/g, '')
     .trim() || 'COTACAO';
 
-  // Se for nome institucional longo com hífen/sigla (ex: "Universidade Brasileira de Educação Católica - UBEC"), priorizar a sigla
+  // Se for nome institucional longo com hífen/sigla explícita (ex: "Universidade Católica - UBEC"), priorizar a sigla
   const dashParts = cleanName.split(/[-—]/);
   if (dashParts.length > 1) {
     const candidateSigla = dashParts[dashParts.length - 1].trim();
-    if (candidateSigla.length >= 2 && candidateSigla.length <= 12) {
+    if (candidateSigla.length >= 2 && candidateSigla.length <= 12 && /^[A-Z0-9]+$/.test(candidateSigla)) {
       cleanName = candidateSigla;
     }
-  } else {
-    const siglaMatch = cleanName.match(/\b([A-Z]{2,10})\b/);
-    if (siglaMatch && cleanName.length > 15) {
-      cleanName = siglaMatch[1];
-    } else if (cleanName.length > 18) {
-      cleanName = cleanName.slice(0, 18).trim();
-    }
+  }
+
+  // Normaliza espaços múltiplos mantendo o nome completo da empresa (ex: "PAULO OCTAVIO", "HOSPITAL SANTA LUCIA")
+  cleanName = cleanName.replace(/\s+/g, ' ').trim();
+  if (cleanName.length > 35) {
+    cleanName = cleanName.slice(0, 35).trim();
   }
 
   const dd = String(date.getDate()).padStart(2, '0');
@@ -2087,5 +2346,71 @@ export function generateQuoteCode(companyName?: string, date: Date = new Date())
   const yy = String(date.getFullYear()).slice(-2);
   const dateOnlyDigits = `${dd}${mm}${yy}`;
 
-  return `${cleanName.toUpperCase().trim()} ${dateOnlyDigits}`;
+  const baseCode = `${cleanName.toUpperCase().trim()} ${dateOnlyDigits}`;
+
+  // Coleta lista de códigos já existentes
+  let existingSet = new Set<string>();
+
+  if (Array.isArray(existingCodesOrQuotes) && existingCodesOrQuotes.length > 0) {
+    existingCodesOrQuotes.forEach(it => {
+      if (typeof it === 'string' && it.trim()) {
+        existingSet.add(it.trim().toUpperCase());
+      } else if (it && typeof it === 'object' && it.code) {
+        existingSet.add(it.code.trim().toUpperCase());
+      }
+    });
+  } else {
+    // Busca do localStorage se não foi passado diretamente
+    try {
+      const saved = localStorage.getItem('infodesk_quotes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((q: any) => {
+            if (q?.code) existingSet.add(String(q.code).trim().toUpperCase());
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Crítica de unicidade: Se não existe, usa o baseCode. Se já existe, cria incremental (-2, -3, ...)
+  if (!existingSet.has(baseCode.toUpperCase())) {
+    return baseCode;
+  }
+
+  let counter = 2;
+  while (counter <= 999) {
+    const candidate = `${baseCode}-${counter}`;
+    if (!existingSet.has(candidate.toUpperCase())) {
+      return candidate;
+    }
+    counter++;
+  }
+
+  return `${baseCode}-${Date.now().toString().slice(-4)}`;
 }
+
+/**
+ * Aplica máscara brasileira inteligente em números de telefone (fixo ou celular):
+ * Ex: 6134032944 -> (61) 3403-2944
+ * Ex: 61996272630 -> (61) 99627-2630 ou (61) 9 9627-2630
+ * Permite digitação progressiva fluida.
+ */
+export function maskPhone(value: string): string {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    // Telefone fixo: (XX) XXXX-XXXX
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  // Celular: (XX) 9XXXX-XXXX
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+

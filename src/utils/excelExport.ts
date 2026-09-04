@@ -194,15 +194,15 @@ export async function exportCostSheetToExcel(quote: Quote, dollarRate?: number):
     cellJ.alignment = { horizontal: 'right', vertical: 'middle' };
 
     // K: Venda unit.
-    // Fórmula solicitada por Lucas: =ARREDONDAR.PARA.CIMA(H5*1,32;0)
-    // No ExcelJS (padrão OpenXML), ROUNDUP(H5*1.32,0) é renderizado no Excel em português como =ARREDONDAR.PARA.CIMA(H5*1,32;0)
+    // Fórmula solicitada por Lucas: se centavos < 0,50 arredonda pra baixo, se >= 0,50 arredonda pra cima
+    // No Excel: =ARRED(H5*markupFactor; 0) -> no OpenXML/ExcelJS: ROUND(H5*markupFactor, 0)
     const cellK = worksheet.getCell(`K${r}`);
     const markupPct = item.markupPercent ?? quote.averageMargin ?? 32;
     const markupFactor = Number((1 + markupPct / 100).toFixed(4));
-    const calculatedUnitPrice = Math.ceil((item.costPrice + unitFreight) * markupFactor);
+    const calculatedUnitPrice = item.unitPrice ? Math.round(item.unitPrice) : Math.round((item.costPrice + unitFreight) * markupFactor);
 
     cellK.value = {
-      formula: `ROUNDUP(H${r}*${markupFactor},0)`,
+      formula: `ROUND(H${r}*${markupFactor},0)`,
       result: calculatedUnitPrice
     };
     cellK.numFmt = numFmtAccounting;

@@ -16,8 +16,8 @@ export const defaultCompanySettings: CompanySettings = {
   defaultDeliveryDays: 'em até 10 (dez) dias úteis após autorização de fornecimento.',
   defaultWarrantyTerms: '06 (seis) meses contra eventuais problemas de fabricação. Garantia balcão. Exceto para Monitor/Impressora/Nobreak (garantia 1 ano na rede autorizada).',
   defaultOpeningText: 'Em atenção ao que foi solicitado por Vossa Senhoria, enviamos proposta para fornecimento dos produtos para informática, conforme especificações e condições a seguir.',
-  defaultMarkupPercent: 35,
-  defaultTaxPercent: 6,
+  defaultMarkupPercent: 23.5,
+  defaultTaxPercent: 9.1,
   defaultShippingCost: 0,
   googleWorkspaceConnected: true,
   googleAccountEmail: 'lucas@infodesk.com.br'

@@ -16,9 +16,10 @@ export const supabase = isSupabaseConfigured
 export async function fetchCompanySettingsFromSupabase(): Promise<CompanySettings | null> {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.from('company_settings').select('*').limit(1).maybeSingle();
+    const { data, error } = await supabase.from('company_settings').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle();
     if (error || !data) return null;
     return {
+      id: data.id,
       companyName: data.company_name,
       tradeName: data.trade_name,
       cnpj: data.cnpj,
@@ -49,7 +50,7 @@ export async function fetchCompanySettingsFromSupabase(): Promise<CompanySetting
 export async function syncCompanySettingsToSupabase(settings: CompanySettings): Promise<void> {
   if (!supabase) return;
   try {
-    await supabase.from('company_settings').upsert({
+    const payload = {
       company_name: settings.companyName,
       trade_name: settings.tradeName,
       cnpj: settings.cnpj,
@@ -71,7 +72,28 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
       google_workspace_connected: settings.googleWorkspaceConnected ?? true,
       google_account_email: settings.googleAccountEmail || settings.email,
       updated_at: new Date().toISOString()
-    });
+    };
+
+    // Se temos o ID ou encontramos o registro existente, atualizamos diretamente pelo ID para nunca duplicar
+    let targetId = settings.id;
+    if (!targetId) {
+      const { data: existing } = await supabase.from('company_settings').select('id').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+      if (existing?.id) {
+        targetId = existing.id;
+      }
+    }
+
+    if (targetId) {
+      const { error } = await supabase.from('company_settings').update(payload).eq('id', targetId);
+      if (error) {
+        console.error('Erro ao atualizar company_settings no Supabase:', error);
+      }
+    } else {
+      const { error } = await supabase.from('company_settings').insert(payload);
+      if (error) {
+        console.error('Erro ao inserir company_settings no Supabase:', error);
+      }
+    }
   } catch (err) {
     console.warn('Erro ao sincronizar configurações no Supabase:', err);
   }

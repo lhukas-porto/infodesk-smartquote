@@ -64,7 +64,17 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                 <h3 className="font-bold text-slate-900 text-sm group-hover:text-sky-700 transition">
                   {q.clientCompany}
                 </h3>
-                <p className="text-xs text-slate-500">{q.contactPerson} • {q.clientEmail}</p>
+                <div className="text-xs text-slate-500 space-y-0.5">
+                  <p className="font-medium text-slate-700">{q.contactPerson}</p>
+                  <p className="text-[11px] text-slate-500 break-all">
+                    <span className="font-semibold text-slate-600">Para:</span> {q.recipientEmails || q.clientEmail}
+                  </p>
+                  {q.ccEmails && (
+                    <p className="text-[10px] text-slate-400 break-all">
+                      <span className="font-semibold text-slate-500">Cc:</span> {q.ccEmails}
+                    </p>
+                  )}
+                </div>
 
                 <div className="pt-2 border-t border-slate-100 space-y-1 text-xs">
                   <div className="flex items-center justify-between text-slate-500">

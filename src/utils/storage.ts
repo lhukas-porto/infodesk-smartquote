@@ -229,7 +229,9 @@ export const saveQuotes = (quotes: Quote[]): void => {
   try {
     const normalized = quotes.map(q => ({
       ...q,
-      clientEmail: (q.clientEmail || '').toLowerCase().trim()
+      clientEmail: (q.clientEmail || '').toLowerCase().trim(),
+      recipientEmails: q.recipientEmails ? q.recipientEmails.toLowerCase().trim() : undefined,
+      ccEmails: q.ccEmails ? q.ccEmails.toLowerCase().trim() : undefined
     }));
     localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));
   } catch (err) {

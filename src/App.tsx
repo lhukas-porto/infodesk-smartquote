@@ -62,7 +62,8 @@ import {
   isExactProductUrl,
   extractEmailFromText,
   extractContactPersonFromText,
-  generateQuoteCode
+  generateQuoteCode,
+  formatProductSentenceCase
 } from './utils/aiEmailParser';
 import {
   isSupabaseConfigured,
@@ -188,10 +189,10 @@ export const App: React.FC = () => {
     await syncClientCompaniesToSupabase(current);
   };
 
-  const handleSaveSettings = (newSettings: CompanySettings) => {
+  const handleSaveSettings = async (newSettings: CompanySettings) => {
     setSettings(newSettings);
     saveSettings(newSettings);
-    syncCompanySettingsToSupabase(newSettings);
+    await syncCompanySettingsToSupabase(newSettings);
   };
 
   // Carregamento e sincronização com banco de dados do Supabase
@@ -212,6 +213,11 @@ export const App: React.FC = () => {
           setQuotes(remoteQuotes);
           saveQuotes(remoteQuotes);
           setCurrentQuote(prev => {
+            const draft = getCurrentDraftQuote();
+            // Se já temos um rascunho recente que o usuário está editando, preserva o rascunho
+            if (draft && draft.items && draft.items.length > 0) {
+              return draft;
+            }
             if (prev.code === 'CNC 280826' && remoteQuotes[0]) {
               return remoteQuotes[0];
             }
@@ -402,8 +408,8 @@ export const App: React.FC = () => {
         id: `item-${Date.now()}-${idx}`,
         itemNumber: idx + 1,
         productId: matchedProd?.id,
-        name: item.name || resolved.standardizedName,
-        description: item.description || resolved.standardizedName,
+        name: formatProductSentenceCase(resolved.standardizedName || item.name),
+        description: formatProductSentenceCase(resolved.standardizedName || item.description || item.name),
         rawSearchQuery: exactSearchRef,
         partNumber: finalPartNumber,
         ncm: finalNcm,
@@ -431,7 +437,7 @@ export const App: React.FC = () => {
       const itemCost = i.costPrice * qty;
       const itemShipping = (i.shippingCost || 0) * qty;
       const itemTotal = i.totalPrice;
-      const itemTax = itemTotal * ((i.taxPercent || tax) / (100 + (i.taxPercent || tax)));
+      const itemTax = itemTotal * ((i.taxPercent || tax) / 100);
 
       totalCost += itemCost;
       totalShipping += itemShipping;
@@ -469,6 +475,7 @@ export const App: React.FC = () => {
       totalProfit: Number(totalProfit.toFixed(2)),
       totalAmount: Number(totalAmount.toFixed(2)),
       averageMargin: Number(averageMargin.toFixed(1)),
+      globalMarkupPercent: markup,
       globalTaxPercent: tax,
       globalShipping: shipping,
       showProductImages: true,
@@ -514,8 +521,8 @@ export const App: React.FC = () => {
         id: `item-${Date.now()}-${idx}`,
         itemNumber: idx + 1,
         productId: matchedProd?.id,
-        name: item.name || resolved.standardizedName,
-        description: item.description || resolved.standardizedName,
+        name: formatProductSentenceCase(resolved.standardizedName || item.name),
+        description: formatProductSentenceCase(resolved.standardizedName || item.description || item.name),
         rawSearchQuery: exactSearchRef,
         partNumber: finalPartNumber,
         ncm: finalNcm,
@@ -589,6 +596,7 @@ export const App: React.FC = () => {
       totalProfit: Number(totalProfit.toFixed(2)),
       totalAmount: Number(totalAmount.toFixed(2)),
       averageMargin: Number(averageMargin.toFixed(1)),
+      globalMarkupPercent: markup,
       globalTaxPercent: tax,
       globalShipping: shipping,
       status: 'draft',
@@ -600,6 +608,10 @@ export const App: React.FC = () => {
   };
 
   const handleNewQuote = () => {
+    const defaultMarkup = settings.defaultMarkupPercent ?? 23.5;
+    const defaultTax = settings.defaultTaxPercent ?? 6;
+    const defaultShipping = settings.defaultShippingCost ?? 0;
+
     const blank: Quote = {
       id: `quote-${Date.now()}`,
       code: generateQuoteCode('COTACAO'),
@@ -619,7 +631,10 @@ export const App: React.FC = () => {
       totalCost: 0,
       totalProfit: 0,
       totalAmount: 0,
-      averageMargin: settings.defaultMarkupPercent || 35,
+      averageMargin: defaultMarkup,
+      globalMarkupPercent: defaultMarkup,
+      globalTaxPercent: defaultTax,
+      globalShipping: defaultShipping,
       status: 'draft',
       createdAt: new Date().toISOString()
     };
@@ -666,7 +681,8 @@ export const App: React.FC = () => {
     if (token) {
       try {
         await sendRealGmailMessage(token, {
-          to: sentQuote.clientEmail,
+          to: sentQuote.recipientEmails || sentQuote.clientEmail,
+          cc: sentQuote.ccEmails,
           from: settings.email,
           subject: `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`,
           bodyText: `Prezada(o) ${sentQuote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial ${sentQuote.code} para ${sentQuote.clientCompany}.\n\nValor Total: R$ ${sentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nCondições de Pagamento: ${sentQuote.paymentTerms}\nPrazo de Entrega: ${sentQuote.deliveryDays}\nGarantia: ${sentQuote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\nInfodesk — Informática & Tecnologia\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`
@@ -689,38 +705,156 @@ export const App: React.FC = () => {
   };
 
   const handleAddWebSearchItemToQuote = (item: Partial<QuoteItem>) => {
+    const markup = item.markupPercent || settings.defaultMarkupPercent || 35;
+    const tax = settings.defaultTaxPercent || 6;
+    const shipping = item.shippingCost || settings.defaultShippingCost || 0;
+    const cost = item.costPrice || 0;
+    const unitPrice = item.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
+    const qty = item.quantity || 1;
+    const totalPrice = Number((unitPrice * qty).toFixed(2));
+
     const newItem: QuoteItem = {
-      id: `item-${Date.now()}`,
+      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       itemNumber: currentQuote.items.length + 1,
       name: item.name || '',
       description: item.description || '',
-      quantity: item.quantity || 1,
+      partNumber: item.partNumber || '',
+      ncm: item.ncm || '',
+      imageUrl: item.imageUrl || '',
+      showImage: item.showImage ?? false,
+      quantity: qty,
       unit: item.unit || 'Un.',
-      costPrice: item.costPrice || 0,
-      markupPercent: item.markupPercent || 35,
-      unitPrice: item.unitPrice || 0,
-      totalPrice: item.totalPrice || 0,
-      sourceUrl: item.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(item.name || '')}`
+      costPrice: cost,
+      shippingCost: shipping,
+      taxPercent: tax,
+      markupPercent: markup,
+      unitPrice,
+      totalPrice,
+      sourceUrl: item.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(item.name || '')}`,
+      supplier: item.supplier || ''
     };
 
     const updatedItems = [...currentQuote.items, newItem];
     let totalCost = 0;
+    let totalShipping = 0;
     let totalAmount = 0;
+    let totalTaxes = 0;
+
     updatedItems.forEach(i => {
-      totalCost += i.costPrice * i.quantity;
-      totalAmount += i.totalPrice;
+      const q = i.quantity || 1;
+      const itemCost = i.costPrice * q;
+      const itemShipping = (i.shippingCost || 0) * q;
+      const itemTotal = i.totalPrice;
+      const itemTax = itemTotal * ((i.taxPercent || tax) / 100);
+
+      totalCost += itemCost;
+      totalShipping += itemShipping;
+      totalAmount += itemTotal;
+      totalTaxes += itemTax;
     });
-    const totalProfit = totalAmount - totalCost;
-    const averageMargin = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+
+    const totalProfit = totalAmount - totalCost - totalShipping - totalTaxes;
+    const directCosts = totalCost + totalShipping;
+    const averageMargin = directCosts > 0 ? (totalProfit / directCosts) * 100 : markup;
 
     setCurrentQuote(prev => ({
       ...prev,
       items: updatedItems,
-      totalCost,
-      totalProfit,
-      totalAmount,
-      averageMargin
+      totalCost: Number(totalCost.toFixed(2)),
+      totalShipping: Number(totalShipping.toFixed(2)),
+      totalTaxes: Number(totalTaxes.toFixed(2)),
+      totalProfit: Number(totalProfit.toFixed(2)),
+      totalAmount: Number(totalAmount.toFixed(2)),
+      averageMargin: Number(averageMargin.toFixed(1))
     }));
+  };
+
+  const handleStartNewQuoteWithItems = (itemsToAdd: Partial<QuoteItem>[]) => {
+    const markup = settings.defaultMarkupPercent || 23.5;
+    const tax = settings.defaultTaxPercent || 9.1;
+    const shipping = settings.defaultShippingCost || 0;
+
+    const items: QuoteItem[] = itemsToAdd.map((item, idx) => {
+      const cost = item.costPrice || 0;
+      const unitPrice = item.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
+      const qty = item.quantity || 1;
+      const totalPrice = Number((unitPrice * qty).toFixed(2));
+
+      return {
+        id: `item-${Date.now()}-${idx}`,
+        itemNumber: idx + 1,
+        name: item.name || '',
+        description: item.description || '',
+        partNumber: item.partNumber || '',
+        ncm: item.ncm || '',
+        imageUrl: item.imageUrl || '',
+        showImage: item.showImage ?? false,
+        quantity: qty,
+        unit: item.unit || 'Un.',
+        costPrice: cost,
+        shippingCost: shipping,
+        taxPercent: tax,
+        markupPercent: markup,
+        unitPrice,
+        totalPrice,
+        sourceUrl: item.sourceUrl || '',
+        supplier: item.supplier || ''
+      };
+    });
+
+    let totalCost = 0;
+    let totalShipping = 0;
+    let totalAmount = 0;
+    let totalTaxes = 0;
+
+    items.forEach(i => {
+      const q = i.quantity || 1;
+      const itemCost = i.costPrice * q;
+      const itemShipping = (i.shippingCost || 0) * q;
+      const itemTotal = i.totalPrice;
+      const itemTax = itemTotal * ((i.taxPercent || tax) / 100);
+
+      totalCost += itemCost;
+      totalShipping += itemShipping;
+      totalAmount += itemTotal;
+      totalTaxes += itemTax;
+    });
+
+    const totalProfit = totalAmount - totalCost - totalShipping - totalTaxes;
+    const directCosts = totalCost + totalShipping;
+    const averageMargin = directCosts > 0 ? (totalProfit / directCosts) * 100 : markup;
+
+    const newQuote: Quote = {
+      id: `quote-${Date.now()}`,
+      code: generateQuoteCode('COTACAO'),
+      clientCompany: '',
+      contactPerson: '',
+      clientEmail: '',
+      clientPhone: '',
+      subject: 'Fornecimento de Materiais e Equipamentos',
+      city: 'Brasília',
+      date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
+      validityDays: settings.defaultValidityDays,
+      paymentTerms: settings.defaultPaymentTerms,
+      deliveryDays: settings.defaultDeliveryDays,
+      warrantyTerms: settings.defaultWarrantyTerms,
+      openingText: settings.defaultOpeningText,
+      items,
+      totalCost: Number(totalCost.toFixed(2)),
+      totalShipping: Number(totalShipping.toFixed(2)),
+      totalTaxes: Number(totalTaxes.toFixed(2)),
+      totalProfit: Number(totalProfit.toFixed(2)),
+      totalAmount: Number(totalAmount.toFixed(2)),
+      averageMargin: Number(averageMargin.toFixed(1)),
+      globalMarkupPercent: markup,
+      globalTaxPercent: tax,
+      globalShipping: shipping,
+      status: 'draft',
+      createdAt: new Date().toISOString()
+    };
+
+    setCurrentQuote(newQuote);
+    setActiveTab('builder');
   };
 
   const handleAddProductToQuote = (product: Product) => {
@@ -851,6 +985,7 @@ export const App: React.FC = () => {
               });
               syncProductToSupabase(p);
             }}
+            onUpdateSettings={handleSaveSettings}
           />
         )}
 
@@ -903,6 +1038,7 @@ export const App: React.FC = () => {
         targetItemIndex={webSearchTargetIndex}
         existingItem={webSearchExistingItem}
         onAddToQuote={handleAddWebSearchItemToQuote}
+        onStartNewQuoteWithItems={handleStartNewQuoteWithItems}
         onUpdateQuoteItem={(idx, updatedData) => {
           setCurrentQuote(prev => {
             const updatedItems = [...prev.items];

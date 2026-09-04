@@ -1,28 +1,63 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, 
-  Sparkles, 
-  Plus, 
+import {
+  Search,
+  Sparkles,
+  Plus,
   Check,
   ExternalLink,
   Image as ImageIcon,
   Barcode,
   Receipt,
-  Eye,
   BookmarkPlus,
   RefreshCw,
-  ShoppingBag,
+  Layers,
+  ListChecks,
+  CheckSquare,
+  Square,
+  AlertTriangle,
+  Store,
+  ArrowRight,
+  Info,
+  DollarSign,
   Upload,
+  Camera,
+  FileText,
   X,
-  Clipboard
+  Percent,
+  History,
+  Tag,
+  Type,
+  ChevronDown
 } from 'lucide-react';
-import { Product, QuoteItem, WebSearchResult } from '../types';
-import { resolveProductDetails, cleanAlphanumericCode, cleanNcmCode, ProductCandidateListing, isExactProductUrl, extractStoreNameFromUrl, resolveImageForDescription } from '../utils/aiEmailParser';
+import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
+import { Product, QuoteItem } from '../types';
+import {
+  resolveProductDetails,
+  cleanAlphanumericCode,
+  cleanNcmCode,
+  ProductCandidateListing,
+  isExactProductUrl,
+  extractStoreNameFromUrl,
+  resolveImageForDescription,
+  formatProductSentenceCase,
+  applyTextCase,
+  WordCaseStyle
+} from '../utils/aiEmailParser';
+import {
+  ScannedPriceResult,
+  BatchScanProgress,
+  parsePastedProductList,
+  parsePastedProductListWithQty,
+  runBatchPriceScan,
+  scanSingleProductPrice,
+  formatBRL
+} from '../services/priceScannerService';
 
 interface WebSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddToQuote: (item: Partial<QuoteItem>) => void;
+  onStartNewQuoteWithItems?: (items: Partial<QuoteItem>[]) => void;
   onSaveToCatalog: (prod: Product) => void;
   initialQuery?: string;
   targetItemIndex?: number | null;
@@ -34,19 +69,22 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
   isOpen,
   onClose,
   onAddToQuote,
+  onStartNewQuoteWithItems,
   onSaveToCatalog,
   initialQuery = '',
   targetItemIndex = null,
   onUpdateQuoteItem,
   existingItem = null
 }) => {
+  // Modal Mode: 'batch' (Lote Inteligente) or 'single' (Busca Unitária)
+  const [activeTab, setActiveTab] = useState<'batch' | 'single'>('batch');
+
+  // Single Search State
   const [query, setQuery] = useState(initialQuery);
-  const [isSearching, setIsSearching] = useState(false);
-  const [addedSuccess, setAddedSuccess] = useState(false);
-  const [savedCatalogSuccess, setSavedCatalogSuccess] = useState(false);
+  const [isSearchingSingle, setIsSearchingSingle] = useState(false);
   const [pastedUrl, setPastedUrl] = useState('');
 
-  // Active Standardized Product Form State
+  // Active Standardized Product Form State (Single Mode)
   const [standardizedName, setStandardizedName] = useState('');
   const [partNumber, setPartNumber] = useState('');
   const [ncm, setNcm] = useState('');
@@ -60,140 +98,335 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
   const [unit, setUnit] = useState('Un.');
   const [candidateListings, setCandidateListings] = useState<ProductCandidateListing[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropZoneRef = useRef<HTMLDivElement>(null);
 
-  // When modal opens or initialQuery changes, run the AI standardization
+  // Batch Mode State
+  const [batchRawInput, setBatchRawInput] = useState('');
+  const [isScanningBatch, setIsScanningBatch] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<BatchScanProgress | null>(null);
+  const [batchResults, setBatchResults] = useState<ScannedPriceResult[]>([]);
+  const [selectedResultIds, setSelectedResultIds] = useState<Set<string>>(new Set());
+
+  // OCR Image Transcription State
+  const [isOcrProcessing, setIsOcrProcessing] = useState(false);
+  const [ocrProgressMessage, setOcrProgressMessage] = useState('');
+  const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
+  const [ocrEditableText, setOcrEditableText] = useState('');
+  const [ocrImagePreview, setOcrImagePreview] = useState<string | null>(null);
+  const imageUploadInputRef = useRef<HTMLInputElement>(null);
+
+  // Success Feedbacks
+  const [addedSuccess, setAddedSuccess] = useState(false);
+  const [savedCatalogSuccess, setSavedCatalogSuccess] = useState(false);
+
+  // Margem Alvo Rápida (+20%, +25%, +30%, +35%) e Filtro Rápido (Todos, Menor Preço, Mais Confiável)
+  const [targetMarginPercent, setTargetMarginPercent] = useState<number | null>(null);
+  const [sortFilterMode, setSortFilterMode] = useState<'all' | 'lowestPrice' | 'officialStores'>('all');
+
+  // Controle de Capitalização estilo Word (Maiúsculas, Minúsculas, Primeira da frase, Primeira de Cada Palavra)
+  const [isCaseMenuOpen, setIsCaseMenuOpen] = useState(false);
+  const [activeCaseStyle, setActiveCaseStyle] = useState<WordCaseStyle>('sentence');
+  const caseMenuRef = useRef<HTMLDivElement>(null);
+
+  // When modal opens or initialQuery changes
   useEffect(() => {
     if (isOpen) {
-      const q = initialQuery || query || 'Monitor Dell 27 4K';
-      setQuery(q);
+      if (initialQuery) {
+        setBatchRawInput(initialQuery);
+      }
       setShowImageInQuote(existingItem?.showImage ?? false);
-      runProductStandardization(q);
       setAddedSuccess(false);
       setSavedCatalogSuccess(false);
     }
-  }, [isOpen, initialQuery, existingItem]);
+  }, [isOpen, initialQuery, existingItem, targetItemIndex]);
 
-  /** Converte um File ou Blob de imagem para Data URL (base64) e seta imageUrl */
-  const loadImageFile = (file: File) => {
-    if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (ev.target?.result) setImageUrl(ev.target.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  /** Handler de paste global na zona de drop */
-  const handleZonePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    const items = Array.from(e.clipboardData?.items || []);
-    const imgItem = items.find(it => it.type.startsWith('image/'));
-    if (imgItem) {
-      e.preventDefault();
-      const blob = imgItem.getAsFile();
-      if (blob) loadImageFile(blob);
-    }
-  };
-
-  /** Drag and drop */
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) loadImageFile(file);
-  };
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
-
-  const runProductStandardization = (searchTerm: string) => {
-    setIsSearching(true);
-    setTimeout(() => {
+  // Handle single standardization
+  const runProductStandardization = async (searchTerm: string) => {
+    setIsSearchingSingle(true);
+    try {
+      const scanned = await scanSingleProductPrice(searchTerm);
       const details = resolveProductDetails(searchTerm, undefined, existingItem?.partNumber);
 
-      // Prioridade absoluta: Se o item já possuía um Part Number real encontrado, preservá-lo!
       const finalPartNumber = existingItem?.partNumber && existingItem.partNumber.trim().length >= 2
         ? cleanAlphanumericCode(existingItem.partNumber)
-        : cleanAlphanumericCode(details.partNumber);
+        : cleanAlphanumericCode(scanned.partNumber || details.partNumber);
 
-      // Preservar NCM caso existente e válido
       const finalNcm = existingItem?.ncm && existingItem.ncm.trim().length >= 4
         ? cleanNcmCode(existingItem.ncm)
-        : cleanNcmCode(details.ncm);
+        : cleanNcmCode(scanned.ncm || details.ncm);
 
-      // Buscar imagem correta de acordo com a Descrição Padronizada do Produto (Comercial)
-      const accurateImage = resolveImageForDescription(details.standardizedName) || details.imageUrl;
+      const accurateImage = scanned.imageUrl || resolveImageForDescription(scanned.standardizedName || details.standardizedName) || details.imageUrl;
       const finalImage = existingItem?.imageUrl && !existingItem.imageUrl.includes('photo-1526738549149-8e07eca6c147')
         ? existingItem.imageUrl
         : accurateImage;
 
       const exactSourceUrl = (existingItem?.sourceUrl && isExactProductUrl(existingItem.sourceUrl))
         ? existingItem.sourceUrl
-        : (isExactProductUrl(details.sourceUrl) ? details.sourceUrl : '');
+        : (scanned.buyUrl || (isExactProductUrl(details.sourceUrl) ? details.sourceUrl : ''));
 
-      const exactSupplier = exactSourceUrl
-        ? (existingItem?.supplier || details.supplier || extractStoreNameFromUrl(exactSourceUrl))
-        : '';
+      const exactSupplier = scanned.store || existingItem?.supplier || details.supplier || extractStoreNameFromUrl(exactSourceUrl);
 
-      setStandardizedName(details.standardizedName);
+      setStandardizedName(formatProductSentenceCase(scanned.standardizedName || details.standardizedName));
       setPartNumber(finalPartNumber);
       setNcm(finalNcm);
       setImageUrl(finalImage);
-      setShowImageInQuote(existingItem?.showImage ?? false);
-      setEstimatedCost(existingItem?.costPrice || details.estimatedCost);
+      setShowImageInQuote(existingItem?.showImage ?? true);
+      setEstimatedCost(existingItem?.costPrice || scanned.bestPrice || details.estimatedCost);
       setSupplier(exactSupplier);
       setSourceUrl(exactSourceUrl);
       setCategory(details.category);
       setCandidateListings(details.candidateListings || []);
-      setIsSearching(false);
-    }, 250);
-  };
-
-  const handleSelectCandidate = (candidate: ProductCandidateListing) => {
-    setStandardizedName(candidate.name);
-    setPartNumber(cleanAlphanumericCode(candidate.partNumber));
-    setNcm(cleanNcmCode(candidate.ncm));
-    setImageUrl(candidate.imageUrl);
-    setEstimatedCost(candidate.cost);
-    setSupplier(candidate.supplier);
-    setSourceUrl(candidate.directUrl);
-  };
-
-  const handleImportDirectUrl = (urlToImport: string) => {
-    if (!urlToImport.trim()) return;
-    setSourceUrl(urlToImport);
-
-    // Extract readable name from URL slug
-    let extractedName = '';
-    try {
-      const parsed = new URL(urlToImport);
-      const pathname = parsed.pathname;
-      const slugMatch = pathname.match(/\/([a-zA-Z0-9\-_]{5,})/);
-      if (slugMatch) {
-        extractedName = slugMatch[1]
-          .replace(/^MLB-?\d*-?/i, '')
-          .replace(/[-_]/g, ' ')
-          .trim();
-      }
     } catch (e) {
-      extractedName = urlToImport.replace(/https?:\/\//, '').split('/')[1] || '';
-    }
-
-    if (extractedName) {
-      setQuery(extractedName);
-      runProductStandardization(extractedName);
+      console.error('Error running single standardization:', e);
+    } finally {
+      setIsSearchingSingle(false);
     }
   };
 
-  if (!isOpen) return null;
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  const handleSingleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
     runProductStandardization(query);
   };
 
-  const handleApplyToQuote = () => {
+  // Run Batch Scan
+  const handleStartBatchScan = async () => {
+    const itemsToScan = parsePastedProductListWithQty(batchRawInput);
+    if (itemsToScan.length === 0) return;
+
+    setIsScanningBatch(true);
+    setBatchProgress({ total: itemsToScan.length, current: 0, currentProduct: '', isComplete: false });
+    setBatchResults([]);
+    setSelectedResultIds(new Set());
+
+    try {
+      const results = await runBatchPriceScan(itemsToScan, (prog, currentRes) => {
+        setBatchProgress({ ...prog });
+        setBatchResults([...currentRes]);
+        // Auto select all valid priced items as they arrive
+        const newSelected = new Set<string>();
+        currentRes.forEach(r => {
+          if (r.bestPrice > 0) newSelected.add(r.id);
+        });
+        setSelectedResultIds(newSelected);
+      });
+
+      setBatchResults(results);
+      const initialSelected = new Set<string>();
+      results.forEach(r => {
+        if (r.bestPrice > 0) initialSelected.add(r.id);
+      });
+      setSelectedResultIds(initialSelected);
+    } catch (err) {
+      console.error('Batch scan error:', err);
+    } finally {
+      setIsScanningBatch(false);
+    }
+  };
+
+  // Toggle select in batch
+  const handleToggleSelectResult = (id: string) => {
+    setSelectedResultIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedResultIds.size === batchResults.length) {
+      setSelectedResultIds(new Set());
+    } else {
+      setSelectedResultIds(new Set(batchResults.map(r => r.id)));
+    }
+  };
+
+  // Aplica formatação estilo Word (Maiúsculas, Minúsculas, 1ª da frase, 1ª de cada palavra)
+  const handleApplyCaseToResults = (style: WordCaseStyle) => {
+    setActiveCaseStyle(style);
+    setIsCaseMenuOpen(false);
+
+    setBatchResults(prev => prev.map(item => {
+      // Se houver seleção ativa, altera apenas os selecionados; se nenhum estiver selecionado, altera todos
+      const shouldTransform = selectedResultIds.size === 0 || selectedResultIds.has(item.id);
+      if (!shouldTransform) return item;
+
+      return {
+        ...item,
+        standardizedName: applyTextCase(item.standardizedName, style),
+        originalQuery: applyTextCase(item.originalQuery, style)
+      };
+    }));
+  };
+
+  // Altera a capitalização de um item específico na lista
+  const handleSingleResultChangeCase = (id: string, style: WordCaseStyle) => {
+    setBatchResults(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      return {
+        ...item,
+        standardizedName: applyTextCase(item.standardizedName, style)
+      };
+    }));
+  };
+
+  // Apply batch selected to existing quote
+  const handleApplyBatchToQuote = () => {
+    const selected = batchResults.filter(r => selectedResultIds.has(r.id));
+    if (selected.length === 0) return;
+
+    selected.forEach(res => {
+      onAddToQuote({
+        name: res.standardizedName,
+        description: res.observation || '',
+        partNumber: cleanAlphanumericCode(res.partNumber || ''),
+        ncm: cleanNcmCode(res.ncm || ''),
+        imageUrl: res.imageUrl,
+        showImage: false,
+        costPrice: res.bestPrice,
+        markupPercent: targetMarginPercent !== null ? targetMarginPercent : undefined,
+        quantity: res.quantity || 1,
+        unit: 'Un.',
+        sourceUrl: res.buyUrl,
+        supplier: res.store
+      });
+    });
+
+    setAddedSuccess(true);
+    setTimeout(() => {
+      setAddedSuccess(false);
+      onClose();
+    }, 1000);
+  };
+
+  // Start a fresh, clean quote from scratch with selected items
+  const handleStartNewQuoteFromBatch = () => {
+    const selected = batchResults.filter(r => selectedResultIds.has(r.id));
+    if (selected.length === 0) return;
+
+    const itemsToCreate: Partial<QuoteItem>[] = selected.map(res => {
+      const cleanName = (res.standardizedName || '')
+        .replace(/[—–\-]/g, ' ')
+        .replace(/,/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+      return {
+        name: cleanName,
+        description: res.observation || '',
+        partNumber: cleanAlphanumericCode(res.partNumber || ''),
+        ncm: cleanNcmCode(res.ncm || ''),
+        imageUrl: res.imageUrl,
+        showImage: false,
+        costPrice: res.bestPrice,
+        markupPercent: targetMarginPercent !== null ? targetMarginPercent : undefined,
+        quantity: res.quantity || 1,
+        unit: 'Un.',
+        sourceUrl: res.buyUrl,
+        supplier: res.store
+      };
+    });
+
+    if (onStartNewQuoteWithItems) {
+      onStartNewQuoteWithItems(itemsToCreate);
+    } else {
+      itemsToCreate.forEach(it => onAddToQuote(it));
+    }
+
+    setAddedSuccess(true);
+    setTimeout(() => {
+      setAddedSuccess(false);
+      onClose();
+    }, 800);
+  };
+
+  // Process Image with Gemini Vision AI (with fallback)
+  const handleProcessImageForOcr = async (fileOrBlob: File | Blob) => {
+    setIsOcrProcessing(true);
+    setOcrProgressMessage('Carregando imagem para análise com Inteligência Artificial...');
+
+    // Create preview
+    const previewUrl = URL.createObjectURL(fileOrBlob);
+    setOcrImagePreview(previewUrl);
+
+    try {
+      const extracted = await extractDataFromQuotationImage(fileOrBlob as File, (pct, msg) => {
+        setOcrProgressMessage(msg);
+      });
+
+      if (extracted.items && extracted.items.length > 0) {
+        // Formatar cada item de forma limpa, sem traços ou vírgulas: "Nome do Produto | Qtd: N Un"
+        const formattedLines = extracted.items.map(it => {
+          const qtyPart = it.quantity && it.quantity > 1 ? ` | Qtd: ${it.quantity} ${it.unit || 'Un.'}` : '';
+          const codePart = it.partNumber ? ` [Ref: ${it.partNumber}]` : '';
+          
+          let cleanName = (it.name || '').trim();
+          // Se a descrição adicionar dados técnicos reais que não estão no nome, adiciona com espaço limpo (sem traço)
+          let extraDesc = '';
+          if (it.description && it.description.trim() && it.description.trim().toLowerCase() !== cleanName.toLowerCase()) {
+            const desc = it.description.trim();
+            if (!desc.toLowerCase().startsWith(cleanName.toLowerCase()) && !cleanName.toLowerCase().startsWith(desc.toLowerCase())) {
+              extraDesc = ` ${desc}`;
+            }
+          }
+
+          // Higienização completa: remove traços, hifens e vírgulas
+          const combined = `${cleanName}${extraDesc}`
+            .replace(/[—–\-]/g, ' ')
+            .replace(/,/g, ' ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+
+          return `${combined}${codePart}${qtyPart}`.trim();
+        });
+
+        setOcrEditableText(formattedLines.join('\n'));
+        setIsOcrModalOpen(true);
+      } else {
+        alert('Não foi possível identificar os produtos na imagem. Tente uma foto mais nítida.');
+      }
+    } catch (err) {
+      console.error('Erro na extração visual da imagem:', err);
+      alert('Não foi possível ler a imagem. Tente novamente.');
+    } finally {
+      setIsOcrProcessing(false);
+      setOcrProgressMessage('');
+    }
+  };
+
+  // Clipboard Paste Handler for Batch Mode (Detects if image is pasted)
+  const handleBatchAreaPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imgItem = items.find(it => it.type.startsWith('image/'));
+    if (imgItem) {
+      e.preventDefault();
+      const blob = imgItem.getAsFile();
+      if (blob) {
+        handleProcessImageForOcr(blob);
+      }
+    }
+  };
+
+  // Apply OCR Edited Text into Batch Input
+  const handleConfirmOcrText = () => {
+    if (ocrEditableText.trim()) {
+      setBatchRawInput(prev => {
+        if (!prev.trim()) return ocrEditableText.trim();
+        return `${prev.trim()}\n${ocrEditableText.trim()}`;
+      });
+    }
+    setIsOcrModalOpen(false);
+    setOcrImagePreview(null);
+  };
+
+  // Apply single item to quote
+  const handleApplySingleToQuote = () => {
     const itemData: Partial<QuoteItem> = {
       name: standardizedName,
-      description: '', // Keep clean for quote, technical query stored in sourceUrl
+      description: '',
       partNumber: cleanAlphanumericCode(partNumber),
       ncm: cleanNcmCode(ncm),
       imageUrl,
@@ -201,7 +434,8 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
       costPrice: estimatedCost,
       quantity,
       unit,
-      sourceUrl: sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(standardizedName + ' ' + partNumber)}&tbm=shop`
+      sourceUrl: sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(standardizedName + ' ' + partNumber)}&tbm=shop`,
+      supplier
     };
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
@@ -217,6 +451,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
     }, 800);
   };
 
+  // Save single to catalog
   const handleSaveToCatalogAction = () => {
     onSaveToCatalog({
       id: `prod-${Date.now()}`,
@@ -241,10 +476,52 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
     }, 2000);
   };
 
+  const handleSelectCandidate = (candidate: ProductCandidateListing) => {
+    setStandardizedName(candidate.name);
+    setPartNumber(cleanAlphanumericCode(candidate.partNumber));
+    setNcm(cleanNcmCode(candidate.ncm));
+    setImageUrl(candidate.imageUrl);
+    setEstimatedCost(candidate.cost);
+    setSupplier(candidate.supplier);
+    setSourceUrl(candidate.directUrl);
+  };
+
+  // Tecla ESC para fechar o modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Fechar menu de capitalização ao clicar fora
+  useEffect(() => {
+    const handleClickOutsideCaseMenu = (e: MouseEvent) => {
+      if (caseMenuRef.current && !caseMenuRef.current.contains(e.target as Node)) {
+        setIsCaseMenuOpen(false);
+      }
+    };
+    if (isCaseMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutsideCaseMenu);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutsideCaseMenu);
+  }, [isCaseMenuOpen]);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn">
-        
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white border border-slate-200 rounded-3xl w-full max-w-6xl max-h-[96vh] h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      >
+
         {/* Modal Header */}
         <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -252,532 +529,615 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                Identificação & Padronização de Produto Web
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">
+                  Scanner Inteligente de Preços & Ofertas
+                </h2>
                 <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] rounded-full font-bold">
-                  IA Infodesk
+                  IA & Web Search
                 </span>
-              </h2>
+              </div>
               <p className="text-xs text-slate-500">
-                Busca dados na web, padroniza a descrição comercial, extrai Part Number e NCM limpos e captura a foto.
+                Pesquise produtos (individualmente ou listas inteiras) com fotos reais, menor preço de mercado e links diretos de compra.
               </p>
             </div>
           </div>
 
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm font-bold transition ml-2 cursor-pointer shadow-2xs"
+              title="Fechar (ESC)"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        {/* Search Bar Input & Direct URL Importer */}
-        <div className="p-4 border-b border-slate-200 bg-white space-y-2.5">
-          <form onSubmit={handleSearchSubmit} className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+        {/* UNIFIED SEARCH SCANNER */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Input Area */}
+          <div className="p-5 border-b border-slate-200 bg-white space-y-3 shrink-0">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <ListChecks className="w-4 h-4 text-sky-600" />
+                <span>Cole seus Produtos (um único item ou lista inteira do WhatsApp, Planilha ou E-mail):</span>
+              </label>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {batchRawInput ? `${parsePastedProductList(batchRawInput).length} produto(s) identificado(s)` : 'Cole 1 item ou vários (1 por linha)'}
+              </span>
+            </div>
+
+            <div className="relative">
+              <textarea
+                rows={6}
+                value={batchRawInput}
+                onChange={(e) => setBatchRawInput(e.target.value)}
+                onPaste={handleBatchAreaPaste}
+                placeholder="Cole aqui o que você precisa buscar: pode ser um único produto ou uma lista completa. Você também pode colar um print direto com CTRL+V!"
+                className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-4 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono leading-relaxed resize-y"
+              />
+
+              {/* Hidden File Input for Image Upload */}
               <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Pesquisar produto específico (ex: Caixa de setor de direção Kombi 1.4 Flex 2012, Monitor Dell 27 4K)..."
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-medium"
+                type="file"
+                ref={imageUploadInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleProcessImageForOcr(file);
+                  }
+                  e.target.value = '';
+                }}
               />
             </div>
-            <button
-              type="submit"
-              disabled={isSearching}
-              className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-2 shrink-0"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSearching ? 'animate-spin' : ''}`} />
-              <span>{isSearching ? 'Buscando...' : 'Buscar na Web'}</span>
-            </button>
-          </form>
 
-          {/* Direct Link Importer Tool */}
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs">
-            <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">🔗 Colar Link de Anúncio Específico:</span>
-            <input
-              type="text"
-              value={pastedUrl}
-              onChange={(e) => setPastedUrl(e.target.value)}
-              placeholder="Cole a URL do Mercado Livre / Amazon / Loja (https://produto.mercadolivre.com.br/...)"
-              className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-[11px] text-slate-800 focus:outline-none focus:border-sky-500 font-mono"
-            />
-            <button
-              type="button"
-              onClick={() => handleImportDirectUrl(pastedUrl)}
-              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[11px] font-bold transition whitespace-nowrap"
-            >
-              Importar Dados
-            </button>
-          </div>
-        </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => imageUploadInputRef.current?.click()}
+                  disabled={isOcrProcessing}
+                  className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Carregue uma imagem ou print de pedido para transcrever automaticamente"
+                >
+                  <Camera className="w-3.5 h-3.5 text-sky-600" />
+                  <span>{isOcrProcessing ? 'Transcrevendo Foto...' : 'Carregar Foto de Pedido'}</span>
+                </button>
 
-        {/* Modal Body: Standardized Product Details Card */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
-          
-          {/* Specific Candidate Listings If Available */}
-          {candidateListings.length > 0 && (
-            <div className="bg-sky-50/70 border border-sky-200 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-sky-900 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Anúncios Reais Específicos Encontrados:</span>
-                </span>
-                <span className="text-[10px] text-sky-700 font-medium">Clique para selecionar a foto e o link exatos</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {candidateListings.map((cand) => (
-                  <div 
-                    key={cand.id} 
-                    className="bg-white border border-slate-200 hover:border-sky-500 rounded-xl p-3 flex flex-col justify-between shadow-2xs transition group"
+                {batchRawInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBatchRawInput('');
+                      setBatchResults([]);
+                    }}
+                    className="text-[11px] text-slate-400 hover:text-slate-600 ml-2"
                   >
-                    <div className="flex gap-3 items-start mb-2">
-                      <div className="w-14 h-14 bg-slate-50 border border-slate-200 rounded-lg p-1 shrink-0 flex items-center justify-center overflow-hidden">
-                        <img 
-                          src={cand.imageUrl} 
-                          alt={cand.name} 
-                          className="w-full h-full object-contain"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=500&auto=format&fit=crop&q=80';
-                          }}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h5 className="text-[11px] font-bold text-slate-900 leading-tight line-clamp-2" title={cand.name}>
-                          {cand.name}
-                        </h5>
-                        <div className="flex flex-wrap items-center gap-1 mt-1 text-[9px] font-mono">
-                          <span className="text-indigo-700 font-bold bg-indigo-50 px-1.5 py-0.5 rounded">
-                            PN: {cand.partNumber}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-                      <div>
-                        <span className="text-[9px] text-slate-400 block font-medium">Preço Mercado</span>
-                        <span className="text-xs font-bold text-emerald-700 font-mono">
-                          R$ {cand.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <a
-                          href={cand.directUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-medium transition"
-                          title="Abrir anúncio específico"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => handleSelectCandidate(cand)}
-                          className="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-[10px] font-bold transition shadow-xs"
-                        >
-                          Selecionar
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-            
-            {/* Top Row: Photo & Standardized Name */}
-            <div className="flex flex-col sm:flex-row gap-5 items-start">
-              
-              {/* Product Photo Thumbnail Preview */}
-              <div className="w-full sm:w-36 flex flex-col items-center gap-2 shrink-0">
-                <div className="w-32 h-32 bg-white border border-slate-200 rounded-2xl p-2 flex items-center justify-center overflow-hidden shadow-xs relative group">
-                  {imageUrl ? (
-                    <img 
-                      src={imageUrl} 
-                      alt={standardizedName} 
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=500&auto=format&fit=crop&q=80';
-                      }}
-                    />
-                  ) : (
-                    <ImageIcon className="w-10 h-10 text-slate-300" />
-                  )}
-                  <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded font-mono">
-                    HD
-                  </span>
-                </div>
-
-                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={showImageInQuote}
-                    onChange={(e) => setShowImageInQuote(e.target.checked)}
-                    className="rounded text-sky-600 focus:ring-sky-500"
-                  />
-                  <span>Usar foto na proposta</span>
-                </label>
+                    Limpar Lista
+                  </button>
+                )}
               </div>
 
-              {/* Standardized Title & Description */}
-              <div className="flex-1 space-y-3 w-full">
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
-                    <ShoppingBag className="w-3.5 h-3.5 text-sky-600" />
-                    <span>Descrição Padronizada do Produto (Comercial)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={standardizedName}
-                    onChange={(e) => setStandardizedName(e.target.value)}
-                    placeholder="Descrição oficial e limpa do produto"
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-sky-500 shadow-xs"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
-                    Nome limpo e formal que será exibido no orçamento e faturamento.
-                  </span>
-                </div>
-
-                {/* Foto: colar / upload / buscar */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-semibold text-slate-600">Foto do Produto</label>
-                    {!imageUrl && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newImg = resolveImageForDescription(standardizedName);
-                          if (newImg) setImageUrl(newImg);
-                        }}
-                        className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold hover:underline flex items-center gap-1 transition"
-                      >
-                        <Sparkles className="w-3 h-3 text-sky-500" />
-                        <span>Buscar foto por esta descrição</span>
-                      </button>
-                    )}
-                    {imageUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setImageUrl('')}
-                        className="text-[10px] text-red-500 hover:text-red-700 font-semibold hover:underline flex items-center gap-1 transition"
-                      >
-                        <X className="w-3 h-3" />
-                        <span>Remover foto</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {imageUrl ? (
-                    /* Preview quando já há imagem */
-                    <div className="flex items-center gap-2 p-2 bg-white border border-green-200 rounded-xl">
-                      <img src={imageUrl} alt="preview" className="w-12 h-12 object-contain rounded-lg border border-slate-100" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-semibold text-green-700">Foto carregada</p>
-                        <p className="text-[10px] text-slate-400 truncate">
-                          {imageUrl.startsWith('data:') ? 'Imagem local (colada/enviada)' : imageUrl.substring(0, 50) + '...'}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Zona de colar / arrastar / upload */
-                    <div
-                      ref={dropZoneRef}
-                      onPaste={handleZonePaste}
-                      onDrop={handleDrop}
-                      onDragOver={handleDragOver}
-                      tabIndex={0}
-                      className="flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed border-slate-200 rounded-xl py-4 px-3 bg-white hover:border-sky-300 hover:bg-sky-50/40 focus:border-sky-400 focus:bg-sky-50/60 transition cursor-pointer outline-none"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-100 rounded-lg">
-                          <ImageIcon className="w-5 h-5 text-slate-400" />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-xs font-semibold text-slate-600">
-                            Clique para escolher arquivo
-                          </p>
-                          <p className="text-[10px] text-slate-400">
-                            ou arraste uma foto &bull; ou <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded text-[9px] font-mono">Ctrl+V</kbd> para colar um print
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Input de arquivo oculto */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) loadImageFile(file);
-                      e.target.value = '';
-                    }}
-                  />
-                </div>
-              </div>
-
+              <button
+                type="button"
+                onClick={handleStartBatchScan}
+                disabled={isScanningBatch || !batchRawInput.trim()}
+                className="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-2"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isScanningBatch ? 'animate-spin' : ''}`} />
+                <span>{isScanningBatch ? 'Escaneando Web...' : 'Buscar Melhores Preços'}</span>
+              </button>
             </div>
 
-            {/* Middle Row: Part Number & NCM (Clean without dots and spaces) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
-              
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
-                  <Barcode className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Part Number / Código do Fabricante (Sem pontos/espaços)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={partNumber}
-                    onChange={(e) => setPartNumber(cleanAlphanumericCode(e.target.value))}
-                    placeholder="Ex: 94534000 ou 210BBYQ"
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-indigo-900 focus:outline-none focus:border-indigo-500 uppercase tracking-wider shadow-xs"
-                  />
-                  <span className="absolute right-3 top-2 text-[10px] font-bold text-slate-400">P/N</span>
+            {/* OCR Processing Indicator */}
+            {isOcrProcessing && (
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-3 animate-fadeIn">
+                <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
+                <div className="text-xs text-indigo-900 font-semibold">
+                  <span>{ocrProgressMessage || 'Transcrevendo foto do pedido via leitura ótica (OCR)...'}</span>
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 block">Código do fabricante formatado para busca e catálogo.</span>
               </div>
+            )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
-                  <Receipt className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>NCM Fiscal (8 dígitos sem pontos)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    maxLength={8}
-                    value={ncm}
-                    onChange={(e) => setNcm(cleanNcmCode(e.target.value))}
-                    placeholder="Ex: 39249000 ou 85285200"
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-emerald-900 focus:outline-none focus:border-emerald-500 tracking-wider shadow-xs"
-                  />
-                  <span className="absolute right-3 top-2 text-[10px] font-bold text-slate-400">NCM</span>
+            {/* Progress Bar */}
+            {isScanningBatch && batchProgress && (
+              <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl space-y-1.5 animate-fadeIn">
+                <div className="flex items-center justify-between text-xs text-sky-800 font-semibold">
+                  <span>Varrendo fornecedores: {batchProgress.currentProduct}</span>
+                  <span>{batchProgress.current} de {batchProgress.total} ({Math.round((batchProgress.current / batchProgress.total) * 100)}%)</span>
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 block">Classificação fiscal para notas e impostos da Infodesk.</span>
-              </div>
-
-            </div>
-
-            {/* Bottom Row: Cost Price, Quantity, Supplier & Web Source */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200">
-              
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Custo Fornecedor (R$)</label>
-                <div className="relative">
-                  <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-mono">R$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={estimatedCost}
-                    onChange={(e) => setEstimatedCost(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-white border border-slate-300 rounded-lg pl-8 pr-2 py-1.5 text-xs font-bold text-slate-900 font-mono focus:outline-none focus:border-sky-500"
+                <div className="w-full bg-sky-200 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-sky-600 h-full transition-all duration-300 rounded-full"
+                    style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
                   />
                 </div>
               </div>
+            )}
+          </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Qtd.</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value, 10) || 1)}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-center text-slate-900 focus:outline-none focus:border-sky-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Unidade</label>
-                <input
-                  type="text"
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-center text-slate-800 focus:outline-none focus:border-sky-500"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Fornecedor / Loja</label>
-                <input
-                  type="text"
-                  value={supplier}
-                  onChange={(e) => setSupplier(e.target.value)}
-                  placeholder="Ex: KaBuM!, Mercado Livre, Amazon..."
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-sky-500 font-medium"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-semibold text-slate-600">Link Direto do Produto (Link Exato)</label>
-                  {!sourceUrl && (
-                    <span className="text-[10px] text-slate-400">Nenhum link exato cadastrado (use as buscas abaixo para achar)</span>
-                  )}
+          {/* Results Table Area */}
+          <div className="flex-1 overflow-y-auto p-5 bg-slate-50/50">
+            {batchResults.length === 0 && !isScanningBatch ? (
+              <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs mb-3">
+                  <Store className="w-8 h-8 text-sky-600" />
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={sourceUrl}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSourceUrl(val);
-                      if (val && !supplier) {
-                        const store = extractStoreNameFromUrl(val);
-                        if (store) setSupplier(store);
-                      }
-                    }}
-                    placeholder="Cole aqui o link exato do produto (Mercado Livre, Kabum, Amazon...)"
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-sky-500 font-mono"
-                  />
-                  {sourceUrl ? (
-                    <a
-                      href={sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-emerald-800 hover:text-emerald-950 font-bold bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-lg border border-emerald-300 shrink-0 transition"
-                      title="Abrir página exata do produto cadastrada"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>Abrir</span>
-                    </a>
-                  ) : (
+                <p className="text-sm font-bold text-slate-700 mb-1">Nenhum escaneamento em lote ativo</p>
+                <p className="text-xs text-slate-500 max-w-sm">
+                  Cole uma lista acima e clique em "Buscar Melhores Preços" para varrer ofertas com links e fotos reais.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Results Sub-header with Margin Shortcuts & Filter */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      disabled
-                      className="inline-flex items-center gap-1 text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 shrink-0 cursor-not-allowed"
-                      title="Sem link exato do produto cadastrado"
+                      onClick={handleToggleSelectAll}
+                      className="flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-sky-600 transition"
                     >
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-300" />
-                      <span>Sem Link</span>
+                      {selectedResultIds.size === batchResults.length && batchResults.length > 0 ? (
+                        <CheckSquare className="w-4 h-4 text-sky-600" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-400" />
+                      )}
+                      <span>Selecionar Todos ({selectedResultIds.size}/{batchResults.length})</span>
                     </button>
-                  )}
+                  </div>
+
+                  {/* Margem Rápida para Aplicação Automática com Campo Manual */}
+                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
+                    <Percent className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-[11px] font-bold text-slate-600">Margem Venda:</span>
+                    {[20, 25, 30, 35].map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setTargetMarginPercent(prev => prev === m ? null : m)}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                          targetMarginPercent === m
+                            ? 'bg-sky-600 text-white shadow-xs'
+                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
+                        }`}
+                        title={`Lança o item na proposta já com ${m}% de margem calculada`}
+                      >
+                        +{m}%
+                      </button>
+                    ))}
+
+                    {/* Campo Manual para digitação livre da margem */}
+                    <div className="relative inline-flex items-center">
+                      <input
+                        type="number"
+                        min="0"
+                        max="200"
+                        step="0.5"
+                        placeholder="Outra"
+                        value={targetMarginPercent !== null ? targetMarginPercent : ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '') {
+                            setTargetMarginPercent(null);
+                          } else {
+                            const num = parseFloat(val);
+                            if (!isNaN(num)) {
+                              setTargetMarginPercent(num);
+                            }
+                          }
+                        }}
+                        className={`w-14 bg-white border rounded-lg px-1.5 py-0.5 text-center text-xs font-bold text-slate-800 focus:outline-none transition ${
+                          targetMarginPercent !== null && ![20, 25, 30, 35].includes(targetMarginPercent)
+                            ? 'border-sky-500 ring-1 ring-sky-400 font-extrabold text-sky-700'
+                            : 'border-slate-300 hover:border-slate-400'
+                        }`}
+                        title="Digite uma margem personalizada manualmente (ex: 22, 28.5, 40)"
+                      />
+                      <span className="text-[10px] text-slate-400 font-bold ml-0.5">%</span>
+                    </div>
+
+                    {targetMarginPercent !== null && (
+                      <button
+                        type="button"
+                        onClick={() => setTargetMarginPercent(null)}
+                        className="text-[11px] text-slate-400 hover:text-red-500 font-bold ml-1 transition p-0.5"
+                        title="Limpar margem manual e voltar ao padrão"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Botão de Estilo de Capitalização estilo Microsoft Word */}
+                  <div className="relative" ref={caseMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsCaseMenuOpen(prev => !prev)}
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                        isCaseMenuOpen
+                          ? 'bg-sky-50 text-sky-700 border-sky-300 ring-2 ring-sky-200'
+                          : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                      }`}
+                      title="Maiúsculas/Minúsculas (estilo Microsoft Word): escolha como formatar a descrição dos itens encontrados"
+                    >
+                      <span className="font-serif font-bold text-xs tracking-tight text-sky-700 bg-sky-100 px-1 py-0.2 rounded">
+                        Aa
+                      </span>
+                      <span className="hidden sm:inline">Maiúsculas / Minúsculas</span>
+                      <ChevronDown className="w-3 h-3 text-slate-400" />
+                    </button>
+
+                    {isCaseMenuOpen && (
+                      <div className="absolute right-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-30 animate-in fade-in slide-in-from-top-1">
+                        <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Formatar Descrições (Word)
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCaseToResults('sentence')}
+                          className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-sky-50 transition ${
+                            activeCaseStyle === 'sentence' ? 'font-bold text-sky-700 bg-sky-50/60' : 'text-slate-700'
+                          }`}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-semibold">Primeira da frase maiúscula</span>
+                            <span className="text-[10px] text-slate-400">Ex: Teclado sem fio logitech k380</span>
+                          </div>
+                          {activeCaseStyle === 'sentence' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCaseToResults('lowercase')}
+                          className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-sky-50 transition ${
+                            activeCaseStyle === 'lowercase' ? 'font-bold text-sky-700 bg-sky-50/60' : 'text-slate-700'
+                          }`}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-semibold">minúsculas</span>
+                            <span className="text-[10px] text-slate-400">Ex: teclado sem fio logitech k380</span>
+                          </div>
+                          {activeCaseStyle === 'lowercase' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCaseToResults('uppercase')}
+                          className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-sky-50 transition ${
+                            activeCaseStyle === 'uppercase' ? 'font-bold text-sky-700 bg-sky-50/60' : 'text-slate-700'
+                          }`}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-semibold">MAIÚSCULAS</span>
+                            <span className="text-[10px] text-slate-400">Ex: TECLADO SEM FIO LOGITECH K380</span>
+                          </div>
+                          {activeCaseStyle === 'uppercase' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCaseToResults('title')}
+                          className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-sky-50 transition ${
+                            activeCaseStyle === 'title' ? 'font-bold text-sky-700 bg-sky-50/60' : 'text-slate-700'
+                          }`}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-semibold">Primeira de Cada Palavra Maiúscula</span>
+                            <span className="text-[10px] text-slate-400">Ex: Teclado Sem Fio Logitech K380</span>
+                          </div>
+                          {activeCaseStyle === 'title' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
+                        </button>
+
+                        {selectedResultIds.size > 0 && (
+                          <div className="mt-1 pt-1.5 px-3 py-1 border-t border-slate-100 text-[10px] text-sky-600 font-medium">
+                            Aplica nos {selectedResultIds.size} itens selecionados
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Filtro Rápido de Lojas */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSortFilterMode(prev => prev === 'lowestPrice' ? 'all' : 'lowestPrice')}
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition flex items-center gap-1 border ${
+                        sortFilterMode === 'lowestPrice'
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
+                          : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                      }`}
+                      title="Ordenar pelo menor preço encontrado"
+                    >
+                      <DollarSign className="w-3 h-3" />
+                      <span>Menor Preço</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cards / Table Rows */}
+                <div className="space-y-2.5">
+                  {(sortFilterMode === 'lowestPrice'
+                    ? [...batchResults].sort((a, b) => {
+                        if (a.bestPrice <= 0) return 1;
+                        if (b.bestPrice <= 0) return -1;
+                        return a.bestPrice - b.bestPrice;
+                      })
+                    : batchResults
+                  ).map((item) => {
+                    const isSelected = selectedResultIds.has(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className={`bg-white border rounded-2xl p-4 transition shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${isSelected ? 'border-sky-400 ring-1 ring-sky-300 bg-sky-50/20' : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                      >
+                        {/* Checkbox & Product Info */}
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSelectResult(item.id)}
+                            className="text-slate-400 hover:text-sky-600 transition shrink-0"
+                          >
+                            {isSelected ? (
+                              <CheckSquare className="w-4 h-4 text-sky-600" />
+                            ) : (
+                              <Square className="w-4 h-4 text-slate-300" />
+                            )}
+                          </button>
+
+                          {/* Product Thumbnail */}
+                          <div className="w-14 h-14 bg-white border border-slate-200 rounded-xl overflow-hidden shrink-0 flex items-center justify-center p-1 relative group">
+                            {item.imageUrl ? (
+                              <img
+                                src={item.imageUrl}
+                                alt={item.standardizedName}
+                                className="w-full h-full object-contain group-hover:scale-110 transition duration-300"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-slate-50 flex items-center justify-center rounded-lg text-slate-400">
+                                <ImageIcon className="w-6 h-6 text-slate-300" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Text Details */}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {item.quantity && item.quantity > 1 && (
+                                <span className="px-2 py-0.5 bg-sky-100 text-sky-800 border border-sky-200 rounded-lg text-[11px] font-extrabold font-mono shrink-0">
+                                  {item.quantity}x
+                                </span>
+                              )}
+                              <h4 className="text-xs font-bold text-slate-900 truncate">
+                                {item.standardizedName}
+                              </h4>
+                              {item.status === 'exact' && (
+                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">
+                                  Exato
+                                </span>
+                              )}
+                              {item.status === 'equivalent' && (
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[10px] font-bold">
+                                  Equivalente
+                                </span>
+                              )}
+                              {item.status === 'on_demand' && (
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-full text-[10px] font-bold">
+                                  Sob Consulta
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1 flex-wrap">
+                              {item.partNumber && (
+                                <span>
+                                  <strong>PN:</strong> <code className="text-slate-700 font-mono">{item.partNumber}</code>
+                                </span>
+                              )}
+                              {item.ncm && (
+                                <span>
+                                  <strong>NCM:</strong> <code className="text-slate-700 font-mono">{item.ncm}</code>
+                                </span>
+                              )}
+                              <span>{item.observation}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Price, Store & Buy Link */}
+                        <div className="flex items-center gap-4 shrink-0 sm:border-l sm:border-slate-100 sm:pl-4 w-full sm:w-auto justify-between sm:justify-end">
+                          <div className="text-right">
+                            <div className="text-sm font-extrabold text-slate-900 font-mono">
+                              {item.bestPrice > 0 ? (
+                                <span className="text-emerald-700">{item.priceFormatted}</span>
+                              ) : (
+                                <span className="text-slate-400 font-normal">Sob orçamento</span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium">
+                              {item.store}
+                            </div>
+                            {/* Simulador de Venda com Margem */}
+                            {item.bestPrice > 0 && targetMarginPercent !== null && (
+                              <div className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded mt-0.5" title={`Custo R$ ${item.bestPrice.toFixed(2)} + ${targetMarginPercent}% de margem`}>
+                                Venda: R$ {(item.bestPrice * (1 + targetMarginPercent / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            )}
+                          </div>
+
+                          {item.buyUrl && (
+                            <a
+                              href={item.buyUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition shadow-2xs flex items-center gap-1 shrink-0"
+                              title="Abrir página do produto"
+                            >
+                              <span>Comprar</span>
+                              <ExternalLink className="w-3 h-3 text-sky-600" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Batch Footer */}
+          <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between px-6">
+            <div className="text-xs text-slate-600">
+              {selectedResultIds.size > 0 ? (
+                <span>
+                  <strong>{selectedResultIds.size}</strong> itens selecionados para o orçamento.
+                </span>
+              ) : (
+                <span>Selecione itens para adicionar à cotação.</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyBatchToQuote}
+                disabled={selectedResultIds.size === 0}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 disabled:opacity-50 rounded-xl text-xs font-semibold transition shadow-2xs flex items-center gap-1.5"
+                title="Acrescenta os itens selecionados à cotação que já está aberta"
+              >
+                <Plus className="w-3.5 h-3.5 text-slate-500" />
+                <span>Mesclar no Aberto</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleStartNewQuoteFromBatch}
+                disabled={selectedResultIds.size === 0}
+                className="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-2 cursor-pointer"
+                title="Inicia uma cotação limpa do zero com esses produtos encontrados"
+              >
+                {addedSuccess ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                <span>{addedSuccess ? 'Orçamento Criado!' : `Criar Novo Orçamento (${selectedResultIds.size})`}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* MODAL DIALOG: EDIÇÃO DO TEXTO TRANSCRITO DA FOTO (OCR) */}
+        {isOcrModalOpen && (
+          <div
+            className="fixed inset-0 z-60 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer animate-fadeIn"
+            onClick={() => setIsOcrModalOpen(false)}
+          >
+            <div
+              className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      Produtos Identificados da Foto
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] rounded-full font-bold flex items-center gap-1">
+                        <Sparkles className="w-2.5 h-2.5" /> IA Gemini Vision
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      O Gemini Vision identificou os produtos e quantidades da imagem. Revise antes de buscar os preços reais.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsOcrModalOpen(false)}
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 flex-1 overflow-y-auto space-y-4">
+                {ocrImagePreview && (
+                  <div className="flex items-center gap-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <img
+                      src={ocrImagePreview}
+                      alt="Foto carregada"
+                      className="w-16 h-16 object-cover rounded-lg border border-slate-300"
+                    />
+                    <div className="text-xs text-slate-600">
+                      <p className="font-bold text-slate-800">Foto Processada com Sucesso</p>
+                      <p className="text-[11px] text-slate-500">
+                        Cada linha abaixo será tratada como um produto para a busca de preços. Edite ou apague livremente!
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Lista de Produtos Extraídos (1 por linha):
+                  </label>
+                  <textarea
+                    rows={10}
+                    value={ocrEditableText}
+                    onChange={(e) => setOcrEditableText(e.target.value)}
+                    placeholder="Cada linha representará um produto a ser cotado..."
+                    className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-3 text-xs text-slate-900 font-mono focus:outline-none focus:border-sky-500 leading-relaxed"
+                  />
+                  <div className="flex justify-between items-center mt-1 text-[11px] text-slate-500">
+                    <span>Linhas atuais: {ocrEditableText.split('\n').filter(l => l.trim()).length}</span>
+                    <span>Dica: delete linhas de cabeçalho, totais ou ruídos da foto.</span>
+                  </div>
                 </div>
               </div>
 
-            </div>
-
-          </div>
-
-          {/* Direct Marketplace Search Shortcuts */}
-          <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-3.5 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-amber-900 flex items-center gap-1.5">
-                <span>🛒 Consultar Anúncios Reais nos Marketplaces:</span>
-              </span>
-              <span className="text-[11px] text-amber-700">Clique para abrir a busca exata em tempo real</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <a
-                href={`https://lista.mercadolivre.com.br/${encodeURIComponent((query || standardizedName).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim().replace(/\s+/g, '-'))}#D[A:${encodeURIComponent(query || standardizedName)}]`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-slate-900 rounded-xl text-xs font-bold transition shadow-xs"
-              >
-                <span>🟡 Buscar no Mercado Livre</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <a
-                href={`https://www.google.com/search?q=${encodeURIComponent(query || standardizedName)}&tbm=shop`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition shadow-xs"
-              >
-                <span>🔵 Google Shopping</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <a
-                href={`https://www.amazon.com.br/s?k=${encodeURIComponent(query || standardizedName)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
-              >
-                <span>🟠 Amazon Brasil</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-          </div>
-
-          {/* Quick Presets for Demo / Testing */}
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Produtos Rápidos / Frequentes:</span>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { name: 'Kombi Setor de Direção 1.4 Flex', query: 'Caixa de setor de direção da Kombi 1.4 Flex 2012' },
-                { name: 'Organizador Tramontina Plurale', query: 'Organizador de pia Tramontina Plurale' },
-                { name: 'Monitor Dell 27 4K S2722QC', query: 'Monitor Dell 27 4K UHD S2722QC' },
-                { name: 'Multifuncional Brother DCP-T720DW', query: 'Brother DCP-T720DW' },
-                { name: 'Nobreak APC 1500VA Bivolt', query: 'Nobreak APC Back-UPS 1500VA' },
-                { name: 'SSD Kingston KC3000 1TB', query: 'SSD Kingston KC3000 1TB' },
-                { name: 'Notebook Dell Inspiron 15 i5', query: 'Notebook Dell Inspiron 15 i5' }
-              ].map((p) => (
+              {/* Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 px-5">
                 <button
-                  key={p.name}
                   type="button"
-                  onClick={() => {
-                    setQuery(p.query);
-                    runProductStandardization(p.query);
-                  }}
-                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition"
+                  onClick={() => setIsOcrModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition"
                 >
-                  {p.name}
+                  Descartar
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={handleConfirmOcrText}
+                  className="px-5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Inserir na Lista de Cotação</span>
+                </button>
+              </div>
             </div>
           </div>
-
-        </div>
-
-        {/* Modal Action Buttons Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 px-6">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSaveToCatalogAction}
-              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
-            >
-              {savedCatalogSuccess ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <BookmarkPlus className="w-3.5 h-3.5 text-sky-600" />}
-              <span>{savedCatalogSuccess ? 'Salvo no Catálogo!' : 'Salvar no Catálogo'}</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleApplyToQuote}
-              className="px-5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-2"
-            >
-              {addedSuccess ? <Check className="w-4 h-4 text-white" /> : <Plus className="w-4 h-4 text-white" />}
-              <span>
-                {addedSuccess 
-                  ? 'Aplicado com Sucesso!' 
-                  : (targetItemIndex !== null ? 'Atualizar Item no Orçamento' : 'Adicionar ao Orçamento')}
-              </span>
-            </button>
-          </div>
-        </div>
+        )}
 
       </div>
     </div>

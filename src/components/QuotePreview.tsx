@@ -5,10 +5,12 @@ import {
   ArrowLeft, 
   Copy, 
   Check,
-  Download
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
-import { formatCompanyPrefix, formatContactPerson } from '../utils/aiEmailParser';
+import { formatCompanyPrefix, formatContactPerson, extractDeliveryExceptionDetails } from '../utils/aiEmailParser';
+import { exportCostSheetToExcel } from '../utils/excelExport';
 
 interface QuotePreviewProps {
   quote: Quote;
@@ -41,16 +43,33 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
     const clientCompanyFormatted = formatCompanyPrefix(quote.clientCompany);
     const contactPersonFormatted = formatContactPerson(quote.contactPerson);
 
-    const itemsRows = quote.items.map(item => `
+    const excDetails = extractDeliveryExceptionDetails(quote.deliveryDays);
+    const itemsRows = quote.items.map(item => {
+      const isException = excDetails.hasException && excDetails.itemNumbers.includes(item.itemNumber);
+      const hasDescription = item.description && 
+        item.description !== item.name && 
+        !item.description.toLowerCase().includes('menor pre') && 
+        !item.description.toLowerCase().includes('apurado');
+      const hasImage = item.showImage && item.imageUrl;
+
+      return `
       <tr>
-        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center;">${item.itemNumber}</td>
-        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: left;">${item.name}</td>
-        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center;">${item.quantity}</td>
-        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center;">${item.unit || 'Un.'}</td>
-        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">R$ ${item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">R$ ${item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; vertical-align: top;">${item.itemNumber}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: left; vertical-align: top;">
+          <div style="font-weight: normal;">
+            ${item.name}
+            ${isException ? `<span style="font-size: 8pt; color: #b45309; font-weight: bold; margin-left: 6pt;">(Prazo diferenciado: ${excDetails.days} dias úteis)</span>` : ''}
+          </div>
+          ${hasDescription ? `<div style="font-size: 8.5pt; color: #334155; margin-top: 3pt; line-height: 1.3; white-space: pre-line;">${item.description}</div>` : ''}
+          ${hasImage ? `<div style="margin-top: 6pt; margin-bottom: 3pt;"><img src="${item.imageUrl}" alt="${item.name}" height="140" style="height: 140px; width: auto; max-width: 260px; object-fit: contain; display: block;" /></div>` : ''}
+        </td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; vertical-align: top;">${item.quantity}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; vertical-align: top;">${item.unit || 'Un.'}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; vertical-align: top; white-space: nowrap;">R$ ${item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; vertical-align: top; white-space: nowrap;">R$ ${item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     const formattedShipping = quote.shippingTerms
       ? (quote.shippingTerms.toLowerCase().startsWith('frete')
@@ -114,8 +133,8 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       </head>
       <body>
         <div class="Section1">
-          <div style="margin-bottom: 20pt;">
-            <img src="${window.location.origin}/infodesk-logo-original.svg" width="220" height="54" style="width: 220px; height: 54px;" />
+          <div style="margin-bottom: 24pt;">
+            <img src="${window.location.origin}/infodesk-logo-original.svg" width="285" height="70" style="width: 285px; height: 70px;" />
           </div>
 
           <div style="margin-bottom: 14pt; line-height: 1.35; font-family: Verdana, Geneva, sans-serif;">
@@ -249,6 +268,21 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
           </button>
 
           <button
+            onClick={async () => {
+              try {
+                await exportCostSheetToExcel(quote);
+              } catch (err) {
+                console.error('Erro ao exportar planilha Excel:', err);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold transition shadow-2xs active:scale-95"
+            title="Baixar planilha de custos e precificação detalhada no Excel (.xlsx)"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Exportar Excel (.xlsx)</span>
+          </button>
+
+          <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-medium transition"
             title="Imprimir ou Salvar em PDF"
@@ -271,18 +305,18 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       <div className="flex justify-center">
         <div 
           ref={documentRef}
-          className="print-page bg-white text-black w-full max-w-[794px] min-h-[1123px] p-12 md:p-14 shadow-2xl rounded-sm border border-slate-200 leading-normal flex flex-col justify-between"
+          className="print-page bg-white text-black w-full max-w-[794px] min-h-[1123px] px-[20mm] pt-[15mm] pb-[12mm] shadow-2xl rounded-sm border border-slate-200 leading-normal flex flex-col justify-between"
           style={{ fontFamily: 'Verdana, Geneva, sans-serif' }}
         >
           {/* Main Top & Center Content */}
           <div className="flex-1 flex flex-col">
             {/* Header with Original Infodesk Logo */}
-            <div className="mb-6">
+            <div className="mb-8">
               <img 
                 src="/infodesk-logo-original.svg" 
                 alt="Infodesk" 
                 className="w-auto object-contain"
-                style={{ height: '54px' }}
+                style={{ height: '70px' }}
               />
             </div>
 
@@ -344,14 +378,27 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {quote.items.map((item) => (
+                  {quote.items.map((item) => {
+                    const excDetails = extractDeliveryExceptionDetails(quote.deliveryDays);
+                    const isException = excDetails.hasException && excDetails.itemNumbers.includes(item.itemNumber);
+                    return (
                     <tr key={item.id} className="border-b border-black">
                       <td className="p-1.5 border border-black text-center" style={{ fontSize: '10pt' }}>
                         {item.itemNumber}
                       </td>
                       <td className="p-1.5 border border-black text-left" style={{ fontSize: '10pt' }}>
-                        <div>{item.name}</div>
-                        {item.description && item.description !== item.name && (
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-medium">{item.name}</span>
+                          {isException && (
+                            <span className="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 rounded text-[7.5pt] font-bold shrink-0">
+                              Prazo: {excDetails.days} dias úteis
+                            </span>
+                          )}
+                        </div>
+                        {item.description && 
+                         item.description !== item.name && 
+                         !item.description.toLowerCase().includes('menor pre') && 
+                         !item.description.toLowerCase().includes('apurado') && (
                           <div className="text-[8.5pt] text-slate-700 mt-0.5 whitespace-pre-line">{item.description}</div>
                         )}
                         {item.showImage && item.imageUrl && (
@@ -360,12 +407,12 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                               src={item.imageUrl}
                               alt={item.name}
                               style={{
-                                height: '4cm',
-                                maxHeight: '4cm',
+                                height: '4.5cm',
+                                maxHeight: '4.5cm',
                                 width: 'auto',
                                 objectFit: 'contain'
                               }}
-                              className="border border-slate-300 rounded bg-white p-1"
+                              className="rounded-none bg-transparent"
                             />
                           </div>
                         )}
@@ -383,7 +430,8 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                         R$ {item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>

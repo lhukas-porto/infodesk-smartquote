@@ -49,12 +49,29 @@ WhatsApp: ${settings.whatsapp}
 ${settings.address} – ${settings.cityState}`;
 
   // ⚠️ Todos os hooks devem ficar ANTES de qualquer early return (Rules of Hooks)
+  const initialTo = quote.recipientEmails || quote.clientEmail || '';
+  const initialCc = quote.ccEmails || '';
+  const [toEmails, setToEmails] = useState(initialTo);
+  const [ccEmails, setCcEmails] = useState(initialCc);
+  const [showCc, setShowCc] = useState(Boolean(initialCc));
   const [subject, setSubject] = useState(defaultSubject);
   const [bodyText, setBodyText] = useState(defaultBody);
+
+  // Sincronizar quando a proposta mudar
+  React.useEffect(() => {
+    setToEmails(quote.recipientEmails || quote.clientEmail || '');
+    setCcEmails(quote.ccEmails || '');
+    if (quote.ccEmails) setShowCc(true);
+  }, [quote.id, quote.clientEmail, quote.recipientEmails, quote.ccEmails]);
 
   if (!isOpen) return null;
 
   const handleSend = () => {
+    if (!toEmails.trim()) {
+      alert('Por favor, informe ao menos um e-mail de destinatário.');
+      return;
+    }
+
     setIsSending(true);
     setTimeout(() => {
       setIsSending(false);
@@ -62,6 +79,9 @@ ${settings.address} – ${settings.cityState}`;
       setTimeout(() => {
         onConfirmSend({
           ...quote,
+          clientEmail: toEmails.split(/[,;]/)[0]?.trim() || quote.clientEmail,
+          recipientEmails: toEmails.trim(),
+          ccEmails: ccEmails.trim(),
           status: 'sent',
           sentAt: new Date().toISOString()
         });
@@ -100,26 +120,71 @@ ${settings.address} – ${settings.cityState}`;
 
         <div className="p-6 space-y-4 text-xs">
           
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-600 font-medium mb-1">Destinatário (Para:)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-slate-600 font-bold">
+                  Destinatários (Para:) *
+                </label>
+                {!showCc && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCc(true)}
+                    className="text-[10px] text-sky-600 hover:text-sky-800 hover:underline font-semibold"
+                  >
+                    + Adicionar Cópia (Cc)
+                  </button>
+                )}
+              </div>
               <input
-                type="email"
-                value={(quote.clientEmail || '').toLowerCase()}
-                readOnly
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none lowercase"
+                type="text"
+                value={toEmails}
+                onChange={(e) => setToEmails(e.target.value)}
+                placeholder="email1@empresa.com, email2@empresa.com"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-xs"
               />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Separe múltiplos e-mails por vírgula ou ponto e vírgula
+              </span>
             </div>
+
             <div>
-              <label className="block text-slate-600 font-medium mb-1">Remetente (Google Workspace)</label>
+              <label className="block text-slate-600 font-bold mb-1">Remetente (Google Workspace)</label>
               <input
                 type="text"
                 value={`${settings.representativeName} <${(settings.email || '').toLowerCase()}>`}
                 readOnly
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-600 font-medium focus:outline-none"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-600 font-medium focus:outline-none text-xs"
               />
             </div>
           </div>
+
+          {showCc && (
+            <div className="bg-sky-50/50 p-3 rounded-xl border border-sky-100">
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-slate-700 font-bold text-[11px]">
+                  Com Cópia (Cc):
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCcEmails('');
+                    setShowCc(false);
+                  }}
+                  className="text-[10px] text-slate-400 hover:text-red-500"
+                >
+                  Remover Cc
+                </button>
+              </div>
+              <input
+                type="text"
+                value={ccEmails}
+                onChange={(e) => setCcEmails(e.target.value)}
+                placeholder="copia1@empresa.com, copia2@empresa.com"
+                className="w-full bg-white border border-sky-200 rounded-lg px-3 py-1.5 text-slate-900 font-medium focus:outline-none focus:border-sky-500 text-xs"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-slate-600 font-medium mb-1">Assunto</label>

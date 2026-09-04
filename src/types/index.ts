@@ -45,6 +45,8 @@ export interface Quote {
   clientCompany: string;
   contactPerson: string;
   clientEmail: string;
+  recipientEmails?: string;
+  ccEmails?: string;
   clientPhone: string;
   subject: string;
   city: string;
@@ -64,6 +66,7 @@ export interface Quote {
   totalProfit: number;
   totalAmount: number;
   averageMargin: number;
+  globalMarkupPercent?: number;
   globalTaxPercent?: number;
   globalShipping?: number;
   status: 'draft' | 'sent' | 'approved' | 'rejected';
@@ -102,6 +105,7 @@ export interface IncomingEmail {
 }
 
 export interface CompanySettings {
+  id?: string;
   companyName: string;
   tradeName: string;
   cnpj: string;

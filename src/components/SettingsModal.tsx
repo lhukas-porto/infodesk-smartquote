@@ -5,10 +5,13 @@ import {
   Check, 
   Mail, 
   Save,
-  Calculator
+  Calculator,
+  Sparkles
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 import { saveSettings } from '../utils/storage';
+import { getStoredGeminiKey, saveStoredGeminiKey } from '../services/priceScannerService';
+import { maskPhone } from '../utils/aiEmailParser';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -25,24 +28,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [form, setForm] = useState<CompanySettings>(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [geminiKey, setGeminiKey] = useState(getStoredGeminiKey());
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setForm(settings);
+      setGeminiKey(getStoredGeminiKey());
     }
   }, [isOpen, settings]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
     saveSettings(form);
-    onSaveSettings(form);
-    setSavedSuccess(true);
-    setTimeout(() => {
-      setSavedSuccess(false);
-      onClose();
-    }, 1200);
+    saveStoredGeminiKey(geminiKey);
+    try {
+      if (onSaveSettings) {
+        await onSaveSettings(form);
+      }
+      setSavedSuccess(true);
+      setTimeout(() => {
+        setSavedSuccess(false);
+        onClose();
+      }, 800);
+    } catch (err) {
+      console.error('Erro ao salvar configurações:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -151,8 +167,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <label className="block text-slate-600 font-medium mb-1">Telefone Fixo</label>
               <input
                 type="text"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="(61) 3403-2944"
+                maxLength={15}
+                value={maskPhone(form.phone)}
+                onChange={(e) => setForm({ ...form, phone: maskPhone(e.target.value) })}
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500"
               />
             </div>
@@ -160,8 +178,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <label className="block text-slate-600 font-medium mb-1">WhatsApp</label>
               <input
                 type="text"
-                value={form.whatsapp}
-                onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+                placeholder="(61) 99627-2630"
+                maxLength={15}
+                value={maskPhone(form.whatsapp)}
+                onChange={(e) => setForm({ ...form, whatsapp: maskPhone(e.target.value) })}
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500"
               />
             </div>
@@ -232,6 +252,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </span>
           </div>
 
+          <h3 className="font-bold text-sky-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
+            <Sparkles className="w-3.5 h-3.5" /> Scanner de Preços Web (Google Gemini)
+          </h3>
+
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                <span>Chave de API Gemini (Opcional - Grátis)</span>
+                <a 
+                  href="https://aistudio.google.com/app/apikey" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sky-600 hover:text-sky-700 underline text-[10px] font-normal"
+                >
+                  Criar chave grátis no Google AI Studio ↗
+                </a>
+              </label>
+              <input
+                type="password"
+                placeholder="AIzaSy..."
+                value={geminiKey}
+                onChange={(e) => setGeminiKey(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              💡 <strong>Pesquisas Ilimitadas:</strong> Permite ao Scanner de Preços pesquisar a web ao vivo com Google Search Grounding em tempo real. Se deixar em branco, o scanner utilizará a base inteligente e agregadores locais.
+            </p>
+          </div>
+
           <div className="pt-4 flex justify-end gap-2 border-t border-slate-200">
             <button
               type="button"
@@ -242,10 +292,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl font-bold shadow-sm transition flex items-center gap-2"
+              disabled={isSaving}
+              className="px-5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl font-bold shadow-sm transition flex items-center gap-2 disabled:opacity-50"
             >
-              {savedSuccess ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-              <span>{savedSuccess ? 'Salvo!' : 'Salvar Alterações'}</span>
+              {savedSuccess ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-300" />
+                  <span>Salvo com Sucesso!</span>
+                </>
+              ) : isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Salvando no Banco...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Salvar Alterações</span>
+                </>
+              )}
             </button>
           </div>
         </form>

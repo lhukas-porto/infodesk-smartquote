@@ -18,6 +18,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { ClientCompany, ClientContact } from '../types';
+import { maskPhone } from '../utils/aiEmailParser';
 
 interface ClientManagementModalProps {
   isOpen: boolean;
@@ -213,7 +214,7 @@ export const ClientManagementModal: React.FC<ClientManagementModalProps> = ({
       name: contactName.trim(),
       title: contactTitle,
       email: contactEmail.toLowerCase().trim(),
-      phone: contactPhone.trim(),
+      phone: maskPhone(contactPhone.trim()),
       role: contactRole.trim() || 'Comprador',
       lastUsed: new Date().toISOString()
     };
@@ -259,7 +260,7 @@ export const ClientManagementModal: React.FC<ClientManagementModalProps> = ({
       name: editContactName.trim(),
       title: editContactTitle,
       email: editContactEmail.toLowerCase().trim(),
-      phone: editContactPhone.trim(),
+      phone: maskPhone(editContactPhone.trim()),
       role: editContactRole.trim() || 'Comprador',
       lastUsed: new Date().toISOString()
     };
@@ -789,8 +790,10 @@ export const ClientManagementModal: React.FC<ClientManagementModalProps> = ({
                         <label className="block text-[11px] font-semibold text-slate-700 mb-1">Telefone / WhatsApp</label>
                         <input
                           type="text"
-                          value={editContactPhone}
-                          onChange={(e) => setEditContactPhone(e.target.value)}
+                          placeholder="Ex: (61) 3403-2944"
+                          maxLength={15}
+                          value={maskPhone(editContactPhone)}
+                          onChange={(e) => setEditContactPhone(maskPhone(e.target.value))}
                           className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-amber-500 text-slate-900"
                         />
                       </div>
@@ -906,8 +909,9 @@ export const ClientManagementModal: React.FC<ClientManagementModalProps> = ({
                         <input
                           type="text"
                           placeholder="Ex: (61) 3403-2944"
-                          value={contactPhone}
-                          onChange={(e) => setContactPhone(e.target.value)}
+                          maxLength={15}
+                          value={maskPhone(contactPhone)}
+                          onChange={(e) => setContactPhone(maskPhone(e.target.value))}
                           className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900"
                         />
                       </div>

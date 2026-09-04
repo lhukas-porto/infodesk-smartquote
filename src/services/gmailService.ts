@@ -309,6 +309,7 @@ export const sendRealGmailMessage = async (
   accessToken: string,
   params: {
     to: string;
+    cc?: string;
     from: string;
     subject: string;
     bodyText: string;
@@ -318,13 +319,20 @@ export const sendRealGmailMessage = async (
   const messageParts = [
     `From: ${params.from}`,
     `To: ${(params.to || '').toLowerCase().trim()}`,
+  ];
+
+  if (params.cc && params.cc.trim()) {
+    messageParts.push(`Cc: ${params.cc.toLowerCase().trim()}`);
+  }
+
+  messageParts.push(
     `Subject: ${utf8Subject}`,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',
     'Content-Transfer-Encoding: 7bit',
     '',
     params.bodyText
-  ];
+  );
   const message = messageParts.join('\r\n');
 
   const encodedMessage = btoa(unescape(encodeURIComponent(message)))
