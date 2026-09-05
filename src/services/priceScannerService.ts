@@ -184,7 +184,8 @@ export function parsePastedProductListWithQty(rawText: string): ParsedBatchQuery
     const line = rawLines[i];
 
     // Skip markdown table separators or headers
-    if (/^\|?\s*[-:\s|]+\s*\|?$/.test(line)) continue;
+    const isTableSeparator = new RegExp('^\\|?\\s*[-' + ':\\s|]+\\s*\\|?$');
+    if (isTableSeparator.test(line)) continue;
     if (/^\|?\s*(produto|descri[cç][aã]o|item|nome|qtd|quantidade|comprar)\s*\|?/i.test(line)) continue;
 
     // If current line is a pure quantity line, check if previous product needs it
