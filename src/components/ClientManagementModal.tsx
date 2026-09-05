@@ -74,6 +74,29 @@ export const ClientManagementModal: React.FC<ClientManagementModalProps> = ({
   const [editContactRole, setEditContactRole] = useState('Comprador');
   const [editContactTargetCompanyId, setEditContactTargetCompanyId] = useState<string>('');
   const [newLocationName, setNewLocationName] = useState('');
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        if (companyIdToDelete) {
+          setCompanyIdToDelete(null);
+        } else if (contactIdToDelete) {
+          setContactIdToDelete(null);
+        } else if (isAddingCompany) {
+          setIsAddingCompany(false);
+        } else if (isEditingCompany) {
+          setIsEditingCompany(false);
+        } else if (isAddingContact) {
+          setIsAddingContact(false);
+        } else if (editingContact) {
+          setEditingContact(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, companyIdToDelete, contactIdToDelete, isAddingCompany, isEditingCompany, isAddingContact, editingContact]);
 
   if (!isOpen) return null;
 

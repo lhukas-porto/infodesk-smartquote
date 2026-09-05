@@ -35,6 +35,7 @@ import {
   resolveProductDetails,
   cleanAlphanumericCode,
   cleanNcmCode,
+  getCategoryFromNcm,
   ProductCandidateListing,
   isExactProductUrl,
   extractStoreNameFromUrl,
@@ -164,6 +165,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
         : (scanned.buyUrl || (isExactProductUrl(details.sourceUrl) ? details.sourceUrl : ''));
 
       const exactSupplier = scanned.store || existingItem?.supplier || details.supplier || extractStoreNameFromUrl(exactSourceUrl);
+      const finalCategory = getCategoryFromNcm(finalNcm, scanned.category || details.category);
 
       setStandardizedName(formatProductSentenceCase(scanned.standardizedName || details.standardizedName));
       setPartNumber(finalPartNumber);
@@ -173,7 +175,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
       setEstimatedCost(existingItem?.costPrice || scanned.bestPrice || details.estimatedCost);
       setSupplier(exactSupplier);
       setSourceUrl(exactSourceUrl);
-      setCategory(details.category);
+      setCategory(finalCategory);
       setCandidateListings(details.candidateListings || []);
     } catch (e) {
       console.error('Error running single standardization:', e);
@@ -309,7 +311,6 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
 
     const itemsToCreate: Partial<QuoteItem>[] = selected.map(res => {
       const cleanName = (res.standardizedName || '')
-        .replace(/[—–\-]/g, ' ')
         .replace(/,/g, ' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
@@ -358,7 +359,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
       });
 
       if (extracted.items && extracted.items.length > 0) {
-        // Formatar cada item de forma limpa, sem traços ou vírgulas: "Nome do Produto | Qtd: N Un"
+        // Formatar cada item de forma limpa, sem vírgulas: "Nome do Produto | Qtd: N Un"
         const formattedLines = extracted.items.map(it => {
           const qtyPart = it.quantity && it.quantity > 1 ? ` | Qtd: ${it.quantity} ${it.unit || 'Un.'}` : '';
           const codePart = it.partNumber ? ` [Ref: ${it.partNumber}]` : '';
@@ -373,9 +374,8 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
             }
           }
 
-          // Higienização completa: remove traços, hifens e vírgulas
+          // Higienização completa: remove apenas vírgulas
           const combined = `${cleanName}${extraDesc}`
-            .replace(/[—–\-]/g, ' ')
             .replace(/,/g, ' ')
             .replace(/\s{2,}/g, ' ')
             .trim();
@@ -477,9 +477,11 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
   };
 
   const handleSelectCandidate = (candidate: ProductCandidateListing) => {
+    const candidateNcm = cleanNcmCode(candidate.ncm);
     setStandardizedName(candidate.name);
     setPartNumber(cleanAlphanumericCode(candidate.partNumber));
-    setNcm(cleanNcmCode(candidate.ncm));
+    setNcm(candidateNcm);
+    setCategory(getCategoryFromNcm(candidateNcm, category));
     setImageUrl(candidate.imageUrl);
     setEstimatedCost(candidate.cost);
     setSupplier(candidate.supplier);
@@ -514,12 +516,10 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
-      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
     >
       <div
-        className="bg-white border border-slate-200 rounded-3xl w-full max-w-6xl max-h-[96vh] h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn cursor-default"
-        onClick={(e) => e.stopPropagation()}
+        className="bg-white border border-slate-200 rounded-3xl w-full max-w-6xl max-h-[96vh] h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn"
       >
 
         {/* Modal Header */}
@@ -972,7 +972,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
                             </div>
                             {/* Simulador de Venda com Margem */}
                             {item.bestPrice > 0 && targetMarginPercent !== null && (
-                              <div className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded mt-0.5" title={`Custo R$ ${item.bestPrice.toFixed(2)} + ${targetMarginPercent}% de margem`}>
+                              <div className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded mt-0.5" title={`Custo R$ ${item.bestPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} + ${targetMarginPercent}% de margem`}>
                                 Venda: R$ {(item.bestPrice * (1 + targetMarginPercent / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                             )}
@@ -1046,12 +1046,10 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
         {/* MODAL DIALOG: EDIÇÃO DO TEXTO TRANSCRITO DA FOTO (OCR) */}
         {isOcrModalOpen && (
           <div
-            className="fixed inset-0 z-60 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer animate-fadeIn"
-            onClick={() => setIsOcrModalOpen(false)}
+            className="fixed inset-0 z-60 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
           >
             <div
-              className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn cursor-default"
-              onClick={(e) => e.stopPropagation()}
+              className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn"
             >
               {/* Header */}
               <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">

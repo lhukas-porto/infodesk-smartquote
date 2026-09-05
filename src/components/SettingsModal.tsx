@@ -27,6 +27,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveSettings
 }) => {
   const [form, setForm] = useState<CompanySettings>(settings);
+  const [markupInput, setMarkupInput] = useState<string>('');
+  const [taxInput, setTaxInput] = useState<string>('');
+  const [shippingInput, setShippingInput] = useState<string>('');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [geminiKey, setGeminiKey] = useState(getStoredGeminiKey());
   const [isSaving, setIsSaving] = useState(false);
@@ -34,20 +37,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setForm(settings);
+      setMarkupInput(settings.defaultMarkupPercent !== undefined ? String(settings.defaultMarkupPercent).replace('.', ',') : '23,5');
+      setTaxInput(settings.defaultTaxPercent !== undefined ? String(settings.defaultTaxPercent).replace('.', ',') : '9,1');
+      setShippingInput(settings.defaultShippingCost !== undefined ? String(settings.defaultShippingCost).replace('.', ',') : '0');
       setGeminiKey(getStoredGeminiKey());
     }
-  }, [isOpen, settings]);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, settings, onClose]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    saveSettings(form);
+
+    const parsedMarkup = parseFloat(markupInput.replace(',', '.'));
+    const parsedTax = parseFloat(taxInput.replace(',', '.'));
+    const parsedShipping = parseFloat(shippingInput.replace(',', '.'));
+
+    const updatedForm: CompanySettings = {
+      ...form,
+      defaultMarkupPercent: !isNaN(parsedMarkup) && parsedMarkup >= 0 ? parsedMarkup : (form.defaultMarkupPercent ?? 23.5),
+      defaultTaxPercent: !isNaN(parsedTax) && parsedTax >= 0 ? parsedTax : (form.defaultTaxPercent ?? 9.1),
+      defaultShippingCost: !isNaN(parsedShipping) && parsedShipping >= 0 ? parsedShipping : (form.defaultShippingCost ?? 0)
+    };
+
+    saveSettings(updatedForm);
     saveStoredGeminiKey(geminiKey);
     try {
       if (onSaveSettings) {
-        await onSaveSettings(form);
+        await onSaveSettings(updatedForm);
       }
       setSavedSuccess(true);
       setTimeout(() => {
@@ -196,10 +222,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <label className="block text-slate-600 font-medium mb-1">Margem de Lucro (% Markup)</label>
               <div className="relative">
                 <input
-                  type="number"
-                  step="0.5"
-                  value={form.defaultMarkupPercent}
-                  onChange={(e) => setForm({ ...form, defaultMarkupPercent: parseFloat(e.target.value) || 0 })}
+                  type="text"
+                  value={markupInput}
+                  onChange={(e) => {
+                    setMarkupInput(e.target.value);
+                    const parsed = parseFloat(e.target.value.replace(',', '.'));
+                    if (!isNaN(parsed) && parsed >= 0) {
+                      setForm(prev => ({ ...prev, defaultMarkupPercent: parsed }));
+                    }
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-7 py-2 text-slate-900 focus:outline-none focus:border-sky-500 font-semibold"
                 />
                 <span className="absolute right-2.5 top-2 text-xs text-slate-400">%</span>
@@ -211,10 +242,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <label className="block text-slate-600 font-medium mb-1">Alíquota de Imposto (%)</label>
               <div className="relative">
                 <input
-                  type="number"
-                  step="0.1"
-                  value={form.defaultTaxPercent}
-                  onChange={(e) => setForm({ ...form, defaultTaxPercent: parseFloat(e.target.value) || 0 })}
+                  type="text"
+                  value={taxInput}
+                  onChange={(e) => {
+                    setTaxInput(e.target.value);
+                    const parsed = parseFloat(e.target.value.replace(',', '.'));
+                    if (!isNaN(parsed) && parsed >= 0) {
+                      setForm(prev => ({ ...prev, defaultTaxPercent: parsed }));
+                    }
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-3 pr-7 py-2 text-slate-900 focus:outline-none focus:border-sky-500 font-semibold"
                 />
                 <span className="absolute right-2.5 top-2 text-xs text-slate-400">%</span>
@@ -226,10 +262,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <label className="block text-slate-600 font-medium mb-1">Frete Padrão por Item (R$)</label>
               <div className="relative">
                 <input
-                  type="number"
-                  step="1"
-                  value={form.defaultShippingCost}
-                  onChange={(e) => setForm({ ...form, defaultShippingCost: parseFloat(e.target.value) || 0 })}
+                  type="text"
+                  value={shippingInput}
+                  onChange={(e) => {
+                    setShippingInput(e.target.value);
+                    const parsed = parseFloat(e.target.value.replace(',', '.'));
+                    if (!isNaN(parsed) && parsed >= 0) {
+                      setForm(prev => ({ ...prev, defaultShippingCost: parsed }));
+                    }
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-7 pr-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500 font-semibold font-mono"
                 />
                 <span className="absolute left-2.5 top-2 text-xs text-slate-400">R$</span>

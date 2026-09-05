@@ -1,4 +1,4 @@
-import { ClientCompany, CompanySettings, IncomingEmail, Product, Quote } from '../types';
+import { ClientCompany, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
 
 const SETTINGS_KEY = 'infodesk_settings';
@@ -31,6 +31,37 @@ export const saveCurrentDraftQuote = (quote: Quote | null): void => {
     return;
   }
   localStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, JSON.stringify(quote));
+  if (quote.items && quote.items.length > 0) {
+    if (quote.code) saveQuoteItemsBackup(quote.code, quote.items);
+    if (quote.id) saveQuoteItemsBackup(quote.id, quote.items);
+  }
+};
+
+export const saveQuoteItemsBackup = (key: string, items: QuoteItem[]): void => {
+  if (!key || !Array.isArray(items) || items.length === 0) return;
+  try {
+    const cleanKey = key.trim().replace(/\s+/g, '_').toUpperCase();
+    localStorage.setItem(`infodesk_backup_items_${cleanKey}`, JSON.stringify(items));
+  } catch (e) {
+    console.warn('Erro ao salvar backup de itens:', e);
+  }
+};
+
+export const getQuoteItemsBackup = (key: string): QuoteItem[] | null => {
+  if (!key) return null;
+  try {
+    const cleanKey = key.trim().replace(/\s+/g, '_').toUpperCase();
+    const saved = localStorage.getItem(`infodesk_backup_items_${cleanKey}`);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao ler backup de itens:', e);
+  }
+  return null;
 };
 
 export const getSavedActiveTab = (defaultTab: string = 'inbox'): string => {

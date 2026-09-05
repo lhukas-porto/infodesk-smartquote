@@ -1190,6 +1190,115 @@ export function cleanNcmCode(ncm: string | undefined): string {
 }
 
 /**
+ * Identifica e padroniza a Categoria Comercial do produto com base no código NCM Fiscal oficial (8 dígitos).
+ * O NCM é a Nomenclatura Comum do Mercosul, dividida em Capítulos (2 dígitos), Posições (4 dígitos) e Subposições.
+ */
+export function getCategoryFromNcm(ncmCode: string | undefined, fallbackCategory?: string): string {
+  if (!ncmCode) return fallbackCategory || 'Geral';
+  const clean = ncmCode.replace(/\D/g, '').padEnd(8, '0');
+  const cap = clean.slice(0, 2);
+  const pos = clean.slice(0, 4);
+
+  // 1. Alimentos, Bebidas, Café e Copa
+  if (pos === '0901') return 'Café, Chás & Matinais';
+  if (pos === '0902' || pos === '0903') return 'Chás & Infusões';
+  if (cap === '09') return 'Café, Chás & Especiarias';
+  if (pos === '1701' || pos === '1702' || pos === '1704') return 'Açúcar & Doces';
+  if (pos === '1806') return 'Chocolates & Bomboniere';
+  if (pos === '1905') return 'Biscoitos & Snacks';
+  if (pos === '2101') return 'Café Solúvel & Extratos';
+  if (cap === '21') return 'Alimentos & Mercearia';
+  if (pos === '2201' || pos === '2202') return 'Águas, Sucos & Bebidas';
+  if (cap === '22') return 'Bebidas & Líquidos';
+
+  // 2. Embalagens, Descartáveis, Limpeza e Higiene
+  if (pos === '3923') return 'Embalagens & Descartáveis';
+  if (pos === '3924') return 'Utilidades Domésticas & Plásticos';
+  if (pos === '3926') return 'Artigos Plásticos & Acessórios';
+  if (cap === '39') return 'Plásticos & Polímeros';
+  if (pos === '4818') return 'Papéis Higiênicos & Guardanapos';
+  if (pos === '4819') return 'Caixas & Embalagens de Papelão';
+  if (pos === '4820') return 'Papelaria & Cadernos';
+  if (cap === '48') return 'Papelaria & Escritório';
+  if (pos === '3401' || pos === '3402') return 'Limpeza & Higiene Profissional';
+  if (cap === '34') return 'Produtos de Limpeza';
+  if (cap === '33') return 'Higiene Pessoal & Cosméticos';
+
+  // 3. Informática, Tecnologia e Automação (Capítulo 84 e 85)
+  if (pos === '8471') {
+    const sub = clean.slice(0, 6);
+    if (sub === '847130') return 'Notebooks & Computadores Portáteis';
+    if (sub === '847141' || sub === '847149' || sub === '847150') return 'Desktops & Servidores';
+    if (sub === '847160') return 'Periféricos & Entrada de Dados';
+    if (sub === '847170') return 'Armazenamento & SSDs';
+    if (sub === '847180' || sub === '847190') return 'Componentes & Placas';
+    return 'Informática & Tecnologia';
+  }
+  if (pos === '8443') return 'Impressoras, Multifuncionais & Toners';
+  if (pos === '8470') return 'Calculadoras & Automação Comercial';
+  if (pos === '8473') return 'Partes & Peças para Informática';
+
+  // 4. Redes, Conectividade e Telecomunicações
+  if (pos === '8517') {
+    const sub = clean.slice(0, 6);
+    if (sub === '851711' || sub === '851713' || sub === '851714') return 'Telefonia & Smartphones';
+    if (sub === '851761' || sub === '851762') return 'Redes, Roteadores & Switches';
+    if (sub === '851771' || sub === '851779') return 'Antenas & Telecomunicação';
+    return 'Redes & Conectividade';
+  }
+
+  // 5. Monitores, Áudio e Vídeo
+  if (pos === '8528') return 'Monitores & Telas Profissionais';
+  if (pos === '8518') return 'Áudio, Caixas de Som & Headsets';
+  if (pos === '8519' || pos === '8521' || pos === '8522') return 'Áudio & Vídeo';
+  if (pos === '8525') return 'Câmeras, Webcams & CFTV';
+
+  // 6. Energia, Fontes e Nobreaks
+  if (pos === '8504') {
+    const sub = clean.slice(0, 6);
+    if (sub === '850440') return 'Nobreaks, Fontes & Conversores';
+    return 'Transformadores & Energia';
+  }
+  if (pos === '8506' || pos === '8507') return 'Pilhas, Baterias & Nobreaks';
+  if (pos === '8535' || pos === '8536' || pos === '8537') return 'Materiais Elétricos & Disjuntores';
+  if (pos === '8544') return 'Cabos & Conectores';
+
+  // 7. Eletrodomésticos, Refrigeração e Climatização
+  if (pos === '8418') return 'Refrigeração, Geladeiras & Frigobares';
+  if (pos === '8415') return 'Ar-Condicionado & Climatização';
+  if (pos === '8414') return 'Ventilação, Coifas & Exaustores';
+  if (pos === '8421') return 'Filtros & Purificadores de Água';
+  if (pos === '8422') return 'Lava-Louças & Máquinas de Limpeza';
+  if (pos === '8450') return 'Lavadoras & Secadoras';
+  if (pos === '8516') return 'Eletroportáteis, Fornos & Micro-ondas';
+
+  // 8. Válvulas, Tubos, Metais e Hidráulica Industrial
+  if (pos === '8481') return 'Válvulas & Registros Industriais';
+  if (pos === '8413') return 'Bombas Hidráulicas & Motores';
+  if (pos === '7304' || pos === '7306' || pos === '7307') return 'Tubos & Conexões de Aço';
+  if (pos === '7411' || pos === '7412') return 'Tubos & Conexões de Cobre';
+  if (cap === '73' || cap === '76') return 'Metais & Estruturas';
+  if (cap === '40') return 'Borrachas, Juntas & Vedações';
+
+  // 9. Ferramentas, Segurança e EPI
+  if (pos === '8203' || pos === '8204' || pos === '8205' || pos === '8206') return 'Ferramentas Manuais';
+  if (pos === '8467') return 'Ferramentas Elétricas';
+  if (cap === '82') return 'Ferramentas & Cutelaria';
+  if (pos === '9004' || pos === '9020') return 'EPI & Proteção Individual';
+  if (cap === '90') return 'Instrumentos de Medição & Óptica';
+
+  // 10. Mobiliário e Escritório
+  if (pos === '9401' || pos === '9403') return 'Mobiliário Corporativo & Cadeiras';
+  if (pos === '9405') return 'Iluminação & Luminárias';
+  if (cap === '94') return 'Mobiliário & Decoração';
+
+  // 11. Veículos e Autopeças
+  if (cap === '87') return 'Veículos & Autopeças';
+
+  return fallbackCategory || 'Geral';
+}
+
+/**
  * Regra de arredondamento comercial solicitada por Lucas:
  * - Se os centavos estiverem abaixo de 0,50 (ex: 59,20), arredonda para baixo (ex: 59,00).
  * - Se os centavos estiverem iguais ou acima de 0,50 (ex: 59,50 ou 59,70), arredonda para cima (ex: 60,00).
@@ -1614,26 +1723,35 @@ export type WordCaseStyle = 'uppercase' | 'lowercase' | 'sentence' | 'title';
  */
 export function applyTextCase(text: string, style: WordCaseStyle): string {
   if (!text) return '';
-  const trimmed = text.trim();
-  if (!trimmed) return '';
+
+  // Extrai e preserva espaços ou pontuações ao redor da palavra/seleção
+  const match = text.match(/^(\s*)(.*?)(\s*)$/s);
+  if (!match) return text;
+  const [, leadingSpace, core, trailingSpace] = match;
+  if (!core) return text;
+
+  let transformed = core;
 
   switch (style) {
     case 'uppercase':
-      return trimmed.toUpperCase();
+      transformed = core.toUpperCase();
+      break;
 
     case 'lowercase':
-      return trimmed.toLowerCase();
+      transformed = core.toLowerCase();
+      break;
 
     case 'sentence': {
-      // Primeira letra de toda a frase em maiúscula, restante em minúsculo
-      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+      // Primeira letra em maiúscula, restante em minúsculo
+      transformed = core.charAt(0).toUpperCase() + core.slice(1).toLowerCase();
+      break;
     }
 
     case 'title': {
       // Primeira de cada palavra em maiúscula
       const lowerConnectors = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em', 'com', 'para', 'por', 'a', 'o', 'as', 'os', 'um', 'uma', 'no', 'na', 'nos', 'nas']);
-      const words = trimmed.split(/(\s+|[-/])/);
-      return words.map((w, idx) => {
+      const words = core.split(/(\s+|[-/])/);
+      transformed = words.map((w, idx) => {
         if (!w || /^\s+$/.test(w) || /^[-/]$/.test(w)) return w;
         const lower = w.toLowerCase();
         // Preservar minúsculo para conectivos no meio da frase
@@ -1642,11 +1760,14 @@ export function applyTextCase(text: string, style: WordCaseStyle): string {
         }
         return lower.charAt(0).toUpperCase() + lower.slice(1);
       }).join('');
+      break;
     }
 
     default:
-      return trimmed;
+      transformed = core;
   }
+
+  return leadingSpace + transformed + trailingSpace;
 }
 
 /**
@@ -2412,5 +2533,160 @@ export function maskPhone(value: string): string {
   }
   // Celular: (XX) 9XXXX-XXXX
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+/**
+ * Gera o corpo do e-mail em HTML exatamente com a mesma identidade visual,
+ * Constrói o corpo completo do e-mail em HTML padrão da Infodesk com tipografia Verdana,
+ * estrutura tabular, cabeçalho e rodapé oficial da pré-visualização da proposta.
+ */
+export function generateProposalEmailHtml(
+  quote: any, 
+  settings: any, 
+  options: { forEmailSend?: boolean } = {}
+): string {
+  const clientCompanyFormatted = formatCompanyPrefix(quote.clientCompany);
+  const contactPersonFormatted = formatContactPerson(quote.contactPerson);
+  const excDetails = extractDeliveryExceptionDetails(quote.deliveryDays);
+
+  const cleanPhone = (settings.phone || '61 3033-5373').replace(/[()]/g, '').trim();
+  const cleanWhatsapp = (settings.whatsapp || '61 9 9627-2630').replace(/[()]/g, '').trim();
+
+  // Para envio oficial por e-mail pelo Gmail, usamos Content-ID (CID) inline MIME: cid:infodesk-logo
+  // Para visualização no modal interno do navegador, usamos a logomarca oficial: /infodesk-logo.png
+  const logoImageSrc = options.forEmailSend ? 'cid:infodesk-logo' : '/infodesk-logo.png';
+
+  const itemsRows = (quote.items || []).map((item: any) => {
+    const isException = excDetails.hasException && excDetails.itemNumbers.includes(item.itemNumber);
+    const hasDescription = item.description && 
+      item.description !== item.name && 
+      !item.description.toLowerCase().includes('menor pre') && 
+      !item.description.toLowerCase().includes('apurado');
+    const hasImage = item.showImage && item.imageUrl;
+
+    return `
+      <tr>
+        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+          ${item.itemNumber}
+        </td>
+        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+          <div style="font-weight: normal; color: #000000;">
+            ${item.name}
+            ${isException ? `<span style="font-size: 8pt; color: #b45309; font-weight: bold; margin-left: 6px;">(Prazo diferenciado: ${excDetails.days} dias úteis)</span>` : ''}
+          </div>
+          ${hasDescription ? `<div style="font-size: 8.5pt; color: #334155; margin-top: 4px; line-height: 1.35; white-space: pre-line;">${item.description}</div>` : ''}
+          ${hasImage ? `<div style="margin-top: 8px; margin-bottom: 4px;"><img src="${item.imageUrl}" alt="${item.name}" height="140" style="height: 140px; width: auto; max-width: 260px; object-fit: contain; display: block;" /></div>` : ''}
+        </td>
+        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+          ${item.quantity}
+        </td>
+        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+          ${item.unit || 'Un.'}
+        </td>
+        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+          R$ ${Number(item.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </td>
+        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+          R$ ${Number(item.totalPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  const formattedShipping = quote.shippingTerms
+    ? (quote.shippingTerms.toLowerCase().startsWith('frete')
+        ? quote.shippingTerms
+        : `Frete: ${quote.shippingTerms}`)
+    : '';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Proposta Comercial ${quote.code}</title>
+</head>
+<body style="margin: 0; padding: 20px; background-color: #ffffff; font-family: Verdana, Geneva, sans-serif; font-size: 10pt; line-height: 1.35; color: #000000;">
+  <div style="max-width: 780px; margin: 0 auto; background-color: #ffffff;">
+    
+    <!-- Logo Infodesk -->
+    <div style="margin-bottom: 24px;">
+      <img src="${logoImageSrc}" alt="Infodesk" height="60" style="height: 60px; width: auto; display: block; border: 0;" />
+    </div>
+
+    <!-- Dados do Cliente / Solicitante -->
+    <div style="margin-bottom: 18px; line-height: 1.35;">
+      <p style="margin: 0; font-weight: bold; font-size: 12pt; font-family: Verdana, Geneva, sans-serif; color: #000000;">${clientCompanyFormatted}</p>
+      <p style="margin: 2px 0 0 0; font-weight: bold; font-size: 12pt; font-family: Verdana, Geneva, sans-serif; color: #000000;">${contactPersonFormatted}</p>
+      <p style="margin: 4px 0 0 0; font-size: 8pt; font-family: Verdana, Geneva, sans-serif; color: #000000;"><strong>E-mail:</strong> <a href="mailto:${(quote.clientEmail || '').toLowerCase()}" style="color: #0000ee; text-decoration: underline;">${(quote.clientEmail || '').toLowerCase()}</a></p>
+      ${quote.clientPhone ? `<p style="margin: 2px 0 0 0; font-size: 8pt; font-family: Verdana, Geneva, sans-serif; color: #000000;"><strong>Telefone:</strong> ${quote.clientPhone}</p>` : ''}
+    </div>
+
+    <!-- Parágrafo de Abertura -->
+    <p style="text-align: justify; margin-bottom: 16px; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.35; color: #000000;">
+      ${quote.openingText || settings.defaultOpeningText || 'Em atenção ao que foi solicitado por Vossa Senhoria, enviamos proposta para fornecimento dos produtos para informática, conforme especificações e condições a seguir:'}
+    </p>
+
+    <!-- Tabela Oficial de Produtos -->
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: Verdana, Geneva, sans-serif; font-size: 10pt;">
+      <thead>
+        <tr style="background-color: #ffffff;">
+          <th style="border: 1px solid #000000; padding: 6px 8px; width: 7%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Item</th>
+          <th style="border: 1px solid #000000; padding: 6px 8px; width: 49%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Descrição do Produto</th>
+          <th style="border: 1px solid #000000; padding: 6px 8px; width: 8%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Qtd.</th>
+          <th style="border: 1px solid #000000; padding: 6px 8px; width: 8%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Un.</th>
+          <th style="border: 1px solid #000000; padding: 6px 8px; width: 14%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Preço unit.</th>
+          <th style="border: 1px solid #000000; padding: 6px 8px; width: 14%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Preço total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsRows}
+      </tbody>
+    </table>
+
+    <!-- Condições Gerais -->
+    <div style="margin-bottom: 24px; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.45; color: #000000;">
+      <p style="margin: 0 0 6px 0; font-weight: bold; text-decoration: underline;">Condições gerais:</p>
+      <p style="margin: 0 0 3px 0;">➤&nbsp; Validade da proposta: ${quote.validityDays}</p>
+      <p style="margin: 0 0 3px 0;">➤&nbsp; Condições de pagamento: ${quote.paymentTerms}</p>
+      <p style="margin: 0 0 3px 0;">➤&nbsp; Prazo de entrega: ${quote.deliveryDays}</p>
+      <p style="margin: 0 0 3px 0;">➤&nbsp; Garantia: ${quote.warrantyTerms}</p>
+      ${formattedShipping ? `<p style="margin: 0 0 3px 0; font-weight: bold;">➤&nbsp; ${formattedShipping}</p>` : ''}
+    </div>
+
+    <!-- Data e Assinatura Alinhadas à Direita -->
+    <div style="text-align: right; margin-top: 24px; margin-bottom: 32px; line-height: 1.4; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; color: #000000;">
+      <p style="margin: 0 0 20px 0; font-size: 10pt; color: #000000;">${quote.city || (settings.cityState ? settings.cityState.split('-')[0].trim() : 'Brasília')}, ${quote.date}.</p>
+      <p style="margin: 0; font-weight: normal; font-size: 10pt; color: #000000;">${settings.representativeName || 'Lucas Porto'}</p>
+      
+      <!-- Linha do Telefone (com ícone oficial idêntico à visualização) -->
+      <table align="right" border="0" cellpadding="0" cellspacing="0" style="margin-left: auto; border-collapse: collapse; text-align: right; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; margin-top: 2px;">
+        <tr>
+          <td style="padding: 0; vertical-align: middle; text-align: right; color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+            <img src="${options.forEmailSend ? 'cid:phone-icon' : '/phone-icon.png'}" alt="Telefone" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; border: 0; display: inline-block;" />
+            <span style="color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; vertical-align: middle;">${cleanPhone}</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 2px 0 0 0; vertical-align: middle; text-align: right; color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+            <a href="https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}" target="_blank" rel="noreferrer" style="color: #0000ee; text-decoration: underline; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; display: inline-block;">
+              <img src="${options.forEmailSend ? 'cid:whatsapp-icon' : '/whatsapp-icon.png'}" alt="WhatsApp" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; border: 0; display: inline-block;" />
+              <span style="vertical-align: middle; color: #0000ee; text-decoration: underline;">${cleanWhatsapp}</span>
+            </a>
+          </td>
+        </tr>
+      </table>
+      <div style="clear: both;"></div>
+    </div>
+
+    <!-- Rodapé Oficial com Dados Fiscais da Infodesk -->
+    <div style="border-top: 1px solid #000000; padding-top: 8px; text-align: center; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.35; color: #000000;">
+      <p style="margin: 0; font-weight: bold;">${settings.companyName || 'Lucas Porto da Fonseca-ME'}</p>
+      <p style="margin: 2px 0 0 0;">${settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste'} – ${settings.cityState || 'Brasília - DF'}</p>
+      <p style="margin: 2px 0 0 0;">CNPJ: ${settings.cnpj || '15.266.716/0001-02'}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;I.E.: ${settings.stateRegistration || '07.602.330/001-92'}</p>
+    </div>
+
+  </div>
+</body>
+</html>`;
 }
 

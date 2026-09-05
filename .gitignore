@@ -42,3 +42,4 @@ __pycache__/
 generate_svg.py
 
 .vercel
+scratch/

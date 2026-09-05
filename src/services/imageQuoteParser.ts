@@ -354,7 +354,7 @@ async function extractWithGeminiVision(
       'DIRETRIZES OBRIGATÓRIAS:\n' +
       '1. NOMENCLATURA PADRONIZADA DE CATÁLOGO / FABRICANTE: Para cada produto, defina um nome canônico e profissional no padrão:\n' +
       '   [Tipo do Produto] [Marca] [Linha Especificação Sabor] [Embalagem Gramatura Tamanho]\n' +
-      '   - REGRA DE OURO DE PONTUAÇÃO: NUNCA use traços, hífens (- ou —) ou vírgulas (,) na descrição ou nome dos produtos. Use apenas espaços simples entre as palavras.\n' +
+      '   - REGRA DE OURO DE PONTUAÇÃO: NUNCA use vírgulas (,) no nome ou descrição dos produtos. Traços, hífens (-), barras e outros símbolos são totalmente permitidos quando fizerem parte do modelo, código, part number ou especificação.\n' +
       '   - Exemplo CORRETO de Café: "Café Torrado e Moído Tradicional Vácuo 500g Café do Sítio"\n' +
       '   - Exemplo CORRETO de Chá: "Chá Twinings Sabores Diversos Caixa com 100 Sachês"\n' +
       '   - PROIBIDO inventar palavras desnecessárias (ex: não troque para "Chá Preto e Verde", use o termo canônico solicitado: "Chá Twinings Sabores Diversos Caixa com 100 Sachês").\n' +

@@ -11,6 +11,7 @@ import {
 import { CompanySettings, Quote } from '../types';
 import { formatCompanyPrefix, formatContactPerson, extractDeliveryExceptionDetails } from '../utils/aiEmailParser';
 import { exportCostSheetToExcel } from '../utils/excelExport';
+import { INFODESK_LOGO_BASE64, PHONE_ICON_BASE64, WHATSAPP_ICON_BASE64 } from '../utils/infodeskLogoBase64';
 
 interface QuotePreviewProps {
   quote: Quote;
@@ -134,7 +135,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       <body>
         <div class="Section1">
           <div style="margin-bottom: 24pt;">
-            <img src="${window.location.origin}/infodesk-logo-original.svg" width="285" height="70" style="width: 285px; height: 70px;" />
+            <img src="data:image/png;base64,${INFODESK_LOGO_BASE64}" width="285" height="65" style="width: 285px; height: 65px;" />
           </div>
 
           <div style="margin-bottom: 14pt; line-height: 1.35; font-family: Verdana, Geneva, sans-serif;">
@@ -174,10 +175,16 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
           </div>
 
           <div style="text-align: right; margin-top: 24pt; margin-bottom: 30pt; line-height: 1.4; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
-            <p style="margin: 0 0 24pt 0;">${quote.city || 'Brasília'}, ${quote.date}.</p>
+            <p style="margin: 0 0 24pt 0;">${quote.city || (settings.cityState ? settings.cityState.split('-')[0].trim() : 'Brasília')}, ${quote.date}.</p>
             <p style="margin: 0; font-weight: normal;">${settings.representativeName || 'Lucas Porto'}</p>
-            <p style="margin: 0;">&#9742; ${cleanPhone}</p>
-            <p style="margin: 0;"><a href="https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}" style="color: #0000ee; text-decoration: underline;">${cleanWhatsapp}</a></p>
+            <p style="margin: 0;">
+              <img src="data:image/png;base64,${PHONE_ICON_BASE64}" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;" />
+              <span style="vertical-align: middle;">${cleanPhone}</span>
+            </p>
+            <p style="margin: 0;">
+              <img src="data:image/png;base64,${WHATSAPP_ICON_BASE64}" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;" />
+              <a href="https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}" style="color: #0000ee; text-decoration: underline; vertical-align: middle;">${cleanWhatsapp}</a>
+            </p>
           </div>
 
           <!-- Official Native Word Document Footer -->
@@ -214,15 +221,15 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       `A/C ${quote.contactPerson}\n` +
       `E-mail: ${quote.clientEmail}\n\n` +
       `Em atenção ao que foi solicitado por Vossa Senhoria, enviamos proposta para fornecimento dos produtos para informática, conforme especificações e condições a seguir:\n\n` +
-      quote.items.map(i => `${i.itemNumber}. ${i.name} | Qtd: ${i.quantity} ${i.unit} | Unit: R$ ${i.unitPrice.toFixed(2)} | Total: R$ ${i.totalPrice.toFixed(2)}`).join('\n') +
-      `\n\nTotal Geral: R$ ${quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n` +
+      quote.items.map(i => `${i.itemNumber}. ${i.name} | Qtd: ${i.quantity} ${i.unit} | Unit: R$ ${i.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Total: R$ ${i.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join('\n') +
+      `\n\nTotal Geral: R$ ${quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n` +
       `Condições Gerais:\n` +
       `- Validade: ${quote.validityDays}\n` +
       `- Pagamento: ${quote.paymentTerms}\n` +
       `- Prazo de Entrega: ${quote.deliveryDays}\n` +
       `- Garantia: ${quote.warrantyTerms}\n` +
       `- ${quote.shippingTerms || `Frete incluso p/ ${quote.deliveryLocation || 'Brasília'}.`}\n\n` +
-      `${quote.city || 'Brasília'}, ${quote.date}.\n\n` +
+      `${quote.city || (settings.cityState ? settings.cityState.split('-')[0].trim() : 'Brasília')}, ${quote.date}.\n\n` +
       `${settings.representativeName}\n` +
       `Tel: ${cleanPhone} / WhatsApp: ${cleanWhatsapp}\n` +
       `${settings.companyName}\n` +
@@ -313,10 +320,10 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
             {/* Header with Original Infodesk Logo */}
             <div className="mb-8">
               <img 
-                src="/infodesk-logo-original.svg" 
+                src="/infodesk-logo.png" 
                 alt="Infodesk" 
                 className="w-auto object-contain"
-                style={{ height: '70px' }}
+                style={{ height: '65px' }}
               />
             </div>
 
@@ -459,13 +466,13 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
               style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt' }}
             >
               <div>
-                <p style={{ fontSize: '10pt' }}>{quote.city || 'Brasília'}, {quote.date}.</p>
+                <p style={{ fontSize: '10pt' }}>{quote.city || (settings.cityState ? settings.cityState.split('-')[0].trim() : 'Brasília')}, {quote.date}.</p>
               </div>
 
               <div className="space-y-0.5 text-right" style={{ fontSize: '10pt' }}>
                 <p className="text-black font-normal" style={{ fontSize: '10pt' }}>{settings.representativeName || 'Lucas Porto'}</p>
-                <div className="flex items-center justify-end gap-1 text-black" style={{ fontSize: '10pt' }}>
-                  <span className="leading-none" style={{ fontSize: '10pt' }}>☎</span>
+                <div className="flex items-center justify-end gap-1.5 text-black" style={{ fontSize: '10pt' }}>
+                  <img src="/phone-icon.png" alt="Telefone" className="w-3.5 h-3.5 object-contain inline-block" />
                   <span style={{ fontSize: '10pt' }}>{cleanPhone}</span>
                 </div>
                 <div className="flex items-center justify-end gap-1.5" style={{ fontSize: '10pt' }}>

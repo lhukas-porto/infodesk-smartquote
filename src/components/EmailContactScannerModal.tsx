@@ -49,6 +49,15 @@ export const EmailContactScannerModal: React.FC<EmailContactScannerModalProps> =
   const [candidates, setCandidates] = useState<ScannedContactCandidate[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [isSavingAll, setIsSavingAll] = useState(false);
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

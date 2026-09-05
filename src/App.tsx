@@ -39,7 +39,9 @@ import {
   getSavedActiveTab,
   saveActiveTab,
   getManualAnalyses,
-  saveManualAnalyses
+  saveManualAnalyses,
+  getQuoteItemsBackup,
+  saveQuoteItemsBackup
 } from './utils/storage';
 import { 
   getStoredAccessToken, 
@@ -63,7 +65,8 @@ import {
   extractEmailFromText,
   extractContactPersonFromText,
   generateQuoteCode,
-  formatProductSentenceCase
+  formatProductSentenceCase,
+  generateProposalEmailHtml
 } from './utils/aiEmailParser';
 import {
   isSupabaseConfigured,
@@ -77,6 +80,7 @@ import {
   syncClientCompaniesToSupabase,
   deleteCompanyFromSupabase,
   deleteContactFromSupabase,
+  deleteQuoteFromSupabase,
   fetchIncomingEmailsFromSupabase,
   syncIncomingEmailsToSupabase
 } from './services/supabase';
@@ -210,8 +214,30 @@ export const App: React.FC = () => {
         // 2. Orçamentos
         const remoteQuotes = await fetchQuotesFromSupabase();
         if (remoteQuotes && remoteQuotes.length > 0) {
-          setQuotes(remoteQuotes);
-          saveQuotes(remoteQuotes);
+          // Merge seguro: se o banco retornar a cotação sem itens, preserva os itens salvos localmente ou do backup
+          setQuotes(prevQuotes => {
+            const merged = remoteQuotes.map(rq => {
+              const localMatch = prevQuotes.find(lq => lq.id === rq.id || lq.code === rq.code);
+              let items = (rq.items && rq.items.length > 0) ? rq.items : [];
+              if (items.length === 0 && localMatch && Array.isArray(localMatch.items) && localMatch.items.length > 0) {
+                items = localMatch.items;
+              }
+              if (items.length === 0) {
+                const bCode = rq.code ? getQuoteItemsBackup(rq.code) : null;
+                const bId = rq.id ? getQuoteItemsBackup(rq.id) : null;
+                if (bCode && bCode.length > 0) items = bCode;
+                else if (bId && bId.length > 0) items = bId;
+              }
+              if (items.length > 0) {
+                if (rq.code) saveQuoteItemsBackup(rq.code, items);
+                return { ...rq, items };
+              }
+              return rq;
+            });
+            saveQuotes(merged);
+            return merged;
+          });
+
           setCurrentQuote(prev => {
             const draft = getCurrentDraftQuote();
             // Se já temos um rascunho recente que o usuário está editando, preserva o rascunho
@@ -219,7 +245,12 @@ export const App: React.FC = () => {
               return draft;
             }
             if (prev.code === 'CNC 280826' && remoteQuotes[0]) {
-              return remoteQuotes[0];
+              const firstRemote = remoteQuotes[0];
+              // Se o remoteQuote não trouxe itens mas o initial prev tinha, mantém itens
+              if ((!firstRemote.items || firstRemote.items.length === 0) && prev.items && prev.items.length > 0) {
+                return { ...firstRemote, items: prev.items };
+              }
+              return firstRemote;
             }
             return prev;
           });
@@ -409,7 +440,7 @@ export const App: React.FC = () => {
         itemNumber: idx + 1,
         productId: matchedProd?.id,
         name: formatProductSentenceCase(resolved.standardizedName || item.name),
-        description: formatProductSentenceCase(resolved.standardizedName || item.description || item.name),
+        description: item.description ? formatProductSentenceCase(item.description) : '',
         rawSearchQuery: exactSearchRef,
         partNumber: finalPartNumber,
         ncm: finalNcm,
@@ -522,7 +553,7 @@ export const App: React.FC = () => {
         itemNumber: idx + 1,
         productId: matchedProd?.id,
         name: formatProductSentenceCase(resolved.standardizedName || item.name),
-        description: formatProductSentenceCase(resolved.standardizedName || item.description || item.name),
+        description: item.description ? formatProductSentenceCase(item.description) : '',
         rawSearchQuery: exactSearchRef,
         partNumber: finalPartNumber,
         ncm: finalNcm,
@@ -651,6 +682,12 @@ export const App: React.FC = () => {
       currentQuote.deliveryLocation
     );
 
+    // Salva backup de itens imediatamente
+    if (currentQuote.items && currentQuote.items.length > 0) {
+      if (currentQuote.code) saveQuoteItemsBackup(currentQuote.code, currentQuote.items);
+      if (currentQuote.id) saveQuoteItemsBackup(currentQuote.id, currentQuote.items);
+    }
+
     setQuotes(prev => {
       const idx = prev.findIndex(q => q.id === currentQuote.id || q.code === currentQuote.code);
       let next: Quote[];
@@ -668,6 +705,23 @@ export const App: React.FC = () => {
     alert('Orçamento salvo com sucesso!');
   };
 
+  const handleDeleteQuote = async (quoteToDelete: Quote) => {
+    setQuotes(prev => {
+      const next = prev.filter(q => q.id !== quoteToDelete.id && q.code !== quoteToDelete.code);
+      saveQuotes(next);
+      return next;
+    });
+
+    // Se o orçamento excluído for o que estava ativo no rascunho/editor, reinicia para um novo
+    if (currentQuote.id === quoteToDelete.id || currentQuote.code === quoteToDelete.code) {
+      handleNewQuote();
+    }
+
+    if (quoteToDelete.code) {
+      await deleteQuoteFromSupabase(quoteToDelete.code);
+    }
+  };
+
   const handleConfirmSendEmail = async (sentQuote: Quote) => {
     registerOrUpdateClient(
       sentQuote.clientCompany,
@@ -677,19 +731,58 @@ export const App: React.FC = () => {
       sentQuote.deliveryLocation
     );
 
-    const token = getStoredAccessToken();
-    if (token) {
+    let token = getStoredAccessToken();
+
+    // Se não estiver conectado ou token expirado, conecta automaticamente com o Google
+    if (!token) {
       try {
-        await sendRealGmailMessage(token, {
-          to: sentQuote.recipientEmails || sentQuote.clientEmail,
-          cc: sentQuote.ccEmails,
-          from: settings.email,
-          subject: `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`,
-          bodyText: `Prezada(o) ${sentQuote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial ${sentQuote.code} para ${sentQuote.clientCompany}.\n\nValor Total: R$ ${sentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nCondições de Pagamento: ${sentQuote.paymentTerms}\nPrazo de Entrega: ${sentQuote.deliveryDays}\nGarantia: ${sentQuote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\nInfodesk — Informática & Tecnologia\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`
-        });
-      } catch (err: any) {
-        console.warn('Envio Gmail API:', err.message);
+        const auth = await requestGmailAccessToken(googleClientId);
+        token = auth.token;
+        setIsGoogleConnected(true);
+        setConnectedUserEmail(auth.email);
+        setSettings(prev => ({ ...prev, googleAccountEmail: auth.email, googleWorkspaceConnected: true }));
+      } catch (authErr: any) {
+        console.error('Falha na autenticação do Gmail:', authErr);
+        throw new Error(authErr?.message || 'Não foi possível conectar ao Google Workspace para enviar o e-mail. Por favor, autorize a janela do Google.');
       }
+    }
+
+    // Com o token ativo, realiza o disparo oficial via API do Gmail
+    try {
+      // Para envio oficial por e-mail pelo Gmail, usamos a logo embutida com CID inline: cid:infodesk-logo
+      const proposalHtml = generateProposalEmailHtml(sentQuote, settings, { forEmailSend: true });
+      const recipient = (sentQuote.recipientEmails || sentQuote.clientEmail || '').trim();
+      if (!recipient) {
+        throw new Error('Nenhum e-mail de destinatário informado.');
+      }
+
+      // Nome do remetente solicitado: "primeiro nome do responsavel que está salvo nas configuraçoes" - "Nome fantasia salvo nas configurações"
+      const repFirstName = (settings.representativeName || '').trim().split(/\s+/)[0] || 'Lucas';
+      const tradeName = (settings.tradeName || 'Infodesk').trim();
+      const senderDisplayName = `${repFirstName} - ${tradeName}`;
+
+      // O Gmail exige que o campo From corresponda à conta autenticada (ou um alias configurado nela).
+      // Usar a conta conectada garante 100% de entrega e gravação imediata nos "Itens Enviados" do Gmail.
+      const senderAddress = connectedUserEmail || settings.googleAccountEmail || 'me';
+      const replyToAddress = settings.email || senderAddress;
+
+      await sendRealGmailMessage(token, {
+        to: recipient,
+        cc: sentQuote.ccEmails,
+        from: senderAddress,
+        fromName: senderDisplayName,
+        replyTo: replyToAddress,
+        subject: `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`,
+        bodyText: `Prezada(o) ${sentQuote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial ${sentQuote.code} para ${sentQuote.clientCompany}.\n\nValor Total: R$ ${sentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCondições de Pagamento: ${sentQuote.paymentTerms}\nPrazo de Entrega: ${sentQuote.deliveryDays}\nGarantia: ${sentQuote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\n${tradeName}\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`,
+        bodyHtml: proposalHtml
+      });
+    } catch (err: any) {
+      console.error('Erro no envio via Gmail API:', err);
+      // Se o token expirou no meio do caminho, limpa a sessão para reconectar na próxima tentativa
+      if (String(err?.message || '').toLowerCase().includes('token') || String(err?.message || '').toLowerCase().includes('401')) {
+        setIsGoogleConnected(false);
+      }
+      throw new Error(`Falha no envio do Gmail: ${err.message || 'Verifique sua conexão'}`);
     }
 
     setCurrentQuote(sentQuote);
@@ -1010,9 +1103,171 @@ export const App: React.FC = () => {
           <SentHistoryView
             quotes={quotes}
             onOpenQuote={(q) => {
-              setCurrentQuote(q);
+              const matched = quotes.find(item => item.id === q.id || item.code === q.code);
+              let itemsToUse = (q.items && q.items.length > 0)
+                ? q.items
+                : (matched && matched.items && matched.items.length > 0 ? matched.items : []);
+
+              if (itemsToUse.length === 0) {
+                const bCode = q.code ? getQuoteItemsBackup(q.code) : null;
+                const bId = q.id ? getQuoteItemsBackup(q.id) : null;
+                if (bCode && bCode.length > 0) itemsToUse = bCode;
+                else if (bId && bId.length > 0) itemsToUse = bId;
+              }
+
+              if (itemsToUse.length === 0) {
+                const searchList = [...emails, ...manualAnalyses];
+                const matchingSource = searchList.find(e => {
+                  const sEmail = (e.senderEmail || '').toLowerCase().trim();
+                  const qEmail = (q.clientEmail || '').toLowerCase().trim();
+                  const sComp = (e.senderCompany || '').toLowerCase().trim();
+                  const qComp = (q.clientCompany || '').toLowerCase().trim();
+                  const codePrefix = (q.code || '').split(' ')[0].toLowerCase();
+                  return (
+                    (qEmail && sEmail === qEmail) ||
+                    (qComp && (sComp.includes(qComp) || qComp.includes(sComp))) ||
+                    (codePrefix && sComp.includes(codePrefix))
+                  );
+                });
+
+                if (matchingSource && matchingSource.suggestedItems?.length > 0) {
+                  const markup = q.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 35;
+                  const tax = q.globalTaxPercent ?? settings.defaultTaxPercent ?? 6;
+                  const shipping = q.globalShipping ?? settings.defaultShippingCost ?? 0;
+                  itemsToUse = matchingSource.suggestedItems.map((it, idx) => {
+                    const matchedProd = products.find(p => p.name.toLowerCase() === it.name.toLowerCase() || p.name.toLowerCase().includes(it.name.toLowerCase()));
+                    const exactSearchRef = it.rawSearchQuery || [it.name, it.description].filter(Boolean).join(' - ');
+                    const resolved = resolveProductDetails(exactSearchRef, it.description);
+                    const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || it.estimatedCost || 150);
+                    const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
+                    const totalPrice = Number((unitPrice * it.quantity).toFixed(2));
+                    const finalImageUrl = it.imageUrl || matchedProd?.imageUrl || resolved.imageUrl;
+                    const finalPartNumber = it.partNumber || it.itemCode || matchedProd?.partNumber || resolved.partNumber;
+                    const finalNcm = it.ncm || matchedProd?.ncm || resolved.ncm;
+                    const itemUrl = (it.sourceUrl && isExactProductUrl(it.sourceUrl)) ? it.sourceUrl : (isExactProductUrl(resolved.sourceUrl) ? resolved.sourceUrl : (isExactProductUrl(matchedProd?.sourceUrl) ? matchedProd?.sourceUrl : ''));
+                    return {
+                      id: `item-${Date.now()}-${idx}`,
+                      itemNumber: idx + 1,
+                      productId: matchedProd?.id,
+                      name: formatProductSentenceCase(resolved.standardizedName || it.name),
+                      description: it.description ? formatProductSentenceCase(it.description) : '',
+                      rawSearchQuery: exactSearchRef,
+                      partNumber: finalPartNumber,
+                      ncm: finalNcm,
+                      imageUrl: finalImageUrl,
+                      showImage: false,
+                      quantity: it.quantity,
+                      unit: it.unit || 'Un.',
+                      costPrice: cost,
+                      shippingCost: shipping,
+                      taxPercent: tax,
+                      markupPercent: markup,
+                      unitPrice,
+                      totalPrice,
+                      sourceUrl: itemUrl
+                    };
+                  });
+                }
+              }
+
+              if (itemsToUse.length > 0 && q.code) {
+                saveQuoteItemsBackup(q.code, itemsToUse);
+              }
+
+              const fullQuote = { ...matched, ...q, items: itemsToUse };
+              setCurrentQuote(fullQuote);
               setActiveTab('preview');
             }}
+            onEditQuote={(q) => {
+              const matched = quotes.find(item => item.id === q.id || item.code === q.code);
+              const draft = getCurrentDraftQuote();
+              const draftMatches = draft && (draft.id === q.id || draft.code === q.code);
+
+              let itemsToUse = (q.items && q.items.length > 0) ? q.items : [];
+              if (itemsToUse.length === 0 && matched && matched.items && matched.items.length > 0) {
+                itemsToUse = matched.items;
+              }
+              if (itemsToUse.length === 0 && draftMatches && draft.items && draft.items.length > 0) {
+                itemsToUse = draft.items;
+              }
+
+              if (itemsToUse.length === 0) {
+                const bCode = q.code ? getQuoteItemsBackup(q.code) : null;
+                const bId = q.id ? getQuoteItemsBackup(q.id) : null;
+                if (bCode && bCode.length > 0) itemsToUse = bCode;
+                else if (bId && bId.length > 0) itemsToUse = bId;
+              }
+
+              if (itemsToUse.length === 0) {
+                const searchList = [...emails, ...manualAnalyses];
+                const matchingSource = searchList.find(e => {
+                  const sEmail = (e.senderEmail || '').toLowerCase().trim();
+                  const qEmail = (q.clientEmail || '').toLowerCase().trim();
+                  const sComp = (e.senderCompany || '').toLowerCase().trim();
+                  const qComp = (q.clientCompany || '').toLowerCase().trim();
+                  const codePrefix = (q.code || '').split(' ')[0].toLowerCase();
+                  return (
+                    (qEmail && sEmail === qEmail) ||
+                    (qComp && (sComp.includes(qComp) || qComp.includes(sComp))) ||
+                    (codePrefix && sComp.includes(codePrefix))
+                  );
+                });
+
+                if (matchingSource && matchingSource.suggestedItems?.length > 0) {
+                  const markup = q.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 35;
+                  const tax = q.globalTaxPercent ?? settings.defaultTaxPercent ?? 6;
+                  const shipping = q.globalShipping ?? settings.defaultShippingCost ?? 0;
+                  itemsToUse = matchingSource.suggestedItems.map((it, idx) => {
+                    const matchedProd = products.find(p => p.name.toLowerCase() === it.name.toLowerCase() || p.name.toLowerCase().includes(it.name.toLowerCase()));
+                    const exactSearchRef = it.rawSearchQuery || [it.name, it.description].filter(Boolean).join(' - ');
+                    const resolved = resolveProductDetails(exactSearchRef, it.description);
+                    const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || it.estimatedCost || 150);
+                    const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
+                    const totalPrice = Number((unitPrice * it.quantity).toFixed(2));
+                    const finalImageUrl = it.imageUrl || matchedProd?.imageUrl || resolved.imageUrl;
+                    const finalPartNumber = it.partNumber || it.itemCode || matchedProd?.partNumber || resolved.partNumber;
+                    const finalNcm = it.ncm || matchedProd?.ncm || resolved.ncm;
+                    const itemUrl = (it.sourceUrl && isExactProductUrl(it.sourceUrl)) ? it.sourceUrl : (isExactProductUrl(resolved.sourceUrl) ? resolved.sourceUrl : (isExactProductUrl(matchedProd?.sourceUrl) ? matchedProd?.sourceUrl : ''));
+                    return {
+                      id: `item-${Date.now()}-${idx}`,
+                      itemNumber: idx + 1,
+                      productId: matchedProd?.id,
+                      name: formatProductSentenceCase(resolved.standardizedName || it.name),
+                      description: it.description ? formatProductSentenceCase(it.description) : '',
+                      rawSearchQuery: exactSearchRef,
+                      partNumber: finalPartNumber,
+                      ncm: finalNcm,
+                      imageUrl: finalImageUrl,
+                      showImage: false,
+                      quantity: it.quantity,
+                      unit: it.unit || 'Un.',
+                      costPrice: cost,
+                      shippingCost: shipping,
+                      taxPercent: tax,
+                      markupPercent: markup,
+                      unitPrice,
+                      totalPrice,
+                      sourceUrl: itemUrl
+                    };
+                  });
+                }
+              }
+
+              if (itemsToUse.length > 0 && q.code) {
+                saveQuoteItemsBackup(q.code, itemsToUse);
+              }
+
+              const quoteToEdit = {
+                ...matched,
+                ...q,
+                items: itemsToUse
+              };
+
+              setCurrentQuote(quoteToEdit);
+              saveCurrentDraftQuote(quoteToEdit);
+              setActiveTab('builder');
+            }}
+            onDeleteQuote={handleDeleteQuote}
           />
         )}
 

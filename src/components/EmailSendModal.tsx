@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Send, 
   Mail, 
   Paperclip, 
-  Check
+  Check,
+  FileText
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
+import { generateProposalEmailHtml } from '../utils/aiEmailParser';
 
 interface EmailSendModalProps {
   isOpen: boolean;
   onClose: () => void;
   quote: Quote;
   settings: CompanySettings;
-  onConfirmSend: (quote: Quote) => void;
+  onConfirmSend: (quote: Quote) => Promise<void> | void;
 }
 
 export const EmailSendModal: React.FC<EmailSendModalProps> = ({
@@ -24,29 +26,14 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
 }) => {
   const [isSending, setIsSending] = useState(false);
   const [isSentSuccess, setIsSentSuccess] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  const proposalHtml = useMemo(() => {
+    return generateProposalEmailHtml(quote, settings);
+  }, [quote, settings]);
 
   const defaultSubject = `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
-  const defaultBody = `Prezada(o) ${quote.contactPerson || 'Cliente'},
-
-Em atenção à solicitação de Vossa Senhoria, encaminhamos em anexo a proposta comercial referente ao fornecimento dos produtos solicitados para ${quote.clientCompany || 'sua empresa'}.
-
-Resumo da Proposta:
-- Código da Proposta: ${quote.code}
-- Quantidade de Itens: ${quote.items.length}
-- Valor Total: R$ ${quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-- Condições de Pagamento: ${quote.paymentTerms}
-- Prazo de Entrega: ${quote.deliveryDays}
-- Garantia: ${quote.warrantyTerms}
-
-Ficamos à inteira disposição para quaisquer esclarecimentos.
-
-Atenciosamente,
-
-${settings.representativeName}
-Infodesk — Informática & Tecnologia
-Telefone: ${settings.phone}
-WhatsApp: ${settings.whatsapp}
-${settings.address} – ${settings.cityState}`;
+  const defaultBody = `Prezada(o) ${quote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial para fornecimento dos produtos para ${quote.clientCompany || 'sua empresa'}.\n\nValor Total: R$ ${quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCondições de Pagamento: ${quote.paymentTerms}\nPrazo de Entrega: ${quote.deliveryDays}\nGarantia: ${quote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\nInfodesk — Informática & Tecnologia\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`;
 
   // ⚠️ Todos os hooks devem ficar ANTES de qualquer early return (Rules of Hooks)
   const initialTo = quote.recipientEmails || quote.clientEmail || '';
@@ -57,38 +44,54 @@ ${settings.address} – ${settings.cityState}`;
   const [subject, setSubject] = useState(defaultSubject);
   const [bodyText, setBodyText] = useState(defaultBody);
 
-  // Sincronizar quando a proposta mudar
+  // Sincronizar quando a proposta mudar e escutar tecla Esc
   React.useEffect(() => {
     setToEmails(quote.recipientEmails || quote.clientEmail || '');
     setCcEmails(quote.ccEmails || '');
     if (quote.ccEmails) setShowCc(true);
-  }, [quote.id, quote.clientEmail, quote.recipientEmails, quote.ccEmails]);
+    setSendError(null);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [quote.id, quote.clientEmail, quote.recipientEmails, quote.ccEmails, isOpen, onClose]);
 
   if (!isOpen) return null;
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!toEmails.trim()) {
-      alert('Por favor, informe ao menos um e-mail de destinatário.');
+      setSendError('Por favor, informe ao menos um e-mail de destinatário.');
       return;
     }
 
+    setSendError(null);
     setIsSending(true);
-    setTimeout(() => {
+
+    try {
+      await onConfirmSend({
+        ...quote,
+        clientEmail: toEmails.split(/[,;]/)[0]?.trim() || quote.clientEmail,
+        recipientEmails: toEmails.trim(),
+        ccEmails: ccEmails.trim(),
+        status: 'sent',
+        sentAt: new Date().toISOString()
+      });
+
       setIsSending(false);
       setIsSentSuccess(true);
       setTimeout(() => {
-        onConfirmSend({
-          ...quote,
-          clientEmail: toEmails.split(/[,;]/)[0]?.trim() || quote.clientEmail,
-          recipientEmails: toEmails.trim(),
-          ccEmails: ccEmails.trim(),
-          status: 'sent',
-          sentAt: new Date().toISOString()
-        });
         setIsSentSuccess(false);
         onClose();
       }, 1500);
-    }, 1200);
+    } catch (err: any) {
+      console.error('Erro ao disparar e-mail:', err);
+      setIsSending(false);
+      setSendError(err?.message || 'Ocorreu um erro ao enviar o e-mail via Google Workspace.');
+    }
   };
 
   return (
@@ -120,6 +123,13 @@ ${settings.address} – ${settings.cityState}`;
 
         <div className="p-6 space-y-4 text-xs">
           
+          {sendError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-start gap-2 animate-fadeIn">
+              <span className="font-bold text-red-800">⚠️ Erro:</span>
+              <span className="flex-1">{sendError}</span>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -150,12 +160,19 @@ ${settings.address} – ${settings.cityState}`;
 
             <div>
               <label className="block text-slate-600 font-bold mb-1">Remetente (Google Workspace)</label>
-              <input
-                type="text"
-                value={`${settings.representativeName} <${(settings.email || '').toLowerCase()}>`}
-                readOnly
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-600 font-medium focus:outline-none text-xs"
-              />
+              {(() => {
+                const repFirst = (settings.representativeName || '').trim().split(/\s+/)[0] || 'Lucas';
+                const trade = (settings.tradeName || 'Infodesk').trim();
+                const senderDisplayName = `${repFirst} - ${trade}`;
+                return (
+                  <input
+                    type="text"
+                    value={`${senderDisplayName} <${(settings.email || '').toLowerCase()}>`}
+                    readOnly
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-600 font-medium focus:outline-none text-xs"
+                  />
+                );
+              })()}
             </div>
           </div>
 
@@ -196,25 +213,35 @@ ${settings.address} – ${settings.cityState}`;
             />
           </div>
 
-          <div>
-            <label className="block text-slate-600 font-medium mb-1">Corpo do E-mail</label>
-            <textarea
-              rows={8}
-              value={bodyText}
-              onChange={(e) => setBodyText(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-800 font-mono text-[11px] leading-relaxed focus:outline-none focus:border-sky-500"
-            />
-          </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-slate-700 font-bold">
+                  Conteúdo do E-mail (Proposta Oficial Embutida no Corpo)
+                </label>
+                <span className="text-[10px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 font-semibold">
+                  Sem anexo • Proposta formatada direto no corpo
+                </span>
+              </div>
 
-          <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-700 font-medium">
-              <Paperclip className="w-4 h-4 text-sky-600" />
-              <span>Proposta_Infodesk_{quote.code || 'CNC'}.pdf</span>
+              {/* Pré-visualização rica do corpo do e-mail com a proposta formatada */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+                <div className="bg-slate-50 border-b border-slate-200 px-3.5 py-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-600 font-semibold text-[11px]">
+                    <FileText className="w-3.5 h-3.5 text-sky-600" />
+                    <span>Visualização do E-mail como o cliente receberá:</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    Fonte padrão Verdana • Tabela Oficial Infodesk
+                  </span>
+                </div>
+                <div className="p-4 max-h-72 overflow-y-auto bg-white">
+                  <div 
+                    className="prose prose-xs max-w-none text-slate-900 pointer-events-none select-none text-[11px]"
+                    dangerouslySetInnerHTML={{ __html: proposalHtml }}
+                  />
+                </div>
+              </div>
             </div>
-            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold">
-              Anexo Gerado Automaticamente
-            </span>
-          </div>
 
         </div>
 

@@ -4,7 +4,7 @@
  * and high-fidelity image and product detail resolution.
  */
 
-import { resolveProductDetails, resolveImageForDescription, cleanAlphanumericCode, cleanNcmCode, formatProductSentenceCase } from '../utils/aiEmailParser';
+import { resolveProductDetails, resolveImageForDescription, cleanAlphanumericCode, cleanNcmCode, formatProductSentenceCase, getCategoryFromNcm } from '../utils/aiEmailParser';
 import { extractImageFromStoreUrl, extractDirectImageFromUrlPatterns } from './imageExtractorService';
 
 export interface ScannedPriceResult {
@@ -724,12 +724,15 @@ export async function scanSingleProductPrice(query: string, geminiApiKey?: strin
   const accurateImage = resolveImageForDescription(details.standardizedName) || details.imageUrl;
   const cost = details.estimatedCost || 0;
 
+  const ncmCalculated = cleanNcmCode(details.ncm);
+  const categoryCalculated = getCategoryFromNcm(ncmCalculated, details.category);
+
   return {
     id: `scan-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
     originalQuery: cleanQ,
     standardizedName: formatProductSentenceCase(details.standardizedName || cleanQ),
     partNumber: cleanAlphanumericCode(details.partNumber),
-    ncm: cleanNcmCode(details.ncm),
+    ncm: ncmCalculated,
     bestPrice: cost,
     priceFormatted: formatBRL(cost),
     store: details.supplier || 'Google Shopping / Mercado Livre',
@@ -737,7 +740,7 @@ export async function scanSingleProductPrice(query: string, geminiApiKey?: strin
     status: cost > 0 ? 'exact' : 'on_demand',
     buyUrl: details.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(details.standardizedName || cleanQ)}&tbm=shop`,
     imageUrl: accurateImage,
-    category: details.category,
+    category: categoryCalculated,
     rating: 4.6
   };
 }
@@ -760,7 +763,7 @@ MISSÃO OBRIGATÓRIA:
 1. NOMENCLATURA PADRONIZADA DO FABRICANTE: Padronize o nome para o formato oficial de catálogo:
    [Tipo do Produto] [Marca] [Linha Especificação Sabor] [Embalagem Gramatura Tamanho]
    - PRESERVE A INTENÇÃO EXATA: Se o termo fornecido já for um nome canônico (como "Café Torrado e Moído Tradicional Vácuo 500g Café do Sítio" ou "Chá Twinings Sabores Diversos Caixa com 100 Sachês"), NÃO altere termos fundamentais e NÃO invente palavras adicionais (como não adicione "Chá Preto e Verde").
-   - REGRA DE OURO DE PONTUAÇÃO: NUNCA use traços, hífens (- ou —) ou vírgulas (,) na descrição ou nome dos produtos. Use apenas espaços simples entre as palavras.
+   - REGRA DE OURO DE PONTUAÇÃO: NUNCA use vírgulas (,) no nome ou descrição dos produtos. Traços, hífens (-), barras ou outros símbolos são permitidos quando fizerem parte do modelo, código ou especificação. Substitua apenas vírgulas por espaços ou pontuação apropriada sem vírgula.
 2. MENOR PREÇO REAL NO BRASIL: Pesquise e indique o menor preço de mercado em Reais (R$) em QUALQUER site de e-commerce, atacadista, distribuidora ou loja oficial válida na internet brasileira (ex: Mercado Livre, Amazon Brasil, Kalunga, Gimba, Assaí, Atacadão, Shopee, distribuidor especializado ou site do fabricante).
 3. LOJA E LINK DIRETO: Diga o nome exato da loja/distribuidor com menor preço encontrado (campo "store").
    IMPORTANTE PARA O LINK: Forneça um link de busca exata e direta do produto na respectiva loja encontrada, ou deixe vazio para que o sistema gere automaticamente. NUNCA invente códigos de URL interna (como ASIN fictício da Amazon /dp/B0... ou slugs inexistentes).
@@ -768,7 +771,7 @@ MISSÃO OBRIGATÓRIA:
 
 Retorne ESTRITAMENTE um objeto JSON válido (sem markdown, sem crases, sem texto adicional):
 {
-  "standardizedName": "Nome completo e padronizado do fabricante sem tracos ou virgulas",
+  "standardizedName": "Nome completo e padronizado do fabricante sem virgulas (tracos e simbolos permitidos)",
   "partNumber": "Código do fabricante, EAN/GTIN ou SKU se houver",
   "ncm": "0901.21.00",
   "bestPrice": 22.90,
@@ -828,10 +831,9 @@ Retorne ESTRITAMENTE um objeto JSON válido (sem markdown, sem crases, sem texto
       const parsed = JSON.parse(jsonMatch[0]);
       const bestPrice = typeof parsed.bestPrice === 'number' ? parsed.bestPrice : 0;
       
-      // Sanitização estrita do nome: remove traços, hifens e vírgulas
+      // Sanitização estrita do nome: remove apenas vírgulas (preserva traços, hífens e outros símbolos)
       const rawName = (parsed.standardizedName || query).trim();
       const stdName = rawName
-        .replace(/[—–\-]/g, ' ')
         .replace(/,/g, ' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
@@ -882,12 +884,16 @@ Retorne ESTRITAMENTE um objeto JSON válido (sem markdown, sem crases, sem texto
         }
       }
 
+      const scannedNcm = cleanNcmCode(parsed.ncm);
+      const scannedCategory = getCategoryFromNcm(scannedNcm);
+
       return {
         id: `scan-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         originalQuery: query,
         standardizedName: stdName,
         partNumber: cleanAlphanumericCode(parsed.partNumber),
-        ncm: cleanNcmCode(parsed.ncm),
+        ncm: scannedNcm,
+        category: scannedCategory,
         bestPrice: bestPrice,
         priceFormatted: formatBRL(bestPrice),
         isPixPrice: parsed.isPixPrice ?? false,

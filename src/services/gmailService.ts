@@ -1,5 +1,6 @@
 import { IncomingEmail } from '../types';
 import { extractItemsFromEmailContent, extractFullCompanyName, extractDeliveryLocation, extractContactPhone } from '../utils/aiEmailParser';
+import { INFODESK_LOGO_BASE64, INFODESK_LOGO_MIME, PHONE_ICON_BASE64, PHONE_ICON_MIME, WHATSAPP_ICON_BASE64, WHATSAPP_ICON_MIME } from '../utils/infodeskLogoBase64';
 
 declare global {
   interface Window {
@@ -311,28 +312,146 @@ export const sendRealGmailMessage = async (
     to: string;
     cc?: string;
     from: string;
+    fromName?: string;
+    replyTo?: string;
     subject: string;
     bodyText: string;
+    bodyHtml?: string;
   }
 ) => {
   const utf8Subject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(params.subject)))}?=`;
+  
+  // Se houver fromName (ex: "Lucas - Infodesk"), codifica no padrão RFC 2047
+  let fromHeader = params.from;
+  if (params.fromName && params.fromName.trim()) {
+    const utf8FromName = `=?utf-8?B?${btoa(unescape(encodeURIComponent(params.fromName.trim())))}?=`;
+    // Se params.from já vier com <email>, extrai só o email
+    const rawEmailMatch = params.from.match(/<([^>]+)>/) || [null, params.from.trim()];
+    const cleanEmail = rawEmailMatch[1] || params.from.trim();
+    fromHeader = `${utf8FromName} <${cleanEmail}>`;
+  }
+
   const messageParts = [
-    `From: ${params.from}`,
+    `From: ${fromHeader}`,
     `To: ${(params.to || '').toLowerCase().trim()}`,
   ];
+
+  if (params.replyTo && params.replyTo.trim()) {
+    messageParts.push(`Reply-To: ${params.replyTo.trim()}`);
+  }
 
   if (params.cc && params.cc.trim()) {
     messageParts.push(`Cc: ${params.cc.toLowerCase().trim()}`);
   }
 
-  messageParts.push(
-    `Subject: ${utf8Subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: 7bit',
-    '',
-    params.bodyText
-  );
+  messageParts.push(`Subject: ${utf8Subject}`);
+  messageParts.push('MIME-Version: 1.0');
+
+  if (params.bodyHtml) {
+    const hasInlineLogo = params.bodyHtml.includes('cid:infodesk-logo');
+
+    if (hasInlineLogo) {
+      // Estrutura multipart/related para suportar anexo inline (CID)
+      const relatedBoundary = `__related_boundary_${Date.now()}__`;
+      const altBoundary = `__alt_boundary_${Date.now()}__`;
+
+      messageParts.push(`Content-Type: multipart/related; boundary="${relatedBoundary}"`);
+      messageParts.push('');
+      
+      // Parte 1 do Related: O multipart/alternative (texto puro + HTML)
+      messageParts.push(`--${relatedBoundary}`);
+      messageParts.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+      messageParts.push('');
+      
+      // Texto puro
+      messageParts.push(`--${altBoundary}`);
+      messageParts.push('Content-Type: text/plain; charset=UTF-8');
+      messageParts.push('Content-Transfer-Encoding: 7bit');
+      messageParts.push('');
+      messageParts.push(params.bodyText);
+      messageParts.push('');
+
+      // HTML da proposta
+      messageParts.push(`--${altBoundary}`);
+      messageParts.push('Content-Type: text/html; charset=UTF-8');
+      messageParts.push('Content-Transfer-Encoding: 7bit');
+      messageParts.push('');
+      messageParts.push(params.bodyHtml);
+      messageParts.push('');
+      messageParts.push(`--${altBoundary}--`);
+      messageParts.push('');
+
+      // Parte 2 do Related: Imagem inline da Logo da Infodesk
+      messageParts.push(`--${relatedBoundary}`);
+      messageParts.push(`Content-Type: ${INFODESK_LOGO_MIME}; name="logo-infodesk.png"`);
+      messageParts.push('Content-Transfer-Encoding: base64');
+      messageParts.push('Content-ID: <infodesk-logo>');
+      messageParts.push('Content-Disposition: inline; filename="logo-infodesk.png"');
+      messageParts.push('');
+      
+      // Divide o base64 em linhas de até 76 caracteres conforme padrão MIME
+      const logoChunks = INFODESK_LOGO_BASE64.match(/.{1,76}/g) || [INFODESK_LOGO_BASE64];
+      messageParts.push(logoChunks.join('\r\n'));
+      messageParts.push('');
+
+      // Parte 3 do Related: Ícone oficial do Telefone inline
+      if (params.bodyHtml.includes('cid:phone-icon')) {
+        messageParts.push(`--${relatedBoundary}`);
+        messageParts.push(`Content-Type: ${PHONE_ICON_MIME}; name="phone-icon.png"`);
+        messageParts.push('Content-Transfer-Encoding: base64');
+        messageParts.push('Content-ID: <phone-icon>');
+        messageParts.push('Content-Disposition: inline; filename="phone-icon.png"');
+        messageParts.push('');
+        
+        const phoneChunks = PHONE_ICON_BASE64.match(/.{1,76}/g) || [PHONE_ICON_BASE64];
+        messageParts.push(phoneChunks.join('\r\n'));
+        messageParts.push('');
+      }
+
+      // Parte 4 do Related: Ícone oficial do WhatsApp inline
+      if (params.bodyHtml.includes('cid:whatsapp-icon')) {
+        messageParts.push(`--${relatedBoundary}`);
+        messageParts.push(`Content-Type: ${WHATSAPP_ICON_MIME}; name="whatsapp-icon.png"`);
+        messageParts.push('Content-Transfer-Encoding: base64');
+        messageParts.push('Content-ID: <whatsapp-icon>');
+        messageParts.push('Content-Disposition: inline; filename="whatsapp-icon.png"');
+        messageParts.push('');
+        
+        const waChunks = WHATSAPP_ICON_BASE64.match(/.{1,76}/g) || [WHATSAPP_ICON_BASE64];
+        messageParts.push(waChunks.join('\r\n'));
+        messageParts.push('');
+      }
+
+      messageParts.push(`--${relatedBoundary}--`);
+
+    } else {
+      // multipart/alternative padrão
+      const boundary = `__boundary_${Date.now()}__`;
+      messageParts.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+      messageParts.push('');
+      messageParts.push(`--${boundary}`);
+      messageParts.push('Content-Type: text/plain; charset=UTF-8');
+      messageParts.push('Content-Transfer-Encoding: 7bit');
+      messageParts.push('');
+      messageParts.push(params.bodyText);
+      messageParts.push('');
+      messageParts.push(`--${boundary}`);
+      messageParts.push('Content-Type: text/html; charset=UTF-8');
+      messageParts.push('Content-Transfer-Encoding: 7bit');
+      messageParts.push('');
+      messageParts.push(params.bodyHtml);
+      messageParts.push('');
+      messageParts.push(`--${boundary}--`);
+    }
+  } else {
+    messageParts.push(
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      params.bodyText
+    );
+  }
+
   const message = messageParts.join('\r\n');
 
   const encodedMessage = btoa(unescape(encodeURIComponent(message)))

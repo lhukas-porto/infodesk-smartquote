@@ -126,10 +126,11 @@ export async function fetchQuotesFromSupabase(): Promise<Quote[] | null> {
 
     const itemsByQuoteId: Record<string, QuoteItem[]> = {};
     (itemsData || []).forEach((row: any) => {
-      if (!itemsByQuoteId[row.quote_id]) {
-        itemsByQuoteId[row.quote_id] = [];
+      const qKey = row.quote_id;
+      if (!itemsByQuoteId[qKey]) {
+        itemsByQuoteId[qKey] = [];
       }
-      itemsByQuoteId[row.quote_id].push({
+      itemsByQuoteId[qKey].push({
         id: row.id,
         productId: row.product_id,
         itemNumber: row.item_number,
@@ -178,6 +179,7 @@ export async function fetchQuotesFromSupabase(): Promise<Quote[] | null> {
       totalProfit: Number(q.total_profit),
       totalAmount: Number(q.total_amount),
       averageMargin: Number(q.average_margin || 35),
+      globalMarkupPercent: q.global_markup_percent !== undefined && q.global_markup_percent !== null ? Number(q.global_markup_percent) : undefined,
       globalTaxPercent: Number(q.global_tax_percent || 6),
       globalShipping: Number(q.global_shipping || 0),
       status: q.status || 'draft',
@@ -254,7 +256,10 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         supplier: item.supplier || null
       }));
 
-      await supabase.from('quote_items').insert(itemsPayload);
+      const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsPayload);
+      if (itemsInsertError) {
+        console.warn('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
+      }
     }
   } catch (err) {
     console.warn('Erro ao sincronizar orçamento no Supabase:', err);
