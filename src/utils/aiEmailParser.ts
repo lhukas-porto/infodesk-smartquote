@@ -1,3 +1,5 @@
+import { initialClientCompanies } from './mockData';
+
 export interface ParsedItem {
   name: string;
   description: string;
@@ -249,7 +251,7 @@ export function parseHtmlTable(html: string): ParsedItem[] {
                       quantity: parseQuantity(match[1]),
                       unit: match[2].toUpperCase().startsWith('CX') ? 'Cx.' : 'Un.',
                       estimatedCost: 0,
-                      sourceUrl: `https://lista.mercadolivre.com.br/${encodeURIComponent(match[3].trim())}`
+                      sourceUrl: ''
                     });
                   }
                 }
@@ -487,7 +489,7 @@ export function parseHtmlTable(html: string): ParsedItem[] {
           itemCode: reqCode || undefined,
           imageUrl: inlineImageUrl,
           estimatedCost: 0,
-          sourceUrl: `https://www.google.com/search?q=${searchQuery}`
+          sourceUrl: ''
         };
 
         items.push(parsedItem);
@@ -597,7 +599,7 @@ export function parseSmartText(text: string): ParsedItem[] {
         quantity: qty,
         unit,
         estimatedCost: 0,
-        sourceUrl: `https://lista.mercadolivre.com.br/${query}`
+        sourceUrl: ''
       });
     }
 
@@ -709,7 +711,7 @@ export function parseSmartText(text: string): ParsedItem[] {
           unit: currentItem.unit || 'Un.',
           itemCode: currentItem.itemCode,
           estimatedCost: 0,
-          sourceUrl: `https://www.google.com/search?q=${query}`
+          sourceUrl: ''
         });
       }
 
@@ -754,7 +756,7 @@ export function parseSmartText(text: string): ParsedItem[] {
       unit: currentItem.unit || 'Un.',
       itemCode: currentItem.itemCode,
       estimatedCost: 0,
-      sourceUrl: `https://www.google.com/search?q=${query}`
+      sourceUrl: ''
     });
   }
 
@@ -1159,20 +1161,27 @@ export function extractPaymentDaysNumber(text: string | undefined): number {
 }
 
 /**
- * Formata Termos de Garantia: "12 (doze) meses balcão para defeitos de fabricação."
+ * Formata Termos de Garantia: "06 (seis) meses balcão para defeitos de fabricação." ou "na rede autorizada"
  */
-export function formatWarrantyMonthsText(monthsCount: number): string {
+export function formatWarrantyMonthsText(monthsCount: number, warrantyType: 'balcao' | 'autorizada' = 'balcao'): string {
   const count = Math.max(1, Math.round(monthsCount));
   const word = getPortugueseNumberWord(count);
   const unit = count === 1 ? 'mês' : 'meses';
   const padded = count < 10 ? `0${count}` : `${count}`;
-  return `${padded} (${word}) ${unit} balcão para defeitos de fabricação.`;
+  const typeText = warrantyType === 'autorizada' ? 'na rede autorizada' : 'balcão';
+  return `${padded} (${word}) ${unit} ${typeText} para defeitos de fabricação.`;
+}
+
+export function extractWarrantyType(text: string | undefined): 'balcao' | 'autorizada' {
+  if (!text) return 'balcao';
+  const lower = text.toLowerCase();
+  return (lower.includes('autorizada') || lower.includes('rede autorizada')) ? 'autorizada' : 'balcao';
 }
 
 export function extractWarrantyMonthsNumber(text: string | undefined): number {
-  if (!text) return 12;
+  if (!text) return 6;
   const match = text.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : 12;
+  return match ? parseInt(match[1], 10) : 6;
 }
 
 /**
@@ -1319,20 +1328,23 @@ export function getCategoryFromNcm(ncmCode: string | undefined, fallbackCategory
 
 /**
  * Regra de arredondamento comercial solicitada por Lucas:
- * - Se os centavos estiverem abaixo de 0,50 (ex: 59,20), arredonda para baixo (ex: 59,00).
- * - Se os centavos estiverem iguais ou acima de 0,50 (ex: 59,50 ou 59,70), arredonda para cima (ex: 60,00).
- * Na prática: Math.round(rawPrice).
+ * - Abaixo de R$ 10,00: preserva 2 casas decimais (centavos exatos) para evitar prejuízo em itens de baixo custo.
+ * - A partir de R$ 10,00: se os centavos estiverem abaixo de 0,50 (ex: 59,20), arredonda para baixo (ex: 59,00);
+ *   se estiverem iguais ou acima de 0,50 (ex: 59,50 ou 59,70), arredonda para cima (ex: 60,00).
  */
 export function applyCommercialPriceRounding(rawPrice: number): number {
   if (rawPrice <= 0) return 0;
-  return Number(rawPrice.toFixed(2));
+  if (rawPrice < 10) {
+    return Number(rawPrice.toFixed(2));
+  }
+  return Math.round(rawPrice);
 }
 
 /**
  * Calcula o Preço de Venda garantindo que a porcentagem de Lucro Líquido
  * incida diretamente sobre o Custo Real dos produtos, e o Imposto incida sobre o Preço de Venda.
  *
- * Precisão comercial padrão: 2 casas decimais (centavos exatos).
+ * Regra Lucas: centavos exatos para < R$ 10 e arredondamento comercial para >= R$ 10.
  */
 export function calculateCommercialUnitPrice(
   costPrice: number,
@@ -1348,13 +1360,11 @@ export function calculateCommercialUnitPrice(
   const netDivisor = 1 - taxRate;
 
   // Evita divisão por zero se imposto >= 100%
-  if (netDivisor <= 0.01) {
-    return Number((baseCost * (1 + marginRate) / 0.01).toFixed(2));
-  }
+  const rawPrice = netDivisor <= 0.01
+    ? (baseCost * (1 + marginRate)) / 0.01
+    : (baseCost * (1 + marginRate)) / netDivisor;
 
-  // Preço de venda comercial com centavos exatos
-  const rawPrice = (baseCost * (1 + marginRate)) / netDivisor;
-  return Number(rawPrice.toFixed(2));
+  return applyCommercialPriceRounding(rawPrice);
 }
 
 export interface ProductCandidateListing {
@@ -1793,15 +1803,190 @@ export function formatProductSentenceCase(text: string): string {
   return applyTextCase(text, 'sentence');
 }
 
+/**
+ * Determina o próximo estilo de capitalização em um ciclo inteligente e sem travas:
+ * - Se palavra única: MAIÚSCULA -> minúscula -> Capitalizada (Title) -> MAIÚSCULA
+ * - Se múltiplas palavras: MAIÚSCULA -> minúscula -> Primeira De Cada Palavra (Title) -> Primeira da frase (Sentence) -> MAIÚSCULA
+ */
+export function getNextTextCase(text: string): WordCaseStyle {
+  if (!text) return 'uppercase';
+  const trimmed = text.trim();
+  const hasMultipleWords = /\s+/.test(trimmed);
+
+  const isAllUpper = trimmed === trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase();
+  const isAllLower = trimmed === trimmed.toLowerCase() && trimmed !== trimmed.toUpperCase();
+
+  if (isAllUpper) {
+    return 'lowercase';
+  }
+
+  if (isAllLower) {
+    return 'title';
+  }
+
+  if (hasMultipleWords) {
+    const isTitle = trimmed === applyTextCase(trimmed, 'title');
+    if (isTitle) {
+      return 'sentence';
+    }
+    const isSentence = trimmed === applyTextCase(trimmed, 'sentence');
+    if (isSentence) {
+      return 'uppercase';
+    }
+    return 'uppercase';
+  }
+
+  // Palavra única já com 1ª letra maiúscula ou mista (ex: "Dutotec", "iPhone")
+  return 'uppercase';
+}
+
+/**
+ * Detecta de forma inteligente o trecho do texto a ser modificado:
+ * 1. Se há seleção explícita pelo usuário (arraste ou duplo clique), retorna [start, end].
+ * 2. Se o cursor está sobre ou adjacente a uma palavra (sem seleção ativa), isola essa 1 palavra!
+ * 3. Se nenhuma palavra específica for encontrada, retorna o texto inteiro [0, length].
+ */
+export function getWordOrSelectionRange(
+  fullText: string,
+  selectionStart: number | null,
+  selectionEnd: number | null
+): { start: number; end: number; isFullText: boolean } {
+  if (!fullText) return { start: 0, end: 0, isFullText: true };
+
+  // 1. Há seleção explícita destacada
+  if (selectionStart !== null && selectionEnd !== null && selectionEnd > selectionStart) {
+    return { start: selectionStart, end: selectionEnd, isFullText: false };
+  }
+
+  // 2. Cursor posicionado em um ponto específico (ex: clicou em cima da palavra)
+  if (selectionStart !== null) {
+    const cursor = selectionStart;
+    let wordStart = cursor;
+    let wordEnd = cursor;
+
+    // Se o cursor estiver exatamente colado ao final de uma palavra e antes de espaço
+    if (wordStart > 0 && (cursor >= fullText.length || /\s/.test(fullText[cursor])) && !/\s/.test(fullText[cursor - 1])) {
+      wordStart--;
+      wordEnd--;
+    }
+
+    // Recua até o início da palavra
+    while (wordStart > 0 && !/\s/.test(fullText[wordStart - 1])) {
+      wordStart--;
+    }
+    // Avança até o fim da palavra
+    while (wordEnd < fullText.length && !/\s/.test(fullText[wordEnd])) {
+      wordEnd++;
+    }
+
+    if (wordEnd > wordStart && !/^\s+$/.test(fullText.substring(wordStart, wordEnd))) {
+      return { start: wordStart, end: wordEnd, isFullText: false };
+    }
+  }
+
+  // 3. Fallback: texto completo
+  return { start: 0, end: fullText.length, isFullText: true };
+}
+
+/**
+ * Mescla intervalos selecionados que se sobreponham ou sejam contíguos
+ */
+export function mergeSelectedRanges(ranges: Array<{ start: number; end: number }>): Array<{ start: number; end: number }> {
+  if (ranges.length <= 1) return ranges;
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  const merged: Array<{ start: number; end: number }> = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const prev = merged[merged.length - 1];
+
+    if (current.start <= prev.end) {
+      prev.end = Math.max(prev.end, current.end);
+    } else {
+      merged.push(current);
+    }
+  }
+  return merged;
+}
+
+/**
+ * Aplica transformação de caixa (case) a múltiplos trechos independentes (estilo Ctrl do Word),
+ * substituindo da direita para a esquerda para manter a integridade dos índices.
+ */
+export function applyCaseToRanges(
+  fullText: string,
+  ranges: Array<{ start: number; end: number }>,
+  targetStyle: WordCaseStyle
+): { newText: string; newRanges: Array<{ start: number; end: number }> } {
+  if (!ranges || ranges.length === 0) {
+    const newText = applyTextCase(fullText, targetStyle);
+    return { newText, newRanges: [] };
+  }
+
+  // Ordena os ranges de trás para frente (decrescente por start)
+  const sortedDesc = [...ranges].sort((a, b) => b.start - a.start);
+  let currentText = fullText;
+  const updatedRanges: Array<{ start: number; end: number }> = [];
+
+  for (const r of sortedDesc) {
+    const part = currentText.substring(r.start, r.end);
+    const transformed = applyTextCase(part, targetStyle);
+    currentText = currentText.substring(0, r.start) + transformed + currentText.substring(r.end);
+    updatedRanges.unshift({
+      start: r.start,
+      end: r.start + transformed.length
+    });
+  }
+
+  return { newText: currentText, newRanges: updatedRanges };
+}
+
 export function isExactProductUrl(url?: string): boolean {
   if (!url || typeof url !== 'string') return false;
-  const lower = url.toLowerCase().trim();
-  if (!lower.startsWith('http://') && !lower.startsWith('https://')) return false;
-  if (lower.includes('lista.mercadolivre.com.br')) return false;
+  let clean = url.trim();
+  if (!clean) return false;
+
+  if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+    clean = `https://${clean}`;
+  }
+
+  const lower = clean.toLowerCase();
+
+  // 1. Rejeita mecanismos de busca e páginas de listagem/categoria
   if (lower.includes('google.com') || lower.includes('google.com.br')) return false;
-  if (lower.includes('amazon.com.br/s') || lower.includes('amazon.com/s')) return false;
+  if (lower.includes('bing.com') || lower.includes('yahoo.com')) return false;
   if (lower.includes('/busca') || lower.includes('/search') || lower.includes('search?') || lower.includes('query=') || lower.includes('#d[a:')) return false;
-  return true;
+  if (lower.includes('amazon.com.br/s') || lower.includes('amazon.com/s')) return false;
+  if (lower.includes('lista.mercadolivre.com.br')) return false;
+  if (lower.includes('mercadolivre.com.br/c/') || lower.includes('mercadolivre.com.br/categorias')) return false;
+
+  try {
+    const parsed = new URL(clean);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    const pathname = parsed.pathname.trim();
+
+    // 2. Se não houver pathname ou for apenas "/", é a homepage da loja (ex: mercadolivre.com.br, kabum.com.br)
+    if (!pathname || pathname === '/' || pathname === '') {
+      return false;
+    }
+
+    // 3. Validação rigorosa para Mercado Livre: deve ser rota oficial de anúncio
+    if (host.includes('mercadolivre')) {
+      const isMlbProduct = host.startsWith('produto.') || pathname.includes('/mlb-') || pathname.includes('/p/mlb') || /\bmlb[-\d]/i.test(pathname);
+      if (!isMlbProduct) {
+        return false;
+      }
+    }
+
+    // 4. Para qualquer outro e-commerce, o caminho precisa ter profundidade de produto
+    if (pathname.length <= 4 || pathname === '/home' || pathname === '/index.html') {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function extractStoreNameFromUrl(url?: string): string {
@@ -2217,7 +2402,7 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string, exist
  * - Masculine entities (Condomínio, Hospital, Instituto, Shopping, Tribunal, Banco, Grupo, etc.) -> "Ao Condomínio...", "Ao Hospital..."
  * - Companies, concessionárias, and general legal entities -> "À Inframerica...", "À UBEC...", "À Interativa...", "À Frisbel..."
  */
-export function formatCompanyPrefix(companyName: string): string {
+export function formatCompanyPrefix(companyName: string, explicitPrefix?: string): string {
   if (!companyName) return '';
   const clean = companyName.trim();
 
@@ -2231,6 +2416,12 @@ export function formatCompanyPrefix(companyName: string): string {
     hasExplicitPrefix = true;
     userPrefix = match[1].toLowerCase();
     baseName = match[2].trim();
+  }
+
+  // If explicit prefix was specifically requested (e.g. from registered company preference)
+  if (explicitPrefix) {
+    const norm = explicitPrefix.toLowerCase() === 'ao' ? 'Ao' : 'À';
+    return `${norm} ${baseName}`;
   }
 
   // Normalize lower base for linguistic detection
@@ -2455,32 +2646,53 @@ export function generateQuoteCode(
   date: Date = new Date(),
   existingCodesOrQuotes?: (string | { code?: string })[]
 ): string {
-  let cleanName = (companyName || 'COTACAO')
-    .replace(/^(ao|à|a|para)\s+/i, '')
-    .replace(/[^a-zA-Z0-9À-ÿ\s_-]/g, '')
-    .trim() || 'COTACAO';
-
-  // Se for nome institucional longo com hífen/sigla explícita (ex: "Universidade Católica - UBEC"), priorizar a sigla
-  const dashParts = cleanName.split(/[-—]/);
-  if (dashParts.length > 1) {
-    const candidateSigla = dashParts[dashParts.length - 1].trim();
-    if (candidateSigla.length >= 2 && candidateSigla.length <= 12 && /^[A-Z0-9]+$/.test(candidateSigla)) {
-      cleanName = candidateSigla;
-    }
-  }
-
-  // Normaliza espaços múltiplos mantendo o nome completo da empresa (ex: "PAULO OCTAVIO", "HOSPITAL SANTA LUCIA")
-  cleanName = cleanName.replace(/\s+/g, ' ').trim();
-  if (cleanName.length > 35) {
-    cleanName = cleanName.slice(0, 35).trim();
-  }
-
   const dd = String(date.getDate()).padStart(2, '0');
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   const yy = String(date.getFullYear()).slice(-2);
   const dateOnlyDigits = `${dd}${mm}${yy}`;
 
-  const baseCode = `${cleanName.toUpperCase().trim()} ${dateOnlyDigits}`;
+  let rawName = (companyName || '').trim();
+  if (!rawName) return `COTACAO ${dateOnlyDigits}`;
+
+  // Se começar com prefixo de destinatário ("À ", "Ao ", "A ", "Para "), remove apenas o prefixo
+  let cleanName = rawName.replace(/^(ao|à|a|para)\s+/i, '').trim();
+
+  // Verifica se a empresa está salva no cadastro de clientes para buscar exatamente como está gravada
+  try {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('infodesk_client_companies') : null;
+    let registeredList: any[] = [];
+    if (saved) {
+      registeredList = JSON.parse(saved);
+    }
+    if (!Array.isArray(registeredList) || registeredList.length === 0) {
+      registeredList = initialClientCompanies;
+    }
+    const cleanLower = cleanName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const found = registeredList.find((c: any) => {
+      if (!c?.name) return false;
+      const cLower = String(c.name).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return cLower === cleanLower;
+    });
+    if (found && found.name) {
+      cleanName = String(found.name).trim();
+    }
+  } catch {
+    // fallback
+  }
+
+  // Remove caracteres que não podem compor nomes/referências, preservando estritamente
+  // todas as letras com acentos (À-ÿ), maiúsculas e minúsculas como salvas
+  cleanName = cleanName
+    .replace(/[^a-zA-Z0-9À-ÿ\s_.-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim() || 'COTACAO';
+
+  if (cleanName.length > 35) {
+    cleanName = cleanName.slice(0, 35).trim();
+  }
+
+  // Mantém as mesmas propriedades de maiúsculas, minúsculas e acentuação de como está salvo no nome da empresa
+  const baseCode = `${cleanName} ${dateOnlyDigits}`;
 
   // Coleta lista de códigos já existentes
   let existingSet = new Set<string>();
@@ -2591,33 +2803,33 @@ export function generateProposalEmailHtml(
 
     return `
       <tr>
-        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.itemNumber)}
         </td>
-        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           <div style="font-weight: normal; color: #000000;">
             ${safeItemName}
             ${isException ? `<span style="font-size: 8pt; color: #b45309; font-weight: bold; margin-left: 6px;">(Prazo diferenciado: ${escapeHtml(excDetails.days)} dias úteis)</span>` : ''}
           </div>
-          ${hasImage ? `<div style="margin-top: 8px; margin-bottom: 4px;"><img src="${safeImageUrl}" alt="${safeItemName}" height="140" style="height: 140px; width: auto; max-width: 260px; object-fit: contain; display: block;" /></div>` : ''}
+          ${hasImage ? `<div style="margin-top: 6px; margin-bottom: 4px;"><img src="${safeImageUrl}" alt="${safeItemName}" style="max-height: 2.71cm; max-width: 4cm; width: auto; height: auto; object-fit: contain; display: block;" /></div>` : ''}
         </td>
-        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.quantity)}
         </td>
-        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.unit || 'Un.')}
         </td>
-        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           R$ ${Number(item.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </td>
-        <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           R$ ${Number(item.totalPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </td>
       </tr>
     `;
   }).join('');
 
-  const formattedShipping = quote.shippingTerms
+  const formattedShipping = (quote.showShippingInProposal !== false && quote.shippingTerms)
     ? (quote.shippingTerms.toLowerCase().startsWith('frete')
         ? quote.shippingTerms
         : `Frete: ${quote.shippingTerms}`)
@@ -2630,36 +2842,43 @@ export function generateProposalEmailHtml(
   <title>Proposta Comercial ${quote.code}</title>
 </head>
 <body style="margin: 0; padding: 20px; background-color: #ffffff; font-family: Verdana, Geneva, sans-serif; font-size: 10pt; line-height: 1.35; color: #000000;">
-  <div style="max-width: 780px; margin: 0 auto; background-color: #ffffff;">
+  <div style="max-width: 18.52cm; width: 100%; margin: 0 auto; background-color: #ffffff;">
     
-    <!-- Logo Infodesk -->
-    <div style="margin-bottom: 24px;">
-      <img src="${logoImageSrc}" alt="Infodesk" height="60" style="height: 60px; width: auto; display: block; border: 0;" />
+    <!-- Logo Infodesk (8,56 x 2,08 cm) -->
+    <div style="margin-bottom: 20px; text-align: left;">
+      <img src="${logoImageSrc}" alt="Infodesk" style="width: 8.56cm; height: 2.08cm; max-width: 100%; object-fit: contain; display: block; border: 0;" />
     </div>
 
     <!-- Dados do Cliente / Solicitante -->
-    <div style="margin-bottom: 18px; line-height: 1.35;">
-      <p style="margin: 0; font-weight: bold; font-size: 12pt; font-family: Verdana, Geneva, sans-serif; color: #000000;">${clientCompanyFormatted}</p>
-      <p style="margin: 2px 0 0 0; font-weight: bold; font-size: 12pt; font-family: Verdana, Geneva, sans-serif; color: #000000;">${contactPersonFormatted}</p>
-      <p style="margin: 4px 0 0 0; font-size: 8pt; font-family: Verdana, Geneva, sans-serif; color: #000000;"><strong>E-mail:</strong> <a href="mailto:${(quote.clientEmail || '').toLowerCase()}" style="color: #0000ee; text-decoration: underline;">${(quote.clientEmail || '').toLowerCase()}</a></p>
-      ${quote.clientPhone ? `<p style="margin: 2px 0 0 0; font-size: 8pt; font-family: Verdana, Geneva, sans-serif; color: #000000;"><strong>Telefone:</strong> ${quote.clientPhone}</p>` : ''}
+    <div style="margin-bottom: 18px; line-height: 1.5; font-family: Verdana, Geneva, sans-serif;">
+      <p style="margin: 0; font-weight: bold; font-size: 12pt; line-height: 1.5; font-family: Verdana, Geneva, sans-serif; color: #000000;">${clientCompanyFormatted}</p>
+      <p style="margin: 0; font-weight: bold; font-size: 12pt; line-height: 1.5; font-family: Verdana, Geneva, sans-serif; color: #000000;">${contactPersonFormatted}</p>
+      <p style="margin: 4px 0 0 0; font-size: 8pt; font-weight: bold; line-height: 1.35; font-family: Verdana, Geneva, sans-serif; color: #000000;">E-mail: <a href="mailto:${(quote.clientEmail || '').toLowerCase()}" style="color: #0000ee; text-decoration: underline; font-size: 8pt; font-weight: bold;">${(quote.clientEmail || '').toLowerCase()}</a></p>
+      ${quote.clientPhone ? `<p style="margin: 2px 0 0 0; font-size: 8pt; font-weight: bold; line-height: 1.35; font-family: Verdana, Geneva, sans-serif; color: #000000;">Telefone: ${quote.clientPhone}</p>` : ''}
     </div>
 
     <!-- Parágrafo de Abertura -->
-    <p style="text-align: justify; margin-bottom: 16px; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.35; color: #000000;">
-      ${quote.openingText || settings.defaultOpeningText || 'Em atenção ao que foi solicitado por Vossa Senhoria, enviamos proposta para fornecimento dos produtos para informática, conforme especificações e condições a seguir:'}
+    <p style="text-align: justify; margin-bottom: 16px; font-size: 9pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.35; color: #000000;">
+      ${(() => {
+        const fallback = 'Em atenção à solicitação de Vossa Senhoria, temos a grata satisfação de submeter à apreciação a nossa proposta de preços para fornecimento dos produtos relacionados a seguir:';
+        const chosen = (quote.openingText && quote.openingText.trim()) || (settings.defaultOpeningText && settings.defaultOpeningText.trim()) || fallback;
+        if (chosen === 'Em atenção...' || chosen === 'Em atenção' || chosen.length < 15 || chosen.startsWith('Em atenção ao que foi solicitado')) {
+          return fallback;
+        }
+        return chosen;
+      })()}
     </p>
 
     <!-- Tabela Oficial de Produtos -->
-    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: Verdana, Geneva, sans-serif; font-size: 10pt;">
+    <table style="width: 100%; max-width: 18.52cm; border-collapse: collapse; margin-bottom: 20px; font-family: Verdana, Geneva, sans-serif; font-size: 10pt;">
       <thead>
         <tr style="background-color: #ffffff;">
-          <th style="border: 1px solid #000000; padding: 6px 8px; width: 7%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Item</th>
-          <th style="border: 1px solid #000000; padding: 6px 8px; width: 49%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Descrição do Produto</th>
-          <th style="border: 1px solid #000000; padding: 6px 8px; width: 8%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Qtd.</th>
-          <th style="border: 1px solid #000000; padding: 6px 8px; width: 8%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Un.</th>
-          <th style="border: 1px solid #000000; padding: 6px 8px; width: 14%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Preço unit.</th>
-          <th style="border: 1px solid #000000; padding: 6px 8px; width: 14%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Preço total</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 7%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Item</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 49%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Descrição do Produto</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 8%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Qtd.</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 8%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Un.</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 14%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Preço unit.</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 14%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Preço total</th>
         </tr>
       </thead>
       <tbody>
@@ -2668,13 +2887,17 @@ export function generateProposalEmailHtml(
     </table>
 
     <!-- Condições Gerais -->
-    <div style="margin-bottom: 24px; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.45; color: #000000;">
-      <p style="margin: 0 0 6px 0; font-weight: bold; text-decoration: underline;">Condições gerais:</p>
-      <p style="margin: 0 0 3px 0;">➤&nbsp; Validade da proposta: ${quote.validityDays}</p>
-      <p style="margin: 0 0 3px 0;">➤&nbsp; Condições de pagamento: ${quote.paymentTerms}</p>
-      <p style="margin: 0 0 3px 0;">➤&nbsp; Prazo de entrega: ${quote.deliveryDays}</p>
-      <p style="margin: 0 0 3px 0;">➤&nbsp; Garantia: ${quote.warrantyTerms}</p>
-      ${formattedShipping ? `<p style="margin: 0 0 3px 0; font-weight: bold;">➤&nbsp; ${formattedShipping}</p>` : ''}
+    <div style="margin-bottom: 24px; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.5; color: #000000;">
+      <p style="margin: 0 0 6px 0; font-size: 12pt; font-weight: bold; text-decoration: underline; font-family: Verdana, Geneva, sans-serif; color: #000000;">Condições gerais:</p>
+      <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Validade da proposta: ${quote.validityDays}</p>
+      <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Condições de pagamento: ${quote.paymentTerms}</p>
+      <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Prazo de entrega: ${quote.deliveryDays}</p>
+      <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Garantia: ${quote.warrantyTerms}</p>
+      ${formattedShipping ? `<p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; font-weight: bold; color: #000000;">➤&nbsp; ${formattedShipping}</p>` : ''}
+      ${(() => {
+        const clean = (quote.observations || quote.notes || '').trim().replace(/^(obs(\.|ervação|ervações)?\s*:\s*)/i, '').trim();
+        return clean ? `<p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; <strong style="font-weight: bold;">Obs:</strong> ${clean}</p>` : '';
+      })()}
     </div>
 
     <!-- Data e Assinatura Alinhadas à Direita -->
@@ -2703,10 +2926,10 @@ export function generateProposalEmailHtml(
     </div>
 
     <!-- Rodapé Oficial com Dados Fiscais da Infodesk -->
-    <div style="border-top: 1px solid #000000; padding-top: 8px; text-align: center; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.35; color: #000000;">
-      <p style="margin: 0; font-weight: bold;">${settings.companyName || 'Lucas Porto da Fonseca-ME'}</p>
-      <p style="margin: 2px 0 0 0;">${settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste'} – ${settings.cityState || 'Brasília - DF'}</p>
-      <p style="margin: 2px 0 0 0;">CNPJ: ${settings.cnpj || '15.266.716/0001-02'}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;I.E.: ${settings.stateRegistration || '07.602.330/001-92'}</p>
+    <div style="border-top: 0.5pt solid #000000; padding-top: 8px; text-align: center; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; font-weight: bold; line-height: 1.35; color: #000000;">
+      <p style="margin: 0; font-weight: bold; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">${settings.companyName || 'Lucas Porto da Fonseca-ME'}</p>
+      <p style="margin: 2px 0 0 0; font-weight: bold; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">${settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste'} – ${settings.cityState || 'Brasília - DF'}</p>
+      <p style="margin: 2px 0 0 0; font-weight: bold; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">CNPJ: ${settings.cnpj || '15.266.716/0001-02'}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;I.E.: ${settings.stateRegistration || '07.602.330/001-92'}</p>
     </div>
 
   </div>
@@ -2714,3 +2937,98 @@ export function generateProposalEmailHtml(
 </html>`;
 }
 
+/**
+ * Constrói a descrição técnica completa combinando o resumo comercial, diferenciais e especificações
+ */
+export function buildCompleteProductDescription(item: {
+  description?: string;
+  specifications?: Array<{ label: string; value: string }> | Record<string, any>;
+  weight?: string;
+  dimensions?: string;
+  brand?: string;
+  model?: string;
+  modelOrCode?: string;
+  partNumber?: string;
+  ncm?: string;
+  category?: string;
+  supplier?: string;
+  observation?: string;
+}): string {
+  const parts: string[] = [];
+
+  if (item.description && item.description.trim()) {
+    parts.push(item.description.trim());
+  }
+
+  const specsList: string[] = [];
+  if (Array.isArray(item.specifications)) {
+    item.specifications.forEach(s => {
+      if (s && s.label && s.value) {
+        specsList.push(`• ${s.label}: ${s.value}`);
+      }
+    });
+  } else if (item.specifications && typeof item.specifications === 'object') {
+    Object.entries(item.specifications).forEach(([k, v]) => {
+      if (k && v && typeof v === 'string') {
+        specsList.push(`• ${k}: ${v}`);
+      }
+    });
+  }
+
+  const brandVal = item.brand;
+  if (brandVal && !specsList.some(s => s.toLowerCase().includes('marca') || s.toLowerCase().includes('fabricante'))) {
+    specsList.push(`• Marca: ${brandVal}`);
+  }
+
+  const modelVal = item.model || item.modelOrCode;
+  if (modelVal && !specsList.some(s => s.toLowerCase().includes('modelo'))) {
+    specsList.push(`• Modelo: ${modelVal}`);
+  }
+
+  const partVal = item.partNumber;
+  if (partVal && !specsList.some(s => s.toLowerCase().includes('part number') || s.toLowerCase().includes('código') || s.toLowerCase().includes('sku'))) {
+    specsList.push(`• Part Number / SKU: ${partVal}`);
+  }
+
+  const ncmVal = item.ncm;
+  if (ncmVal && !specsList.some(s => s.toLowerCase().includes('ncm'))) {
+    specsList.push(`• NCM Fiscal: ${ncmVal}`);
+  }
+
+  if (item.weight && !specsList.some(s => s.toLowerCase().includes('peso'))) {
+    specsList.push(`• Peso aproximado: ${item.weight}`);
+  }
+  if (item.dimensions && !specsList.some(s => s.toLowerCase().includes('dimens'))) {
+    specsList.push(`• Dimensões: ${item.dimensions}`);
+  }
+
+  if (item.observation && !specsList.some(s => s.toLowerCase().includes('observaç'))) {
+    specsList.push(`• Observações: ${item.observation}`);
+  }
+
+  if (specsList.length > 0) {
+    parts.push(`Especificações Técnicas:\n${specsList.join('\n')}`);
+  }
+
+  return parts.join('\n\n').trim();
+}
+
+/**
+ * Constrói ou refina um link de compra direto para e-commerce.
+ * REGRA (Lucas): Se não for para trazer o link correto do produto, deve vir em branco ('').
+ */
+export function buildDirectPurchaseUrl(
+  productName: string,
+  preferredStoreUrl?: string
+): { url: string; store: string } {
+  if (preferredStoreUrl && isExactProductUrl(preferredStoreUrl)) {
+    const detectedStore = extractStoreNameFromUrl(preferredStoreUrl) || 'Loja';
+    return { url: preferredStoreUrl.trim(), store: detectedStore };
+  }
+
+  // Se não houver link exato do produto, retorna estritamente em branco
+  return {
+    url: '',
+    store: ''
+  };
+}

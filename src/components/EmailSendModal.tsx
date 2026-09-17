@@ -36,7 +36,9 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
     return generateProposalEmailHtml(quote, settings);
   }, [quote, settings]);
 
-  const defaultSubject = `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
+  const defaultSubject = (quote.subject && quote.subject !== 'Fornecimento de produtos para informática' && quote.subject !== 'Fornecimento de Materiais e Equipamentos')
+    ? quote.subject
+    : `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
   const defaultBody = `Prezada(o) ${quote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial para fornecimento dos produtos para ${quote.clientCompany || 'sua empresa'}.\n\nValor Total: R$ ${quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCondições de Pagamento: ${quote.paymentTerms}\nPrazo de Entrega: ${quote.deliveryDays}\nGarantia: ${quote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\nInfodesk — Informática & Tecnologia\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`;
 
   // ⚠️ Todos os hooks devem ficar ANTES de qualquer early return (Rules of Hooks)
@@ -64,6 +66,11 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
       setToEmails(quote.recipientEmails || quote.clientEmail || '');
       setCcEmails(quote.ccEmails || '');
       if (quote.ccEmails) setShowCc(true);
+
+      const computedSubject = (quote.subject && quote.subject !== 'Fornecimento de produtos para informática' && quote.subject !== 'Fornecimento de Materiais e Equipamentos')
+        ? quote.subject
+        : `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
+      setSubject(computedSubject);
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -73,7 +80,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [quote.id, quote.clientEmail, quote.recipientEmails, quote.ccEmails, isOpen]);
+  }, [quote.id, quote.clientEmail, quote.recipientEmails, quote.ccEmails, quote.subject, quote.code, isOpen]);
 
   if (!isOpen) return null;
 
@@ -87,11 +94,14 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
     setIsSending(true);
 
     try {
+      const finalSubject = subject.trim() || `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
+
       await onConfirmSend({
         ...quote,
         clientEmail: toEmails.split(/[,;]/)[0]?.trim() || quote.clientEmail,
         recipientEmails: toEmails.trim(),
         ccEmails: ccEmails.trim(),
+        subject: finalSubject,
         status: 'sent',
         sentAt: new Date().toISOString()
       });
@@ -239,12 +249,20 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
           )}
 
           <div>
-            <label className="block text-slate-600 font-medium mb-1">Assunto</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-700">
+                Assunto do E-mail *
+              </label>
+              <span className="text-[10px] text-slate-400">
+                Título oficial que o cliente verá na caixa de entrada
+              </span>
+            </div>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+              placeholder={`Ex: Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`}
+              className="w-full bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-100 transition shadow-2xs"
             />
           </div>
 

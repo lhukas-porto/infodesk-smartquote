@@ -30,6 +30,23 @@ export class ErrorBoundary extends Component<Props, State> {
   private handleReset = () => {
     try {
       if (this.state.error?.message?.toLowerCase().includes('quota')) {
+        // Higieniza infodesk_products caso tenha imagens base64 gigantes que estouraram o armazenamento
+        try {
+          const prodsRaw = localStorage.getItem('infodesk_products');
+          if (prodsRaw) {
+            const prods = JSON.parse(prodsRaw);
+            if (Array.isArray(prods)) {
+              const cleaned = prods.map((p: any) => ({
+                ...p,
+                imageUrl: p.imageUrl && !p.imageUrl.startsWith('data:image/') ? p.imageUrl : ''
+              }));
+              localStorage.setItem('infodesk_products', JSON.stringify(cleaned));
+            }
+          }
+        } catch {
+          try { localStorage.removeItem('infodesk_products'); } catch { /* noop */ }
+        }
+
         localStorage.removeItem('infodesk_current_draft_quote');
         localStorage.removeItem('infodesk_emails');
         const keysToRemove: string[] = [];
@@ -50,6 +67,22 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private handleClearCacheAndReset = () => {
     try {
+      try {
+        const prodsRaw = localStorage.getItem('infodesk_products');
+        if (prodsRaw) {
+          const prods = JSON.parse(prodsRaw);
+          if (Array.isArray(prods)) {
+            const cleaned = prods.map((p: any) => ({
+              ...p,
+              imageUrl: p.imageUrl && !p.imageUrl.startsWith('data:image/') ? p.imageUrl : ''
+            }));
+            localStorage.setItem('infodesk_products', JSON.stringify(cleaned));
+          }
+        }
+      } catch {
+        try { localStorage.removeItem('infodesk_products'); } catch { /* noop */ }
+      }
+
       localStorage.removeItem('infodesk_current_draft_quote');
       localStorage.removeItem('infodesk_emails');
       const keysToRemove: string[] = [];

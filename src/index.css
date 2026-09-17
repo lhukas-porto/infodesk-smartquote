@@ -144,8 +144,8 @@
 
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 12mm 12mm 14mm 12mm;
+    size: 21cm 29.7cm;
+    margin: 0.75cm 1.32cm 0.25cm 2.0cm;
   }
 
   *, *::before, *::after {

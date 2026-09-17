@@ -12,11 +12,21 @@ import {
   X,
   Camera,
   ImagePlus,
-  ClipboardPaste
+  ClipboardPaste,
+  ChevronDown,
+  Layers,
+  ZoomIn
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Product } from '../types';
-import { saveProducts } from '../utils/storage';
+import { 
+  saveProducts, 
+  getRegisteredUnits, 
+  saveRegisteredUnit, 
+  getRegisteredCategories, 
+  saveRegisteredCategory 
+} from '../utils/storage';
+import { CreatableCombobox } from './CreatableCombobox';
 import { 
   syncProductToSupabase, 
   syncBatchProductsToSupabase, 
@@ -25,6 +35,10 @@ import {
 import {
   extractStoreNameFromUrl,
   applyTextCase,
+  getNextTextCase,
+  getWordOrSelectionRange,
+  mergeSelectedRanges,
+  applyCaseToRanges,
   WordCaseStyle,
   getCategoryFromNcm
 } from '../utils/aiEmailParser';
@@ -45,6 +59,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -57,6 +72,25 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAddModalOpen, editingProduct]);
 
+  // Intercepta o ESC na fase de captura para fechar o Zoom primeiro, sem fechar o modal de edição por baixo
+  React.useEffect(() => {
+    if (!zoomedImage) return;
+
+    const handleZoomKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        setZoomedImage(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleZoomKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleZoomKeyDown, true);
+    };
+  }, [zoomedImage]);
+
   const [newProd, setNewProd] = useState<Partial<Product>>({
     sku: '',
     name: '',
@@ -68,6 +102,28 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   });
   const [costPriceInput, setCostPriceInput] = useState<string>('');
   const [editCostPriceInput, setEditCostPriceInput] = useState<string>('');
+
+  const [registeredUnits, setRegisteredUnits] = useState<string[]>(() => getRegisteredUnits());
+  const [registeredCategories, setRegisteredCategories] = useState<string[]>(() => getRegisteredCategories());
+
+  React.useEffect(() => {
+    const handleMetadataChange = () => {
+      setRegisteredUnits(getRegisteredUnits());
+      setRegisteredCategories(getRegisteredCategories());
+    };
+    window.addEventListener('infodesk_metadata_changed', handleMetadataChange);
+    return () => window.removeEventListener('infodesk_metadata_changed', handleMetadataChange);
+  }, []);
+
+  const availableUnits = React.useMemo(() => {
+    const fromProducts = (products || []).map(p => p.unit).filter(Boolean);
+    return Array.from(new Set([...registeredUnits, ...fromProducts])).filter(Boolean);
+  }, [registeredUnits, products]);
+
+  const availableCategories = React.useMemo(() => {
+    const fromProducts = (products || []).map(p => p.category).filter(Boolean);
+    return Array.from(new Set([...registeredCategories, ...fromProducts])).filter(Boolean);
+  }, [registeredCategories, products]);
 
   const formatCurrencyPtBr = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) return '0,00';
@@ -83,6 +139,178 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
   const catalogFileInputRef = useRef<HTMLInputElement>(null);
   const catalogProductNameInputRef = useRef<HTMLInputElement>(null);
+  const [isCatalogCaseMenuOpen, setIsCatalogCaseMenuOpen] = useState(false);
+  const catalogCaseMenuRef = useRef<HTMLDivElement>(null);
+  const [catalogSelectedRanges, setCatalogSelectedRanges] = useState<Array<{ start: number; end: number }>>([]);
+  const catalogBackdropRef = useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutsideCaseMenu = (e: MouseEvent) => {
+      if (catalogCaseMenuRef.current && !catalogCaseMenuRef.current.contains(e.target as Node)) {
+        setIsCatalogCaseMenuOpen(false);
+      }
+    };
+    if (isCatalogCaseMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutsideCaseMenu);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutsideCaseMenu);
+  }, [isCatalogCaseMenuOpen]);
+
+  const handleApplyCatalogNameCase = (targetStyle?: WordCaseStyle) => {
+    if (!editingProduct?.name) return;
+    const input = catalogProductNameInputRef.current;
+    const fullText = editingProduct.name;
+
+    // 1. Se existem palavras selecionadas com Ctrl (estilo Word)
+    if (catalogSelectedRanges.length > 0) {
+      const firstRange = catalogSelectedRanges[0];
+      const firstPart = fullText.substring(firstRange.start, firstRange.end);
+      const styleToApply = targetStyle || getNextTextCase(firstPart);
+
+      const { newText, newRanges } = applyCaseToRanges(fullText, catalogSelectedRanges, styleToApply);
+
+      setEditingProduct(prev => prev ? {
+        ...prev,
+        name: newText
+      } : null);
+
+      setCatalogSelectedRanges(newRanges);
+      setIsCatalogCaseMenuOpen(false);
+
+      setTimeout(() => {
+        if (input) {
+          input.focus();
+        }
+      }, 0);
+      return;
+    }
+
+    // 2. Se não há multi-seleção de Ctrl, segue a seleção única nativa ou palavra sob o cursor
+    const { start, end } = getWordOrSelectionRange(
+      fullText,
+      input?.selectionStart ?? null,
+      input?.selectionEnd ?? null
+    );
+
+    const targetPart = fullText.substring(start, end);
+    if (!targetPart.trim()) return;
+
+    const styleToApply = targetStyle || getNextTextCase(targetPart);
+    const transformedPart = applyTextCase(targetPart, styleToApply);
+    const newFullText = fullText.substring(0, start) + transformedPart + fullText.substring(end);
+
+    setEditingProduct(prev => prev ? {
+      ...prev,
+      name: newFullText
+    } : null);
+
+    setIsCatalogCaseMenuOpen(false);
+
+    setTimeout(() => {
+      if (input) {
+        input.focus();
+        input.setSelectionRange(start, start + transformedPart.length);
+      }
+    }, 0);
+  };
+
+  const handleCatalogInputMouseUp = (e: React.MouseEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const start = input.selectionStart ?? 0;
+    const end = input.selectionEnd ?? 0;
+    const fullText = input.value;
+
+    if (e.ctrlKey) {
+      if (end > start) {
+        const newRange = { start, end };
+        setCatalogSelectedRanges(prev => {
+          const isExact = prev.some(r => r.start === start && r.end === end);
+          if (isExact) {
+            return prev.filter(r => !(r.start === start && r.end === end));
+          }
+          return mergeSelectedRanges([...prev, newRange]);
+        });
+      } else {
+        const { start: wordStart, end: wordEnd } = getWordOrSelectionRange(fullText, start, end);
+        if (wordEnd > wordStart) {
+          setCatalogSelectedRanges(prev => {
+            const exists = prev.some(r => Math.max(r.start, wordStart) < Math.min(r.end, wordEnd));
+            if (exists) {
+              return prev.filter(r => !(Math.max(r.start, wordStart) < Math.min(r.end, wordEnd)));
+            }
+            return mergeSelectedRanges([...prev, { start: wordStart, end: wordEnd }]);
+          });
+        }
+      }
+    } else {
+      if (end > start) {
+        if (catalogSelectedRanges.length > 0) {
+          setCatalogSelectedRanges([]);
+        }
+      } else {
+        if (catalogSelectedRanges.length > 0) {
+          setCatalogSelectedRanges([]);
+        }
+      }
+    }
+  };
+
+  const handleCatalogInputDoubleClick = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      const input = e.currentTarget;
+      const start = input.selectionStart ?? 0;
+      const end = input.selectionEnd ?? 0;
+      const fullText = input.value;
+      const { start: wordStart, end: wordEnd } = getWordOrSelectionRange(fullText, start, end);
+      if (wordEnd > wordStart) {
+        setCatalogSelectedRanges(prev => {
+          const exists = prev.some(r => Math.max(r.start, wordStart) < Math.min(r.end, wordEnd));
+          if (exists) {
+            return prev.filter(r => !(Math.max(r.start, wordStart) < Math.min(r.end, wordEnd)));
+          }
+          return mergeSelectedRanges([...prev, { start: wordStart, end: wordEnd }]);
+        });
+      }
+    }
+  };
+
+  const renderBackdropHighlights = (text: string, ranges: Array<{ start: number; end: number }>) => {
+    if (!ranges || ranges.length === 0) return null;
+
+    const sorted = [...ranges].sort((a, b) => a.start - b.start);
+    const elements: React.ReactNode[] = [];
+    let lastIndex = 0;
+
+    sorted.forEach((r, idx) => {
+      if (r.start > lastIndex) {
+        elements.push(
+          <span key={`unsel-${idx}`} className="text-transparent">
+            {text.substring(lastIndex, r.start)}
+          </span>
+        );
+      }
+      elements.push(
+        <span
+          key={`sel-${idx}`}
+          className="bg-sky-200/90 text-transparent rounded-xs shadow-2xs border-b-2 border-sky-500 font-semibold"
+        >
+          {text.substring(r.start, r.end)}
+        </span>
+      );
+      lastIndex = r.end;
+    });
+
+    if (lastIndex < text.length) {
+      elements.push(
+        <span key="unsel-last" className="text-transparent">
+          {text.substring(lastIndex)}
+        </span>
+      );
+    }
+
+    return elements;
+  };
 
   const extractImageFromClipboard = async (clipboardData: DataTransfer | null): Promise<string | null> => {
     if (clipboardData) {
@@ -323,6 +551,15 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       lastUpdated: new Date().toISOString().split('T')[0]
     };
 
+    if (created.unit) {
+      saveRegisteredUnit(created.unit);
+      setRegisteredUnits(getRegisteredUnits());
+    }
+    if (created.category) {
+      saveRegisteredCategory(created.category);
+      setRegisteredCategories(getRegisteredCategories());
+    }
+
     setProducts(prev => {
       const next = [created, ...prev];
       saveProducts(next);
@@ -359,6 +596,15 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       costPrice: Number(editingProduct.costPrice) || 0,
       lastUpdated: new Date().toISOString().split('T')[0]
     };
+
+    if (updated.unit) {
+      saveRegisteredUnit(updated.unit);
+      setRegisteredUnits(getRegisteredUnits());
+    }
+    if (updated.category) {
+      saveRegisteredCategory(updated.category);
+      setRegisteredCategories(getRegisteredCategories());
+    }
 
     setProducts(prev => {
       const next = prev.map(p => p.id === updated.id ? updated : p);
@@ -482,19 +728,40 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     {p.sku}
                   </td>
                   <td className="p-3">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-bold text-slate-900 text-xs">{p.name}</p>
-                      <a
-                        href={p.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(p.name + ' ' + (p.description || ''))}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-slate-400 hover:text-sky-600 transition"
-                        title="Abrir pesquisa / link do produto na web"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                    <div className="flex items-center gap-3">
+                      {p.imageUrl && (
+                        <div
+                          onClick={() => setZoomedImage({ url: p.imageUrl!, title: p.name })}
+                          title="Clique para ver a foto com ZOOM"
+                          className="w-10 h-10 min-w-[40px] max-w-[40px] min-h-[40px] max-h-[40px] rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs hover:border-sky-500 hover:shadow-md shrink-0 overflow-hidden cursor-pointer transition relative group/cimg select-none"
+                        >
+                          <img
+                            src={p.imageUrl}
+                            alt={p.name}
+                            className="w-full h-full max-w-full max-h-full object-contain group-hover/cimg:scale-105 transition duration-200"
+                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                          />
+                          <div className="absolute inset-0 bg-sky-950/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-[0.5px]">
+                            <ZoomIn className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+                          </div>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-slate-900 text-xs">{p.name}</p>
+                          <a
+                            href={p.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(p.name + ' ' + (p.description || ''))}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-slate-400 hover:text-sky-600 transition shrink-0"
+                            title="Abrir pesquisa / link do produto na web"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                        <p className="text-[11px] text-slate-500 line-clamp-1">{p.description}</p>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-500 line-clamp-1">{p.description}</p>
                   </td>
                   <td className="p-3 text-slate-700">
                     <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] border border-slate-200">
@@ -580,13 +847,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-600 font-medium mb-1">Especificações Técnicas Completas</label>
+                <label className="block text-slate-600 font-medium mb-1">Especificações Técnicas</label>
                 <textarea
-                  rows={2}
+                  rows={5}
                   value={newProd.description}
                   onChange={(e) => setNewProd({ ...newProd, description: e.target.value })}
                   placeholder="Ex: 4K UHD IPS, USB-C 65W, Ajuste de Altura, HDMI"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500"
+                  className="w-full min-h-[110px] bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:outline-none focus:border-sky-500 leading-relaxed resize-y"
                 />
               </div>
 
@@ -619,22 +886,42 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-slate-600 font-medium mb-1">Unidade</label>
-                  <input
-                    type="text"
-                    value={newProd.unit}
-                    onChange={(e) => setNewProd({ ...newProd, unit: e.target.value })}
-                    placeholder="Un. / Cx. / Pç"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 text-center focus:outline-none focus:border-sky-500"
+                  <CreatableCombobox
+                    value={newProd.unit || 'Un.'}
+                    onChange={(val) => {
+                      const finalVal = val.trim() || 'Un.';
+                      setNewProd(prev => ({ ...prev, unit: finalVal }));
+                      saveRegisteredUnit(finalVal);
+                      setRegisteredUnits(getRegisteredUnits());
+                    }}
+                    options={availableUnits}
+                    onAddOption={(newUnit) => {
+                      saveRegisteredUnit(newUnit);
+                      setRegisteredUnits(getRegisteredUnits());
+                    }}
+                    defaultValue="Un."
+                    textAlign="center"
+                    placeholder="Un."
                   />
                 </div>
                 <div>
                   <label className="block text-slate-600 font-medium mb-1">Categoria</label>
-                  <input
-                    type="text"
-                    value={newProd.category}
-                    onChange={(e) => setNewProd({ ...newProd, category: e.target.value })}
-                    placeholder="Hardware"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500"
+                  <CreatableCombobox
+                    value={newProd.category || 'Geral'}
+                    onChange={(val) => {
+                      const finalVal = val.trim() || 'Geral';
+                      setNewProd(prev => ({ ...prev, category: finalVal }));
+                      saveRegisteredCategory(finalVal);
+                      setRegisteredCategories(getRegisteredCategories());
+                    }}
+                    options={availableCategories}
+                    onAddOption={(newCat) => {
+                      saveRegisteredCategory(newCat);
+                      setRegisteredCategories(getRegisteredCategories());
+                    }}
+                    defaultValue="Geral"
+                    textAlign="left"
+                    placeholder="Geral"
                   />
                 </div>
               </div>
@@ -668,7 +955,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn"
           >
             {/* Header */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-sky-100 text-sky-700 rounded-xl">
                   <Package className="w-5 h-5 text-sky-600" />
@@ -704,16 +991,26 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               className="hidden"
             />
 
-            {/* Form Body */}
-            <form onSubmit={handleSaveEditedProduct} className="p-5 overflow-y-auto space-y-4 text-xs">
+            {/* Form com Footer Fixo/Flutuante */}
+            <form onSubmit={handleSaveEditedProduct} className="flex-1 flex flex-col min-h-0">
+              <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1 custom-scrollbar">
               {/* Foto Preview & Nome */}
               <div className="flex items-start gap-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
                 <div className="flex flex-col items-center gap-1.5 shrink-0">
                   <div
                     tabIndex={0}
-                    onClick={handleTriggerCatalogImageUpload}
+                    onClick={() => {
+                      if (editingProduct.imageUrl) {
+                        setZoomedImage({
+                          url: editingProduct.imageUrl,
+                          title: editingProduct.name || 'Produto'
+                        });
+                      } else {
+                        handleTriggerCatalogImageUpload();
+                      }
+                    }}
                     onPaste={handlePasteImageToCatalog}
-                    title="Clique para escolher foto do produto ou aperte Ctrl+V para colar foto copiada"
+                    title={editingProduct.imageUrl ? "Clique para ver a foto com ZOOM (ou aperte Ctrl+V para colar outra foto)" : "Clique para escolher foto do produto ou aperte Ctrl+V para colar foto copiada"}
                     className={`w-16 h-16 rounded-xl overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-pointer transition relative group/cimg select-none focus:outline-none focus:ring-2 focus:ring-sky-400 ${
                       editingProduct.imageUrl
                         ? 'bg-white border border-slate-300 hover:border-sky-500 shadow-2xs'
@@ -725,11 +1022,11 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                         <img
                           src={editingProduct.imageUrl}
                           alt={editingProduct.name || 'Produto'}
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-contain group-hover/cimg:scale-105 transition duration-200"
                           onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                         />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white">
-                          <Camera className="w-4 h-4" />
+                        <div className="absolute inset-0 bg-sky-950/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-[0.5px]">
+                          <ZoomIn className="w-5 h-5 text-white drop-shadow-sm" />
                         </div>
                       </>
                     ) : (
@@ -739,16 +1036,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       </div>
                     )}
                   </div>
-                  
-                  <button
-                    type="button"
-                    onClick={handleDirectPasteToCatalog}
-                    title="Colar print screen ou imagem da área de transferência (Ctrl+V)"
-                    className="px-2 py-0.5 rounded text-[9.5px] font-semibold bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                  >
-                    <ClipboardPaste className="w-3 h-3" />
-                    Colar Print
-                  </button>
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -757,111 +1044,156 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       Nome Padronizado Comercial *
                     </label>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                        }}
-                        onClick={() => {
-                          if (!editingProduct?.name) return;
-                          const input = catalogProductNameInputRef.current;
-                          const fullText = editingProduct.name;
+                      <div className="relative inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 hover:border-sky-300 shadow-2xs">
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleApplyCatalogNameCase()}
+                          className="inline-flex items-center gap-1 text-slate-700 hover:text-sky-700 hover:bg-sky-50 px-2 py-1 rounded-l-lg font-bold text-[10px] transition cursor-pointer active:scale-95 select-none"
+                          title="Alternar maiúsculas/minúsculas da palavra sob o cursor, das palavras selecionadas ou do nome todo"
+                        >
+                          <span className="font-serif font-bold text-[11px] leading-none text-sky-700">Aa</span>
+                          <span className="text-[10px] font-medium text-slate-700">Mudar Caso</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => setIsCatalogCaseMenuOpen(prev => !prev)}
+                          className="px-1.5 py-1 border-l border-slate-200 hover:bg-sky-50 text-slate-500 hover:text-sky-700 rounded-r-lg transition cursor-pointer active:scale-95"
+                          title="Escolher estilo de maiúsculas/minúsculas específico"
+                        >
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
 
-                          if (input && input.selectionStart !== null && input.selectionEnd !== null && input.selectionEnd > input.selectionStart) {
-                            const start = input.selectionStart;
-                            const end = input.selectionEnd;
-                            const selectedPart = fullText.substring(start, end);
-
-                            if (selectedPart.trim()) {
-                              let nextStyle: WordCaseStyle = 'uppercase';
-                              if (selectedPart === applyTextCase(selectedPart, 'uppercase')) {
-                                nextStyle = 'lowercase';
-                              } else if (selectedPart === applyTextCase(selectedPart, 'lowercase')) {
-                                nextStyle = 'sentence';
-                              } else if (selectedPart === applyTextCase(selectedPart, 'sentence')) {
-                                nextStyle = 'title';
-                              } else {
-                                nextStyle = 'uppercase';
-                              }
-
-                              const transformedPart = applyTextCase(selectedPart, nextStyle);
-                              const newFullText = fullText.substring(0, start) + transformedPart + fullText.substring(end);
-
-                              setEditingProduct(prev => prev ? {
-                                ...prev,
-                                name: newFullText
-                              } : null);
-
-                              setTimeout(() => {
-                                if (input) {
-                                  input.focus();
-                                  input.setSelectionRange(start, start + transformedPart.length);
-                                }
-                              }, 0);
-                              return;
-                            }
-                          }
-
-                          let nextStyle: WordCaseStyle = 'sentence';
-                          if (fullText === applyTextCase(fullText, 'sentence')) {
-                            nextStyle = 'lowercase';
-                          } else if (fullText === applyTextCase(fullText, 'lowercase')) {
-                            nextStyle = 'uppercase';
-                          } else if (fullText === applyTextCase(fullText, 'uppercase')) {
-                            nextStyle = 'title';
-                          } else {
-                            nextStyle = 'sentence';
-                          }
-
-                          setEditingProduct(prev => prev ? {
-                            ...prev,
-                            name: applyTextCase(fullText, nextStyle)
-                          } : null);
-                        }}
-                        className="inline-flex items-center gap-1 text-slate-500 hover:text-sky-700 bg-slate-100 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-1.5 py-0.5 rounded font-bold transition text-[10px] cursor-pointer active:scale-95"
-                        title="Altera maiúsculas/minúsculas estilo Word. Se você selecionou uma ou mais palavras, altera APENAS o trecho selecionado!"
-                      >
-                        <span className="font-serif font-bold text-[11px] leading-none text-sky-700">Aa</span>
-                        <span className="text-[9px] font-medium text-slate-600">Mudar Caso</span>
-                      </button>
-                      <span className="text-[10px] text-slate-400">
-                        <b>Ctrl+V</b> cola print
-                      </span>
+                        {isCatalogCaseMenuOpen && (
+                          <div
+                            ref={catalogCaseMenuRef}
+                            className="absolute right-0 top-full mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
+                          >
+                            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                              Formatar Trecho / Palavras
+                            </div>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleApplyCatalogNameCase('sentence')}
+                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
+                            >
+                              <span className="font-semibold text-slate-800">Primeira da frase maiúscula</span>
+                              <span className="text-[10px] text-slate-400">Ex: Teclado sem fio logitech k380</span>
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleApplyCatalogNameCase('lowercase')}
+                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
+                            >
+                              <span className="font-semibold text-slate-800">minúsculas</span>
+                              <span className="text-[10px] text-slate-400">Ex: teclado sem fio logitech k380</span>
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleApplyCatalogNameCase('uppercase')}
+                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
+                            >
+                              <span className="font-semibold text-slate-800">MAIÚSCULAS</span>
+                              <span className="text-[10px] text-slate-400">Ex: TECLADO SEM FIO LOGITECH K380</span>
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleApplyCatalogNameCase('title')}
+                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
+                            >
+                              <span className="font-semibold text-slate-800">Primeira de Cada Palavra Maiúscula</span>
+                              <span className="text-[10px] text-slate-400">Ex: Teclado Sem Fio Logitech K380</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <input
-                    ref={catalogProductNameInputRef}
-                    type="text"
-                    required
-                    value={editingProduct.name || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                    onPaste={handlePasteImageToCatalog}
-                    placeholder="Nome completo do produto sem traços ou vírgulas"
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
-                  />
-                  {editingProduct.imageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setEditingProduct(prev => prev ? { ...prev, imageUrl: '' } : null)}
-                      className="text-[10px] text-slate-400 hover:text-red-500 mt-1 block transition cursor-pointer"
+                  <div className="relative w-full">
+                    {/* Camada visual de destaque sincronizada para seleção com Ctrl (estilo Word) */}
+                    <div
+                      ref={catalogBackdropRef}
+                      aria-hidden="true"
+                      className="absolute inset-0 px-3 py-2 text-transparent font-semibold pointer-events-none overflow-hidden whitespace-pre font-sans text-sm select-none border border-transparent flex items-center"
                     >
-                      Remover foto
-                    </button>
+                      {renderBackdropHighlights(editingProduct.name || '', catalogSelectedRanges)}
+                    </div>
+                    <input
+                      ref={catalogProductNameInputRef}
+                      type="text"
+                      required
+                      value={editingProduct.name || ''}
+                      onChange={(e) => {
+                        setEditingProduct({ ...editingProduct, name: e.target.value });
+                        if (catalogSelectedRanges.length > 0) setCatalogSelectedRanges([]);
+                      }}
+                      onMouseUp={handleCatalogInputMouseUp}
+                      onDoubleClick={handleCatalogInputDoubleClick}
+                      onScroll={(e) => {
+                        if (catalogBackdropRef.current) {
+                          catalogBackdropRef.current.scrollLeft = e.currentTarget.scrollLeft;
+                        }
+                      }}
+                      onPaste={handlePasteImageToCatalog}
+                      placeholder="Nome completo do produto sem traços ou vírgulas"
+                      className="w-full bg-transparent border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:outline-none focus:border-sky-500 relative z-10"
+                    />
+                  </div>
+
+                  {/* Badges de palavras selecionadas com Ctrl */}
+                  {catalogSelectedRanges.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap animate-in fade-in slide-in-from-top-1 duration-150">
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-bold">
+                        <Layers className="w-3 h-3 text-sky-600" />
+                        <span>{catalogSelectedRanges.length} {catalogSelectedRanges.length === 1 ? 'palavra selecionada com Ctrl' : 'palavras selecionadas com Ctrl'}:</span>
+                      </div>
+                      {catalogSelectedRanges.map((range, idx) => {
+                        const wordText = (editingProduct.name || '').substring(range.start, range.end);
+                        return (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100/90 border border-sky-300 text-sky-900 text-[11px] font-bold shadow-2xs"
+                          >
+                            <span>{wordText}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCatalogSelectedRanges(prev => prev.filter((_, i) => i !== idx))}
+                              className="hover:text-red-600 ml-0.5 p-0.5 rounded transition cursor-pointer"
+                              title="Remover esta palavra da seleção"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => setCatalogSelectedRanges([])}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer transition"
+                      >
+                        Limpar seleção
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Especificações Técnicas Completas */}
+              {/* Especificações Técnicas */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Especificações Técnicas Completas
+                  Especificações Técnicas
                 </label>
                 <textarea
-                  rows={2}
+                  rows={5}
                   value={editingProduct.description || ''}
                   onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
                   placeholder="Ex: 4K UHD IPS, USB-C 65W, Ajuste de Altura, HDMI (deixe em branco se não houver)"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 text-xs transition"
+                  className="w-full min-h-[110px] bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 text-xs transition leading-relaxed resize-y"
                 />
               </div>
 
@@ -937,12 +1269,22 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
                     Unidade
                   </label>
-                  <input
-                    type="text"
+                  <CreatableCombobox
                     value={editingProduct.unit || 'Un.'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, unit: e.target.value })}
-                    placeholder="Un. / Pct / Cx"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 text-center focus:outline-none focus:border-sky-500"
+                    onChange={(val) => {
+                      const finalVal = val.trim() || 'Un.';
+                      setEditingProduct(prev => prev ? { ...prev, unit: finalVal } : null);
+                      saveRegisteredUnit(finalVal);
+                      setRegisteredUnits(getRegisteredUnits());
+                    }}
+                    options={availableUnits}
+                    onAddOption={(newUnit) => {
+                      saveRegisteredUnit(newUnit);
+                      setRegisteredUnits(getRegisteredUnits());
+                    }}
+                    defaultValue="Un."
+                    textAlign="center"
+                    placeholder="Un."
                   />
                 </div>
               </div>
@@ -953,18 +1295,28 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
                     Categoria
                   </label>
-                  <input
-                    type="text"
+                  <CreatableCombobox
                     value={editingProduct.category || 'Geral'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                    placeholder="Ex: Suprimentos / Copa"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500"
+                    onChange={(val) => {
+                      const finalVal = val.trim() || 'Geral';
+                      setEditingProduct(prev => prev ? { ...prev, category: finalVal } : null);
+                      saveRegisteredCategory(finalVal);
+                      setRegisteredCategories(getRegisteredCategories());
+                    }}
+                    options={availableCategories}
+                    onAddOption={(newCat) => {
+                      saveRegisteredCategory(newCat);
+                      setRegisteredCategories(getRegisteredCategories());
+                    }}
+                    defaultValue="Geral"
+                    textAlign="left"
+                    placeholder="Geral"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Fornecedor / Loja de Referência
+                    Fornecedor
                   </label>
                   <input
                     type="text"
@@ -1011,8 +1363,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 </div>
               </div>
 
-              {/* Footer de Ações com botão único de Salvar no Catálogo */}
-              <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              </div>
+
+              {/* Footer de Ações Flutuante / Fixo na base */}
+              <div className="p-4 border-t border-slate-200 bg-white/95 backdrop-blur-xs flex items-center justify-between gap-2 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-10">
                 <button
                   type="button"
                   onClick={() => setEditingProduct(null)}
@@ -1031,6 +1385,53 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Zoom da Foto no Meio da Tela */}
+      {zoomedImage && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            className="relative bg-white rounded-3xl pt-6 pb-7 px-6 sm:px-8 shadow-2xl max-w-md sm:max-w-lg w-full flex flex-col items-center animate-scaleIn border border-slate-100/80"
+          >
+            <button
+              type="button"
+              onClick={() => setZoomedImage(null)}
+              className="absolute top-4 right-4 text-stone-500 hover:text-stone-800 transition p-1 cursor-pointer"
+              title="Fechar (Esc)"
+            >
+              <X className="w-5 h-5 stroke-[2.2]" />
+            </button>
+
+            <div className="text-center px-4 pt-1 pb-5 w-full">
+              <h2 className="text-base sm:text-lg font-black text-[#261f18] uppercase tracking-wide leading-tight font-sans">
+                {zoomedImage.title}
+              </h2>
+              <p className="text-[11px] sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
+                ESPECIFICAÇÃO TÉCNICA
+              </p>
+            </div>
+
+            <div className="relative w-72 h-72 sm:w-84 sm:h-84 md:w-96 md:h-96 rounded-2xl overflow-hidden border-[3px] border-[#e59b12] shadow-md bg-white flex items-center justify-center p-3 my-2">
+              <img
+                src={zoomedImage.url}
+                alt={zoomedImage.title}
+                className="max-w-full max-h-full object-contain rounded-xl select-none"
+              />
+            </div>
+
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setZoomedImage(null)}
+                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-[13px] font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}

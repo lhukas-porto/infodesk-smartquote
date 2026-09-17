@@ -69,6 +69,8 @@ export interface Quote {
   warrantyTerms: string;
   deliveryLocation?: string;
   shippingTerms?: string;
+  showShippingInProposal?: boolean;
+  observations?: string;
   openingText: string;
   showProductImages?: boolean;
   items: QuoteItem[];
@@ -115,6 +117,8 @@ export interface IncomingEmail {
     quantity: number;
     unit: string;
     estimatedCost?: number;
+    unitPrice?: number;
+    markupPercent?: number;
     sourceUrl?: string;
   }[];
 }
@@ -174,6 +178,7 @@ export interface ClientContact {
 export interface ClientCompany {
   id: string;
   name: string;
+  prefix?: 'À' | 'Ao' | string;
   contacts: ClientContact[];
   defaultDeliveryLocation?: string;
   locations?: string[];
@@ -211,6 +216,8 @@ export interface DiscoveredProduct {
   visualSearchQueryEn?: string;
   negativeKeywords?: string[];
   productBoundingBox?: { ymin: number; xmin: number; ymax: number; xmax: number };
+  supplier?: string;
+  sourceUrl?: string;
 }
 
 

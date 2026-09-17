@@ -39,6 +39,9 @@ export const getCurrentDraftQuote = (): Quote | null => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
+        if (!parsed.openingText || parsed.openingText.trim() === 'Em atenção...' || parsed.openingText.trim() === 'Em atenção' || parsed.openingText.trim().startsWith('Em atenção ao que foi solicitado')) {
+          parsed.openingText = defaultCompanySettings.defaultOpeningText;
+        }
         return parsed;
       }
     }
@@ -67,11 +70,23 @@ export const saveCurrentDraftQuote = (quote: Quote | null): void => {
     try {
       localStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, serialized);
     } catch (retryErr) {
-      console.warn('Persistindo rascunho no sessionStorage como fallback de segurança.', retryErr);
+      // Fallback resiliente: salva versão preservando todos os dados comerciais e removendo apenas imagens base64 pesadas (>5KB)
       try {
-        sessionStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, serialized);
-      } catch (sessionErr) {
-        console.error('Falha final ao salvar rascunho no sessionStorage:', sessionErr);
+        const lightweightQuote: Quote = {
+          ...quote,
+          items: (quote.items || []).map(item => ({
+            ...item,
+            imageUrl: (item.imageUrl && item.imageUrl.startsWith('data:') && item.imageUrl.length > 5000) ? '' : item.imageUrl
+          }))
+        };
+        localStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, JSON.stringify(lightweightQuote));
+      } catch (stripErr) {
+        console.warn('Persistindo rascunho no sessionStorage como fallback de segurança.', stripErr);
+        try {
+          sessionStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, serialized);
+        } catch (sessionErr) {
+          console.error('Falha final ao salvar rascunho no sessionStorage:', sessionErr);
+        }
       }
     }
   }
@@ -169,7 +184,17 @@ export const getSettings = (): CompanySettings => {
   const saved = localStorage.getItem(SETTINGS_KEY);
   if (saved) {
     try { 
-      return { ...defaultCompanySettings, ...JSON.parse(saved) }; 
+      const parsed = { ...defaultCompanySettings, ...JSON.parse(saved) };
+      if (!parsed.defaultOpeningText || parsed.defaultOpeningText.trim() === 'Em atenção...' || parsed.defaultOpeningText.trim() === 'Em atenção' || parsed.defaultOpeningText.trim().startsWith('Em atenção ao que foi solicitado')) {
+        parsed.defaultOpeningText = defaultCompanySettings.defaultOpeningText;
+      }
+      if (!parsed.defaultWarrantyTerms || parsed.defaultWarrantyTerms.includes('contra eventuais problemas de fabricação')) {
+        parsed.defaultWarrantyTerms = defaultCompanySettings.defaultWarrantyTerms;
+      }
+      if (!parsed.defaultPaymentTerms) {
+        parsed.defaultPaymentTerms = defaultCompanySettings.defaultPaymentTerms;
+      }
+      return parsed;
     } catch (e) { console.error(e); }
   }
   return defaultCompanySettings;
@@ -181,7 +206,17 @@ export const saveSettings = (settings: CompanySettings): void => {
     email: (settings.email || '').toLowerCase().trim(),
     googleAccountEmail: (settings.googleAccountEmail || '').toLowerCase().trim()
   };
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));
+  } catch (err) {
+    console.warn('[Storage] Quota excedida ao salvar configurações. Pruning...', err);
+    pruneLocalStorage();
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));
+    } catch (e2) {
+      console.error('[Storage] Falha ao salvar configurações no localStorage:', e2);
+    }
+  }
 };
 
 export const getProducts = (): Product[] => {
@@ -193,7 +228,40 @@ export const getProducts = (): Product[] => {
 };
 
 export const saveProducts = (products: Product[]): void => {
-  localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+  if (!products || !Array.isArray(products)) return;
+
+  try {
+    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+  } catch (quotaErr) {
+    console.warn('[Storage] Quota excedida ao salvar produtos. Executando limpeza preventiva...', quotaErr);
+    pruneLocalStorage();
+
+    try {
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+    } catch (retryErr) {
+      console.warn('[Storage] Quota ainda excedida. Aplicando higienização de fotos base64 do catálogo...', retryErr);
+
+      // Nível 3: Remove imagens base64 volumosas (> 30KB) para salvar no localStorage sem crash
+      const lightweight = products.map(p => {
+        if (p.imageUrl && p.imageUrl.startsWith('data:image/') && p.imageUrl.length > 30000) {
+          return { ...p, imageUrl: '' };
+        }
+        return p;
+      });
+
+      try {
+        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(lightweight));
+      } catch (err3) {
+        console.warn('[Storage] Tentando salvar apenas os 100 produtos mais recentes...', err3);
+        const minimal = lightweight.slice(0, 100);
+        try {
+          localStorage.setItem(PRODUCTS_KEY, JSON.stringify(minimal));
+        } catch (errFinal) {
+          console.error('[Storage] Falha ao persistir produtos no localStorage. Dados preservados em memória/Supabase:', errFinal);
+        }
+      }
+    }
+  }
 };
 
 export const sanitizeEmailObject = (e: any): IncomingEmail => {
@@ -321,7 +389,17 @@ export const saveQuotes = (quotes: Quote[]): void => {
       recipientEmails: q.recipientEmails ? q.recipientEmails.toLowerCase().trim() : undefined,
       ccEmails: q.ccEmails ? q.ccEmails.toLowerCase().trim() : undefined
     }));
-    localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));
+    try {
+      localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));
+    } catch (quotaErr) {
+      console.warn('Quota excedida ao salvar propostas. Executando limpeza automática...', quotaErr);
+      pruneLocalStorage();
+      try {
+        localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));
+      } catch (retryErr) {
+        console.warn('Não foi possível persistir todas as propostas no localStorage:', retryErr);
+      }
+    }
   } catch (err) {
     console.warn('Erro ao salvar propostas no localStorage:', err);
   }
@@ -405,10 +483,14 @@ export const registerOrUpdateClient = (
 
   const loc = deliveryLocation?.trim();
 
+  const prefixMatch = companyName.trim().match(/^(ao|à)\s+/i);
+  const detectedPrefix = prefixMatch ? (prefixMatch[1].toLowerCase() === 'ao' ? 'Ao' : 'À') : undefined;
+
   if (!comp) {
     comp = {
       id: `comp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: cleanCompanyName,
+      prefix: detectedPrefix || 'À',
       defaultDeliveryLocation: loc || 'Brasília - DF',
       locations: loc ? [loc] : ['Brasília - DF'],
       contacts: [],
@@ -416,6 +498,9 @@ export const registerOrUpdateClient = (
     };
     companies.push(comp);
   } else {
+    if (detectedPrefix) {
+      comp.prefix = detectedPrefix;
+    }
     comp.lastUsed = new Date().toISOString();
     comp.locations = Array.isArray(comp.locations) ? comp.locations : (comp.defaultDeliveryLocation ? [comp.defaultDeliveryLocation] : []);
     if (loc && !comp.locations.includes(loc)) {
@@ -468,3 +553,161 @@ export const registerOrUpdateClient = (
   saveClientCompanies(companies);
   return companies;
 };
+
+// ─── Unidades e Categorias Dinâmicas Registradas ─────────────────────────────
+
+export const DEFAULT_REGISTERED_UNITS = [
+  'Un.',
+  'Pct.',
+  'Cx.',
+  'Pote',
+  'Par',
+  'Kit',
+  'Fardo',
+  'Rolo',
+  'Metro',
+  'Litro',
+  'Kg',
+  'Frasco',
+  'Galão',
+  'Tubo',
+  'Lata',
+  'Peça'
+];
+
+export const DEFAULT_REGISTERED_CATEGORIES = [
+  'Geral',
+  'Acessórios & Escritório',
+  'Informática & TI',
+  'Hardware & Peças',
+  'Periféricos & Cabos',
+  'Redes & Conectividade',
+  'Suprimentos & Copa',
+  'Automação & Energia',
+  'Segurança Eletrônica',
+  'Serviços & Instalação',
+  'Limpeza & Higiene'
+];
+
+const notifyMetadataChanged = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('infodesk_metadata_changed'));
+  }
+};
+
+export const getRegisteredUnits = (): string[] => {
+  try {
+    const saved = localStorage.getItem('infodesk_registered_units');
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter(Boolean);
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao carregar unidades salvas:', e);
+  }
+  return DEFAULT_REGISTERED_UNITS;
+};
+
+export const saveRegisteredUnitsList = (units: string[]): string[] => {
+  const cleanList = Array.from(new Set(units.map(u => u.trim()).filter(Boolean)));
+  try {
+    localStorage.setItem('infodesk_registered_units', JSON.stringify(cleanList));
+  } catch (e) {
+    console.warn('Erro ao salvar lista de unidades:', e);
+  }
+  notifyMetadataChanged();
+  return cleanList;
+};
+
+export const saveRegisteredUnit = (unit: string): string[] => {
+  if (!unit || !unit.trim()) return getRegisteredUnits();
+  const clean = unit.trim();
+  const current = getRegisteredUnits();
+  const exists = current.some(u => u.toLowerCase() === clean.toLowerCase());
+  if (!exists) {
+    const updated = [...current, clean];
+    return saveRegisteredUnitsList(updated);
+  }
+  return current;
+};
+
+export const updateRegisteredUnit = (oldUnit: string, newUnit: string): string[] => {
+  const cleanOld = oldUnit.trim();
+  const cleanNew = newUnit.trim();
+  if (!cleanNew) return getRegisteredUnits();
+  const current = getRegisteredUnits();
+  const updated = current.map(u => u.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : u);
+  return saveRegisteredUnitsList(updated);
+};
+
+export const deleteRegisteredUnit = (unit: string): string[] => {
+  const clean = unit.trim();
+  const current = getRegisteredUnits();
+  const updated = current.filter(u => u.toLowerCase() !== clean.toLowerCase());
+  return saveRegisteredUnitsList(updated);
+};
+
+export const resetRegisteredUnits = (): string[] => {
+  return saveRegisteredUnitsList(DEFAULT_REGISTERED_UNITS);
+};
+
+export const getRegisteredCategories = (): string[] => {
+  try {
+    const saved = localStorage.getItem('infodesk_registered_categories');
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter(Boolean);
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao carregar categorias salvas:', e);
+  }
+  return DEFAULT_REGISTERED_CATEGORIES;
+};
+
+export const saveRegisteredCategoriesList = (categories: string[]): string[] => {
+  const cleanList = Array.from(new Set(categories.map(c => c.trim()).filter(Boolean)));
+  try {
+    localStorage.setItem('infodesk_registered_categories', JSON.stringify(cleanList));
+  } catch (e) {
+    console.warn('Erro ao salvar lista de categorias:', e);
+  }
+  notifyMetadataChanged();
+  return cleanList;
+};
+
+export const saveRegisteredCategory = (category: string): string[] => {
+  if (!category || !category.trim()) return getRegisteredCategories();
+  const clean = category.trim();
+  const current = getRegisteredCategories();
+  const exists = current.some(c => c.toLowerCase() === clean.toLowerCase());
+  if (!exists) {
+    const updated = [...current, clean];
+    return saveRegisteredCategoriesList(updated);
+  }
+  return current;
+};
+
+export const updateRegisteredCategory = (oldCategory: string, newCategory: string): string[] => {
+  const cleanOld = oldCategory.trim();
+  const cleanNew = newCategory.trim();
+  if (!cleanNew) return getRegisteredCategories();
+  const current = getRegisteredCategories();
+  const updated = current.map(c => c.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : c);
+  return saveRegisteredCategoriesList(updated);
+};
+
+export const deleteRegisteredCategory = (category: string): string[] => {
+  const clean = category.trim();
+  const current = getRegisteredCategories();
+  const updated = current.filter(c => c.toLowerCase() !== clean.toLowerCase());
+  return saveRegisteredCategoriesList(updated);
+};
+
+export const resetRegisteredCategories = (): string[] => {
+  return saveRegisteredCategoriesList(DEFAULT_REGISTERED_CATEGORIES);
+};
+

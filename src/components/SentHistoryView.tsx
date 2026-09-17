@@ -21,7 +21,8 @@ import {
   Sparkles,
   ArrowUpDown,
   Building2,
-  User
+  User,
+  Mail
 } from 'lucide-react';
 import { Quote } from '../types';
 
@@ -197,7 +198,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
-                Pipeline & Histórico Comercial
+                Histórico Comercial
               </h1>
               <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
                 MEL-08
@@ -401,6 +402,12 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                         </span>
                       )}
                     </p>
+                    {q.subject && (
+                      <p className="text-[11px] font-medium text-slate-600 mt-1 truncate max-w-sm sm:max-w-md flex items-center gap-1.5" title={q.subject}>
+                        <Mail className="w-3 h-3 text-sky-600 shrink-0" />
+                        <span className="truncate">{q.subject}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 

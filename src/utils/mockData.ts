@@ -14,8 +14,8 @@ export const defaultCompanySettings: CompanySettings = {
   defaultValidityDays: '03 (três) dias ou enquanto durar o estoque.',
   defaultPaymentTerms: 'Faturado.',
   defaultDeliveryDays: 'em até 10 (dez) dias úteis após autorização de fornecimento.',
-  defaultWarrantyTerms: '06 (seis) meses contra eventuais problemas de fabricação. Garantia balcão. Exceto para Monitor/Impressora/Nobreak (garantia 1 ano na rede autorizada).',
-  defaultOpeningText: 'Em atenção ao que foi solicitado por Vossa Senhoria, enviamos proposta para fornecimento dos produtos para informática, conforme especificações e condições a seguir.',
+  defaultWarrantyTerms: '06 (seis) meses balcão para defeitos de fabricação.',
+  defaultOpeningText: 'Em atenção à solicitação de Vossa Senhoria, temos a grata satisfação de submeter à apreciação a nossa proposta de preços para fornecimento dos produtos relacionados a seguir:',
   defaultMarkupPercent: 23.5,
   defaultTaxPercent: 9.1,
   defaultShippingCost: 0,
@@ -186,7 +186,7 @@ export const initialEmails: IncomingEmail[] = [
         quantity: 2,
         unit: 'Un.',
         estimatedCost: 280.00,
-        sourceUrl: 'https://lista.mercadolivre.com.br/antena-panorama-antennas-ebf-s4-5bl'
+        sourceUrl: ''
       },
       {
         name: 'CABO USB PROGRAMAÇÃO SEPURA SC2020 / SC2021',
@@ -195,7 +195,7 @@ export const initialEmails: IncomingEmail[] = [
         quantity: 1,
         unit: 'Un.',
         estimatedCost: 350.00,
-        sourceUrl: 'https://lista.mercadolivre.com.br/cabo-usb-sepura-300-01384'
+        sourceUrl: ''
       }
     ]
   },
@@ -249,7 +249,7 @@ export const initialEmails: IncomingEmail[] = [
         quantity: 1,
         unit: 'Un.',
         estimatedCost: 890.00,
-        sourceUrl: 'https://lista.mercadolivre.com.br/smartphone-motorola-moto-g35'
+        sourceUrl: ''
       },
       {
         name: 'Galaxy Tab A11, 64gb, 4gb Ram, Tela de 8.7 - SAMSUNG',
@@ -258,7 +258,7 @@ export const initialEmails: IncomingEmail[] = [
         quantity: 1,
         unit: 'Un.',
         estimatedCost: 780.00,
-        sourceUrl: 'https://lista.mercadolivre.com.br/galaxy-tab-a11-64gb-4gb'
+        sourceUrl: ''
       }
     ]
   },
@@ -335,7 +335,7 @@ export const initialEmails: IncomingEmail[] = [
         unit: 'Un.',
         itemCode: '10320041S',
         estimatedCost: 520.00,
-        sourceUrl: 'https://lista.mercadolivre.com.br/caixa-direcao-kombi-10320041s-nakata'
+        sourceUrl: ''
       },
       {
         name: 'Rotulador Eletrônico PT80 Azul – Brother',
@@ -345,7 +345,7 @@ export const initialEmails: IncomingEmail[] = [
         unit: 'Un.',
         imageUrl: 'https://m.media-amazon.com/images/I/71YyM5nZ0NL._AC_SL1500_.jpg',
         estimatedCost: 180.00,
-        sourceUrl: 'https://lista.mercadolivre.com.br/rotulador-eletronico-pt80-brother'
+        sourceUrl: ''
       }
     ]
   }
@@ -365,10 +365,10 @@ export const initialSentQuotes: Quote[] = [
     validityDays: '03 (três) dias ou enquanto durar o estoque.',
     paymentTerms: 'Faturado.',
     deliveryDays: 'em até 10 (dez) dias úteis após autorização de fornecimento.',
-    warrantyTerms: '06 (seis) meses contra eventuais problemas de fabricação. Garantia balcão. Exceto para Monitor/Impressora/Nobreak (garantia 1 ano na rede autorizada).',
+    warrantyTerms: '06 (seis) meses balcão para defeitos de fabricação.',
     deliveryLocation: 'Brasília',
     shippingTerms: 'Frete incluso p/ Brasília.',
-    openingText: 'Em atenção ao que foi solicitado por Vossa Senhoria, enviamos proposta para fornecimento dos produtos para informática, conforme especificações e condições a seguir.',
+    openingText: 'Em atenção à solicitação de Vossa Senhoria, temos a grata satisfação de submeter à apreciação a nossa proposta de preços para fornecimento dos produtos relacionados a seguir:',
     items: [
       {
         id: 'item-1',
@@ -405,10 +405,10 @@ export const initialSentQuotes: Quote[] = [
     validityDays: '03 (três) dias ou enquanto durar o estoque.',
     paymentTerms: 'Faturado.',
     deliveryDays: 'em até 10 (dez) dias após autorização de fornecimento.',
-    warrantyTerms: '06 (seis) meses contra eventuais problemas de fabricação. Garantia balcão. Exceto para Monitor/Impressora/Nobreak (garantia 1 ano na rede autorizada).',
+    warrantyTerms: '06 (seis) meses balcão para defeitos de fabricação.',
     deliveryLocation: 'São Paulo',
     shippingTerms: 'Frete incluso p/ São Paulo.',
-    openingText: 'Em atenção ao que foi solicitado por Vossa Senhoria, enviamos proposta para fornecimento dos produtos para informática, conforme especificações e condições a seguir.',
+    openingText: 'Em atenção à solicitação de Vossa Senhoria, temos a grata satisfação de submeter à apreciação a nossa proposta de preços para fornecimento dos produtos relacionados a seguir:',
     items: [
       {
         id: 'item-int-1',

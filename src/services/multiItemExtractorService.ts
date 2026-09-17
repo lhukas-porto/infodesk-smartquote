@@ -58,7 +58,7 @@ Sua missão é ler a solicitação de cotação ou e-mail corporativo fornecido 
 
 Para cada item identificado, retorne estritamente um objeto JSON com:
 - name: Nome comercial claro e objetivo do produto (ex: "Switch Aruba Instant On 1930 24G 4SFP+")
-- description: Especificações técnicas completas solicitadas no texto
+- description: Especificações técnicas solicitadas no texto
 - partNumber: Código de fabricante / Part Number / Modelo exato se houver (ex: "JL682A", "SMC1500C", "01-SSC-0218")
 - quantity: Quantidade numérica inteira ou decimal (ex: 2)
 - unit: Unidade de medida (ex: "UN", "PC", "CX", "MT", "KIT")

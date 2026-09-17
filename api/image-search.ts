@@ -3,14 +3,23 @@ export const config = {
 };
 
 export default async function handler(req: any, res: any) {
-  // Enable CORS
+  // Validação dinâmica e segura de CORS
+  const origin = (req.headers?.origin as string) || '';
+  const isAllowedOrigin = 
+    !origin || 
+    origin.includes('localhost') || 
+    origin.includes('127.0.0.1') || 
+    origin.includes('vercel.app') || 
+    origin.includes('infodesk');
+
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', isAllowedOrigin ? (origin || '*') : 'null');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
+  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -18,7 +27,9 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const q = (req.query?.q as string) || '';
+    // Sanitização e limitação do termo de busca para proteção contra scraping abusivo
+    const rawQ = (req.query?.q as string) || '';
+    const q = rawQ.trim().slice(0, 120);
     if (!q) {
       return res.status(200).json({ success: false, images: [] });
     }
@@ -60,7 +71,7 @@ export default async function handler(req: any, res: any) {
       if (seen.has(url)) continue;
       seen.add(url);
       filtered.push(url);
-      if (filtered.length >= 6) break;
+      if (filtered.length >= 10) break;
     }
 
     return res.status(200).json({ success: true, images: filtered });

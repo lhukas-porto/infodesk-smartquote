@@ -35,9 +35,9 @@ export async function fetchCompanySettingsFromSupabase(): Promise<CompanySetting
       defaultDeliveryDays: data.default_delivery_days,
       defaultWarrantyTerms: data.default_warranty_terms,
       defaultOpeningText: data.default_opening_text,
-      defaultMarkupPercent: Number(data.default_markup_percent),
-      defaultTaxPercent: Number(data.default_tax_percent),
-      defaultShippingCost: Number(data.default_shipping_cost),
+      defaultMarkupPercent: !isNaN(Number(data.default_markup_percent)) ? Number(data.default_markup_percent) : 23.5,
+      defaultTaxPercent: !isNaN(Number(data.default_tax_percent)) ? Number(data.default_tax_percent) : 9.1,
+      defaultShippingCost: !isNaN(Number(data.default_shipping_cost)) ? Number(data.default_shipping_cost) : 0,
       googleWorkspaceConnected: Boolean(data.google_workspace_connected ?? true),
       googleAccountEmail: data.google_account_email || data.email
     };
@@ -69,8 +69,6 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
       default_markup_percent: settings.defaultMarkupPercent,
       default_tax_percent: settings.defaultTaxPercent,
       default_shipping_cost: settings.defaultShippingCost,
-      google_workspace_connected: settings.googleWorkspaceConnected ?? true,
-      google_account_email: settings.googleAccountEmail || settings.email,
       updated_at: new Date().toISOString()
     };
 
@@ -102,26 +100,36 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
 // ==============================================================================
 // 2. ORÇAMENTOS E ITENS (quotes & quote_items)
 // ==============================================================================
-export async function fetchQuotesFromSupabase(): Promise<Quote[] | null> {
+export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<Quote[] | null> {
   if (!supabase) return null;
   try {
     const { data: quotesData, error: quotesError } = await supabase
       .from('quotes')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(limitCount);
 
     if (quotesError || !quotesData) {
       console.warn('Erro ao carregar orçamentos do Supabase:', quotesError);
       return null;
     }
 
-    const { data: itemsData, error: itemsError } = await supabase
-      .from('quote_items')
-      .select('*')
-      .order('item_number', { ascending: true });
+    const quoteIds = quotesData.map((q: any) => q.id).filter(Boolean);
+    let itemsData: any[] = [];
 
-    if (itemsError) {
-      console.warn('Erro ao carregar itens de orçamentos do Supabase:', itemsError);
+    // Otimização: busca itens somente das propostas carregadas, evitando N+1 ou carregar a tabela inteira
+    if (quoteIds.length > 0) {
+      const { data, error: itemsError } = await supabase
+        .from('quote_items')
+        .select('*')
+        .in('quote_id', quoteIds)
+        .order('item_number', { ascending: true });
+
+      if (itemsError) {
+        console.warn('Erro ao carregar itens de orçamentos do Supabase:', itemsError);
+      } else if (data) {
+        itemsData = data;
+      }
     }
 
     const itemsByQuoteId: Record<string, QuoteItem[]> = {};

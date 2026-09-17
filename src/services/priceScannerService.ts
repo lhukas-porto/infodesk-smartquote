@@ -4,7 +4,7 @@
  * and high-fidelity image and product detail resolution.
  */
 
-import { resolveProductDetails, resolveImageForDescription, cleanAlphanumericCode, cleanNcmCode, formatProductSentenceCase, getCategoryFromNcm } from '../utils/aiEmailParser';
+import { resolveProductDetails, resolveImageForDescription, cleanAlphanumericCode, cleanNcmCode, formatProductSentenceCase, getCategoryFromNcm, buildCompleteProductDescription, buildDirectPurchaseUrl, isExactProductUrl } from '../utils/aiEmailParser';
 import { extractImageFromStoreUrl, extractDirectImageFromUrlPatterns } from './imageExtractorService';
 import { DiscoveredProduct } from '../types';
 import { searchProductImages } from './imageSearchService';
@@ -30,6 +30,8 @@ export interface ScannedPriceResult {
   status: 'exact' | 'equivalent' | 'on_demand' | 'not_found';
   buyUrl: string;
   imageUrl: string;
+  images?: string[];
+  selectedImageIndex?: number;
   category?: string;
   quantity?: number;
   unit?: string;
@@ -824,7 +826,7 @@ export async function scanSingleProductPrice(query: string, geminiApiKey?: strin
     store: details.supplier || 'Google Shopping / Mercado Livre',
     observation: cost > 0 ? 'Melhor preço de referência apurado' : '⚠️ Sob orçamento ou modelo não especificado',
     status: cost > 0 ? 'exact' : 'on_demand',
-    buyUrl: details.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(details.standardizedName || cleanQ)}&tbm=shop`,
+    buyUrl: (details.sourceUrl && isExactProductUrl(details.sourceUrl)) ? details.sourceUrl : '',
     imageUrl: accurateImage,
     category: categoryCalculated,
     rating: 4.6
@@ -930,6 +932,7 @@ export function resolveGalleryImagesForProduct(
 export interface Phase1DiscoveryOptions {
   geminiApiKey?: string;
   imageSource?: string | File | Blob | null;
+  imageSources?: Array<string | File | Blob>;
 }
 
 /**
@@ -1047,52 +1050,57 @@ export async function phase1DiscoverProductsFromText(
     ? { geminiApiKey: optionsOrKey }
     : (optionsOrKey || {});
 
-  if ((!rawText || !rawText.trim()) && !options.imageSource) return [];
+  const rawSources: Array<string | File | Blob> = [];
+  if (Array.isArray(options.imageSources) && options.imageSources.length > 0) {
+    rawSources.push(...options.imageSources);
+  } else if (options.imageSource) {
+    rawSources.push(options.imageSource);
+  }
+
+  if ((!rawText || !rawText.trim()) && rawSources.length === 0) return [];
 
   const activeKey = options.geminiApiKey || getStoredGeminiKey();
-  const imgData = options.imageSource ? await convertImageSourceToBase64(options.imageSource) : null;
+
+  const imgDataList: Array<{ mimeType: string; base64: string }> = [];
+  for (const src of rawSources) {
+    const converted = await convertImageSourceToBase64(src);
+    if (converted) {
+      imgDataList.push(converted);
+    }
+  }
 
   if (activeKey) {
     const models = MODERN_GEMINI_MODELS;
 
-    const photoPrioritySection = imgData ? `
-🚨🚨🚨 REGRA SUPREMA DE PRIORIDADE VISUAL (A FOTO É A VERDADE ABSOLUTA):
-O comprador anexou uma FOTO REAL DO PRODUTO FÍSICO!
-A FOTO TEM PESO DE 100% SOBRE O MODELO, FORMATO E ARQUÉTIPO DO PRODUTO.
+    const photoPrioritySection = imgDataList.length > 0 ? `
+🚨 REGRAS PARA ENTRADA COM FOTO(S):
+O comprador anexou ${imgDataList.length} FOTO(S) REAL(IS) DE PRODUTO(S) (Imagem 1 a Imagem ${imgDataList.length})!
+1. Para cada foto de produto recebida, analise com lupa: estrutura, chassi, acabamento, detalhes visíveis e formato real.
+2. Cada produto correspondente a uma foto deve ter "isFromPhoto": true e "photoIndex": índice da foto (0 para a primeira imagem, 1 para a segunda imagem, etc., até ${imgDataList.length - 1}).
+3. Não caia em pegadinhas de termos textuais genéricos para as fotos: formule "visualSearchQuery", "visualSearchQueryAlt" e "visualSearchQueryEn" com termos físicos precisos para localizar esse exato produto da foto no e-commerce brasileiro e global.
+4. Preencha "negativeKeywords" com palavras a evitar nas buscas (ex: madeira, compensado, pneumatica).
+5. Se uma imagem enviada for uma folha/print com o produto em uma área específica, indique "productBoundingBox": {"ymin": número, "xmin": número, "ymax": número, "xmax": número}.
+` : '';
 
-1. ANÁLISE MINUCIOSA DA FOTO REAL:
-   - Estrutura e chassi: Identifique os materiais reais visíveis na foto (ex: chapa de aço preta, tubular, polietileno).
-   - Grade/laterais: Observe o tipo exato (ex: tela aramada fina dobrável/removível formando gaiola vs tubo redondo grosso vs madeira).
-   - Rodas/rodízios: Observe com lupa se são rodízios de borracha pequenos montados sob a base ou rodas pneumáticas infláveis grandes com pneus de câmara.
-   - Puxador: Observe se é alça dobrável vertical tipo plataforma ou timão de tração manual de reboque.
-
-2. ATENÇÃO MÁXIMA PARA TERMOS TEXTUAIS TRAIÇOEIROS:
-   - Exemplo clássico no Brasil: O texto do cliente pode dizer "Carrinho com grade móvel", mas nas buscas da web esse termo textual traz carrinhos pesados com assoalho de madeira compensada e pneus de bicicleta, que NÃO TÊM NADA A VER com a foto!
-   - Se a foto mostra um carrinho com grade de tela aramada dobrável e base de aço com rodízios, USE TERMOS FÍSICOS EXATOS:
-     - "visualSearchQuery": Termo focado na física real (ex: "carrinho tipo gaiola plataforma dobravel 300kg preto" ou "carrinho plataforma aco grade aramada dobravel 300kg rodizios").
-     - "visualSearchQueryAlt": Termo alternativo de alta precisão (ex: "carrinho plataforma dobravel grade aramada 300kg rodizios").
-     - "visualSearchQueryEn": Termo internacional OEM (ex: "folding wire mesh platform cart 300kg black" ou "cage platform trolley 300kg").
-     - "negativeKeywords": Termos que NÃO correspondem à foto para eliminar falsos positivos nas buscas (ex: ["madeira", "compensado", "pneumatica", "pneu", "reboque"]).
-   - O "standardizedName" DEVE refletir com precisão cirúrgica o produto visível na foto (ex: "Carrinho Plataforma Aço Grade Aramada Dobrável 300kg Preto").
-
-3. RECORTE DO PRODUTO (BOUNDING BOX):
-   - Se a imagem enviada for uma folha de papel, print, cotação com texto ao redor ou catálogo contendo a foto do produto em uma área específica:
-     Preencha "productBoundingBox": {"ymin": número, "xmin": número, "ymax": número, "xmax": número} com as coordenadas normalizadas de 0 a 1000 onde o produto físico está localizado.
+    const hybridRuleSection = (imgDataList.length > 0 && rawText.trim()) ? `
+🚨🚨🚨 REGRA CRÍTICA PARA ENTRADA MISTA (${imgDataList.length} FOTO(S) ANEXADA(S) + DESCRIÇÃO ESCRITA):
+O comprador enviou ${imgDataList.length} FOTO(S) e TAMBÉM DIGITOU/COLOU UM TEXTO DESCRITIVO.
+ATENÇÃO: O TEXTO PODE CONTER OUTROS PRODUTOS OU UMA LISTA DE MÚLTIPLOS ITENS!
+VOCÊ DEVE IDENTIFICAR E RETORNAR TODOS OS PRODUTOS NO ARRAY "products":
+1. O(s) produto(s) correspondente(s) a CADA UMA das ${imgDataList.length} FOTOS anexadas (defina "isFromPhoto": true, "photoIndex": índice da foto 0 a ${imgDataList.length - 1}).
+2. E CADA UM dos produtos descritos no TEXTO ESCRITO que forem itens adicionais ou distintos (defina "isFromPhoto": false, "photoIndex": -1).
+⚠️ NUNCA descarte os produtos do texto só porque há fotos! Se o texto contiver 1, 2, 5 ou mais produtos além das fotos, extraia e retorne TODOS os produtos do texto como itens separados em "products", cada um com suas próprias características, quantidades e especificações técnicas!
 ` : '';
 
     const prompt = `Você é um engenheiro sênior especialista em suprimentos corporativos, equipamentos industriais, informática e catalogação da Infodesk Store e SmartQuote Brasil.
-Receberá uma solicitação de produto (contendo uma foto real do produto anexada e/ou um texto descritivo do comprador).
+Receberá uma solicitação de produtos (podendo conter ${imgDataList.length > 0 ? `${imgDataList.length} fotos reais de produtos anexadas` : 'nenhuma foto'} e/ou um texto descritivo do comprador com um ou vários itens).
 ${photoPrioritySection}
-SUA MISSÃO NA FASE 1: DEDUZIR E ENRIQUECER O PRODUTO COM FICHA TÉCNICA 360° COMPLETA (SISTEMÁTICA INFODESK STORE):
+${hybridRuleSection}
+SUA MISSÃO NA FASE 1: DEDUZIR E ENRIQUECER TODOS OS PRODUTOS (TANTO DAS ${imgDataList.length} FOTO(S) QUANTO DOS ESCRITOS NO TEXTO) COM FICHA TÉCNICA 360° COMPLETA (SISTEMÁTICA INFODESK STORE):
 
-${imgData ? `PASSO A PASSO OBRIGATÓRIO PARA PRODUTO COM FOTO:
-1. Inspecione visualmente a imagem e preencha "visualInspection" com os detalhes do produto real visto na foto.
-2. Formule "visualSearchQuery", "visualSearchQueryAlt" e "visualSearchQueryEn" com termos físicos precisos para localizar esse exato produto da foto no e-commerce brasileiro e global.
-3. Preencha "negativeKeywords" com palavras a evitar nas buscas (ex: madeira, compensado, pneumatica).
-4. Indique "productBoundingBox" com a caixa do produto na imagem se houver folha/texto ao redor.
-5. Formule "standardizedName" baseado no produto real que a foto comprova.` : ''}
-
-DIRETRIZES DE FORMATAÇÃO:
+DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
+- "isFromPhoto": Booleano (true se o produto corresponde a uma das fotos anexadas, false se for um produto descrito no texto escrito).
+- "photoIndex": Número inteiro (0 para a primeira foto, 1 para a segunda foto, etc., ou -1 se for produto apenas do texto escrito).
 - "standardizedName": Nome comercial no padrão de mercado brasileiro: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. NUNCA use vírgulas (,) no nome.
 - "brand": Marca comercial oficial ou "Genérica" se sem marca visível.
 - "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
@@ -1107,21 +1115,31 @@ DIRETRIZES DE FORMATAÇÃO:
 - "unit": Unidade ("Un.", "Pct", "Cx", etc.).
 - "suggestedPrice": Preço sugerido de mercado em Reais (número decimal, ex: 349.90).
 - "costPrice": Preço de custo estimado de atacado/distribuidor em Reais (número decimal, ex: 220.00).
-- "confidence": "${imgData ? 'Alta - Identificado com Prioridade Visual Absoluta (Foto Real do Produto)' : 'Alta - Identificado por IA'}"
-- "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, destacando materiais, estrutura, resistência e diferenciais visíveis e recomendados.
+- "confidence": "Alta"
+- "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, destacando materiais, estrutura, resistência e diferenciais.
 - "specifications": Array de 4 a 8 especificações técnicas detalhadas no formato [{"label": "Nome da Característica", "value": "Valor"}].
+- "supplier": Nome do fornecedor ou marketplace de referência no Brasil (ex: "Mercado Livre", "Amazon Brasil", "Kalunga", "Leroy Merlin", "Fabricante").
+- "buyUrl": URL direta ou de busca no marketplace brasileiro para compra do item.
 - "images": Array com URLs adicionais se conhecidas.
 
 TEXTO DO COMPRADOR:
 """
-${rawText || 'Deduza o produto com base estritamente na foto anexada.'}
+${rawText || 'Deduza o(s) produto(s) com base estritamente na(s) foto(s) anexada(s).'}
 """
 
 Retorne ESTRITAMENTE um JSON no formato:
 {
   "products": [
-    {
-      ${imgData ? '"visualInspection": "Descrição física detalhada do produto que está na foto...",\n      "visualSearchQuery": "Termo de busca fiel ao produto da foto para achar preços reais",\n      "visualSearchQueryAlt": "Termo alternativo de alta precisão",\n      "visualSearchQueryEn": "Termo em inglês para imagens de fabricantes",\n      "negativeKeywords": ["madeira", "compensado", "pneumatica", "pneu", "reboque"],\n      "productBoundingBox": {"ymin": 330, "xmin": 340, "ymax": 615, "xmax": 730},\n      ' : ''}"standardizedName": "Nome Comercial Completo Fiel à Foto",
+    ${imgDataList.length > 0 ? `{
+      "isFromPhoto": true,
+      "photoIndex": 0,
+      "visualInspection": "Descrição física detalhada do produto que está na foto...",
+      "visualSearchQuery": "Termo de busca fiel ao produto da foto para achar preços reais",
+      "visualSearchQueryAlt": "Termo alternativo de alta precisão",
+      "visualSearchQueryEn": "Termo em inglês para imagens de fabricantes",
+      "negativeKeywords": ["madeira", "compensado", "pneumatica", "pneu", "reboque"],
+      "productBoundingBox": {"ymin": 330, "xmin": 340, "ymax": 615, "xmax": 730},
+      "standardizedName": "Nome Comercial do Produto da Foto",
       "brand": "Genérica",
       "manufacturer": "Fabricante Nacional / Importado",
       "model": "Modelo",
@@ -1135,13 +1153,41 @@ Retorne ESTRITAMENTE um JSON no formato:
       "unit": "Un.",
       "suggestedPrice": 349.90,
       "costPrice": 220.00,
-      "confidence": "${imgData ? 'Alta - Identificado com Prioridade Visual Absoluta (Foto Real do Produto)' : 'Alta'}",
+      "confidence": "Alta - Identificado pela Foto",
+      "supplier": "Mercado Livre",
+      "buyUrl": "",
       "description": "Texto técnico e comercial...",
       "specifications": [
         { "label": "Característica", "value": "Valor" }
       ],
       "images": []
-    }
+    }${rawText.trim() ? ',' : ''}` : ''}
+    ${rawText.trim() ? `{
+      "isFromPhoto": false,
+      "photoIndex": -1,
+      "standardizedName": "Nome Comercial do Produto Descrito no Texto",
+      "brand": "Marca",
+      "manufacturer": "Fabricante",
+      "model": "Modelo",
+      "partNumber": "PartNumber",
+      "category": "Categoria",
+      "ncm": "8471.70.40",
+      "ean": "",
+      "weight": "0.500 kg",
+      "dimensions": "20cm x 15cm x 5cm",
+      "quantity": 1,
+      "unit": "Un.",
+      "suggestedPrice": 120.00,
+      "costPrice": 85.00,
+      "confidence": "Alta - Identificado do Texto Escrito",
+      "supplier": "Mercado Livre",
+      "buyUrl": "",
+      "description": "Texto técnico e comercial...",
+      "specifications": [
+        { "label": "Característica", "value": "Valor" }
+      ],
+      "images": []
+    }` : ''}
   ]
 }`;
 
@@ -1149,14 +1195,14 @@ Retorne ESTRITAMENTE um JSON no formato:
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
         const parts: any[] = [];
-        if (imgData) {
+        imgDataList.forEach(img => {
           parts.push({
             inlineData: {
-              mimeType: imgData.mimeType,
-              data: imgData.base64
+              mimeType: img.mimeType,
+              data: img.base64
             }
           });
-        }
+        });
         parts.push({ text: prompt });
 
         const resp = await fetch(endpoint, {
@@ -1193,17 +1239,23 @@ Retorne ESTRITAMENTE um JSON no formato:
               const brand = (item.brand || 'Genérica').trim();
               const category = (item.category || 'Ferramentas').trim();
 
-              // Termo de busca de imagem: se tiver foto, usa a busca visual refinada deduzida da foto!
-              const imgSearchQuery = item.visualSearchQuery || [brand !== 'Genérica' ? brand : '', item.model, item.partNumber, stdName]
-                .filter(Boolean)
-                .join(' ') || rawText;
+              const isFromPhoto = Boolean(
+                item.isFromPhoto === true ||
+                (list.length === 1 && imgDataList.length > 0) ||
+                (imgDataList.length > 0 && item.isFromPhoto !== false && item.visualInspection)
+              );
 
-              const altQueries = [item.visualSearchQueryAlt, item.visualSearchQueryEn].filter(Boolean);
-              const negKeywords = Array.isArray(item.negativeKeywords) ? item.negativeKeywords : undefined;
+              // Termo de busca de imagem: para o produto da foto, usa a busca visual refinada
+              const imgSearchQuery = (isFromPhoto && item.visualSearchQuery)
+                ? item.visualSearchQuery
+                : [brand !== 'Genérica' ? brand : '', item.model, item.partNumber, stdName].filter(Boolean).join(' ') || stdName;
+
+              const altQueries = isFromPhoto ? [item.visualSearchQueryAlt, item.visualSearchQueryEn].filter(Boolean) : undefined;
+              const negKeywords = (isFromPhoto && Array.isArray(item.negativeKeywords)) ? item.negativeKeywords : undefined;
 
               let realImages: string[] = [];
               try {
-                realImages = await searchProductImages(imgSearchQuery, 4, {
+                realImages = await searchProductImages(imgSearchQuery, 8, {
                   negativeKeywords: negKeywords,
                   alternativeQueries: altQueries
                 });
@@ -1211,13 +1263,23 @@ Retorne ESTRITAMENTE um JSON no formato:
                 console.warn('[Image Search Warning]:', e);
               }
 
-              // Se o cliente forneceu a foto do produto, fazemos o recorte inteligente da imagem caso ela seja um documento/cotação
-              let customerPhotoUrl = imgData ? `data:${imgData.mimeType};base64,${imgData.base64}` : null;
-              if (customerPhotoUrl && item.productBoundingBox) {
-                try {
-                  customerPhotoUrl = await cropImageByBoundingBox(customerPhotoUrl, item.productBoundingBox);
-                } catch (cropErr) {
-                  console.warn('[Crop Image Error]:', cropErr);
+              // Determina a foto exata correspondente enviada pelo cliente
+              let customerPhotoUrl: string | null = null;
+              if (isFromPhoto && imgDataList.length > 0) {
+                let targetImg = imgDataList[0];
+                if (typeof item.photoIndex === 'number' && item.photoIndex >= 0 && item.photoIndex < imgDataList.length) {
+                  targetImg = imgDataList[item.photoIndex];
+                } else if (imgDataList.length > 1 && idx < imgDataList.length) {
+                  targetImg = imgDataList[idx];
+                }
+
+                customerPhotoUrl = `data:${targetImg.mimeType};base64,${targetImg.base64}`;
+                if (item.productBoundingBox) {
+                  try {
+                    customerPhotoUrl = await cropImageByBoundingBox(customerPhotoUrl, item.productBoundingBox);
+                  } catch (cropErr) {
+                    console.warn('[Crop Image Error]:', cropErr);
+                  }
                 }
               }
 
@@ -1225,10 +1287,13 @@ Retorne ESTRITAMENTE um JSON no formato:
                 ? realImages
                 : resolveGalleryImagesForProduct(stdName, category, brand, item.images);
 
-              // Se o cliente forneceu a foto do produto, ela assume SEMPRE o lugar de honra #1 absoluto
+              // Para o item da foto, a foto do cliente assume o topo da galeria; para os itens do texto, usa fotos próprias encontradas na web
               const gallery = customerPhotoUrl
                 ? [customerPhotoUrl, ...baseGallery.filter(u => u !== customerPhotoUrl)]
                 : baseGallery;
+
+              const directPurchase = buildDirectPurchaseUrl(stdName, item.buyUrl || item.sourceUrl);
+              const resolvedSupplier = (item.supplier || item.store || directPurchase.store || brand || 'Mercado Livre').trim();
 
               return {
                 id: `disc-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
@@ -1247,13 +1312,15 @@ Retorne ESTRITAMENTE um JSON no formato:
                 unit: (item.unit || 'Un.').trim(),
                 suggestedPrice: typeof item.suggestedPrice === 'number' && item.suggestedPrice > 0 ? item.suggestedPrice : undefined,
                 costPrice: typeof item.costPrice === 'number' && item.costPrice > 0 ? item.costPrice : undefined,
-                confidence: imgData ? 'Alta - Identificado com Prioridade Visual Absoluta (Foto do Produto)' : (item.confidence || 'Alta'),
+                confidence: isFromPhoto ? 'Alta - Identificado pela Foto do Produto' : 'Alta - Identificado da Descrição Escrita',
                 description: (item.description || '').trim(),
                 specifications: normalizeSpecifications(item.specifications),
                 images: gallery,
                 imageUrl: gallery[0] || '',
                 selectedImageIndex: 0,
                 customerPhotoUrl: customerPhotoUrl || undefined,
+                supplier: resolvedSupplier,
+                sourceUrl: directPurchase.url,
                 visualInspection: item.visualInspection || undefined,
                 visualSearchQuery: item.visualSearchQuery || undefined,
                 visualSearchQueryAlt: item.visualSearchQueryAlt || undefined,
@@ -1273,19 +1340,53 @@ Retorne ESTRITAMENTE um JSON no formato:
 
   // Fallback inteligente heurístico local sem chave de IA
   const parsedItems = parsePastedProductListWithQty(rawText);
+  const itemsToProcess: Array<{ query: string; quantity: number; isPhoto?: boolean; photoIndex?: number }> = [];
+
+  imgDataList.forEach((_, pIdx) => {
+    itemsToProcess.push({
+      query: imgDataList.length === 1 ? 'Produto Identificado na Foto Anexada' : `Produto Identificado na Foto #${pIdx + 1}`,
+      quantity: 1,
+      isPhoto: true,
+      photoIndex: pIdx
+    });
+  });
+
+  parsedItems.forEach(it => {
+    itemsToProcess.push({
+      query: it.query,
+      quantity: it.quantity || 1,
+      isPhoto: false,
+      photoIndex: -1
+    });
+  });
+
+  if (itemsToProcess.length === 0) {
+    itemsToProcess.push({
+      query: rawText || 'Produto Desconhecido',
+      quantity: 1,
+      isPhoto: imgDataList.length > 0,
+      photoIndex: imgDataList.length > 0 ? 0 : -1
+    });
+  }
+
   return await Promise.all(
-    parsedItems.map(async (it, idx) => {
+    itemsToProcess.map(async (it, idx) => {
       const stdName = formatProductSentenceCase(normalizeSearchTerm(it.query));
       const category = 'Geral';
 
       let realImages: string[] = [];
       try {
-        realImages = await searchProductImages(stdName, 4);
+        realImages = await searchProductImages(stdName, 8);
       } catch {
         // fallback
       }
 
-      const gallery = realImages.length > 0 ? realImages : resolveGalleryImagesForProduct(stdName, category, 'Genérica');
+      const customerPhotoUrl = (it.isPhoto && typeof it.photoIndex === 'number' && it.photoIndex >= 0 && imgDataList[it.photoIndex])
+        ? `data:${imgDataList[it.photoIndex].mimeType};base64,${imgDataList[it.photoIndex].base64}`
+        : null;
+      const baseGallery = realImages.length > 0 ? realImages : resolveGalleryImagesForProduct(stdName, category, 'Genérica');
+      const gallery = customerPhotoUrl ? [customerPhotoUrl, ...baseGallery.filter(u => u !== customerPhotoUrl)] : baseGallery;
+      const directPurchase = buildDirectPurchaseUrl(stdName);
 
       return {
         id: `disc-local-${Date.now()}-${idx}`,
@@ -1303,12 +1404,15 @@ Retorne ESTRITAMENTE um JSON no formato:
         unit: 'Un.',
         suggestedPrice: 0,
         costPrice: 0,
-        confidence: 'Média' as const,
+        confidence: (it.isPhoto ? 'Alta - Identificado pela Foto' : 'Média - Identificado do Texto') as any,
         description: '',
         specifications: [],
         images: gallery,
         imageUrl: gallery[0] || '',
-        selectedImageIndex: 0
+        selectedImageIndex: 0,
+        customerPhotoUrl: customerPhotoUrl || undefined,
+        supplier: directPurchase.store,
+        sourceUrl: directPurchase.url
       };
     })
   );
@@ -1593,11 +1697,25 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       }
 
       let finalBuyUrl = (parsed.buyUrl || '').trim();
-      const searchKeywords = (discovered as any).visualSearchQuery || stdName;
-      const cleanSearchKeywords = searchKeywords.replace(/[-–—|]/g, ' ').replace(/\s+/g, ' ').trim();
-      if (!finalBuyUrl.startsWith('http') || finalBuyUrl.includes('exemplo.com')) {
-        finalBuyUrl = `https://www.google.com/search?q=${encodeURIComponent(cleanSearchKeywords + ' menor preço comprar')}&tbm=shop`;
+
+      // 1. Tenta extrair URL real da loja nos chunks do Google Search Grounding
+      const groundingChunks = data?.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (Array.isArray(groundingChunks) && (!finalBuyUrl || finalBuyUrl.includes('google.com/search') || finalBuyUrl.includes('exemplo.com'))) {
+        for (const chunk of groundingChunks) {
+          const uri = chunk?.web?.uri;
+          if (uri && typeof uri === 'string' && uri.startsWith('http') && !uri.includes('google.com/search')) {
+            finalBuyUrl = uri;
+            break;
+          }
+        }
       }
+
+      // 2. Se não encontrou link direto de loja, constrói URL direta de compra no Mercado Livre (evita busca genérica do Google)
+      const directPurchase = buildDirectPurchaseUrl(stdName, finalBuyUrl || (discovered as any).sourceUrl);
+      finalBuyUrl = directPurchase.url;
+      const finalStore = (parsed.store && parsed.store !== 'Nome da Loja' && parsed.store !== 'E-commerce Nacional')
+        ? parsed.store
+        : directPurchase.store;
 
       const scannedNcm = cleanNcmCode(parsed.ncm || (discovered as any).ncm);
       const scannedCategory = getCategoryFromNcm(scannedNcm, discovered.category);
@@ -1623,7 +1741,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
         bestPrice: bestPrice,
         priceFormatted: formatBRL(bestPrice),
         isPixPrice: parsed.isPixPrice ?? false,
-        store: parsed.store || 'E-commerce Nacional',
+        store: finalStore,
         observation: observation,
         status: status,
         buyUrl: finalBuyUrl,
@@ -1698,13 +1816,25 @@ export async function runBatchPhase2Scan(
         res.suggestedPrice = product.suggestedPrice;
       }
 
-      const preservedPhoto = product.customerPhotoUrl || product.imageUrl || product.images?.[0];
-      if (preservedPhoto) {
-        res.imageUrl = preservedPhoto;
+      const productImages = product.images && product.images.length > 0
+        ? product.images
+        : (product.imageUrl ? [product.imageUrl] : []);
+      const selectedImgIdx = product.selectedImageIndex ?? 0;
+      const chosenPhoto = productImages[selectedImgIdx] || product.imageUrl || product.customerPhotoUrl;
+
+      res.images = productImages;
+      res.selectedImageIndex = selectedImgIdx;
+      if (chosenPhoto) {
+        res.imageUrl = chosenPhoto;
       } else if (res.buyUrl && !res.buyUrl.includes('google.com/search')) {
         try {
           const directImg = await extractImageFromStoreUrl(res.buyUrl, 2500);
-          if (directImg) res.imageUrl = directImg;
+          if (directImg) {
+            res.imageUrl = directImg;
+            if (!res.images.includes(directImg)) {
+              res.images.push(directImg);
+            }
+          }
         } catch {
           // ignora
         }
@@ -1713,6 +1843,9 @@ export async function runBatchPhase2Scan(
       return res;
     } catch (err) {
       console.error(`Erro ao enriquecer produto "${product.standardizedName}":`, err);
+      const fallbackImages = product.images && product.images.length > 0 ? product.images : [product.imageUrl || resolveImageForDescription(product.standardizedName)];
+      const fallbackSelectedIdx = product.selectedImageIndex ?? 0;
+
       return {
         id: `err-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         originalQuery: product.originalQuery || product.standardizedName,
@@ -1724,8 +1857,10 @@ export async function runBatchPhase2Scan(
         store: 'Sob Consulta',
         observation: 'Ficha técnica preservada (cotação de preço pendente)',
         status: product.costPrice ? ('equivalent' as const) : ('not_found' as const),
-        buyUrl: `https://www.google.com/search?q=${encodeURIComponent(product.standardizedName)}&tbm=shop`,
-        imageUrl: product.imageUrl || resolveImageForDescription(product.standardizedName),
+        buyUrl: buildDirectPurchaseUrl(product.standardizedName, (product as any).sourceUrl).url,
+        imageUrl: fallbackImages[fallbackSelectedIdx] || fallbackImages[0] || '',
+        images: fallbackImages,
+        selectedImageIndex: fallbackSelectedIdx,
         quantity: product.quantity || 1,
         unit: product.unit || 'Un.',
         partNumber: product.partNumber || '',
@@ -1830,7 +1965,7 @@ async function executeGeminiSearchGrounding(query: string, apiKey: string): Prom
     store: fallbackPrice > 0 ? 'Mercado Nacional' : 'Sob Consulta',
     observation: fallbackPrice > 0 ? 'Ficha técnica completa com preço de referência' : 'Produto identificado via Fase 1 (consulte distribuidores)',
     status: fallbackPrice > 0 ? 'equivalent' : 'on_demand',
-    buyUrl: `https://www.google.com/search?q=${encodeURIComponent(discovered.standardizedName)}&tbm=shop`,
+    buyUrl: buildDirectPurchaseUrl(discovered.standardizedName, (discovered as any).sourceUrl).url,
     imageUrl: resolveImageForDescription(discovered.standardizedName),
     rating: 4.8
   };
@@ -1880,7 +2015,7 @@ export async function runBatchPriceScan(
         store: 'Não localizada',
         observation: 'Erro na conexão durante o escaneamento',
         status: 'not_found' as const,
-        buyUrl: `https://www.google.com/search?q=${encodeURIComponent(item.query)}`,
+        buyUrl: buildDirectPurchaseUrl(item.query).url,
         imageUrl: resolveImageForDescription(item.query),
         quantity: item.quantity
       };

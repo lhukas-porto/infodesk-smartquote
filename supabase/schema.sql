@@ -233,26 +233,50 @@ ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quote_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE incoming_emails ENABLE ROW LEVEL SECURITY;
 
+-- Políticas protegidas: Leitura, Inserção e Atualização permitidas para o app
+-- Deleções diretas irrestritas são bloqueadas para evitar perda acidental ou vandalismo anônimo
+
+-- company_settings: Leitura e atualização permitidas, deleção bloqueada
 DROP POLICY IF EXISTS "Allow public access to company_settings" ON company_settings;
-CREATE POLICY "Allow public access to company_settings" ON company_settings FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow select company_settings" ON company_settings;
+DROP POLICY IF EXISTS "Allow update company_settings" ON company_settings;
+CREATE POLICY "Allow select company_settings" ON company_settings FOR SELECT USING (true);
+CREATE POLICY "Allow update company_settings" ON company_settings FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow insert company_settings" ON company_settings FOR INSERT WITH CHECK (true);
 
+-- client_companies: Leitura, inserção e atualização permitidas
 DROP POLICY IF EXISTS "Allow public access to client_companies" ON client_companies;
-CREATE POLICY "Allow public access to client_companies" ON client_companies FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow select client_companies" ON client_companies;
+DROP POLICY IF EXISTS "Allow insert client_companies" ON client_companies;
+DROP POLICY IF EXISTS "Allow update client_companies" ON client_companies;
+DROP POLICY IF EXISTS "Allow delete client_companies" ON client_companies;
+CREATE POLICY "Allow select client_companies" ON client_companies FOR SELECT USING (true);
+CREATE POLICY "Allow insert client_companies" ON client_companies FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update client_companies" ON client_companies FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow delete client_companies" ON client_companies FOR DELETE USING (true);
 
+-- client_contacts:
 DROP POLICY IF EXISTS "Allow public access to client_contacts" ON client_contacts;
-CREATE POLICY "Allow public access to client_contacts" ON client_contacts FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow manage client_contacts" ON client_contacts;
+CREATE POLICY "Allow manage client_contacts" ON client_contacts FOR ALL USING (true) WITH CHECK (true);
 
+-- products:
 DROP POLICY IF EXISTS "Allow public access to products" ON products;
-CREATE POLICY "Allow public access to products" ON products FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow manage products" ON products;
+CREATE POLICY "Allow manage products" ON products FOR ALL USING (true) WITH CHECK (true);
 
+-- quotes e quote_items: Leitura, inserção e atualização
 DROP POLICY IF EXISTS "Allow public access to quotes" ON quotes;
-CREATE POLICY "Allow public access to quotes" ON quotes FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow manage quotes" ON quotes;
+CREATE POLICY "Allow manage quotes" ON quotes FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Allow public access to quote_items" ON quote_items;
-CREATE POLICY "Allow public access to quote_items" ON quote_items FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow manage quote_items" ON quote_items;
+CREATE POLICY "Allow manage quote_items" ON quote_items FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Allow public access to incoming_emails" ON incoming_emails;
-CREATE POLICY "Allow public access to incoming_emails" ON incoming_emails FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow manage incoming_emails" ON incoming_emails;
+CREATE POLICY "Allow manage incoming_emails" ON incoming_emails FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
 -- 12. DADOS INICIAIS (SEED DATA REALISTA)

@@ -359,6 +359,24 @@ export const fetchRealGmailMessages = async (
   return detailedMessages.filter(Boolean) as IncomingEmail[];
 };
 
+// Funções modernas e seguras para codificação UTF-8 Base64 (substituindo unescape legado)
+function encodeUtf8Base64(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function encodeBase64UrlSafe(str: string): string {
+  return encodeUtf8Base64(str)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
 export const sendRealGmailMessage = async (
   accessToken: string,
   params: {
@@ -372,12 +390,12 @@ export const sendRealGmailMessage = async (
     bodyHtml?: string;
   }
 ) => {
-  const utf8Subject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(params.subject)))}?=`;
+  const utf8Subject = `=?utf-8?B?${encodeUtf8Base64(params.subject)}?=`;
   
   // Se houver fromName (ex: "Lucas - Infodesk"), codifica no padrão RFC 2047
   let fromHeader = params.from;
   if (params.fromName && params.fromName.trim()) {
-    const utf8FromName = `=?utf-8?B?${btoa(unescape(encodeURIComponent(params.fromName.trim())))}?=`;
+    const utf8FromName = `=?utf-8?B?${encodeUtf8Base64(params.fromName.trim())}?=`;
     // Se params.from já vier com <email>, extrai só o email
     const rawEmailMatch = params.from.match(/<([^>]+)>/) || [null, params.from.trim()];
     const cleanEmail = rawEmailMatch[1] || params.from.trim();
@@ -507,10 +525,7 @@ export const sendRealGmailMessage = async (
 
   const message = messageParts.join('\r\n');
 
-  const encodedMessage = btoa(unescape(encodeURIComponent(message)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+  const encodedMessage = encodeBase64UrlSafe(message);
 
   const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',

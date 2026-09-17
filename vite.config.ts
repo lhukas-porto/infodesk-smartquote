@@ -42,7 +42,7 @@ function imageSearchPlugin(): Plugin {
             if (seen.has(url)) continue;
             seen.add(url);
             filtered.push(url);
-            if (filtered.length >= 6) break;
+            if (filtered.length >= 10) break;
           }
 
           res.setHeader('Content-Type', 'application/json');
@@ -62,5 +62,24 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true
+  },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('docx')) return 'vendor-docx';
+            if (id.includes('exceljs')) return 'vendor-exceljs';
+            if (id.includes('@supabase')) return 'vendor-supabase';
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
+          }
+        }
+      }
+    }
+  },
+  esbuild: {
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : []
   }
 });

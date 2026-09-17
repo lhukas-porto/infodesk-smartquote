@@ -14,26 +14,40 @@ function assert(condition: boolean, message: string) {
 
 console.log('🧪 Iniciando testes de precisão da PricingEngine (MEL-05)...');
 
-// Cenário 1: Cálculo padrão com centavos
+// Cenário 1: Item >= R$ 10 com centavos < 0,50 (arredonda para baixo em inteiro)
 // Custo 1000, Frete 0, Markup 20%, Imposto 10%
-// Preço = (1000 * 1.20) / 0.90 = 1333.3333... => 1333.33
+// Preço = (1000 * 1.20) / 0.90 = 1333.3333... => Arredonda para 1333
 const price1 = calculateCommercialUnitPrice(1000, 0, 20, 10);
-assert(price1 === 1333.33, `Esperado 1333.33, obteve ${price1}`);
-console.log('✓ Cenário 1 aprovado (Preço base com centavos)');
+assert(price1 === 1333, `Esperado 1333, obteve ${price1}`);
+console.log('✓ Cenário 1 aprovado (Preço >= 10 com centavos < 0.50 arredondado para inteiro)');
 
 // Cenário 2: Custo zero
 const price2 = calculateCommercialUnitPrice(0, 0, 25, 9.1);
 assert(price2 === 0, `Esperado 0, obteve ${price2}`);
 console.log('✓ Cenário 2 aprovado (Custo zero)');
 
-// Cenário 3: Com frete embutido
+// Cenário 3: Item >= R$ 10 com centavos >= 0,50 (arredonda para cima em inteiro)
 // Custo 500, Frete 50 => Base 550, Markup 30%, Imposto 9.1%
 // Numerador = 550 * 1.30 = 715
 // Denominador = 1 - 0.091 = 0.909
-// Preço = 715 / 0.909 = 786.5786... => 786.58
+// Preço = 715 / 0.909 = 786.5786... => Arredonda para 787
 const price3 = calculateCommercialUnitPrice(500, 50, 30, 9.1);
-assert(price3 === 786.58, `Esperado 786.58, obteve ${price3}`);
-console.log('✓ Cenário 3 aprovado (Frete embutido na base)');
+assert(price3 === 787, `Esperado 787, obteve ${price3}`);
+console.log('✓ Cenário 3 aprovado (Preço >= 10 com centavos >= 0.50 arredondado para inteiro)');
+
+// Cenário 3.1: Item < R$ 10 (conector/parafuso) PRESERVA centavos exatos
+// Custo 1.10, Frete 0, Markup 20%, Imposto 9.1%
+// Preço = (1.10 * 1.20) / 0.909 = 1.32 / 0.909 = 1.4521... => 1.45
+const priceLow1 = calculateCommercialUnitPrice(1.10, 0, 20, 9.1);
+assert(priceLow1 === 1.45, `Esperado 1.45 (centavos preservados), obteve ${priceLow1}`);
+console.log('✓ Cenário 3.1 aprovado (Item < R$ 10 preserva centavos exatos: R$ 1,45)');
+
+// Cenário 3.2: Item < R$ 10 (cabo/patch cord) PRESERVA centavos exatos
+// Custo 5.00, Frete 0, Markup 30%, Imposto 10%
+// Preço = 6.50 / 0.90 = 7.222... => 7.22
+const priceLow2 = calculateCommercialUnitPrice(5.00, 0, 30, 10);
+assert(priceLow2 === 7.22, `Esperado 7.22 (centavos preservados), obteve ${priceLow2}`);
+console.log('✓ Cenário 3.2 aprovado (Item < R$ 10 preserva centavos exatos: R$ 7,22)');
 
 // Cenário 4: Recalcular totais de cotação
 const mockItems: QuoteItem[] = [

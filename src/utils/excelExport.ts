@@ -194,15 +194,21 @@ export async function exportCostSheetToExcel(quote: Quote, dollarRate?: number):
     cellJ.alignment = { horizontal: 'right', vertical: 'middle' };
 
     // K: Venda unit.
-    // Fórmula solicitada por Lucas: se centavos < 0,50 arredonda pra baixo, se >= 0,50 arredonda pra cima
-    // No Excel: =ARRED(H5*markupFactor; 0) -> no OpenXML/ExcelJS: ROUND(H5*markupFactor, 0)
+    // Regra comercial solicitada por Lucas:
+    // - Abaixo de R$ 10,00: preserva centavos exatos (2 casas decimais) para proteger itens de baixo custo
+    // - A partir de R$ 10,00: arredonda para número inteiro (0 casas decimais)
+    // No Excel: =SE(H5*markup < 10; ARRED(H5*markup; 2); ARRED(H5*markup; 0))
     const cellK = worksheet.getCell(`K${r}`);
     const markupPct = item.markupPercent ?? quote.averageMargin ?? 32;
     const markupFactor = Number((1 + markupPct / 100).toFixed(4));
-    const calculatedUnitPrice = item.unitPrice ? Math.round(item.unitPrice) : Math.round((item.costPrice + unitFreight) * markupFactor);
+    const baseEstimatedPrice = (item.costPrice + unitFreight) * markupFactor;
+    const rawPrice = item.unitPrice ?? baseEstimatedPrice;
+    const calculatedUnitPrice = rawPrice < 10
+      ? Number(rawPrice.toFixed(2))
+      : Math.round(rawPrice);
 
     cellK.value = {
-      formula: `ROUND(H${r}*${markupFactor},0)`,
+      formula: `IF(H${r}*${markupFactor}<10,ROUND(H${r}*${markupFactor},2),ROUND(H${r}*${markupFactor},0))`,
       result: calculatedUnitPrice
     };
     cellK.numFmt = numFmtAccounting;

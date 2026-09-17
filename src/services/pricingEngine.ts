@@ -17,10 +17,23 @@ export interface QuoteTotalsResult {
 }
 
 /**
+ * Aplica a regra de arredondamento comercial da Infodesk (solicitada por Lucas):
+ * - Abaixo de R$ 10,00: preserva centavos exatos (2 casas decimais) para evitar prejuízo em itens de baixo custo.
+ * - A partir de R$ 10,00: se centavos < 0,50 arredonda pra baixo, se >= 0,50 arredonda pra cima (inteiro comercial).
+ */
+export function applyCommercialPriceRounding(rawPrice: number): number {
+  if (rawPrice <= 0) return 0;
+  if (rawPrice < 10) {
+    return Number(rawPrice.toFixed(2));
+  }
+  return Math.round(rawPrice);
+}
+
+/**
  * Calcula o Preço de Venda Comercial unitário garantindo:
  * - Lucro Líquido (Markup) incidindo sobre o Custo Real (Custo + Frete)
  * - Impostos incidindo sobre o Preço Faturado de Venda (Imposto por dentro)
- * - Precisão rigorosa de 2 casas decimais (centavos comerciais)
+ * - Regra de arredondamento comercial Lucas: centavos exatos para < R$ 10 e inteiros para >= R$ 10
  */
 export function calculateCommercialUnitPrice(
   costPrice: number,
@@ -36,13 +49,33 @@ export function calculateCommercialUnitPrice(
   const netDivisor = 1 - taxRate;
 
   // Proteção contra alíquota >= 100%
-  if (netDivisor <= 0.01) {
-    return Number(((baseCost * (1 + marginRate)) / 0.01).toFixed(2));
-  }
+  const rawPrice = netDivisor <= 0.01
+    ? (baseCost * (1 + marginRate)) / 0.01
+    : (baseCost * (1 + marginRate)) / netDivisor;
 
-  // Preço de venda com centavos exatos
-  const rawPrice = (baseCost * (1 + marginRate)) / netDivisor;
-  return Number(rawPrice.toFixed(2));
+  return applyCommercialPriceRounding(rawPrice);
+}
+
+/**
+ * Calcula a margem de lucro % (markup sobre o custo) dado o preço de venda, custo, frete e imposto
+ * Fórmula:
+ * Lucro Líquido = Preço * (1 - Imposto%) - (Custo + Frete)
+ * Margem % = (Lucro Líquido / (Custo + Frete)) * 100
+ */
+export function calculateMarkupFromUnitPrice(
+  unitPrice: number,
+  costPrice: number,
+  shippingCost: number = 0,
+  taxPercent: number = 9.1
+): number {
+  const baseCost = Number(costPrice || 0) + Number(shippingCost || 0);
+  if (baseCost <= 0 || unitPrice <= 0) return 0;
+
+  const taxRate = Number(taxPercent || 0) / 100;
+  const netRevenue = unitPrice * (1 - taxRate);
+  const netProfit = netRevenue - baseCost;
+  const markupRate = (netProfit / baseCost) * 100;
+  return Number(markupRate.toFixed(2));
 }
 
 /**

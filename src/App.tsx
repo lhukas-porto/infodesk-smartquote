@@ -44,6 +44,7 @@ import {
   getQuoteItemsBackup,
   saveQuoteItemsBackup
 } from './utils/storage';
+import { defaultCompanySettings } from './utils/mockData';
 import { 
   getStoredAccessToken, 
   getStoredUserEmail, 
@@ -57,7 +58,6 @@ import {
   extractItemsFromEmailContent, 
   extractDeliveryLocation, 
   extractFullCompanyName, 
-  calculateCommercialUnitPrice, 
   resolveProductDetails,
   formatCompanyPrefix,
   formatContactPerson,
@@ -86,6 +86,11 @@ import {
   fetchIncomingEmailsFromSupabase,
   syncIncomingEmailsToSupabase
 } from './services/supabase';
+import { 
+  calculateCommercialUnitPrice, 
+  calculateMarkupFromUnitPrice, 
+  recalculateQuoteTotals 
+} from './services/pricingEngine';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard'>(() => {
@@ -219,6 +224,9 @@ export const App: React.FC = () => {
         // 1. Configurações
         const remoteSettings = await fetchCompanySettingsFromSupabase();
         if (remoteSettings) {
+          if (!remoteSettings.defaultOpeningText || remoteSettings.defaultOpeningText.trim() === 'Em atenção...' || remoteSettings.defaultOpeningText.trim() === 'Em atenção' || remoteSettings.defaultOpeningText.trim().startsWith('Em atenção ao que foi solicitado')) {
+            remoteSettings.defaultOpeningText = defaultCompanySettings.defaultOpeningText;
+          }
           setSettings(remoteSettings);
           saveSettings(remoteSettings);
         }
@@ -277,18 +285,25 @@ export const App: React.FC = () => {
           setCurrentQuote(prev => {
             const draft = getCurrentDraftQuote();
             // Se já temos um rascunho recente que o usuário está editando, preserva o rascunho
+            let chosen: Quote = prev;
             if (draft && draft.items && draft.items.length > 0) {
-              return draft;
-            }
-            if (prev.code === 'CNC 280826' && remoteQuotes[0]) {
+              chosen = draft;
+            } else if (prev.code === 'CNC 280826' && remoteQuotes[0]) {
               const firstRemote = remoteQuotes[0];
               // Se o remoteQuote não trouxe itens mas o initial prev tinha, mantém itens
               if ((!firstRemote.items || firstRemote.items.length === 0) && prev.items && prev.items.length > 0) {
-                return { ...firstRemote, items: prev.items };
+                chosen = { ...firstRemote, items: prev.items };
+              } else {
+                chosen = firstRemote;
               }
-              return firstRemote;
             }
-            return prev;
+            if (!chosen.openingText || chosen.openingText.trim() === 'Em atenção...' || chosen.openingText.trim() === 'Em atenção') {
+              chosen = {
+                ...chosen,
+                openingText: remoteSettings?.defaultOpeningText || defaultCompanySettings.defaultOpeningText
+              };
+            }
+            return chosen;
           });
         }
 
@@ -379,8 +394,13 @@ export const App: React.FC = () => {
   useEffect(() => { saveProducts(products); }, [products]);
   useEffect(() => { saveEmails(emails); }, [emails]);
   useEffect(() => { saveQuotes(quotes); }, [quotes]);
-  useEffect(() => { saveClientCompanies(clientCompanies); }, [clientCompanies]);
-  useEffect(() => { saveCurrentDraftQuote(currentQuote); }, [currentQuote]);
+  // Debounce suave de 400ms para evitar travamentos de I/O em digitação rápida
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      saveCurrentDraftQuote(currentQuote);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [currentQuote]);
   useEffect(() => { saveActiveTab(activeTab); }, [activeTab]);
 
   const handleConnectGoogle = async () => {
@@ -413,8 +433,11 @@ export const App: React.FC = () => {
       const auth = await requestGmailAccessToken(googleClientId, true);
       setIsGoogleConnected(true);
       setConnectedUserEmail(auth.email);
-      setSettings(prev => ({ ...prev, googleAccountEmail: auth.email, googleWorkspaceConnected: true }));
-      saveSettings({ ...settings, googleAccountEmail: auth.email, googleWorkspaceConnected: true });
+      setSettings(prev => {
+        const updated = { ...prev, googleAccountEmail: auth.email, googleWorkspaceConnected: true };
+        saveSettings(updated);
+        return updated;
+      });
     } catch (err: any) {
       console.warn('Troca de conta cancelada ou falhou:', err);
     }
@@ -471,7 +494,10 @@ export const App: React.FC = () => {
 
       // Cost price: catalog > resolved marketplace cost > suggested estimated cost
       const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || item.estimatedCost || 0);
-      const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
+      const unitPrice = item.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
+      const markupPercent = (item.unitPrice && cost > 0)
+        ? calculateMarkupFromUnitPrice(item.unitPrice, cost, shipping, tax)
+        : (item.markupPercent || markup);
       const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
 
       // Image: inline image from table > catalog photo > resolved web photo
@@ -502,7 +528,7 @@ export const App: React.FC = () => {
         costPrice: cost,
         shippingCost: shipping,
         taxPercent: tax,
-        markupPercent: markup,
+        markupPercent,
         unitPrice,
         totalPrice,
         sourceUrl: itemUrl
@@ -691,7 +717,7 @@ export const App: React.FC = () => {
 
   const handleNewQuote = () => {
     const defaultMarkup = settings.defaultMarkupPercent ?? 23.5;
-    const defaultTax = settings.defaultTaxPercent ?? 6;
+    const defaultTax = settings.defaultTaxPercent ?? 9.1;
     const defaultShipping = settings.defaultShippingCost ?? 0;
 
     const blank: Quote = {
@@ -722,6 +748,27 @@ export const App: React.FC = () => {
     };
     setCurrentQuote(blank);
     setActiveTab('builder');
+  };
+
+  const handleSaveProductToCatalog = (p: Product) => {
+    setProducts(prev => {
+      const existingIdx = prev.findIndex(item => 
+        (p.id && item.id === p.id) || 
+        (p.partNumber && item.partNumber && item.partNumber.trim().toLowerCase() === p.partNumber.trim().toLowerCase()) ||
+        (p.sku && item.sku && item.sku.trim().toLowerCase() === p.sku.trim().toLowerCase()) ||
+        (p.name && item.name && item.name.trim().toLowerCase() === p.name.trim().toLowerCase())
+      );
+      let next: Product[];
+      if (existingIdx >= 0) {
+        next = [...prev];
+        next[existingIdx] = { ...prev[existingIdx], ...p };
+      } else {
+        next = [p, ...prev];
+      }
+      saveProducts(next);
+      return next;
+    });
+    syncProductToSupabase(p);
   };
 
   const handleSaveQuote = () => {
@@ -791,8 +838,11 @@ export const App: React.FC = () => {
         token = auth.token;
         setIsGoogleConnected(true);
         setConnectedUserEmail(auth.email);
-        setSettings(prev => ({ ...prev, googleAccountEmail: auth.email, googleWorkspaceConnected: true }));
-        saveSettings({ ...settings, googleAccountEmail: auth.email, googleWorkspaceConnected: true });
+        setSettings(prev => {
+          const updated = { ...prev, googleAccountEmail: auth.email, googleWorkspaceConnected: true };
+          saveSettings(updated);
+          return updated;
+        });
       } catch (authErr: any) {
         console.error('Falha na autenticação do Gmail:', authErr);
         disconnectGmailAccount();
@@ -820,6 +870,7 @@ export const App: React.FC = () => {
       // Usar a conta conectada garante 100% de entrega e gravação imediata nos "Itens Enviados" do Gmail.
       const senderAddress = connectedUserEmail || settings.googleAccountEmail || 'me';
       const replyToAddress = settings.email || senderAddress;
+      const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`;
 
       await sendRealGmailMessage(token, {
         to: recipient,
@@ -827,7 +878,7 @@ export const App: React.FC = () => {
         from: senderAddress,
         fromName: senderDisplayName,
         replyTo: replyToAddress,
-        subject: `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`,
+        subject: finalSubject,
         bodyText: `Prezada(o) ${sentQuote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial ${sentQuote.code} para ${sentQuote.clientCompany}.\n\nValor Total: R$ ${sentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCondições de Pagamento: ${sentQuote.paymentTerms}\nPrazo de Entrega: ${sentQuote.deliveryDays}\nGarantia: ${sentQuote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\n${tradeName}\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`,
         bodyHtml: proposalHtml
       });
@@ -840,44 +891,46 @@ export const App: React.FC = () => {
       throw new Error(`Falha no envio do Gmail: ${err.message || 'Verifique se você selecionou a conta correta do Google'}`);
     }
 
-    if (sentQuote.items && sentQuote.items.length > 0) {
-      if (sentQuote.code) saveQuoteItemsBackup(sentQuote.code, sentQuote.items);
-      if (sentQuote.id) saveQuoteItemsBackup(sentQuote.id, sentQuote.items);
-    }
-    saveCurrentDraftQuote(sentQuote);
+    const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`;
+    const quoteToSave: Quote = {
+      ...sentQuote,
+      subject: finalSubject
+    };
 
-    setCurrentQuote(sentQuote);
+    if (quoteToSave.items && quoteToSave.items.length > 0) {
+      if (quoteToSave.code) saveQuoteItemsBackup(quoteToSave.code, quoteToSave.items);
+      if (quoteToSave.id) saveQuoteItemsBackup(quoteToSave.id, quoteToSave.items);
+    }
+    saveCurrentDraftQuote(quoteToSave);
+
+    setCurrentQuote(quoteToSave);
     setQuotes(prev => {
-      const filtered = prev.filter(q => q.id !== sentQuote.id && q.code !== sentQuote.code);
-      const next = [sentQuote, ...filtered];
+      const filtered = prev.filter(q => q.id !== quoteToSave.id && q.code !== quoteToSave.code);
+      const next = [quoteToSave, ...filtered];
       saveQuotes(next);
       return next;
     });
 
-    syncQuoteToSupabase(sentQuote);
+    syncQuoteToSupabase(quoteToSave);
     setActiveTab('history');
   };
 
   const handleAddWebSearchItemToQuote = (item: Partial<QuoteItem>) => {
-    handleStartNewQuoteWithItems([item]);
-  };
-
-  const handleStartNewQuoteWithItems = (itemsToAdd: Partial<QuoteItem>[]) => {
-    const markup = settings.defaultMarkupPercent || 23.5;
-    const tax = settings.defaultTaxPercent || 9.1;
-    const shipping = settings.defaultShippingCost || 0;
-
-    const items: QuoteItem[] = itemsToAdd.map((item, idx) => {
+    if (currentQuote.items.length > 0) {
+      const markup = settings.defaultMarkupPercent || 23.5;
+      const tax = settings.defaultTaxPercent || 9.1;
+      const shipping = settings.defaultShippingCost || 0;
       const cost = item.costPrice || 0;
       const unitPrice = item.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
       const qty = item.quantity || 1;
       const totalPrice = Number((unitPrice * qty).toFixed(2));
 
-      return {
-        id: `item-${Date.now()}-${idx}`,
-        itemNumber: idx + 1,
+      const newItem: QuoteItem = {
+        id: `item-${Date.now()}`,
+        productId: item.productId,
+        itemNumber: currentQuote.items.length + 1,
         name: item.name || '',
-        description: '',
+        description: item.description || '',
         partNumber: item.partNumber || '',
         ncm: item.ncm || '',
         imageUrl: item.imageUrl || '',
@@ -888,6 +941,78 @@ export const App: React.FC = () => {
         shippingCost: shipping,
         taxPercent: tax,
         markupPercent: markup,
+        unitPrice,
+        totalPrice,
+        sourceUrl: item.sourceUrl || '',
+        supplier: item.supplier || ''
+      };
+
+      const updatedItems = [...currentQuote.items, newItem];
+      let totalCost = 0;
+      let totalShipping = 0;
+      let totalAmount = 0;
+      let totalTaxes = 0;
+
+      updatedItems.forEach(i => {
+        const q = i.quantity || 1;
+        const itemCost = i.costPrice * q;
+        const itemShipping = (i.shippingCost || 0) * q;
+        const itemTotal = i.totalPrice;
+        const itemTax = itemTotal * ((i.taxPercent || tax) / 100);
+
+        totalCost += itemCost;
+        totalShipping += itemShipping;
+        totalAmount += itemTotal;
+        totalTaxes += itemTax;
+      });
+
+      const totalProfit = totalAmount - totalCost - totalShipping - totalTaxes;
+      const directCosts = totalCost + totalShipping;
+      const averageMargin = directCosts > 0 ? (totalProfit / directCosts) * 100 : markup;
+
+      setCurrentQuote(prev => ({
+        ...prev,
+        items: updatedItems,
+        totalCost,
+        totalProfit,
+        totalAmount,
+        averageMargin
+      }));
+      setActiveTab('builder');
+    } else {
+      handleStartNewQuoteWithItems([item]);
+    }
+  };
+
+  const handleStartNewQuoteWithItems = (itemsToAdd: Partial<QuoteItem>[]) => {
+    const markup = settings.defaultMarkupPercent || 23.5;
+    const tax = settings.defaultTaxPercent || 9.1;
+    const shipping = settings.defaultShippingCost || 0;
+
+    const items: QuoteItem[] = itemsToAdd.map((item, idx) => {
+      const cost = item.costPrice || 0;
+      const unitPrice = item.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
+      const markupPercent = (item.unitPrice && cost > 0)
+        ? calculateMarkupFromUnitPrice(item.unitPrice, cost, shipping, tax)
+        : (item.markupPercent || markup);
+      const qty = item.quantity || 1;
+      const totalPrice = Number((unitPrice * qty).toFixed(2));
+
+      return {
+        id: `item-${Date.now()}-${idx}`,
+        itemNumber: idx + 1,
+        name: item.name || '',
+        description: item.description || '',
+        partNumber: item.partNumber || '',
+        ncm: item.ncm || '',
+        imageUrl: item.imageUrl || '',
+        showImage: item.showImage ?? (item.imageUrl ? true : false),
+        quantity: qty,
+        unit: item.unit || 'Un.',
+        costPrice: cost,
+        shippingCost: shipping,
+        taxPercent: tax,
+        markupPercent,
         unitPrice,
         totalPrice,
         sourceUrl: item.sourceUrl || '',
@@ -1062,7 +1187,10 @@ export const App: React.FC = () => {
         const exactSearchRef = it.rawSearchQuery || [it.name, it.description].filter(Boolean).join(' - ');
         const resolved = resolveProductDetails(exactSearchRef, it.description);
         const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || it.estimatedCost || 0);
-        const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
+        const unitPrice = it.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
+        const markupPercent = (it.unitPrice && cost > 0)
+          ? calculateMarkupFromUnitPrice(it.unitPrice, cost, shipping, tax)
+          : markup;
         const totalPrice = Number((unitPrice * it.quantity).toFixed(2));
         const finalImageUrl = it.imageUrl || matchedProd?.imageUrl || resolved.imageUrl;
         const finalPartNumber = it.partNumber || it.itemCode || matchedProd?.partNumber || resolved.partNumber;
@@ -1084,7 +1212,7 @@ export const App: React.FC = () => {
           costPrice: cost,
           shippingCost: shipping,
           taxPercent: tax,
-          markupPercent: markup,
+          markupPercent,
           unitPrice,
           totalPrice,
           sourceUrl: itemUrl
@@ -1103,8 +1231,10 @@ export const App: React.FC = () => {
       const cost = Number(q.totalCost || 0);
       const shipping = Number(q.totalShipping || 0);
       const tax = Number(q.globalTaxPercent || 6);
-      const markup = Number(q.averageMargin || q.globalMarkupPercent || 35);
       const total = Number(q.totalAmount || 0);
+      const markup = (total > 0 && cost > 0)
+        ? calculateMarkupFromUnitPrice(total, cost, shipping, tax)
+        : Number(q.averageMargin || q.globalMarkupPercent || 35);
       const fallbackItem: QuoteItem = {
         id: `item-${Date.now()}-1`,
         itemNumber: 1,
@@ -1221,14 +1351,7 @@ export const App: React.FC = () => {
               setWebSearchExistingItem(existingItem || null);
               setActiveTab('websearch');
             }}
-            onSaveToCatalog={(p) => {
-              setProducts(prev => {
-                const next = [p, ...prev];
-                saveProducts(next);
-                return next;
-              });
-              syncProductToSupabase(p);
-            }}
+            onSaveToCatalog={handleSaveProductToCatalog}
             onUpdateSettings={handleSaveSettings}
             onNewQuote={handleNewQuote}
           />
@@ -1269,14 +1392,7 @@ export const App: React.FC = () => {
                 };
               });
             }}
-            onSaveToCatalog={(p) => {
-              setProducts(prev => {
-                const next = [p, ...prev];
-                saveProducts(next);
-                return next;
-              });
-              syncProductToSupabase(p);
-            }}
+            onSaveToCatalog={handleSaveProductToCatalog}
           />
         )}
 

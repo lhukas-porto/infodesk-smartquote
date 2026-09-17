@@ -56,10 +56,12 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   // New Company form state
   const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyPrefix, setNewCompanyPrefix] = useState<'À' | 'Ao'>('À');
   const [newCompanyLocation, setNewCompanyLocation] = useState('Brasília - DF');
 
   // Edit Company state
   const [editCompanyName, setEditCompanyName] = useState('');
+  const [editCompanyPrefix, setEditCompanyPrefix] = useState<'À' | 'Ao'>('À');
   const [editCompanyLocation, setEditCompanyLocation] = useState('');
 
   // New Contact form state
@@ -135,6 +137,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     const newCompany: ClientCompany = {
       id: `comp-${Date.now()}`,
       name: newCompanyName.trim(),
+      prefix: newCompanyPrefix,
       defaultDeliveryLocation: loc,
       locations: [loc],
       contacts: [],
@@ -144,12 +147,14 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     onSaveCompanies(updated);
     setSelectedCompanyId(newCompany.id);
     setNewCompanyName('');
+    setNewCompanyPrefix('À');
     setIsAddingCompany(false);
-    showToast(`Empresa "${newCompany.name}" cadastrada!`);
+    showToast(`Empresa "${newCompany.prefix} ${newCompany.name}" cadastrada!`);
   };
 
   const handleStartEditCompany = (comp: ClientCompany) => {
     setEditCompanyName(comp.name);
+    setEditCompanyPrefix((comp.prefix as 'À' | 'Ao') || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À'));
     setEditCompanyLocation(comp.defaultDeliveryLocation || 'Brasília - DF');
     setIsEditingCompany(true);
   };
@@ -161,7 +166,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       if (c.id === companyId) {
         const existingLocs = Array.isArray(c.locations) ? c.locations : [];
         const nextLocs = existingLocs.includes(loc) ? existingLocs : [loc, ...existingLocs];
-        return { ...c, name: editCompanyName.trim(), defaultDeliveryLocation: loc, locations: nextLocs };
+        return { ...c, name: editCompanyName.trim(), prefix: editCompanyPrefix, defaultDeliveryLocation: loc, locations: nextLocs };
       }
       return c;
     });
@@ -423,7 +428,26 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                 <span className="text-xs font-bold text-slate-800">Cadastrar Empresa</span>
                 <button type="button" onClick={() => setIsAddingCompany(false)} className="text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
               </div>
-              <input type="text" placeholder="Nome da empresa..." value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-medium" autoFocus required />
+              <div className="flex gap-1.5">
+                <select
+                  value={newCompanyPrefix}
+                  onChange={(e) => setNewCompanyPrefix(e.target.value as 'À' | 'Ao')}
+                  className="text-xs px-2 py-1.5 bg-sky-50 border border-sky-300 rounded-lg font-bold text-sky-900 focus:outline-none focus:border-sky-500 cursor-pointer shadow-2xs"
+                  title="Escolha o prefixo de tratamento da empresa (À ou Ao)"
+                >
+                  <option value="À">À</option>
+                  <option value="Ao">Ao</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Nome da empresa..."
+                  value={newCompanyName}
+                  onChange={(e) => setNewCompanyName(e.target.value)}
+                  className="flex-1 text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-medium"
+                  autoFocus
+                  required
+                />
+              </div>
               <input type="text" placeholder="Local padrão (Ex: Brasília - DF)" value={newCompanyLocation} onChange={(e) => setNewCompanyLocation(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500" />
               <div className="flex justify-end gap-1.5 pt-1">
                 <button type="button" onClick={() => setIsAddingCompany(false)} className="text-xs px-2.5 py-1 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
@@ -435,6 +459,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
           <div className="space-y-1.5 flex-1 overflow-y-auto pr-0.5">
             {filteredCompanies.map(comp => {
               const isSelected = selectedCompany?.id === comp.id;
+              const displayPrefix = comp.prefix || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
               return (
                 <div
                   key={comp.id}
@@ -442,7 +467,12 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   className={`p-3 rounded-xl cursor-pointer border transition space-y-1 ${isSelected ? 'bg-sky-50/90 border-sky-400 shadow-sm' : 'bg-white hover:bg-slate-100 border-slate-200/80'}`}
                 >
                   <div className="flex items-start justify-between gap-1.5">
-                    <p className={`text-xs font-bold leading-snug line-clamp-2 ${isSelected ? 'text-sky-900' : 'text-slate-800'}`}>{comp.name}</p>
+                    <p className={`text-xs font-bold leading-snug line-clamp-2 ${isSelected ? 'text-sky-900' : 'text-slate-800'}`}>
+                      <span className="inline-block text-[10px] font-mono font-bold text-sky-700 bg-sky-100/80 border border-sky-200 px-1 py-0.2 rounded mr-1">
+                        {displayPrefix}
+                      </span>
+                      {comp.name}
+                    </p>
                     <div className="flex items-center gap-1 shrink-0">
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{comp.contacts.length} comp.</span>
                       <button
@@ -484,7 +514,24 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nome da Empresa / Órgão</label>
-                        <input type="text" required value={editCompanyName} onChange={(e) => setEditCompanyName(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-bold text-slate-900" />
+                        <div className="flex gap-1.5">
+                          <select
+                            value={editCompanyPrefix}
+                            onChange={(e) => setEditCompanyPrefix(e.target.value as 'À' | 'Ao')}
+                            className="text-xs px-2 py-1.5 bg-sky-50 border border-sky-300 rounded-lg font-bold text-sky-900 focus:outline-none focus:border-sky-500 cursor-pointer shadow-2xs"
+                            title="Escolha o prefixo de tratamento da empresa (À ou Ao)"
+                          >
+                            <option value="À">À</option>
+                            <option value="Ao">Ao</option>
+                          </select>
+                          <input
+                            type="text"
+                            required
+                            value={editCompanyName}
+                            onChange={(e) => setEditCompanyName(e.target.value)}
+                            className="flex-1 text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-bold text-slate-900"
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-1">Local de Entrega Padrão</label>
@@ -502,7 +549,12 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
                       <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 uppercase tracking-wider">Empresa Selecionada</span>
-                      <h3 className="text-base font-bold text-slate-900 leading-tight mt-1">{selectedCompany.name}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200 shadow-2xs">
+                          {selectedCompany.prefix || (selectedCompany.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À')}
+                        </span>
+                        <h3 className="text-base font-bold text-slate-900 leading-tight">{selectedCompany.name}</h3>
+                      </div>
                       {selectedCompany.defaultDeliveryLocation && (
                         <p className="text-xs text-slate-500 flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-sky-600" />
