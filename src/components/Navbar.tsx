@@ -4,13 +4,8 @@ import {
   Mail, 
   Package, 
   Search, 
-  Send, 
   Settings, 
-  Sparkles, 
-  PlusCircle, 
-  Layers,
   Users,
-  Camera,
   History
 } from 'lucide-react';
 import { CompanySettings } from '../types';
@@ -23,7 +18,7 @@ interface NavbarProps {
   openWebSearch?: () => void;
   openClientsModal?: () => void;
   settings: CompanySettings;
-  onNewQuote: () => void;
+  onNewQuote?: () => void;
   analysesCount?: number;
   isScannerOpen?: boolean;
 }
@@ -112,17 +107,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Scanner de Preços</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('preview')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                activeTab === 'preview'
-                  ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Proposta</span>
-            </button>
+
 
             <button
               onClick={() => setActiveTab('catalog')}
@@ -176,15 +161,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Users className="w-3.5 h-3.5" />
               <span>Empresas</span>
-            </button>
-
-            <button
-              onClick={onNewQuote}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition active:scale-95 whitespace-nowrap"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Novo Orçamento</span>
-              <span className="sm:hidden">Novo</span>
             </button>
 
             <button

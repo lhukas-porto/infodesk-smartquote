@@ -41,7 +41,8 @@ import {
   ClipboardPaste,
   ChevronUp,
   Sliders,
-  LayoutList
+  LayoutList,
+  PlusCircle
 } from 'lucide-react';
 import { ClientCompany, ClientContact, CompanySettings, Product, Quote, QuoteItem } from '../types';
 import { 
@@ -87,6 +88,7 @@ interface QuoteBuilderProps {
   onDeleteContact?: (contactId: string, companyId: string) => void;
   onOpenEmailScanner?: () => void;
   onUpdateSettings?: (newSettings: CompanySettings) => void;
+  onNewQuote?: () => void;
 }
 
 export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
@@ -104,7 +106,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   onDeleteCompany: propsOnDeleteCompany,
   onDeleteContact: propsOnDeleteContact,
   onOpenEmailScanner: propsOnOpenEmailScanner,
-  onUpdateSettings
+  onUpdateSettings,
+  onNewQuote
 }) => {
   const [globalMarkup, setGlobalMarkup] = useState<number>(() => {
     return currentQuote.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 23.5;
@@ -1375,6 +1378,27 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </p>
         </div>
 
+        {onNewQuote && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (currentQuote.items.length > 0) {
+                  if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
+                    onNewQuote();
+                  }
+                } else {
+                  onNewQuote();
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-xs transition active:scale-95 whitespace-nowrap cursor-pointer"
+              title="Iniciar um novo orçamento em branco"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Novo Orçamento</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Financial Summary Dashboard (5 Cards) */}
@@ -3341,6 +3365,26 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          {onNewQuote && (
+            <button
+              type="button"
+              onClick={() => {
+                if (currentQuote.items.length > 0) {
+                  if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
+                    onNewQuote();
+                  }
+                } else {
+                  onNewQuote();
+                }
+              }}
+              className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-sky-700 border border-sky-200/90 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+              title="Iniciar um novo orçamento em branco"
+            >
+              <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
+              <span>Novo Orçamento</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => persistAndProceed(onSave)}

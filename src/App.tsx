@@ -1099,6 +1099,7 @@ export const App: React.FC = () => {
               syncProductToSupabase(p);
             }}
             onUpdateSettings={handleSaveSettings}
+            onNewQuote={handleNewQuote}
           />
         )}
 
