@@ -35,10 +35,13 @@ import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
 
 interface InboxViewProps {
   emails: IncomingEmail[];
+  manualAnalyses?: IncomingEmail[];
   onSelectEmailToQuote: (email: IncomingEmail) => void;
   onParseCustomEmail: (rawText: string) => void;
   onAddCustomEmail?: (email: IncomingEmail) => void;
   onAddManualAnalysis?: (email: IncomingEmail) => void;
+  onDeleteManualAnalysis?: (id: string) => void;
+  onUpdateManualAnalysis?: (id: string, updates: Partial<IncomingEmail>) => void;
   isGoogleConnected?: boolean;
   connectedEmail?: string | null;
   isSyncing?: boolean;
@@ -53,10 +56,13 @@ interface InboxViewProps {
 
 export const InboxView: React.FC<InboxViewProps> = ({
   emails,
+  manualAnalyses = [],
   onSelectEmailToQuote,
   onParseCustomEmail,
   onAddCustomEmail,
   onAddManualAnalysis,
+  onDeleteManualAnalysis,
+  onUpdateManualAnalysis,
   isGoogleConnected = false,
   connectedEmail = 'lucas@infodesk.com.br',
   isSyncing = false,
@@ -70,6 +76,8 @@ export const InboxView: React.FC<InboxViewProps> = ({
 }) => {
   const [selectedEmail, setSelectedEmail] = useState<IncomingEmail | null>(emails[0] || null);
   const [filterText, setFilterText] = useState('');
+  const [inboxSourceFilter, setInboxSourceFilter] = useState<'all' | 'gmail' | 'analyses'>('all');
+  const [confirmDeleteAnalysisId, setConfirmDeleteAnalysisId] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customModeType, setCustomModeType] = useState<'image' | 'text'>('image');
@@ -370,9 +378,41 @@ export const InboxView: React.FC<InboxViewProps> = ({
     }
   };
 
+  const gmailCount = (Array.isArray(emails) ? emails : []).length;
+  const analysesCount = (Array.isArray(manualAnalyses) ? manualAnalyses : []).length;
+  const totalCount = gmailCount + analysesCount;
+
   const safeEmails = React.useMemo(() => {
-    return (Array.isArray(emails) ? emails : []).filter(Boolean);
-  }, [emails]);
+    const rawGmail = (Array.isArray(emails) ? emails : []).filter(Boolean);
+    const rawAnalyses = (Array.isArray(manualAnalyses) ? manualAnalyses : []).filter(Boolean);
+
+    if (inboxSourceFilter === 'gmail') return rawGmail;
+    if (inboxSourceFilter === 'analyses') return rawAnalyses;
+
+    const seen = new Set<string>();
+    const combined: IncomingEmail[] = [];
+    [...rawAnalyses, ...rawGmail].forEach(item => {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        combined.push(item);
+      }
+    });
+    return combined;
+  }, [emails, manualAnalyses, inboxSourceFilter]);
+
+  const handleDeleteSelectedAnalysis = (id: string) => {
+    if (confirmDeleteAnalysisId === id) {
+      if (onDeleteManualAnalysis) {
+        onDeleteManualAnalysis(id);
+      }
+      setConfirmDeleteAnalysisId(null);
+      setInboxLinkFeedback('✓ Demanda avulsa removida com sucesso.');
+      setTimeout(() => setInboxLinkFeedback(null), 4000);
+    } else {
+      setConfirmDeleteAnalysisId(id);
+      setTimeout(() => setConfirmDeleteAnalysisId(null), 3000);
+    }
+  };
 
   React.useEffect(() => {
     if (safeEmails.length > 0 && (!selectedEmail || !safeEmails.find(e => e.id === selectedEmail.id))) {
@@ -495,7 +535,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
               <button
                 onClick={onConnectGoogle}
                 disabled={isSyncing}
-                className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 active:scale-95"
+                className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -510,7 +550,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                 <button
                   onClick={() => onRefreshEmails?.(currentPeriod)}
                   disabled={isSyncing}
-                  className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition flex items-center gap-2 shadow-xs"
+                  className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-2xs cursor-pointer active:scale-95"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isSyncing ? 'animate-spin' : ''}`} />
                   <span>{isSyncing ? 'Buscando...' : 'Sincronizar Gmail'}</span>
@@ -518,7 +558,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
                 <button
                   onClick={onDisconnectGoogle}
-                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-xl transition"
+                  className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-xl transition cursor-pointer"
                   title="Desconectar conta Google"
                 >
                   <LogOut className="w-4 h-4" />
@@ -528,13 +568,13 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
             <button
               onClick={() => setIsCustomMode(!isCustomMode)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition flex items-center gap-2 ${
+              className={`px-3.5 py-2.5 rounded-xl text-xs font-bold border transition flex items-center gap-2 cursor-pointer active:scale-95 ${
                 isCustomMode 
-                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-xs' 
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 shadow-xs'
+                  ? 'bg-sky-600 text-white border-sky-500 shadow-xs' 
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 shadow-2xs'
               }`}
             >
-              <FileEdit className="w-4 h-4 text-indigo-600" />
+              <FileEdit className="w-4 h-4 text-sky-600" />
               <span>Colar E-mail Avulso</span>
             </button>
           </div>
@@ -1227,11 +1267,11 @@ export const InboxView: React.FC<InboxViewProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-sky-600" />
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-sky-800">
+                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                       Itens Identificados pela IA para a Infodesk
                     </h4>
                   </div>
-                  <span className="text-[10px] text-slate-500 font-medium bg-white px-2 py-0.5 rounded border border-sky-200">
+                  <span className="text-[10px] text-sky-700 font-bold bg-white px-2 py-0.5 rounded border border-sky-200">
                     {(editableItems || []).length} {(editableItems || []).length === 1 ? 'item pronto' : 'itens prontos'} · Editáveis
                   </span>
                 </div>
@@ -1329,7 +1369,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   <button
                     type="button"
                     onClick={handleAddItem}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:text-sky-800 bg-white hover:bg-sky-50 border border-sky-200 rounded-lg shadow-2xs transition active:scale-95"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl shadow-2xs transition cursor-pointer active:scale-95"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Adicionar Item Manual</span>
@@ -1339,10 +1379,10 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     type="button"
                     onClick={handleLoadToQuote}
                     disabled={editableItems.length === 0}
-                    className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 active:scale-95"
+                    className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95"
                   >
                     <span>Carregar na Cotação com Margens</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>

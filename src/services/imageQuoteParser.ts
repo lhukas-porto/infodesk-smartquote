@@ -24,6 +24,7 @@ export interface ExtractedImageQuoteData {
     partNumber?: string;
     estimatedCost?: number;
     sourceUrl?: string;
+    imageUrl?: string;
   }>;
 }
 
@@ -352,6 +353,7 @@ async function extractWithGeminiVision(
       'Você é um especialista sênior em cotações comerciais, suprimentos corporativos e compras públicas no Brasil.\n' +
       'Analise a imagem desta cotação, pedido ou print com extrema precisão.\n\n' +
       'DIRETRIZES OBRIGATÓRIAS:\n' +
+      '0. PRIORIDADE VISUAL DA FOTO DO PRODUTO: Se a imagem contiver uma foto real do produto físico (ex: carrinho plataforma, equipamento, máquina ou peça), ANALISE ATENTAMENTE A FOTO PRIMEIRO: formato do chassi, presença de grade (fixa ou móvel aramada), tipo exato de rodas/rodízios (pneumáticas com câmara vs borracha maciça), acabamento e cores. O nome e descrição DEVEM descrever fielmente o produto físico visível na foto com máxima especificidade comercial.\n' +
       '1. NOMENCLATURA PADRONIZADA DE CATÁLOGO / FABRICANTE: Para cada produto, defina um nome canônico e profissional no padrão:\n' +
       '   [Tipo do Produto] [Marca] [Linha Especificação Sabor] [Embalagem Gramatura Tamanho]\n' +
       '   - REGRA DE OURO DE PONTUAÇÃO: NUNCA use vírgulas (,) no nome ou descrição dos produtos. Traços, hífens (-), barras e outros símbolos são totalmente permitidos quando fizerem parte do modelo, código, part number ou especificação.\n' +
@@ -420,6 +422,7 @@ async function extractWithGeminiVision(
         const parsed = JSON.parse(text);
         if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
           onProgress?.(95, 'Itens e detalhes identificados com precisão pelo Gemini!');
+          const photoUrl = `data:${imgData.mimeType};base64,${imgData.base64}`;
           return {
             senderName: parsed.senderName || '',
             senderEmail: parsed.senderEmail || '',
@@ -435,7 +438,8 @@ async function extractWithGeminiVision(
               unit: it.unit || 'Un.',
               partNumber: it.partNumber || '',
               itemCode: it.itemCode || it.partNumber || '',
-              estimatedCost: Number(it.estimatedCost) || 0
+              estimatedCost: Number(it.estimatedCost) || 0,
+              imageUrl: photoUrl
             }))
           };
         }

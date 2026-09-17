@@ -27,7 +27,11 @@ import {
   History,
   Tag,
   Type,
-  ChevronDown
+  ChevronDown,
+  Trash2,
+  Zap,
+  CheckCircle2,
+  Printer
 } from 'lucide-react';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
 import { Product, QuoteItem } from '../types';
@@ -45,13 +49,16 @@ import {
   WordCaseStyle
 } from '../utils/aiEmailParser';
 import {
+  DiscoveredProduct,
   ScannedPriceResult,
   BatchScanProgress,
   parsePastedProductList,
   parsePastedProductListWithQty,
   runBatchPriceScan,
   scanSingleProductPrice,
-  formatBRL
+  formatBRL,
+  phase1DiscoverProductsFromText,
+  runBatchPhase2Scan
 } from '../services/priceScannerService';
 
 interface WebSearchModalProps {
@@ -109,12 +116,18 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
   const [batchResults, setBatchResults] = useState<ScannedPriceResult[]>([]);
   const [selectedResultIds, setSelectedResultIds] = useState<Set<string>>(new Set());
 
+  // Fluxo em 2 Fases (Fase 1: Dedução Técnica -> Fase 2: Infodesk Store Cotação & Enriquecimento)
+  const [discoveredProducts, setDiscoveredProducts] = useState<DiscoveredProduct[]>([]);
+  const [isDiscoveringPhase1, setIsDiscoveringPhase1] = useState(false);
+  const [phase1StatusMessage, setPhase1StatusMessage] = useState('');
+
   // OCR Image Transcription State
   const [isOcrProcessing, setIsOcrProcessing] = useState(false);
   const [ocrProgressMessage, setOcrProgressMessage] = useState('');
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
   const [ocrEditableText, setOcrEditableText] = useState('');
   const [ocrImagePreview, setOcrImagePreview] = useState<string | null>(null);
+  const [attachedProductPhoto, setAttachedProductPhoto] = useState<string | null>(null);
   const imageUploadInputRef = useRef<HTMLInputElement>(null);
 
   // Success Feedbacks
@@ -194,21 +207,47 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
     runProductStandardization(query);
   };
 
-  // Run Batch Scan
-  const handleStartBatchScan = async () => {
-    const itemsToScan = parsePastedProductListWithQty(batchRawInput);
-    if (itemsToScan.length === 0) return;
+  // ─── FASE 1: Identificar Produto(s) com Dedução e Engenharia Reversa ──────────
+  const handleStartPhase1Discovery = async () => {
+    if (!batchRawInput.trim() && !attachedProductPhoto) return;
 
-    setIsScanningBatch(true);
-    setBatchProgress({ total: itemsToScan.length, current: 0, currentProduct: '', isComplete: false });
+    setIsDiscoveringPhase1(true);
+    setPhase1StatusMessage(
+      attachedProductPhoto
+        ? 'Examinando foto com prioridade visual máxima + especificações do texto...'
+        : 'Analisando características técnicas e identificando o(s) produto(s)...'
+    );
     setBatchResults([]);
     setSelectedResultIds(new Set());
 
     try {
-      const results = await runBatchPriceScan(itemsToScan, (prog, currentRes) => {
+      const discovered = await phase1DiscoverProductsFromText(batchRawInput, {
+        imageSource: attachedProductPhoto
+      });
+      setDiscoveredProducts(discovered);
+    } catch (err) {
+      console.error('Erro na Fase 1 (Dedução de Produtos):', err);
+      alert('Não foi possível identificar os produtos. Verifique o texto e tente novamente.');
+    } finally {
+      setIsDiscoveringPhase1(false);
+      setPhase1StatusMessage('');
+    }
+  };
+
+  // ─── FASE 2: Buscar Preços e Enriquecer (Sistemática Infodesk Store) ───────────
+  const handleStartPhase2Enrichment = async () => {
+    if (discoveredProducts.length === 0) return;
+
+    setIsScanningBatch(true);
+    setBatchProgress({ total: discoveredProducts.length, current: 0, currentProduct: '', isComplete: false });
+    setBatchResults([]);
+    setSelectedResultIds(new Set());
+
+    try {
+      const results = await runBatchPhase2Scan(discoveredProducts, (prog, currentRes) => {
         setBatchProgress({ ...prog });
         setBatchResults([...currentRes]);
-        // Auto select all valid priced items as they arrive
+        // Auto-seleciona os itens com preço válido
         const newSelected = new Set<string>();
         currentRes.forEach(r => {
           if (r.bestPrice > 0) newSelected.add(r.id);
@@ -223,11 +262,119 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
       });
       setSelectedResultIds(initialSelected);
     } catch (err) {
-      console.error('Batch scan error:', err);
+      console.error('Erro na Fase 2 (Enriquecimento e Preços):', err);
     } finally {
       setIsScanningBatch(false);
     }
   };
+
+  // Atualização em tempo real de produtos identificados na Fase 1
+  const handleUpdateDiscoveredProduct = (id: string, updates: Partial<DiscoveredProduct>) => {
+    setDiscoveredProducts(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
+  };
+
+  // Remoção de um item específico da Fase 1
+  const handleRemoveDiscoveredProduct = (id: string) => {
+    setDiscoveredProducts(prev => prev.filter(p => p.id !== id));
+  };
+
+  // Seleção de foto na galeria de thumbnails do produto identificado
+  const handleSelectDiscoveredImage = (productId: string, index: number) => {
+    setDiscoveredProducts(prev => prev.map(p => {
+      if (p.id !== productId) return p;
+      return {
+        ...p,
+        selectedImageIndex: index,
+        imageUrl: p.images?.[index] || p.imageUrl
+      };
+    }));
+  };
+
+  // Inserir produto identificado individualmente na cotação
+  const handleAddSingleDiscoveredToQuote = (prod: DiscoveredProduct) => {
+    const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
+    const price = prod.suggestedPrice || (prod.costPrice ? prod.costPrice * 1.35 : 0);
+    const cost = prod.costPrice || (prod.suggestedPrice ? prod.suggestedPrice / 1.35 : 0);
+
+    onAddToQuote({
+      name: prod.standardizedName,
+      description: prod.description || prod.standardizedName,
+      partNumber: cleanAlphanumericCode(prod.partNumber || ''),
+      ncm: cleanNcmCode(prod.ncm || ''),
+      imageUrl: chosenImage,
+      showImage: !!chosenImage,
+      costPrice: cost > 0 ? cost : price,
+      unitPrice: price > 0 ? price : undefined,
+      markupPercent: targetMarginPercent !== null ? targetMarginPercent : undefined,
+      quantity: prod.quantity || 1,
+      unit: prod.unit || 'Un.',
+      supplier: prod.manufacturer || prod.brand || 'Infodesk Store',
+      sourceUrl: ''
+    });
+
+    setAddedSuccess(true);
+    setTimeout(() => {
+      setAddedSuccess(false);
+      onClose();
+    }, 800);
+  };
+
+  // Inserir todos os produtos identificados na cotação
+  const handleAddAllDiscoveredToQuote = () => {
+    if (discoveredProducts.length === 0) return;
+    discoveredProducts.forEach(prod => {
+      const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
+      const price = prod.suggestedPrice || (prod.costPrice ? prod.costPrice * 1.35 : 0);
+      const cost = prod.costPrice || (prod.suggestedPrice ? prod.suggestedPrice / 1.35 : 0);
+
+      onAddToQuote({
+        name: prod.standardizedName,
+        description: prod.description || prod.standardizedName,
+        partNumber: cleanAlphanumericCode(prod.partNumber || ''),
+        ncm: cleanNcmCode(prod.ncm || ''),
+        imageUrl: chosenImage,
+        showImage: !!chosenImage,
+        costPrice: cost > 0 ? cost : price,
+        unitPrice: price > 0 ? price : undefined,
+        markupPercent: targetMarginPercent !== null ? targetMarginPercent : undefined,
+        quantity: prod.quantity || 1,
+        unit: prod.unit || 'Un.',
+        supplier: prod.manufacturer || prod.brand || 'Infodesk Store',
+        sourceUrl: ''
+      });
+    });
+
+    setAddedSuccess(true);
+    setTimeout(() => {
+      setAddedSuccess(false);
+      onClose();
+    }, 800);
+  };
+
+  // Salvar produto no Catálogo
+  const handleSaveDiscoveredToCatalog = (prod: DiscoveredProduct) => {
+    onSaveToCatalog({
+      id: `prod-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      sku: prod.partNumber || `SKU-${Date.now().toString().slice(-6)}`,
+      partNumber: prod.partNumber,
+      ncm: prod.ncm,
+      name: prod.standardizedName,
+      description: prod.description || prod.standardizedName,
+      category: prod.category || 'Geral',
+      costPrice: prod.costPrice || (prod.suggestedPrice ? prod.suggestedPrice / 1.35 : 0),
+      unit: prod.unit || 'Un.',
+      supplier: prod.manufacturer || prod.brand || 'Infodesk Store',
+      imageUrl: prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl,
+      lastUpdated: new Date().toISOString()
+    });
+
+    setSavedCatalogSuccess(true);
+    setTimeout(() => {
+      setSavedCatalogSuccess(false);
+    }, 2000);
+  };
+
+
 
   // Toggle select in batch
   const handleToggleSelectResult = (id: string) => {
@@ -356,6 +503,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
     // Create preview
     const previewUrl = URL.createObjectURL(fileOrBlob);
     setOcrImagePreview(previewUrl);
+    setAttachedProductPhoto(previewUrl);
 
     try {
       const extracted = await extractDataFromQuotationImage(fileOrBlob as File, (pct, msg) => {
@@ -422,8 +570,10 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
         return `${prev.trim()}\n${ocrEditableText.trim()}`;
       });
     }
+    if (ocrImagePreview) {
+      setAttachedProductPhoto(ocrImagePreview);
+    }
     setIsOcrModalOpen(false);
-    setOcrImagePreview(null);
   };
 
   // Apply single item to quote
@@ -576,6 +726,40 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
               </span>
             </div>
 
+            {/* Preview da Foto Real Anexada do Produto (Prioridade Visual Máxima) */}
+            {attachedProductPhoto && (
+              <div className="flex items-center gap-3.5 p-3.5 bg-gradient-to-r from-sky-50 via-indigo-50/50 to-white border border-sky-300 rounded-2xl animate-fadeIn">
+                <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-sky-300 shadow-2xs bg-white shrink-0">
+                  <img
+                    src={attachedProductPhoto}
+                    alt="Foto do Produto Fornecida"
+                    className="w-full h-full object-contain p-1"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2 py-0.5 bg-sky-600 text-white text-[10px] font-extrabold uppercase tracking-wide rounded-md shadow-2xs">
+                      📷 Prioridade Visual Ativa
+                    </span>
+                    <span className="text-xs font-bold text-slate-900">
+                      Foto de Referência Anexada
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5">
+                    A foto dita o modelo real, chassi, grade e rodas. A busca é focada no produto da foto.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAttachedProductPhoto(null)}
+                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                  title="Remover foto anexada"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <div className="relative">
               <textarea
                 rows={6}
@@ -615,28 +799,32 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
                   <span>{isOcrProcessing ? 'Transcrevendo Foto...' : 'Carregar Foto de Pedido'}</span>
                 </button>
 
-                {batchRawInput && (
+                {(batchRawInput || discoveredProducts.length > 0 || batchResults.length > 0) && (
                   <button
                     type="button"
                     onClick={() => {
                       setBatchRawInput('');
+                      setDiscoveredProducts([]);
                       setBatchResults([]);
+                      setSelectedResultIds(new Set());
                     }}
-                    className="text-[11px] text-slate-400 hover:text-slate-600 ml-2"
+                    className="text-[11px] text-slate-400 hover:text-slate-600 ml-2 cursor-pointer"
                   >
-                    Limpar Lista
+                    Limpar Tudo
                   </button>
                 )}
               </div>
 
+              {/* BOTÃO DA FASE 1: IDENTIFICAR PRODUTO(S) */}
               <button
                 type="button"
-                onClick={handleStartBatchScan}
-                disabled={isScanningBatch || !batchRawInput.trim()}
-                className="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-2"
+                onClick={handleStartPhase1Discovery}
+                disabled={isDiscoveringPhase1 || isScanningBatch || !batchRawInput.trim()}
+                className="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-2 cursor-pointer"
+                title="Fase 1: Analisa as características e deduz os produtos exatos sem vírgulas no padrão de mercado"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isScanningBatch ? 'animate-spin' : ''}`} />
-                <span>{isScanningBatch ? 'Escaneando Web...' : 'Buscar Melhores Preços'}</span>
+                <Sparkles className={`w-3.5 h-3.5 ${isDiscoveringPhase1 ? 'animate-spin' : ''}`} />
+                <span>{isDiscoveringPhase1 ? 'Identificando Produto(s)...' : '1. Identificar Produto(s)'}</span>
               </button>
             </div>
 
@@ -650,16 +838,26 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
               </div>
             )}
 
-            {/* Progress Bar */}
+            {/* Phase 1 Processing Indicator */}
+            {isDiscoveringPhase1 && (
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-3 animate-fadeIn">
+                <Sparkles className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
+                <div className="text-xs text-indigo-900 font-semibold">
+                  <span>{phase1StatusMessage || 'Analisando características técnicas e identificando produto(s)...'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Progress Bar da Fase 2 */}
             {isScanningBatch && batchProgress && (
-              <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl space-y-1.5 animate-fadeIn">
-                <div className="flex items-center justify-between text-xs text-sky-800 font-semibold">
-                  <span>Varrendo fornecedores: {batchProgress.currentProduct}</span>
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 animate-fadeIn">
+                <div className="flex items-center justify-between text-xs text-emerald-800 font-semibold">
+                  <span>Sistemática Infodesk Store: {batchProgress.currentProduct}</span>
                   <span>{batchProgress.current} de {batchProgress.total} ({Math.round((batchProgress.current / batchProgress.total) * 100)}%)</span>
                 </div>
-                <div className="w-full bg-sky-200 h-1.5 rounded-full overflow-hidden">
+                <div className="w-full bg-emerald-200 h-1.5 rounded-full overflow-hidden">
                   <div
-                    className="bg-sky-600 h-full transition-all duration-300 rounded-full"
+                    className="bg-emerald-600 h-full transition-all duration-300 rounded-full"
                     style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
                   />
                 </div>
@@ -668,18 +866,296 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
           </div>
 
           {/* Results Table Area */}
-          <div className="flex-1 overflow-y-auto p-5 bg-slate-50/50">
-            {batchResults.length === 0 && !isScanningBatch ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
-                <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs mb-3">
-                  <Store className="w-8 h-8 text-sky-600" />
+          <div className="flex-1 overflow-y-auto p-5 pb-28 bg-slate-50/50 space-y-4">
+            {/* ─── PAINEL DE PRODUTOS IDENTIFICADOS 360° (PADRÃO INFODESK STORE) ─── */}
+            {discoveredProducts.length > 0 && (
+              <div className="space-y-4 animate-fadeIn">
+                {/* Header de Ações Rápidas */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        Fase 1: Produtos Identificados e Catalogados 360°
+                        <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] rounded-full font-extrabold">
+                          {discoveredProducts.length} item(ns)
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500">
+                        Ficha técnica 360° gerada por IA com especificações, galeria de fotos e preços sugeridos de mercado.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {discoveredProducts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={handleAddAllDiscoveredToQuote}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-98"
+                      >
+                        <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Inserir Todos ({discoveredProducts.length})</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleStartPhase2Enrichment}
+                      disabled={isScanningBatch}
+                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+                      title="Varre lojas online (Mercado Livre, Amazon, etc.) para apurar preços reais e links de compra"
+                    >
+                      <Zap className={`w-3.5 h-3.5 text-amber-500 ${isScanningBatch ? 'animate-spin' : ''}`} />
+                      <span>{isScanningBatch ? 'Pesquisando Lojas...' : '2. Comparar Preços em Lojas (Fase 2)'}</span>
+                    </button>
+                  </div>
                 </div>
-                <p className="text-sm font-bold text-slate-700 mb-1">Nenhum escaneamento em lote ativo</p>
-                <p className="text-xs text-slate-500 max-w-sm">
-                  Cole uma lista acima e clique em "Buscar Melhores Preços" para varrer ofertas com links e fotos reais.
-                </p>
+
+                {/* LISTA DE CARDS 360° NO PADRÃO EXATO DA INFODESK STORE (FOTO 2) */}
+                <div className="space-y-4">
+                  {discoveredProducts.map((prod) => {
+                    const images = prod.images && prod.images.length > 0 ? prod.images : [prod.imageUrl || ''];
+                    const activeImgIndex = prod.selectedImageIndex ?? 0;
+                    const currentImg = images[activeImgIndex] || images[0] || '';
+
+                    return (
+                      <div
+                        key={prod.id}
+                        className="bg-white border-2 border-emerald-400/40 hover:border-emerald-500/60 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-md transition-all duration-200 space-y-4 relative"
+                      >
+                        {/* Top Badges Row (Foto 2) */}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-full text-xs font-semibold">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                              Inteligência Artificial (Gemini AI)
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#064e3b] text-white rounded-full text-xs font-bold shadow-2xs">
+                              <Check className="w-3.5 h-3.5 text-emerald-300 stroke-[3]" />
+                              {prod.confidence ? `${typeof prod.confidence === 'string' ? prod.confidence : 'Alta'} - Identificado por IA` : 'Alta - Identificado por IA'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-3.5 py-1 bg-[#fef3c7] text-[#b45309] border border-amber-200/80 rounded-full text-xs font-bold">
+                              Novo Produto / Pronto para Cadastrar
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDiscoveredProduct(prod.id)}
+                              className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Remover este produto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Main Content: Left Image Gallery, Right Details */}
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 md:gap-6 items-start">
+                          {/* Left Column: Image with Thumbnails */}
+                          <div className="md:col-span-4 lg:col-span-3 flex flex-col items-center">
+                            <div className="w-full aspect-square max-w-[220px] bg-white border border-slate-200 rounded-2xl p-2.5 flex items-center justify-center overflow-hidden shadow-2xs group relative">
+                              {currentImg ? (
+                                <img
+                                  src={currentImg}
+                                  alt={prod.standardizedName}
+                                  className="max-w-full max-h-full object-contain group-hover:scale-105 transition duration-300"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-slate-50 flex items-center justify-center text-slate-300">
+                                  <ImageIcon className="w-12 h-12" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Thumbnails Row */}
+                            {images.length > 1 && (
+                              <div className="flex items-center gap-2 mt-3 w-full max-w-[220px] justify-start overflow-x-auto pb-1">
+                                {images.map((thumbUrl, tIdx) => (
+                                  <button
+                                    key={tIdx}
+                                    type="button"
+                                    onClick={() => handleSelectDiscoveredImage(prod.id, tIdx)}
+                                    className={`w-12 h-12 rounded-xl border-2 p-0.5 bg-white shrink-0 overflow-hidden transition cursor-pointer flex items-center justify-center ${
+                                      activeImgIndex === tIdx
+                                        ? 'border-emerald-500 ring-2 ring-emerald-200 shadow-2xs scale-105'
+                                        : 'border-slate-200 opacity-60 hover:opacity-100 hover:border-slate-300'
+                                    }`}
+                                  >
+                                    <img src={thumbUrl} alt={`Thumbnail ${tIdx + 1}`} className="w-full h-full object-contain" />
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Right Column: Tags, Sub-specs, Title, Description, Specs Chips */}
+                          <div className="md:col-span-8 lg:col-span-9 flex flex-col justify-between">
+                            <div>
+                              {/* Badges Row */}
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                {prod.brand && (
+                                  <span className="px-3 py-1 bg-[#0f172a] text-white rounded-full text-xs font-bold shadow-2xs">
+                                    {prod.brand}
+                                  </span>
+                                )}
+                                {prod.manufacturer && (
+                                  <span className="px-3 py-1 bg-[#1e293b] text-slate-100 rounded-full text-xs font-semibold shadow-2xs">
+                                    Fab: {prod.manufacturer}
+                                  </span>
+                                )}
+                                {prod.category && (
+                                  <span className="px-2.5 py-1 text-slate-600 bg-slate-100 border border-slate-200/80 rounded-full text-xs font-medium">
+                                    {prod.category}
+                                  </span>
+                                )}
+                                {prod.partNumber && (
+                                  <span className="px-3 py-1 bg-[#0b132b] text-indigo-100 font-mono rounded-full text-xs font-bold shadow-2xs">
+                                    P/N: {prod.partNumber}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Sub-specs Row (Mod, NCM, Peso) */}
+                              <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs font-semibold text-slate-700 mt-2 mb-2">
+                                {prod.model && (
+                                  <span>Mod: <strong className="text-slate-900 font-bold">{prod.model}</strong></span>
+                                )}
+                                {prod.ncm && (
+                                  <span>NCM: <strong className="text-slate-900 font-mono">{prod.ncm}</strong></span>
+                                )}
+                                {prod.weight && (
+                                  <span>Peso: <strong className="text-slate-900">{prod.weight}</strong></span>
+                                )}
+                                {prod.dimensions && (
+                                  <span>Dimensões: <strong className="text-slate-900">{prod.dimensions}</strong></span>
+                                )}
+                              </div>
+
+                              {/* Title */}
+                              <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug mt-1 mb-2">
+                                {prod.standardizedName}
+                              </h3>
+
+                              {/* Description */}
+                              {prod.description && (
+                                <p className="text-xs text-slate-600 leading-relaxed mb-3.5 whitespace-pre-line text-justify sm:text-left">
+                                  {prod.description}
+                                </p>
+                              )}
+
+                              {/* Technical Specifications Chips */}
+                              {prod.specifications && prod.specifications.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                  {prod.specifications.map((spec, sIdx) => (
+                                    <div
+                                      key={sIdx}
+                                      className="bg-slate-100/90 border border-slate-200/70 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-medium flex items-center gap-1 shadow-2xs"
+                                    >
+                                      <strong className="text-slate-900 font-semibold">{spec.label}:</strong>
+                                      <span>{spec.value}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Bottom Bar: Suggested Price + Actions */}
+                            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-auto">
+                              {/* Price */}
+                              <div>
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
+                                  PREÇO SUGERIDO DE MERCADO
+                                </span>
+                                <div className="flex items-baseline gap-2">
+                                  <span className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono tracking-tight">
+                                    {prod.suggestedPrice && prod.suggestedPrice > 0
+                                      ? `R$ ${prod.suggestedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                      : (prod.costPrice && prod.costPrice > 0
+                                        ? `R$ ${(prod.costPrice * 1.35).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                        : 'Sob Consulta')}
+                                  </span>
+                                  {prod.costPrice && prod.costPrice > 0 && (
+                                    <span className="text-xs text-slate-400 font-medium">
+                                      (Custo aprox: R$ {prod.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Qty, Unit & Buttons */}
+                              <div className="flex items-center gap-2.5 flex-wrap">
+                                <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={prod.quantity || 1}
+                                    onChange={(e) => handleUpdateDiscoveredProduct(prod.id, { quantity: parseInt(e.target.value, 10) || 1 })}
+                                    className="w-12 bg-white border border-slate-200 rounded-lg px-1.5 py-1 text-xs font-bold text-slate-800 text-center focus:outline-none focus:border-emerald-500"
+                                    title="Quantidade para a cotação"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={prod.unit || 'Un.'}
+                                    onChange={(e) => handleUpdateDiscoveredProduct(prod.id, { unit: e.target.value })}
+                                    className="w-12 bg-white border border-slate-200 rounded-lg px-1.5 py-1 text-xs font-semibold text-slate-700 text-center focus:outline-none focus:border-emerald-500"
+                                    title="Unidade"
+                                  />
+                                </div>
+
+                                {/* Big Green Add to Quote Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddSingleDiscoveredToQuote(prod)}
+                                  className="px-5 py-2.5 bg-gradient-to-r from-lime-600 via-emerald-600 to-green-600 hover:from-lime-500 hover:to-emerald-500 text-white rounded-xl text-xs sm:text-sm font-black transition shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer active:scale-98"
+                                >
+                                  <Plus className="w-4 h-4 stroke-[3]" />
+                                  <span>+ Inserir na Cotação</span>
+                                </button>
+
+                                {/* Save to Catalog Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveDiscoveredToCatalog(prod)}
+                                  className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 cursor-pointer shadow-2xs"
+                                  title="Salvar produto no catálogo para reutilizar"
+                                >
+                                  <Printer className="w-4 h-4 text-slate-500" />
+                                  <span>Salvar no Catálogo</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            ) : (
+            )}
+
+            {/* ─── PAINEL DA FASE 2: RESULTADOS DE PREÇOS E ESPECIFICAÇÕES ─── */}
+            {batchResults.length === 0 && !isScanningBatch && discoveredProducts.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
+                <div className="p-4 bg-white rounded-3xl border border-slate-200 shadow-2xs mb-3">
+                  <Sparkles className="w-8 h-8 text-indigo-600" />
+                </div>
+                <p className="text-sm font-bold text-slate-800 mb-1">Pesquisa Inteligente em 2 Fases (Padrão Infodesk Store)</p>
+                <p className="text-xs text-slate-500 max-w-md leading-relaxed mb-4">
+                  1. Cole acima o texto com dezenas de características técnicas, print ou foto e clique em <strong>1. Identificar Produto(s)</strong>.<br />
+                  2. Com a descrição certinha deduzida pela IA, clique no botão da <strong>Fase 2</strong> para apurar preços ao vivo e especificações 360°.
+                </p>
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Engenharia reversa com IA Gemini Vision & Search Grounding</span>
+                </div>
+              </div>
+            ) : (batchResults.length > 0 || isScanningBatch) ? (
               <div className="space-y-3">
                 {/* Results Sub-header with Margin Shortcuts & Filter */}
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
@@ -1005,7 +1481,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
                   })}
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Batch Footer */}

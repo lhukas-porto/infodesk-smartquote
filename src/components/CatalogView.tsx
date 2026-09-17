@@ -380,23 +380,26 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-sky-600" />
-            <h1 className="text-xl font-bold text-slate-900">Produtos & Importador CSV</h1>
+            <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">Produtos & Catálogo Geral</h1>
+            <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
+              {products.length} ITENS
+            </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-0.5">
             Gerencie sua base de produtos com preços de custo, códigos e especificações técnicas da Infodesk.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <label className="cursor-pointer px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition flex items-center gap-2 shadow-xs">
-            <Upload className="w-3.5 h-3.5 text-sky-600" />
-            <span>Importar Planilha CSV</span>
+          <label className="cursor-pointer px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95">
+            <Upload className="w-3.5 h-3.5 text-slate-600" />
+            <span>Importar CSV</span>
             <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
           </label>
 
           <button
             onClick={handleExportCSV}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition flex items-center gap-2 shadow-xs"
+            className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600" />
             <span>Exportar CSV</span>
@@ -404,7 +407,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2"
+            className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4" />
             <span>Cadastrar Produto</span>
@@ -421,25 +424,25 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar por nome, SKU ou descrição..."
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500"
+            className="w-full h-10 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl pl-10 pr-4 text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition outline-none font-sans"
           />
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          <span className="text-xs text-slate-600 font-medium whitespace-nowrap">Categoria:</span>
+          <span className="text-xs text-slate-600 font-bold whitespace-nowrap">Categoria:</span>
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
                 selectedCategory === cat
-                  ? 'bg-sky-600 text-white font-bold shadow-xs'
+                  ? 'bg-sky-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
               }`}
             >

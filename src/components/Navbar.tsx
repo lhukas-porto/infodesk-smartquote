@@ -16,15 +16,16 @@ import {
 import { CompanySettings } from '../types';
 
 interface NavbarProps {
-  activeTab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses';
-  setActiveTab: (tab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses') => void;
+  activeTab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients';
+  setActiveTab: (tab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients') => void;
   unreadCount: number;
   openSettings: () => void;
-  openWebSearch: () => void;
+  openWebSearch?: () => void;
   openClientsModal?: () => void;
   settings: CompanySettings;
   onNewQuote: () => void;
   analysesCount?: number;
+  isScannerOpen?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,7 +37,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   openClientsModal,
   settings,
   onNewQuote,
-  analysesCount = 0
+  analysesCount = 0,
+  isScannerOpen = false
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 shadow-xs">
@@ -78,6 +80,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {unreadCount}
                 </span>
               )}
+              {analysesCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 bg-violet-100 text-violet-700 border border-violet-200 text-[10px] font-bold rounded-full" title={`${analysesCount} demandas avulsas`}>
+                  {analysesCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -90,6 +97,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <FileText className="w-3.5 h-3.5" />
               <span>Cotação</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('websearch')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                activeTab === 'websearch'
+                  ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+              title="Scanner de Preços & Produtos 360° com Inteligência Artificial"
+            >
+              <Search className="w-3.5 h-3.5 text-sky-600" />
+              <span>Scanner de Preços</span>
             </button>
 
             <button
@@ -117,33 +137,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab('analyses')}
+              onClick={() => setActiveTab('clients')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                activeTab === 'analyses'
-                  ? 'bg-white text-violet-700 border border-slate-200 shadow-xs font-semibold'
+                activeTab === 'clients'
+                  ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
+              title="Cadastro e Gestão de Empresas e Compradores"
             >
-              <Camera className="w-3.5 h-3.5" />
-              <span>Análises Avulsas</span>
-              {analysesCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 bg-violet-500 text-white text-[10px] font-bold rounded-full">
-                  {analysesCount}
-                </span>
-              )}
+              <Users className="w-3.5 h-3.5 text-sky-600" />
+              <span>Empresas & Compradores</span>
             </button>
-
-            {openClientsModal && (
-              <button
-                type="button"
-                onClick={openClientsModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap text-slate-700 hover:text-slate-900 hover:bg-slate-200/60"
-                title="Cadastro e Gestão de Empresas e Compradores"
-              >
-                <Users className="w-3.5 h-3.5 text-sky-600" />
-                <span>Empresas & Compradores</span>
-              </button>
-            )}
 
             <button
               onClick={() => setActiveTab('history')}
@@ -160,25 +164,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
-            {openClientsModal && (
-              <button
-                type="button"
-                onClick={openClientsModal}
-                className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition shadow-2xs whitespace-nowrap"
-                title="Empresas & Compradores"
-              >
-                <Users className="w-3.5 h-3.5 text-sky-600" />
-                <span>Empresas</span>
-              </button>
-            )}
-
             <button
-              onClick={openWebSearch}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium transition shadow-xs whitespace-nowrap"
-              title="Pesquisar Preços e Specs na Web"
+              type="button"
+              onClick={() => setActiveTab('clients')}
+              className={`md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition shadow-2xs whitespace-nowrap ${
+                activeTab === 'clients'
+                  ? 'bg-sky-600 text-white'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+              title="Empresas & Compradores"
             >
-              <Search className="w-3.5 h-3.5 text-sky-600" />
-              <span className="hidden sm:inline">Scanner de Preços</span>
+              <Users className="w-3.5 h-3.5" />
+              <span>Empresas</span>
             </button>
 
             <button

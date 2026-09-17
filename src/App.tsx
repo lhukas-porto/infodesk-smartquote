@@ -5,10 +5,11 @@ import { QuoteBuilder } from './components/QuoteBuilder';
 import { QuotePreview } from './components/QuotePreview';
 import { CatalogView } from './components/CatalogView';
 import { SentHistoryView } from './components/SentHistoryView';
-import { WebSearchModal } from './components/WebSearchModal';
+import { PriceScannerView } from './components/PriceScannerView';
 import { EmailSendModal } from './components/EmailSendModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ClientManagementModal } from './components/ClientManagementModal';
+import { ClientManagementView } from './components/ClientManagementView';
 import { EmailContactScannerModal } from './components/EmailContactScannerModal';
 import { ManualAnalysesView } from './components/ManualAnalysesView';
 import { ScannedContactCandidate } from './services/emailScannerService';
@@ -86,19 +87,30 @@ import {
 } from './services/supabase';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses'>(() => {
+  const [activeTab, setActiveTab] = useState<'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients'>(() => {
     const saved = getSavedActiveTab('inbox');
-    return (['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses'].includes(saved) ? saved : 'inbox') as any;
+    return (['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients'].includes(saved) ? saved : 'inbox') as any;
   });
   const [settings, setSettings] = useState<CompanySettings>(getSettings());
   const [products, setProducts] = useState<Product[]>(getProducts());
   const [emails, setEmails] = useState<IncomingEmail[]>(getEmails());
   const [quotes, setQuotes] = useState<Quote[]>(getQuotes());
 
-  const [isWebSearchOpen, setIsWebSearchOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('infodesk_scanner_panel_open');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [webSearchQuery, setWebSearchQuery] = useState('');
   const [webSearchTargetIndex, setWebSearchTargetIndex] = useState<number | null>(null);
   const [webSearchExistingItem, setWebSearchExistingItem] = useState<Partial<QuoteItem> | null>(null);
+
+  const handleToggleScanner = (open?: boolean) => {
+    setIsScannerOpen(prev => {
+      const next = open !== undefined ? open : !prev;
+      localStorage.setItem('infodesk_scanner_panel_open', String(next));
+      return next;
+    });
+  };
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isClientsModalOpen, setIsClientsModalOpen] = useState(false);
@@ -999,8 +1011,16 @@ export const App: React.FC = () => {
         setActiveTab={setActiveTab}
         unreadCount={emails.filter(e => e.unread).length}
         openSettings={() => setIsSettingsOpen(true)}
-        openWebSearch={() => setIsWebSearchOpen(true)}
-        openClientsModal={() => setIsClientsModalOpen(true)}
+        openWebSearch={() => {
+          if (activeTab !== 'builder') {
+            setActiveTab('builder');
+            handleToggleScanner(true);
+          } else {
+            handleToggleScanner();
+          }
+        }}
+        isScannerOpen={isScannerOpen}
+        openClientsModal={() => setActiveTab('clients')}
         settings={settings}
         onNewQuote={handleNewQuote}
         analysesCount={manualAnalyses.length}
@@ -1028,7 +1048,7 @@ export const App: React.FC = () => {
             onConnectGoogle={handleConnectGoogle}
             onDisconnectGoogle={handleDisconnectGoogle}
             onRefreshEmails={handleRefreshEmails}
-            onOpenClientManagement={() => setIsClientsModalOpen(true)}
+            onOpenClientManagement={() => setActiveTab('clients')}
             onUpdateEmailDetails={(emailId, updates) => {
               setEmails(prev => {
                 const next = prev.map(e => e.id === emailId ? { ...e, ...updates } : e);
@@ -1068,7 +1088,7 @@ export const App: React.FC = () => {
               setWebSearchQuery(query || '');
               setWebSearchTargetIndex(itemIdx !== undefined ? itemIdx : null);
               setWebSearchExistingItem(existingItem || null);
-              setIsWebSearchOpen(true);
+              setActiveTab('websearch');
             }}
             onSaveToCatalog={(p) => {
               setProducts(prev => {
@@ -1079,6 +1099,52 @@ export const App: React.FC = () => {
               syncProductToSupabase(p);
             }}
             onUpdateSettings={handleSaveSettings}
+          />
+        )}
+
+        {activeTab === 'websearch' && (
+          <PriceScannerView
+            initialQuery={webSearchQuery}
+            targetItemIndex={webSearchTargetIndex}
+            existingItem={webSearchExistingItem}
+            onAddToQuote={handleAddWebSearchItemToQuote}
+            onStartNewQuoteWithItems={handleStartNewQuoteWithItems}
+            onNavigateToQuote={() => setActiveTab('builder')}
+            quoteItemsCount={currentQuote.items.length}
+            onUpdateQuoteItem={(idx, updatedData) => {
+              setCurrentQuote(prev => {
+                const updatedItems = [...prev.items];
+                if (updatedItems[idx]) {
+                  const current = updatedItems[idx];
+                  const costPrice = updatedData.costPrice !== undefined ? updatedData.costPrice : current.costPrice;
+                  const shipping = current.shippingCost ?? prev.globalShipping ?? 0;
+                  const markup = current.markupPercent ?? 35;
+                  const tax = prev.globalTaxPercent ?? 6;
+                  const unitPrice = calculateCommercialUnitPrice(costPrice, shipping, markup, tax);
+                  const qty = updatedData.quantity || current.quantity || 1;
+                  const totalPrice = Number((unitPrice * qty).toFixed(2));
+
+                  updatedItems[idx] = {
+                    ...current,
+                    ...updatedData,
+                    unitPrice,
+                    totalPrice
+                  };
+                }
+                return {
+                  ...prev,
+                  items: updatedItems
+                };
+              });
+            }}
+            onSaveToCatalog={(p) => {
+              setProducts(prev => {
+                const next = [p, ...prev];
+                saveProducts(next);
+                return next;
+              });
+              syncProductToSupabase(p);
+            }}
           />
         )}
 
@@ -1281,54 +1347,28 @@ export const App: React.FC = () => {
             onUpdateAnalysis={handleUpdateManualAnalysis}
           />
         )}
+
+        {activeTab === 'clients' && (
+          <ClientManagementView
+            companies={clientCompanies}
+            onSaveCompanies={handleSaveCompanies}
+            onDeleteCompany={handleDeleteCompany}
+            onDeleteContact={handleDeleteContact}
+            onOpenEmailScanner={() => setIsScannerModalOpen(true)}
+            onSelectBuyerForQuote={(companyName, contact, location) => {
+              setCurrentQuote(prev => ({
+                ...prev,
+                clientCompany: formatCompanyPrefix(companyName),
+                contactPerson: formatContactPerson(contact.name),
+                clientEmail: (contact.email || prev.clientEmail || '').toLowerCase().trim(),
+                clientPhone: contact.phone || prev.clientPhone,
+                deliveryLocation: location || prev.deliveryLocation
+              }));
+              setActiveTab('builder');
+            }}
+          />
+        )}
       </main>
-
-      <WebSearchModal
-        isOpen={isWebSearchOpen}
-        onClose={() => {
-          setIsWebSearchOpen(false);
-          setWebSearchExistingItem(null);
-        }}
-        initialQuery={webSearchQuery}
-        targetItemIndex={webSearchTargetIndex}
-        existingItem={webSearchExistingItem}
-        onAddToQuote={handleAddWebSearchItemToQuote}
-        onStartNewQuoteWithItems={handleStartNewQuoteWithItems}
-        onUpdateQuoteItem={(idx, updatedData) => {
-          setCurrentQuote(prev => {
-            const updatedItems = [...prev.items];
-            if (updatedItems[idx]) {
-              const current = updatedItems[idx];
-              const costPrice = updatedData.costPrice !== undefined ? updatedData.costPrice : current.costPrice;
-              const shipping = current.shippingCost ?? prev.globalShipping ?? 0;
-              const markup = current.markupPercent ?? 35;
-              const tax = prev.globalTaxPercent ?? 6;
-              const unitPrice = calculateCommercialUnitPrice(costPrice, shipping, markup, tax);
-              const qty = updatedData.quantity || current.quantity || 1;
-              const totalPrice = Number((unitPrice * qty).toFixed(2));
-
-              updatedItems[idx] = {
-                ...current,
-                ...updatedData,
-                unitPrice,
-                totalPrice
-              };
-            }
-            return {
-              ...prev,
-              items: updatedItems
-            };
-          });
-        }}
-        onSaveToCatalog={(p) => {
-          setProducts(prev => {
-            const next = [p, ...prev];
-            saveProducts(next);
-            return next;
-          });
-          syncProductToSupabase(p);
-        }}
-      />
 
       <EmailSendModal
         isOpen={isEmailModalOpen}

@@ -66,7 +66,7 @@ export const getQuoteItemsBackup = (key: string): QuoteItem[] | null => {
 
 export const getSavedActiveTab = (defaultTab: string = 'inbox'): string => {
   const saved = localStorage.getItem(ACTIVE_TAB_KEY);
-  return saved && ['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses'].includes(saved) ? saved : defaultTab;
+  return saved && ['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients'].includes(saved) ? saved : defaultTab;
 };
 
 export const saveActiveTab = (tab: string): void => {

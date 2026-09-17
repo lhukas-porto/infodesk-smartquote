@@ -164,3 +164,38 @@ export interface ClientCompany {
   locations?: string[];
   lastUsed?: string;
 }
+
+export interface DiscoveredProduct {
+  id: string;
+  originalQuery: string;
+  standardizedName: string;
+  brand?: string;
+  manufacturer?: string;
+  model?: string;
+  partNumber?: string;
+  category?: string;
+  ncm?: string;
+  quantity: number;
+  unit: string;
+  confidence?: number | string;
+  // 360° Infodesk Store Enrichment
+  description?: string;
+  specifications?: Array<{ label: string; value: string }>;
+  weight?: string;
+  dimensions?: string;
+  suggestedPrice?: number;
+  costPrice?: number;
+  ean?: string;
+  images?: string[];
+  imageUrl?: string;
+  selectedImageIndex?: number;
+  customerPhotoUrl?: string;
+  visualInspection?: string;
+  visualSearchQuery?: string;
+  visualSearchQueryAlt?: string;
+  visualSearchQueryEn?: string;
+  negativeKeywords?: string[];
+  productBoundingBox?: { ymin: number; xmin: number; ymax: number; xmax: number };
+}
+
+
