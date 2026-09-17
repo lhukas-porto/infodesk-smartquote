@@ -15,6 +15,8 @@ interface EmailSendModalProps {
   quote: Quote;
   settings: CompanySettings;
   onConfirmSend: (quote: Quote) => Promise<void> | void;
+  connectedUserEmail?: string | null;
+  onSwitchAccount?: () => Promise<void> | void;
 }
 
 export const EmailSendModal: React.FC<EmailSendModalProps> = ({
@@ -22,7 +24,9 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   onClose,
   quote,
   settings,
-  onConfirmSend
+  onConfirmSend,
+  connectedUserEmail,
+  onSwitchAccount
 }) => {
   const [isSending, setIsSending] = useState(false);
   const [isSentSuccess, setIsSentSuccess] = useState(false);
@@ -44,21 +48,32 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   const [subject, setSubject] = useState(defaultSubject);
   const [bodyText, setBodyText] = useState(defaultBody);
 
-  // Sincronizar quando a proposta mudar e escutar tecla Esc
-  React.useEffect(() => {
-    setToEmails(quote.recipientEmails || quote.clientEmail || '');
-    setCcEmails(quote.ccEmails || '');
-    if (quote.ccEmails) setShowCc(true);
+  const handleCancel = () => {
+    setIsSending(false);
+    setIsSentSuccess(false);
     setSendError(null);
+    onClose();
+  };
+
+  // Sincronizar quando a proposta mudar ou o modal abrir
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsSending(false);
+      setIsSentSuccess(false);
+      setSendError(null);
+      setToEmails(quote.recipientEmails || quote.clientEmail || '');
+      setCcEmails(quote.ccEmails || '');
+      if (quote.ccEmails) setShowCc(true);
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        handleCancel();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [quote.id, quote.clientEmail, quote.recipientEmails, quote.ccEmails, isOpen, onClose]);
+  }, [quote.id, quote.clientEmail, quote.recipientEmails, quote.ccEmails, isOpen]);
 
   if (!isOpen) return null;
 
@@ -90,6 +105,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
     } catch (err: any) {
       console.error('Erro ao disparar e-mail:', err);
       setIsSending(false);
+      setIsSentSuccess(false);
       setSendError(err?.message || 'Ocorreu um erro ao enviar o e-mail via Google Workspace.');
     }
   };
@@ -113,9 +129,10 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
             </div>
           </div>
 
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition"
+          <button
+            onClick={handleCancel}
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-200/50 transition cursor-pointer"
+            title="Fechar"
           >
             ✕
           </button>
@@ -124,9 +141,27 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
         <div className="p-6 space-y-4 text-xs">
           
           {sendError && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-start gap-2 animate-fadeIn">
-              <span className="font-bold text-red-800">⚠️ Erro:</span>
-              <span className="flex-1">{sendError}</span>
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex flex-col gap-2 animate-fadeIn">
+              <div className="flex items-start gap-2">
+                <span className="font-bold text-rose-800">⚠️ Falha no envio:</span>
+                <span className="flex-1 font-medium">{sendError}</span>
+              </div>
+              {onSwitchAccount && (
+                <div className="flex items-center gap-2 pt-1 border-t border-rose-200/60 text-[11px]">
+                  <span>Escolheu a conta errada ou token expirou?</span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsSending(false);
+                      setSendError(null);
+                      await onSwitchAccount();
+                    }}
+                    className="font-bold text-sky-700 hover:text-sky-900 underline cursor-pointer"
+                  >
+                    Clique aqui para trocar de conta Google
+                  </button>
+                </div>
+              )}
             </div>
           )}
           
@@ -245,26 +280,46 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
 
         </div>
 
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Autenticação Google Workspace Ativa</span>
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-[11px] text-slate-600">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>
+              Conta conectada: <strong className="font-mono text-slate-800">{connectedUserEmail || settings.googleAccountEmail || 'Google Workspace'}</strong>
+            </span>
+            {onSwitchAccount && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsSending(false);
+                  setSendError(null);
+                  await onSwitchAccount();
+                }}
+                className="ml-1 text-[11px] text-sky-600 hover:text-sky-800 hover:underline font-semibold cursor-pointer"
+                title="Conectar com outra conta Google"
+              >
+                (Trocar Conta)
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-100 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-semibold transition"
+              type="button"
+              onClick={handleCancel}
+              className="px-4 py-2 bg-slate-100 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-semibold transition cursor-pointer"
             >
               Cancelar
             </button>
 
             <button
+              type="button"
               onClick={handleSend}
               disabled={isSending || isSentSuccess}
-              className={`px-5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs ${
+              className={`px-5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer ${
                 isSentSuccess
                   ? 'bg-emerald-600 text-white'
+                  : isSending
+                  ? 'bg-sky-500 text-white opacity-90 cursor-wait'
                   : 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white'
               }`}
             >

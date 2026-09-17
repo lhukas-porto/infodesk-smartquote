@@ -132,7 +132,7 @@ export async function fetchQuotesFromSupabase(): Promise<Quote[] | null> {
       }
       itemsByQuoteId[qKey].push({
         id: row.id,
-        productId: row.product_id,
+        productId: row.product_id || undefined,
         itemNumber: row.item_number,
         name: row.name,
         description: row.description || '',
@@ -154,46 +154,182 @@ export async function fetchQuotesFromSupabase(): Promise<Quote[] | null> {
       });
     });
 
-    return quotesData.map((q: any): Quote => ({
-      id: q.id,
-      code: q.code,
-      clientCompany: q.client_company,
-      contactPerson: q.contact_person,
-      clientEmail: q.client_email,
-      clientPhone: q.client_phone || '',
-      subject: q.subject,
-      city: q.city || 'Brasília',
-      date: q.date,
-      validityDays: q.validity_days,
-      paymentTerms: q.payment_terms,
-      deliveryDays: q.delivery_days,
-      warrantyTerms: q.warranty_terms,
-      deliveryLocation: q.delivery_location || 'Brasília',
-      shippingTerms: q.shipping_terms || `Frete incluso p/ ${q.delivery_location || 'Brasília'}.`,
-      openingText: q.opening_text,
-      showProductImages: Boolean(q.show_product_images),
-      items: itemsByQuoteId[q.id] || [],
-      totalCost: Number(q.total_cost),
-      totalShipping: Number(q.total_shipping || 0),
-      totalTaxes: Number(q.total_taxes || 0),
-      totalProfit: Number(q.total_profit),
-      totalAmount: Number(q.total_amount),
-      averageMargin: Number(q.average_margin || 35),
-      globalMarkupPercent: q.global_markup_percent !== undefined && q.global_markup_percent !== null ? Number(q.global_markup_percent) : undefined,
-      globalTaxPercent: Number(q.global_tax_percent || 6),
-      globalShipping: Number(q.global_shipping || 0),
-      status: q.status || 'draft',
-      createdAt: q.created_at,
-      sentAt: q.sent_at
-    }));
+    return quotesData.map((q: any): Quote => {
+      const quoteItems = (itemsByQuoteId[q.id] && itemsByQuoteId[q.id].length > 0)
+        ? itemsByQuoteId[q.id]
+        : (Number(q.total_amount || 0) > 0 ? [{
+            id: `item-${q.id}-fallback`,
+            itemNumber: 1,
+            name: q.subject || `Fornecimento para ${q.client_company || 'Cliente'}`,
+            description: '',
+            rawSearchQuery: q.subject || q.code,
+            partNumber: '',
+            ncm: '',
+            imageUrl: '',
+            showImage: false,
+            quantity: 1,
+            unit: 'Un.',
+            costPrice: Number(q.total_cost || 0),
+            shippingCost: Number(q.total_shipping || 0),
+            taxPercent: Number(q.global_tax_percent || 6),
+            markupPercent: Number(q.average_margin || 35),
+            unitPrice: Number(q.total_amount || 0),
+            totalPrice: Number(q.total_amount || 0),
+            sourceUrl: '',
+            supplier: ''
+          }] : []);
+
+      return {
+        id: q.id,
+        code: q.code,
+        clientCompany: q.client_company,
+        contactPerson: q.contact_person,
+        clientEmail: q.client_email,
+        clientPhone: q.client_phone || '',
+        subject: q.subject,
+        city: q.city || 'Brasília',
+        date: q.date,
+        validityDays: q.validity_days,
+        paymentTerms: q.payment_terms,
+        deliveryDays: q.delivery_days,
+        warrantyTerms: q.warranty_terms,
+        deliveryLocation: q.delivery_location || 'Brasília',
+        shippingTerms: q.shipping_terms || `Frete incluso p/ ${q.delivery_location || 'Brasília'}.`,
+        openingText: q.opening_text,
+        showProductImages: Boolean(q.show_product_images),
+        items: quoteItems,
+        totalCost: Number(q.total_cost),
+        totalShipping: Number(q.total_shipping || 0),
+        totalTaxes: Number(q.total_taxes || 0),
+        totalProfit: Number(q.total_profit),
+        totalAmount: Number(q.total_amount),
+        averageMargin: Number(q.average_margin || 35),
+        globalMarkupPercent: q.global_markup_percent !== undefined && q.global_markup_percent !== null ? Number(q.global_markup_percent) : undefined,
+        globalTaxPercent: Number(q.global_tax_percent || 6),
+        globalShipping: Number(q.global_shipping || 0),
+        status: q.status || 'draft',
+        createdAt: q.created_at,
+        sentAt: q.sent_at
+      };
+    });
   } catch (err) {
     console.warn('Erro ao consultar orçamentos no Supabase:', err);
     return null;
   }
 }
 
+function isValidUuid(val?: string | null): boolean {
+  if (!val || typeof val !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
+
+export async function fetchQuoteItemsByQuoteId(quoteId: string): Promise<QuoteItem[]> {
+  if (!supabase || !quoteId) return [];
+  try {
+    const { data: itemsData, error } = await supabase
+      .from('quote_items')
+      .select('*')
+      .eq('quote_id', quoteId)
+      .order('item_number', { ascending: true });
+
+    if (error || !itemsData) return [];
+    return itemsData.map((row: any) => ({
+      id: row.id,
+      productId: row.product_id || undefined,
+      itemNumber: row.item_number,
+      name: row.name,
+      description: row.description || '',
+      rawSearchQuery: row.raw_search_query || row.name,
+      partNumber: row.part_number || '',
+      ncm: row.ncm || '',
+      imageUrl: row.image_url || '',
+      showImage: Boolean(row.show_image),
+      quantity: row.quantity,
+      unit: row.unit || 'Un.',
+      costPrice: Number(row.cost_price),
+      shippingCost: Number(row.shipping_cost || 0),
+      taxPercent: Number(row.tax_percent || 6),
+      markupPercent: Number(row.markup_percent || 35),
+      unitPrice: Number(row.unit_price),
+      totalPrice: Number(row.total_price),
+      sourceUrl: row.source_url || '',
+      supplier: row.supplier || ''
+    }));
+  } catch (err) {
+    console.warn('Erro ao buscar itens de orçamento específico no Supabase:', err);
+    return [];
+  }
+}
+
 export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
   if (!supabase) return;
+
+  const itemsPayload = (quote.items || []).map(item => ({
+    item_number: item.itemNumber,
+    product_id: isValidUuid(item.productId) ? item.productId : null,
+    name: item.name,
+    description: item.description || '',
+    raw_search_query: item.rawSearchQuery || item.name,
+    part_number: item.partNumber || null,
+    ncm: item.ncm || null,
+    image_url: item.imageUrl || null,
+    show_image: item.showImage ?? false,
+    quantity: item.quantity,
+    unit: item.unit || 'Un.',
+    cost_price: item.costPrice,
+    shipping_cost: item.shippingCost ?? 0,
+    tax_percent: item.taxPercent ?? 6,
+    markup_percent: item.markupPercent,
+    unit_price: item.unitPrice,
+    total_price: item.totalPrice,
+    source_url: item.sourceUrl || null
+  }));
+
+  // 1. Tentar salvar atomicamente via RPC PostgreSQL no Supabase (transação segura)
+  try {
+    const { error: rpcError } = await supabase.rpc('save_quote_atomic', {
+      p_quote: {
+        code: quote.code,
+        client_company: quote.clientCompany,
+        contact_person: quote.contactPerson,
+        client_email: quote.clientEmail,
+        client_phone: quote.clientPhone,
+        subject: quote.subject,
+        city: quote.city,
+        date: quote.date,
+        validity_days: quote.validityDays,
+        payment_terms: quote.paymentTerms,
+        delivery_days: quote.deliveryDays,
+        warranty_terms: quote.warrantyTerms,
+        delivery_location: quote.deliveryLocation,
+        shipping_terms: quote.shippingTerms,
+        opening_text: quote.openingText,
+        show_product_images: quote.showProductImages ?? false,
+        total_cost: quote.totalCost,
+        total_shipping: quote.totalShipping ?? 0,
+        total_taxes: quote.totalTaxes ?? 0,
+        total_profit: quote.totalProfit,
+        total_amount: quote.totalAmount,
+        average_margin: quote.averageMargin,
+        global_markup_percent: quote.globalMarkupPercent ?? 35,
+        global_tax_percent: quote.globalTaxPercent ?? 6,
+        global_shipping: quote.globalShipping ?? 0,
+        status: quote.status,
+        recipient_emails: quote.recipientEmails,
+        cc_emails: quote.ccEmails,
+        sent_at: quote.sentAt
+      },
+      p_items: itemsPayload
+    });
+
+    if (!rpcError) {
+      return;
+    }
+  } catch (rpcErr) {
+    // Fallback silencioso caso a função RPC ainda não tenha sido executada no banco
+  }
+
+  // 2. Fallback direto caso a RPC não esteja disponível
   try {
     const { data: savedQuote, error: quoteError } = await supabase.from('quotes').upsert({
       code: quote.code,
@@ -236,7 +372,7 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       const itemsPayload = quote.items.map(item => ({
         quote_id: savedQuote.id,
         item_number: item.itemNumber,
-        product_id: item.productId && !item.productId.startsWith('prod-') ? item.productId : null,
+        product_id: isValidUuid(item.productId) ? item.productId : null,
         name: item.name,
         description: item.description || '',
         raw_search_query: item.rawSearchQuery || item.name,
@@ -252,13 +388,12 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         markup_percent: item.markupPercent,
         unit_price: item.unitPrice,
         total_price: item.totalPrice,
-        source_url: item.sourceUrl || null,
-        supplier: item.supplier || null
+        source_url: item.sourceUrl || null
       }));
 
       const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsPayload);
       if (itemsInsertError) {
-        console.warn('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
+        console.error('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
       }
     }
   } catch (err) {
@@ -311,7 +446,7 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
     await supabase.from('products').upsert({
       sku: product.sku,
       part_number: product.partNumber || null,
-      ncm: product.ncm || '84713019',
+      ncm: product.ncm || null,
       name: product.name,
       description: product.description,
       category: product.category,
@@ -334,7 +469,7 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
     const payload = products.map(p => ({
       sku: p.sku,
       part_number: p.partNumber || null,
-      ncm: p.ncm || '84713019',
+      ncm: p.ncm || null,
       name: p.name,
       description: p.description,
       category: p.category,
@@ -413,37 +548,50 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
 export async function syncClientCompaniesToSupabase(companies: ClientCompany[]): Promise<void> {
   if (!supabase || !companies || companies.length === 0) return;
   try {
-    for (const comp of companies) {
-      await supabase.from('client_companies').upsert({
-        id: comp.id,
-        name: comp.name,
-        default_delivery_location: comp.defaultDeliveryLocation || 'Brasília',
-        locations: comp.locations || ['Brasília'],
-        last_used: comp.lastUsed || new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+    // 1. Batch upsert de todas as empresas
+    const companiesPayload = companies.map(comp => ({
+      id: comp.id,
+      name: comp.name,
+      default_delivery_location: comp.defaultDeliveryLocation || 'Brasília',
+      locations: comp.locations || ['Brasília'],
+      last_used: comp.lastUsed || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+    await supabase.from('client_companies').upsert(companiesPayload);
 
+    // 2. Batch upsert de todos os contatos
+    const allContactsPayload: any[] = [];
+    companies.forEach(comp => {
+      (comp.contacts || []).forEach(ct => {
+        allContactsPayload.push({
+          id: ct.id,
+          company_id: comp.id,
+          name: ct.name,
+          title: ct.title || 'Sr.',
+          email: ct.email || '',
+          phone: ct.phone || '',
+          role: ct.role || 'Comprador',
+          location: ct.location || '',
+          last_used: ct.lastUsed || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      });
+    });
+
+    if (allContactsPayload.length > 0) {
+      await supabase.from('client_contacts').upsert(allContactsPayload);
+    }
+
+    // 3. Sincronização e exclusão de contatos removidos por empresa
+    for (const comp of companies) {
       const activeContactIds = (comp.contacts || []).map(c => c.id).filter(Boolean);
       if (activeContactIds.length > 0) {
-        for (const ct of comp.contacts) {
-          await supabase.from('client_contacts').upsert({
-            id: ct.id,
-            company_id: comp.id,
-            name: ct.name,
-            title: ct.title || 'Sr.',
-            email: ct.email || '',
-            phone: ct.phone || '',
-            role: ct.role || 'Comprador',
-            location: ct.location || '',
-            last_used: ct.lastUsed || new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-        }
-        // Exclui do Supabase os compradores que foram removidos desta empresa
-        const inList = activeContactIds.map(id => `"${id}"`).join(',');
-        await supabase.from('client_contacts').delete().eq('company_id', comp.id).not('id', 'in', `(${inList})`);
+        await supabase
+          .from('client_contacts')
+          .delete()
+          .eq('company_id', comp.id)
+          .not('id', 'in', `(${activeContactIds.map(id => `"${id}"`).join(',')})`);
       } else {
-        // Se a empresa não tem mais nenhum comprador cadastrado, limpa no Supabase
         await supabase.from('client_contacts').delete().eq('company_id', comp.id);
       }
     }

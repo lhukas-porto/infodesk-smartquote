@@ -304,7 +304,12 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
   const handleSaveNewProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProd.name || !newProd.costPrice) return;
+    if (!newProd.name || !newProd.name.trim()) {
+      alert('Por favor, informe ao menos o nome do produto.');
+      return;
+    }
+
+    const cost = Number(newProd.costPrice) || 0;
 
     const created: Product = {
       id: `prod-${Date.now()}`,
@@ -313,7 +318,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       name: newProd.name.trim(),
       description: newProd.description?.trim() || '',
       category: newProd.category || 'Geral',
-      costPrice: Number(newProd.costPrice),
+      costPrice: cost,
       unit: newProd.unit || 'Un.',
       lastUpdated: new Date().toISOString().split('T')[0]
     };
@@ -324,6 +329,11 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       return next;
     });
     syncProductToSupabase(created);
+
+    if (cost === 0) {
+      setImportStatus('Produto cadastrado com custo R$ 0,00 (sob cotação). Você poderá definir o custo posteriormente.');
+      setTimeout(() => setImportStatus(null), 4000);
+    }
 
     setIsAddModalOpen(false);
     setNewProd({ sku: '', name: '', description: '', category: 'Hardware', costPrice: 0, unit: 'Un.', stock: 1 });

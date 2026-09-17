@@ -6,13 +6,14 @@ import {
   Search, 
   Settings, 
   Users,
-  History
+  History,
+  BarChart3
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 
 interface NavbarProps {
-  activeTab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients';
-  setActiveTab: (tab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients') => void;
+  activeTab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard';
+  setActiveTab: (tab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard') => void;
   unreadCount: number;
   openSettings: () => void;
   openWebSearch?: () => void;
@@ -145,6 +146,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <History className="w-3.5 h-3.5 text-sky-600" />
               <span>Histórico</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                activeTab === 'dashboard'
+                  ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+              title="Painel Executivo & Indicadores BI (MEL-11)"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-sky-600" />
+              <span>Painel BI</span>
             </button>
           </nav>
 

@@ -1,0 +1,172 @@
+import { QuoteItem } from '../types';
+import { suggestMarkupForItem } from '../utils/pricingProfiles';
+
+export interface PricingCalculationOptions {
+  globalShipping?: number;
+  globalMarkup?: number;
+  globalTax?: number;
+}
+
+export interface QuoteTotalsResult {
+  totalCost: number;
+  totalShipping: number;
+  totalTaxes: number;
+  totalProfit: number;
+  totalAmount: number;
+  averageMargin: number;
+}
+
+/**
+ * Calcula o Preço de Venda Comercial unitário garantindo:
+ * - Lucro Líquido (Markup) incidindo sobre o Custo Real (Custo + Frete)
+ * - Impostos incidindo sobre o Preço Faturado de Venda (Imposto por dentro)
+ * - Precisão rigorosa de 2 casas decimais (centavos comerciais)
+ */
+export function calculateCommercialUnitPrice(
+  costPrice: number,
+  shippingCost: number = 0,
+  markupPercent: number = 23.5,
+  taxPercent: number = 9.1
+): number {
+  const baseCost = Number(costPrice || 0) + Number(shippingCost || 0);
+  if (baseCost <= 0) return 0;
+
+  const taxRate = Number(taxPercent || 0) / 100;
+  const marginRate = Number(markupPercent || 0) / 100;
+  const netDivisor = 1 - taxRate;
+
+  // Proteção contra alíquota >= 100%
+  if (netDivisor <= 0.01) {
+    return Number(((baseCost * (1 + marginRate)) / 0.01).toFixed(2));
+  }
+
+  // Preço de venda com centavos exatos
+  const rawPrice = (baseCost * (1 + marginRate)) / netDivisor;
+  return Number(rawPrice.toFixed(2));
+}
+
+/**
+ * Recalcula todos os totais financeiros e fiscais de uma lista de itens da cotação.
+ * Metodologia padrão Infodesk:
+ * - Lucro Líquido Real = Total Faturado - Custos de Mercadoria - Fretes Totais - Impostos
+ * - Margem Líquida % = (Lucro Líquido / (Custo + Frete)) * 100
+ */
+export function recalculateQuoteTotals(
+  items: QuoteItem[],
+  options: PricingCalculationOptions = {}
+): QuoteTotalsResult {
+  const defaultShipping = options.globalShipping ?? 0;
+  const defaultTax = options.globalTax ?? 9.1;
+
+  let totalCost = 0;
+  let totalShipping = 0;
+  let totalAmount = 0;
+  let totalTaxes = 0;
+
+  items.forEach(item => {
+    const qty = item.quantity > 0 ? item.quantity : 1;
+    const itemCost = (item.costPrice || 0) * qty;
+    const itemShipping = (item.shippingCost ?? defaultShipping) * qty;
+    const itemTotal = (item.unitPrice || 0) * qty;
+
+    const taxRate = (item.taxPercent ?? defaultTax) / 100;
+    const itemTaxAmount = itemTotal * taxRate;
+
+    totalCost += itemCost;
+    totalShipping += itemShipping;
+    totalAmount += itemTotal;
+    totalTaxes += itemTaxAmount;
+  });
+
+  const totalProfit = totalAmount - totalCost - totalShipping - totalTaxes;
+  const baseTotalCost = totalCost + totalShipping;
+  const averageMargin = baseTotalCost > 0 ? (totalProfit / baseTotalCost) * 100 : 0;
+
+  return {
+    totalCost: Number(totalCost.toFixed(2)),
+    totalShipping: Number(totalShipping.toFixed(2)),
+    totalTaxes: Number(totalTaxes.toFixed(2)),
+    totalProfit: Number(totalProfit.toFixed(2)),
+    totalAmount: Number(totalAmount.toFixed(2)),
+    averageMargin: Number(averageMargin.toFixed(1))
+  };
+}
+
+/**
+ * Atualiza um único item recalculando seu preço unitário e preço total
+ */
+export function recalculateSingleItem(
+  item: QuoteItem,
+  options: PricingCalculationOptions = {}
+): QuoteItem {
+  const shipping = item.shippingCost ?? options.globalShipping ?? 0;
+  const markup = item.markupPercent ?? options.globalMarkup ?? 25;
+  const tax = item.taxPercent ?? options.globalTax ?? 9.1;
+
+  const unitPrice = calculateCommercialUnitPrice(item.costPrice || 0, shipping, markup, tax);
+  const qty = item.quantity > 0 ? item.quantity : 1;
+  const totalPrice = Number((unitPrice * qty).toFixed(2));
+
+  return {
+    ...item,
+    unitPrice,
+    totalPrice
+  };
+}
+
+/**
+ * Aplica um markup em lote para itens selecionados ou para toda a cotação
+ */
+export function applyMarkupToItems(
+  items: QuoteItem[],
+  newMarkup: number,
+  targetItemIds?: string[],
+  options: PricingCalculationOptions = {}
+): QuoteItem[] {
+  return items.map(item => {
+    if (targetItemIds && !targetItemIds.includes(item.id)) {
+      return item;
+    }
+
+    const shipping = item.shippingCost ?? options.globalShipping ?? 0;
+    const tax = item.taxPercent ?? options.globalTax ?? 9.1;
+    const unitPrice = calculateCommercialUnitPrice(item.costPrice || 0, shipping, newMarkup, tax);
+    const qty = item.quantity > 0 ? item.quantity : 1;
+
+    return {
+      ...item,
+      markupPercent: newMarkup,
+      unitPrice,
+      totalPrice: Number((unitPrice * qty).toFixed(2))
+    };
+  });
+}
+
+/**
+ * Aplica um perfil de precificação dinâmica sugerindo markups por categoria / faixa de preço
+ */
+export function applyPricingProfileToItems(
+  items: QuoteItem[],
+  profileId: string,
+  options: PricingCalculationOptions = {}
+): QuoteItem[] {
+  return items.map(item => {
+    const suggestedMarkup = suggestMarkupForItem(
+      profileId,
+      item.costPrice || 0,
+      item.name,
+      item.description
+    );
+    const shipping = item.shippingCost ?? options.globalShipping ?? 0;
+    const tax = item.taxPercent ?? options.globalTax ?? 9.1;
+    const unitPrice = calculateCommercialUnitPrice(item.costPrice || 0, shipping, suggestedMarkup, tax);
+    const qty = item.quantity > 0 ? item.quantity : 1;
+
+    return {
+      ...item,
+      markupPercent: suggestedMarkup,
+      unitPrice,
+      totalPrice: Number((unitPrice * qty).toFixed(2))
+    };
+  });
+}

@@ -248,7 +248,7 @@ export function parseHtmlTable(html: string): ParsedItem[] {
                       rawSearchQuery: match[3].trim(),
                       quantity: parseQuantity(match[1]),
                       unit: match[2].toUpperCase().startsWith('CX') ? 'Cx.' : 'Un.',
-                      estimatedCost: 150,
+                      estimatedCost: 0,
                       sourceUrl: `https://lista.mercadolivre.com.br/${encodeURIComponent(match[3].trim())}`
                     });
                   }
@@ -486,7 +486,7 @@ export function parseHtmlTable(html: string): ParsedItem[] {
           unit: normalizedUnit,
           itemCode: reqCode || undefined,
           imageUrl: inlineImageUrl,
-          estimatedCost: 150,
+          estimatedCost: 0,
           sourceUrl: `https://www.google.com/search?q=${searchQuery}`
         };
 
@@ -596,7 +596,7 @@ export function parseSmartText(text: string): ParsedItem[] {
         rawSearchQuery: fullSearchContext,
         quantity: qty,
         unit,
-        estimatedCost: 150,
+        estimatedCost: 0,
         sourceUrl: `https://lista.mercadolivre.com.br/${query}`
       });
     }
@@ -708,7 +708,7 @@ export function parseSmartText(text: string): ParsedItem[] {
           quantity: currentItem.quantity || 1,
           unit: currentItem.unit || 'Un.',
           itemCode: currentItem.itemCode,
-          estimatedCost: 150,
+          estimatedCost: 0,
           sourceUrl: `https://www.google.com/search?q=${query}`
         });
       }
@@ -753,7 +753,7 @@ export function parseSmartText(text: string): ParsedItem[] {
       quantity: currentItem.quantity || 1,
       unit: currentItem.unit || 'Un.',
       itemCode: currentItem.itemCode,
-      estimatedCost: 150,
+      estimatedCost: 0,
       sourceUrl: `https://www.google.com/search?q=${query}`
     });
   }
@@ -1184,9 +1184,28 @@ export function cleanAlphanumericCode(code: string | undefined): string {
 }
 
 export function cleanNcmCode(ncm: string | undefined): string {
-  if (!ncm) return '84713019';
+  if (!ncm) return '';
   const digits = ncm.replace(/\D/g, '');
-  return digits.slice(0, 8);
+  return digits.length > 0 ? digits.slice(0, 8) : '';
+}
+
+/**
+ * Valida código de barras EAN-13 utilizando o algoritmo oficial Módulo 10.
+ */
+export function isValidEan13(ean: string | undefined): boolean {
+  if (!ean) return false;
+  const digits = ean.replace(/\D/g, '');
+  if (digits.length !== 13) return false;
+
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    const digit = parseInt(digits[i], 10);
+    sum += i % 2 === 0 ? digit : digit * 3;
+  }
+
+  const remainder = sum % 10;
+  const checkDigit = remainder === 0 ? 0 : 10 - remainder;
+  return checkDigit === parseInt(digits[12], 10);
 }
 
 /**
@@ -1306,20 +1325,14 @@ export function getCategoryFromNcm(ncmCode: string | undefined, fallbackCategory
  */
 export function applyCommercialPriceRounding(rawPrice: number): number {
   if (rawPrice <= 0) return 0;
-  return Math.round(rawPrice);
+  return Number(rawPrice.toFixed(2));
 }
 
 /**
  * Calcula o Preço de Venda garantindo que a porcentagem de Lucro Líquido
  * incida diretamente sobre o Custo Real dos produtos, e o Imposto incida sobre o Preço de Venda.
  *
- * Regra de arredondamento:
- * Se os centavos estiverem abaixo de 0,50 -> arredonda para baixo (ex: 59,20 -> 59,00).
- * Se estiverem iguais ou acima de 0,50 -> arredonda para cima (ex: 59,50 -> 60,00).
- *
- * Exemplo prático:
- * Custo = R$ 18,90 | Lucro = 21% | Imposto = 9,1%
- * Preço Bruto = 18,90 * 1,21 / (1 - 0,091) = 25,158... -> Centavos abaixo de 0,50 -> R$ 25,00!
+ * Precisão comercial padrão: 2 casas decimais (centavos exatos).
  */
 export function calculateCommercialUnitPrice(
   costPrice: number,
@@ -1336,12 +1349,12 @@ export function calculateCommercialUnitPrice(
 
   // Evita divisão por zero se imposto >= 100%
   if (netDivisor <= 0.01) {
-    return Math.round(baseCost * (1 + marginRate) / 0.01);
+    return Number((baseCost * (1 + marginRate) / 0.01).toFixed(2));
   }
 
-  // Preço de venda com arredondamento padrão comercial (< 0.50 para baixo, >= 0.50 para cima)
+  // Preço de venda comercial com centavos exatos
   const rawPrice = (baseCost * (1 + marginRate)) / netDivisor;
-  return Math.round(rawPrice);
+  return Number(rawPrice.toFixed(2));
 }
 
 export interface ProductCandidateListing {
@@ -2034,9 +2047,9 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string, exist
   }
 
   // Category, NCM, Cost & Image heuristics — Curadoria visual HD por categoria real
-  let ncm = '84713019';
-  let category = 'Informática & Tecnologia';
-  let cost = 250.00;
+  let ncm = '';
+  let category = 'Geral';
+  let cost = 0;
   let defaultImage = resolveImageForDescription(cleanName);
   let supplier = '';
 
@@ -2515,6 +2528,20 @@ export function generateQuoteCode(
 }
 
 /**
+ * Função utilitária para sanitizar e escapar caracteres especiais de HTML,
+ * prevenindo quebras visuais e injeção XSS nas propostas.
+ */
+function escapeHtml(str: any): string {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
  * Aplica máscara brasileira inteligente em números de telefone (fixo ou celular):
  * Ex: 6134032944 -> (61) 3403-2944
  * Ex: 61996272630 -> (61) 99627-2630 ou (61) 9 9627-2630
@@ -2536,8 +2563,8 @@ export function maskPhone(value: string): string {
 }
 
 /**
- * Gera o corpo do e-mail em HTML exatamente com a mesma identidade visual,
- * Constrói o corpo completo do e-mail em HTML padrão da Infodesk com tipografia Verdana,
+ * Gera o documento HTML oficial de Proposta Comercial da Infodesk para envio por e-mail ou visualização.
+ * Mantém 100% de paridade e conformidade de layout com a tabela do Word/Excel,
  * estrutura tabular, cabeçalho e rodapé oficial da pré-visualização da proposta.
  */
 export function generateProposalEmailHtml(
@@ -2545,12 +2572,12 @@ export function generateProposalEmailHtml(
   settings: any, 
   options: { forEmailSend?: boolean } = {}
 ): string {
-  const clientCompanyFormatted = formatCompanyPrefix(quote.clientCompany);
-  const contactPersonFormatted = formatContactPerson(quote.contactPerson);
+  const clientCompanyFormatted = escapeHtml(formatCompanyPrefix(quote.clientCompany));
+  const contactPersonFormatted = escapeHtml(formatContactPerson(quote.contactPerson));
   const excDetails = extractDeliveryExceptionDetails(quote.deliveryDays);
 
-  const cleanPhone = (settings.phone || '61 3033-5373').replace(/[()]/g, '').trim();
-  const cleanWhatsapp = (settings.whatsapp || '61 9 9627-2630').replace(/[()]/g, '').trim();
+  const cleanPhone = escapeHtml((settings.phone || '61 3033-5373').replace(/[()]/g, '').trim());
+  const cleanWhatsapp = escapeHtml((settings.whatsapp || '61 9 9627-2630').replace(/[()]/g, '').trim());
 
   // Para envio oficial por e-mail pelo Gmail, usamos Content-ID (CID) inline MIME: cid:infodesk-logo
   // Para visualização no modal interno do navegador, usamos a logomarca oficial: /infodesk-logo.png
@@ -2558,30 +2585,27 @@ export function generateProposalEmailHtml(
 
   const itemsRows = (quote.items || []).map((item: any) => {
     const isException = excDetails.hasException && excDetails.itemNumbers.includes(item.itemNumber);
-    const hasDescription = item.description && 
-      item.description !== item.name && 
-      !item.description.toLowerCase().includes('menor pre') && 
-      !item.description.toLowerCase().includes('apurado');
     const hasImage = item.showImage && item.imageUrl;
+    const safeItemName = escapeHtml(item.name);
+    const safeImageUrl = encodeURI(item.imageUrl || '');
 
     return `
       <tr>
         <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
-          ${item.itemNumber}
+          ${escapeHtml(item.itemNumber)}
         </td>
         <td style="border: 1px solid #000000; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           <div style="font-weight: normal; color: #000000;">
-            ${item.name}
-            ${isException ? `<span style="font-size: 8pt; color: #b45309; font-weight: bold; margin-left: 6px;">(Prazo diferenciado: ${excDetails.days} dias úteis)</span>` : ''}
+            ${safeItemName}
+            ${isException ? `<span style="font-size: 8pt; color: #b45309; font-weight: bold; margin-left: 6px;">(Prazo diferenciado: ${escapeHtml(excDetails.days)} dias úteis)</span>` : ''}
           </div>
-          ${hasDescription ? `<div style="font-size: 8.5pt; color: #334155; margin-top: 4px; line-height: 1.35; white-space: pre-line;">${item.description}</div>` : ''}
-          ${hasImage ? `<div style="margin-top: 8px; margin-bottom: 4px;"><img src="${item.imageUrl}" alt="${item.name}" height="140" style="height: 140px; width: auto; max-width: 260px; object-fit: contain; display: block;" /></div>` : ''}
+          ${hasImage ? `<div style="margin-top: 8px; margin-bottom: 4px;"><img src="${safeImageUrl}" alt="${safeItemName}" height="140" style="height: 140px; width: auto; max-width: 260px; object-fit: contain; display: block;" /></div>` : ''}
         </td>
         <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
-          ${item.quantity}
+          ${escapeHtml(item.quantity)}
         </td>
         <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
-          ${item.unit || 'Un.'}
+          ${escapeHtml(item.unit || 'Un.')}
         </td>
         <td style="border: 1px solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           R$ ${Number(item.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

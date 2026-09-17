@@ -30,7 +30,16 @@ export class ErrorBoundary extends Component<Props, State> {
   private handleReset = () => {
     try {
       if (this.state.error?.message?.toLowerCase().includes('quota')) {
+        localStorage.removeItem('infodesk_current_draft_quote');
         localStorage.removeItem('infodesk_emails');
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('infodesk_backup_items_') || k.startsWith('infodesk_price_cache_'))) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
       }
     } catch (e) {
       console.error(e);
@@ -41,7 +50,16 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private handleClearCacheAndReset = () => {
     try {
+      localStorage.removeItem('infodesk_current_draft_quote');
       localStorage.removeItem('infodesk_emails');
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('infodesk_backup_items_') || k.startsWith('infodesk_price_cache_'))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
     } catch (e) {
       console.error(e);
     }

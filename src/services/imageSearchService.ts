@@ -30,49 +30,6 @@ function cleanSearchQuery(query: string): string {
   return uniqueWords.join(' ');
 }
 
-/**
- * Busca via Proxy CORS para ambientes estáticos ou de contingência
- */
-async function searchViaCorsProxy(query: string, maxResults = 4): Promise<string[]> {
-  const proxies = [
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://www.bing.com/images/search?q=${encodeURIComponent(query)}&form=HDRSC2&first=1`)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://www.bing.com/images/search?q=${encodeURIComponent(query)}&form=HDRSC2&first=1`)}`
-  ];
-
-  for (const proxyUrl of proxies) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
-
-      const res = await fetch(proxyUrl, {
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-
-      if (!res.ok) continue;
-      const html = await res.text();
-      const matches = [...html.matchAll(/murl&quot;:&quot;(https?:\/\/[^&"]+)&quot;/g)].map(m => m[1]);
-
-      const filtered: string[] = [];
-      const seen = new Set<string>();
-
-      for (const url of matches) {
-        if (!url.startsWith('https://')) continue;
-        if (url.includes('.svg') || url.includes('placeholder') || url.includes('data:image') || url.includes('unsplash.com')) continue;
-        if (seen.has(url)) continue;
-        seen.add(url);
-        filtered.push(url);
-        if (filtered.length >= maxResults) break;
-      }
-
-      if (filtered.length > 0) return filtered;
-    } catch {
-      // continua para próximo proxy
-    }
-  }
-  return [];
-}
-
 export interface ImageSearchOptions {
   negativeKeywords?: string[];
   alternativeQueries?: string[];
@@ -93,21 +50,26 @@ async function fetchSingleQueryImages(query: string, maxResults: number): Promis
   const clean = cleanSearchQuery(query);
   if (!clean || clean.length < 2) return [];
 
-  // 1. Tenta endpoint interno do Vite Dev Server (sem CORS, alta velocidade)
+  // Rota segura oficial (/api/image-search): tratada por Serverless Function na Vercel e middleware no Vite Dev
   try {
-    const localRes = await fetch(`/api/image-search?q=${encodeURIComponent(clean)}`);
-    if (localRes.ok) {
-      const data = await localRes.json();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`/api/image-search?q=${encodeURIComponent(clean)}`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
       if (data?.success && Array.isArray(data?.images) && data.images.length > 0) {
         return data.images.slice(0, maxResults);
       }
     }
-  } catch {
-    // continua para proxy
+  } catch (err: any) {
+    console.warn('[Image Search] Falha ao consultar endpoint /api/image-search:', err?.message);
   }
 
-  // 2. Fallback via proxy CORS resiliente
-  return await searchViaCorsProxy(clean, maxResults);
+  return [];
 }
 
 /**

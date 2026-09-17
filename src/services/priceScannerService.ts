@@ -851,16 +851,6 @@ export function resolveGalleryImagesForProduct(
       images.push(single);
     }
   }
-  const defaultExtras = [
-    'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1580674684081-7617fbf3d745?w=600&auto=format&fit=crop&q=80'
-  ];
-  for (const ext of defaultExtras) {
-    if (images.length < 3 && !images.includes(ext)) {
-      images.push(ext);
-    }
-  }
 
   return images.slice(0, 4);
 }
@@ -991,7 +981,7 @@ export async function phase1DiscoverProductsFromText(
   const imgData = options.imageSource ? await convertImageSourceToBase64(options.imageSource) : null;
 
   if (activeKey) {
-    const models = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
 
     const photoPrioritySection = imgData ? `
 🚨🚨🚨 REGRA SUPREMA DE PRIORIDADE VISUAL (A FOTO É A VERDADE ABSOLUTA):
@@ -1209,17 +1199,16 @@ Retorne ESTRITAMENTE um JSON no formato:
     }
   }
 
-  // Fallback inteligente heurístico local
+  // Fallback inteligente heurístico local sem chave de IA
   const parsedItems = parsePastedProductListWithQty(rawText);
   return await Promise.all(
     parsedItems.map(async (it, idx) => {
       const stdName = formatProductSentenceCase(normalizeSearchTerm(it.query));
-      const isCart = stdName.toLowerCase().includes('carrinho') || it.query.toLowerCase().includes('carrinho');
-      const category = isCart ? 'Ferramentas' : 'Suprimentos';
+      const category = 'Geral';
 
       let realImages: string[] = [];
       try {
-        realImages = await searchProductImages(isCart ? 'Carrinho Plataforma Com Grade Movel Profissional 300kg Preto' : stdName, 4);
+        realImages = await searchProductImages(stdName, 4);
       } catch {
         // fallback
       }
@@ -1229,37 +1218,22 @@ Retorne ESTRITAMENTE um JSON no formato:
       return {
         id: `disc-local-${Date.now()}-${idx}`,
         originalQuery: it.query,
-        standardizedName: isCart ? 'Carrinho Plataforma Com Grade Móvel Profissional 300kg Preto' : stdName,
-        brand: 'Genérica',
-        manufacturer: 'Fabricante Nacional / Importado',
-        model: isCart ? 'CPG-300' : 'STD-01',
-        partNumber: isCart ? 'CPG300GPRETO' : cleanAlphanumericCode(stdName.substring(0, 10).toUpperCase()),
+        standardizedName: stdName,
+        brand: '',
+        manufacturer: '',
+        model: '',
+        partNumber: '',
         category: category,
-        ncm: isCart ? '8716.80.00' : '8471.70.40',
-        weight: isCart ? '14.500 kg' : '0.500 kg',
-        dimensions: isCart ? '80cm x 60cm x 90cm' : 'Sob consulta',
+        ncm: '',
+        weight: '',
+        dimensions: '',
         quantity: it.quantity || 1,
         unit: 'Un.',
-        suggestedPrice: isCart ? 349.90 : 189.90,
-        costPrice: isCart ? 220.00 : 120.00,
-        confidence: 'Alta',
-        description: isCart
-          ? 'O Carrinho Plataforma com Grade Móvel Profissional de 300kg é a solução ideal para o transporte seguro e eficiente de cargas em armazéns, estoques, comércios e indústrias. Fabricado em aço reforçado com pintura eletrostática preta, conta com grade móvel removível que facilita a acomodação de diversos tipos de volumes. Suas rodas de borracha de alta durabilidade garantem manobrabilidade suave e excelente absorção de impactos.'
-          : `Produto comercializado com alto padrão de qualidade e durabilidade para uso corporativo e industrial.`,
-        specifications: isCart
-          ? [
-              { label: 'Capacidade de Carga', value: '300 kg' },
-              { label: 'Material da Estrutura', value: 'Aço reforçado' },
-              { label: 'Tipo de Grade', value: 'Móvel / Removível' },
-              { label: 'Tipo de Rodas', value: 'Rodas de borracha' },
-              { label: 'Quantidade de Rodas', value: '4 rodas (2 fixas e 2 giratórias)' },
-              { label: 'Cor', value: 'Preto' },
-              { label: 'Aplicação', value: 'Logística, armazéns, comércios e indústrias' }
-            ]
-          : [
-              { label: 'Garantia', value: '12 meses' },
-              { label: 'Padrão', value: 'Comercial' }
-            ],
+        suggestedPrice: 0,
+        costPrice: 0,
+        confidence: 'Média' as const,
+        description: '',
+        specifications: [],
         images: gallery,
         imageUrl: gallery[0] || '',
         selectedImageIndex: 0
@@ -1280,7 +1254,7 @@ export async function phase1DiscoverExactProduct(query: string, apiKey: string):
   category: string;
   confidence: number;
 } | null> {
-  const models = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
 
   const prompt = `Você é um engenheiro sênior especialista em suprimentos corporativos, componentes eletrônicos, informática, automação comercial e compras industriais no Brasil.
 Sua missão na FASE 1 é ANALISAR MINUCIOSAMENTE o texto bruto fornecido pelo comprador e DEDUZIR COM PRECISÃO CIRÚRGICA qual é o PRODUTO REAL.
@@ -1364,7 +1338,7 @@ export async function phase2EnrichAndScanPrice(
   originalQuery: string,
   apiKey: string
 ): Promise<ScannedPriceResult | null> {
-  const models = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
 
   const visualSearch = (discovered as any).visualSearchQuery;
   const visualInspection = (discovered as any).visualInspection;
@@ -1436,6 +1410,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
         generationConfig: { temperature: 0.1 }
       };
 
+      let usedGoogleSearch = true;
       let response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1443,6 +1418,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       });
 
       if (!response.ok) {
+        usedGoogleSearch = false;
         requestBody = {
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -1467,7 +1443,18 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       if (!jsonMatch) continue;
 
       const parsed = JSON.parse(jsonMatch[0]);
-      const bestPrice = typeof parsed.bestPrice === 'number' ? parsed.bestPrice : (typeof parsed.costPrice === 'number' ? parsed.costPrice : 0);
+      
+      // Se a ferramenta de busca ao vivo falhou, define bestPrice = 0 e status 'on_demand'
+      // para evitar alucinação de preços fictícios pelo modelo
+      let bestPrice = typeof parsed.bestPrice === 'number' ? parsed.bestPrice : (typeof parsed.costPrice === 'number' ? parsed.costPrice : 0);
+      let status = parsed.status || (bestPrice > 0 ? 'exact' : 'on_demand');
+      let observation = parsed.observation || (bestPrice > 0 ? 'Menor preço apurado na internet' : '');
+
+      if (!usedGoogleSearch) {
+        bestPrice = 0;
+        status = 'on_demand';
+        observation = 'Busca de preços ao vivo indisponível. Item cadastrado sob consulta.';
+      }
 
       const stdName = (parsed.standardizedName || discovered.standardizedName)
         .replace(/,/g, ' ')
@@ -1596,40 +1583,49 @@ export async function runBatchPhase2Scan(
     }
   };
 
-  for (let i = 0; i < discoveredProducts.length; i += CONCURRENCY) {
-    const chunk = discoveredProducts.slice(i, i + CONCURRENCY);
+  // Fila Concorrente Contínua (MEL-03) — Workers contínuos sem bloqueio
+  let nextQueueIndex = 0;
+  const orderedResults: ScannedPriceResult[] = new Array(total);
 
-    onProgress(
-      {
-        total,
-        current: Math.min(completedCount + 1, total),
-        currentProduct: chunk.map(c => c.standardizedName).join(' • '),
-        isComplete: false
-      },
-      [...results]
-    );
+  const worker = async () => {
+    while (nextQueueIndex < total) {
+      const itemIdx = nextQueueIndex++;
+      const product = discoveredProducts[itemIdx];
 
-    const chunkResults = await Promise.all(chunk.map(c => processItem(c)));
-    results.push(...chunkResults);
-    completedCount += chunkResults.length;
+      onProgress(
+        {
+          total,
+          current: Math.min(completedCount + 1, total),
+          currentProduct: product.standardizedName,
+          isComplete: false
+        },
+        orderedResults.filter(Boolean)
+      );
 
-    onProgress(
-      {
-        total,
-        current: completedCount,
-        currentProduct: chunk[chunk.length - 1]?.standardizedName || '',
-        isComplete: completedCount >= total
-      },
-      [...results]
-    );
+      const itemRes = await processItem(product);
+      orderedResults[itemIdx] = itemRes;
+      completedCount++;
 
-    if (i + CONCURRENCY < discoveredProducts.length) {
-      await new Promise(r => setTimeout(r, 150));
+      onProgress(
+        {
+          total,
+          current: completedCount,
+          currentProduct: product.standardizedName,
+          isComplete: completedCount >= total
+        },
+        orderedResults.filter(Boolean)
+      );
+
+      await new Promise(r => setTimeout(r, 60));
     }
-  }
+  };
 
-  onProgress({ total, current: total, currentProduct: '', isComplete: true }, [...results]);
-  return results;
+  const activePool = Array.from({ length: Math.min(CONCURRENCY, total) }, () => worker());
+  await Promise.all(activePool);
+
+  const finalResults = orderedResults.filter(Boolean);
+  onProgress({ total, current: total, currentProduct: '', isComplete: true }, finalResults);
+  return finalResults;
 }
 
 /**

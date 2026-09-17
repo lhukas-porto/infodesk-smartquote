@@ -10,30 +10,79 @@ const CURRENT_DRAFT_QUOTE_KEY = 'infodesk_current_draft_quote';
 const ACTIVE_TAB_KEY = 'infodesk_active_tab';
 const MANUAL_ANALYSES_KEY = 'infodesk_manual_analyses';
 
+/**
+ * Limpeza preventiva inteligente para evitar QuotaExceededError no localStorage.
+ * Remove chaves de backup redundantes e caches antigos sem perder dados do usuário.
+ */
+export const pruneLocalStorage = (): void => {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('infodesk_backup_items_') || k.startsWith('infodesk_price_cache_'))) {
+        keysToRemove.push(k);
+      }
+    }
+    // Remove backups redundantes para liberar blocos de megabytes
+    keysToRemove.forEach(k => {
+      try { localStorage.removeItem(k); } catch { /* noop */ }
+    });
+    console.warn(`[Storage] Limpeza preventiva executada: ${keysToRemove.length} chaves obsoletas liberadas.`);
+  } catch (e) {
+    console.error('Falha ao executar pruneLocalStorage:', e);
+  }
+};
+
 export const getCurrentDraftQuote = (): Quote | null => {
-  const saved = localStorage.getItem(CURRENT_DRAFT_QUOTE_KEY);
-  if (saved) {
-    try {
+  try {
+    const saved = localStorage.getItem(CURRENT_DRAFT_QUOTE_KEY) || sessionStorage.getItem(CURRENT_DRAFT_QUOTE_KEY);
+    if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
         return parsed;
       }
-    } catch (e) {
-      console.error('Erro ao recuperar rascunho de cotação:', e);
     }
+  } catch (e) {
+    console.error('Erro ao recuperar rascunho de cotação:', e);
   }
   return null;
 };
 
 export const saveCurrentDraftQuote = (quote: Quote | null): void => {
   if (!quote) {
-    localStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
+    try {
+      localStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
+      sessionStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
+    } catch { /* noop */ }
     return;
   }
-  localStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, JSON.stringify(quote));
+
+  const serialized = JSON.stringify(quote);
+
+  try {
+    localStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, serialized);
+  } catch (err: any) {
+    console.warn('Quota excedida ao salvar rascunho. Executando limpeza automática...', err);
+    pruneLocalStorage();
+    try {
+      localStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, serialized);
+    } catch (retryErr) {
+      console.warn('Persistindo rascunho no sessionStorage como fallback de segurança.', retryErr);
+      try {
+        sessionStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, serialized);
+      } catch (sessionErr) {
+        console.error('Falha final ao salvar rascunho no sessionStorage:', sessionErr);
+      }
+    }
+  }
+
   if (quote.items && quote.items.length > 0) {
-    if (quote.code) saveQuoteItemsBackup(quote.code, quote.items);
-    if (quote.id) saveQuoteItemsBackup(quote.id, quote.items);
+    try {
+      if (quote.code) saveQuoteItemsBackup(quote.code, quote.items);
+      if (quote.id) saveQuoteItemsBackup(quote.id, quote.items);
+    } catch {
+      // Ignora erro de backup secundário
+    }
   }
 };
 
@@ -43,7 +92,7 @@ export const saveQuoteItemsBackup = (key: string, items: QuoteItem[]): void => {
     const cleanKey = key.trim().replace(/\s+/g, '_').toUpperCase();
     localStorage.setItem(`infodesk_backup_items_${cleanKey}`, JSON.stringify(items));
   } catch (e) {
-    console.warn('Erro ao salvar backup de itens:', e);
+    console.warn('Quota excedida ao salvar backup de itens. Ignorando para não travar a aplicação.');
   }
 };
 
@@ -65,12 +114,20 @@ export const getQuoteItemsBackup = (key: string): QuoteItem[] | null => {
 };
 
 export const getSavedActiveTab = (defaultTab: string = 'inbox'): string => {
-  const saved = localStorage.getItem(ACTIVE_TAB_KEY);
-  return saved && ['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients'].includes(saved) ? saved : defaultTab;
+  try {
+    const saved = localStorage.getItem(ACTIVE_TAB_KEY);
+    return saved && ['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients', 'dashboard'].includes(saved) ? saved : defaultTab;
+  } catch {
+    return defaultTab;
+  }
 };
 
 export const saveActiveTab = (tab: string): void => {
-  localStorage.setItem(ACTIVE_TAB_KEY, tab);
+  try {
+    localStorage.setItem(ACTIVE_TAB_KEY, tab);
+  } catch (e) {
+    console.warn('Erro ao salvar aba ativa no localStorage:', e);
+  }
 };
 
 // ─── Análises Avulsas (emails de foto/texto colados — ficam separados do inbox) ───

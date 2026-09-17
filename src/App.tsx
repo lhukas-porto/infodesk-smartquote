@@ -8,10 +8,10 @@ import { SentHistoryView } from './components/SentHistoryView';
 import { PriceScannerView } from './components/PriceScannerView';
 import { EmailSendModal } from './components/EmailSendModal';
 import { SettingsModal } from './components/SettingsModal';
-import { ClientManagementModal } from './components/ClientManagementModal';
 import { ClientManagementView } from './components/ClientManagementView';
 import { EmailContactScannerModal } from './components/EmailContactScannerModal';
 import { ManualAnalysesView } from './components/ManualAnalysesView';
+import { DashboardView } from './components/DashboardView';
 import { ScannedContactCandidate } from './services/emailScannerService';
 import { 
   CompanySettings, 
@@ -74,6 +74,7 @@ import {
   fetchCompanySettingsFromSupabase,
   syncCompanySettingsToSupabase,
   fetchQuotesFromSupabase,
+  fetchQuoteItemsByQuoteId,
   syncQuoteToSupabase,
   fetchProductsFromSupabase,
   syncProductToSupabase,
@@ -87,9 +88,9 @@ import {
 } from './services/supabase';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients'>(() => {
+  const [activeTab, setActiveTab] = useState<'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard'>(() => {
     const saved = getSavedActiveTab('inbox');
-    return (['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients'].includes(saved) ? saved : 'inbox') as any;
+    return (['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients', 'dashboard'].includes(saved) ? saved : 'inbox') as any;
   });
   const [settings, setSettings] = useState<CompanySettings>(getSettings());
   const [products, setProducts] = useState<Product[]>(getProducts());
@@ -113,7 +114,6 @@ export const App: React.FC = () => {
   };
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isClientsModalOpen, setIsClientsModalOpen] = useState(false);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [clientCompanies, setClientCompanies] = useState<ClientCompany[]>(() => getClientCompanies());
   const [manualAnalyses, setManualAnalyses] = useState<IncomingEmail[]>(() => getManualAnalyses());
@@ -240,8 +240,32 @@ export const App: React.FC = () => {
                 if (bCode && bCode.length > 0) items = bCode;
                 else if (bId && bId.length > 0) items = bId;
               }
+              if (items.length === 0 && (Number(rq.totalAmount || 0) > 0 || Number(rq.totalCost || 0) > 0)) {
+                items = [{
+                  id: `item-${rq.id || Date.now()}-fallback`,
+                  itemNumber: 1,
+                  name: rq.subject || `Fornecimento para ${rq.clientCompany || 'Cliente'}`,
+                  description: '',
+                  rawSearchQuery: rq.subject || rq.code,
+                  partNumber: '',
+                  ncm: '',
+                  imageUrl: '',
+                  showImage: false,
+                  quantity: 1,
+                  unit: 'Un.',
+                  costPrice: Number(rq.totalCost || 0),
+                  shippingCost: Number(rq.totalShipping || 0),
+                  taxPercent: Number(rq.globalTaxPercent || 6),
+                  markupPercent: Number(rq.averageMargin || 35),
+                  unitPrice: Number(rq.totalAmount || 0),
+                  totalPrice: Number(rq.totalAmount || 0),
+                  sourceUrl: '',
+                  supplier: ''
+                }];
+              }
               if (items.length > 0) {
                 if (rq.code) saveQuoteItemsBackup(rq.code, items);
+                if (rq.id) saveQuoteItemsBackup(rq.id, items);
                 return { ...rq, items };
               }
               return rq;
@@ -381,6 +405,21 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleSwitchGoogleAccount = async () => {
+    disconnectGmailAccount();
+    setIsGoogleConnected(false);
+    setConnectedUserEmail(null);
+    try {
+      const auth = await requestGmailAccessToken(googleClientId, true);
+      setIsGoogleConnected(true);
+      setConnectedUserEmail(auth.email);
+      setSettings(prev => ({ ...prev, googleAccountEmail: auth.email, googleWorkspaceConnected: true }));
+      saveSettings({ ...settings, googleAccountEmail: auth.email, googleWorkspaceConnected: true });
+    } catch (err: any) {
+      console.warn('Troca de conta cancelada ou falhou:', err);
+    }
+  };
+
   const handleRefreshEmails = async (period?: EmailPeriodFilter) => {
     const targetPeriod = period || emailPeriod;
     if (period) {
@@ -431,7 +470,7 @@ export const App: React.FC = () => {
       const resolved = resolveProductDetails(exactSearchRef, item.description);
 
       // Cost price: catalog > resolved marketplace cost > suggested estimated cost
-      const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || item.estimatedCost || 150);
+      const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || item.estimatedCost || 0);
       const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
       const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
 
@@ -549,7 +588,7 @@ export const App: React.FC = () => {
       const exactSearchRef = item.rawSearchQuery || [item.name, item.description].filter(Boolean).join(' - ');
       const resolved = resolveProductDetails(exactSearchRef, item.description);
 
-      const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || item.estimatedCost || 150);
+      const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || item.estimatedCost || 0);
       const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
       const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
 
@@ -748,13 +787,17 @@ export const App: React.FC = () => {
     // Se não estiver conectado ou token expirado, conecta automaticamente com o Google
     if (!token) {
       try {
-        const auth = await requestGmailAccessToken(googleClientId);
+        const auth = await requestGmailAccessToken(googleClientId, true);
         token = auth.token;
         setIsGoogleConnected(true);
         setConnectedUserEmail(auth.email);
         setSettings(prev => ({ ...prev, googleAccountEmail: auth.email, googleWorkspaceConnected: true }));
+        saveSettings({ ...settings, googleAccountEmail: auth.email, googleWorkspaceConnected: true });
       } catch (authErr: any) {
         console.error('Falha na autenticação do Gmail:', authErr);
+        disconnectGmailAccount();
+        setIsGoogleConnected(false);
+        setConnectedUserEmail(null);
         throw new Error(authErr?.message || 'Não foi possível conectar ao Google Workspace para enviar o e-mail. Por favor, autorize a janela do Google.');
       }
     }
@@ -790,12 +833,18 @@ export const App: React.FC = () => {
       });
     } catch (err: any) {
       console.error('Erro no envio via Gmail API:', err);
-      // Se o token expirou no meio do caminho, limpa a sessão para reconectar na próxima tentativa
-      if (String(err?.message || '').toLowerCase().includes('token') || String(err?.message || '').toLowerCase().includes('401')) {
-        setIsGoogleConnected(false);
-      }
-      throw new Error(`Falha no envio do Gmail: ${err.message || 'Verifique sua conexão'}`);
+      // Se deu erro de conta errada, 400, 401, token ou from, limpa a sessão para permitir escolher a certa
+      disconnectGmailAccount();
+      setIsGoogleConnected(false);
+      setConnectedUserEmail(null);
+      throw new Error(`Falha no envio do Gmail: ${err.message || 'Verifique se você selecionou a conta correta do Google'}`);
     }
+
+    if (sentQuote.items && sentQuote.items.length > 0) {
+      if (sentQuote.code) saveQuoteItemsBackup(sentQuote.code, sentQuote.items);
+      if (sentQuote.id) saveQuoteItemsBackup(sentQuote.id, sentQuote.items);
+    }
+    saveCurrentDraftQuote(sentQuote);
 
     setCurrentQuote(sentQuote);
     setQuotes(prev => {
@@ -810,68 +859,7 @@ export const App: React.FC = () => {
   };
 
   const handleAddWebSearchItemToQuote = (item: Partial<QuoteItem>) => {
-    const markup = item.markupPercent || settings.defaultMarkupPercent || 35;
-    const tax = settings.defaultTaxPercent || 6;
-    const shipping = item.shippingCost || settings.defaultShippingCost || 0;
-    const cost = item.costPrice || 0;
-    const unitPrice = item.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
-    const qty = item.quantity || 1;
-    const totalPrice = Number((unitPrice * qty).toFixed(2));
-
-    const newItem: QuoteItem = {
-      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      itemNumber: currentQuote.items.length + 1,
-      name: item.name || '',
-      description: item.description || '',
-      partNumber: item.partNumber || '',
-      ncm: item.ncm || '',
-      imageUrl: item.imageUrl || '',
-      showImage: item.showImage ?? false,
-      quantity: qty,
-      unit: item.unit || 'Un.',
-      costPrice: cost,
-      shippingCost: shipping,
-      taxPercent: tax,
-      markupPercent: markup,
-      unitPrice,
-      totalPrice,
-      sourceUrl: item.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(item.name || '')}`,
-      supplier: item.supplier || ''
-    };
-
-    const updatedItems = [...currentQuote.items, newItem];
-    let totalCost = 0;
-    let totalShipping = 0;
-    let totalAmount = 0;
-    let totalTaxes = 0;
-
-    updatedItems.forEach(i => {
-      const q = i.quantity || 1;
-      const itemCost = i.costPrice * q;
-      const itemShipping = (i.shippingCost || 0) * q;
-      const itemTotal = i.totalPrice;
-      const itemTax = itemTotal * ((i.taxPercent || tax) / 100);
-
-      totalCost += itemCost;
-      totalShipping += itemShipping;
-      totalAmount += itemTotal;
-      totalTaxes += itemTax;
-    });
-
-    const totalProfit = totalAmount - totalCost - totalShipping - totalTaxes;
-    const directCosts = totalCost + totalShipping;
-    const averageMargin = directCosts > 0 ? (totalProfit / directCosts) * 100 : markup;
-
-    setCurrentQuote(prev => ({
-      ...prev,
-      items: updatedItems,
-      totalCost: Number(totalCost.toFixed(2)),
-      totalShipping: Number(totalShipping.toFixed(2)),
-      totalTaxes: Number(totalTaxes.toFixed(2)),
-      totalProfit: Number(totalProfit.toFixed(2)),
-      totalAmount: Number(totalAmount.toFixed(2)),
-      averageMargin: Number(averageMargin.toFixed(1))
-    }));
+    handleStartNewQuoteWithItems([item]);
   };
 
   const handleStartNewQuoteWithItems = (itemsToAdd: Partial<QuoteItem>[]) => {
@@ -889,11 +877,11 @@ export const App: React.FC = () => {
         id: `item-${Date.now()}-${idx}`,
         itemNumber: idx + 1,
         name: item.name || '',
-        description: item.description || '',
+        description: '',
         partNumber: item.partNumber || '',
         ncm: item.ncm || '',
         imageUrl: item.imageUrl || '',
-        showImage: item.showImage ?? false,
+        showImage: item.showImage ?? (item.imageUrl ? true : false),
         quantity: qty,
         unit: item.unit || 'Un.',
         costPrice: cost,
@@ -954,11 +942,13 @@ export const App: React.FC = () => {
       globalMarkupPercent: markup,
       globalTaxPercent: tax,
       globalShipping: shipping,
+      showProductImages: true,
       status: 'draft',
       createdAt: new Date().toISOString()
     };
 
     setCurrentQuote(newQuote);
+    saveCurrentDraftQuote(newQuote);
     setActiveTab('builder');
   };
 
@@ -1001,6 +991,147 @@ export const App: React.FC = () => {
       averageMargin
     }));
     setActiveTab('builder');
+  };
+
+  const resolveQuoteItems = async (q: Quote, localQuotes: Quote[]): Promise<QuoteItem[]> => {
+    // 1. Já possui itens na memória
+    if (Array.isArray(q.items) && q.items.length > 0) {
+      if (q.code) saveQuoteItemsBackup(q.code, q.items);
+      if (q.id) saveQuoteItemsBackup(q.id, q.items);
+      return q.items;
+    }
+
+    // 2. Tentar recuperar da lista de cotações em memória
+    const matched = localQuotes.find(item => item.id === q.id || item.code === q.code);
+    if (matched && Array.isArray(matched.items) && matched.items.length > 0) {
+      if (q.code) saveQuoteItemsBackup(q.code, matched.items);
+      if (q.id) saveQuoteItemsBackup(q.id, matched.items);
+      return matched.items;
+    }
+
+    // 3. Tentar recuperar do rascunho salvo no localStorage
+    const draft = getCurrentDraftQuote();
+    if (draft && (draft.id === q.id || draft.code === q.code) && Array.isArray(draft.items) && draft.items.length > 0) {
+      if (q.code) saveQuoteItemsBackup(q.code, draft.items);
+      if (q.id) saveQuoteItemsBackup(q.id, draft.items);
+      return draft.items;
+    }
+
+    // 4. Tentar recuperar do backup persistente por código e id
+    const bCode = q.code ? getQuoteItemsBackup(q.code) : null;
+    if (bCode && bCode.length > 0) return bCode;
+
+    const bId = q.id ? getQuoteItemsBackup(q.id) : null;
+    if (bId && bId.length > 0) return bId;
+
+    // 5. Buscar diretamente no Supabase em tempo real caso tenha id no banco
+    if (q.id && isSupabaseConfigured) {
+      try {
+        const remoteItems = await fetchQuoteItemsByQuoteId(q.id);
+        if (remoteItems && remoteItems.length > 0) {
+          if (q.code) saveQuoteItemsBackup(q.code, remoteItems);
+          saveQuoteItemsBackup(q.id, remoteItems);
+          return remoteItems;
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar itens do Supabase para quote:', q.id, e);
+      }
+    }
+
+    // 6. Tentar encontrar e-mail ou análise correspondente
+    const searchList = [...emails, ...manualAnalyses];
+    const matchingSource = searchList.find(e => {
+      const sEmail = (e.senderEmail || '').toLowerCase().trim();
+      const qEmail = (q.clientEmail || '').toLowerCase().trim();
+      const sComp = (e.senderCompany || '').toLowerCase().trim();
+      const qComp = (q.clientCompany || '').toLowerCase().trim();
+      const codePrefix = (q.code || '').split(' ')[0].toLowerCase();
+      return (
+        (qEmail && sEmail === qEmail) ||
+        (qComp && (sComp.includes(qComp) || qComp.includes(sComp))) ||
+        (codePrefix && sComp.includes(codePrefix))
+      );
+    });
+
+    if (matchingSource && matchingSource.suggestedItems && matchingSource.suggestedItems.length > 0) {
+      const markup = q.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 35;
+      const tax = q.globalTaxPercent ?? settings.defaultTaxPercent ?? 6;
+      const shipping = q.globalShipping ?? settings.defaultShippingCost ?? 0;
+      const reconstructed: QuoteItem[] = matchingSource.suggestedItems.map((it, idx) => {
+        const matchedProd = products.find(p => p.name.toLowerCase() === it.name.toLowerCase() || p.name.toLowerCase().includes(it.name.toLowerCase()));
+        const exactSearchRef = it.rawSearchQuery || [it.name, it.description].filter(Boolean).join(' - ');
+        const resolved = resolveProductDetails(exactSearchRef, it.description);
+        const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || it.estimatedCost || 0);
+        const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
+        const totalPrice = Number((unitPrice * it.quantity).toFixed(2));
+        const finalImageUrl = it.imageUrl || matchedProd?.imageUrl || resolved.imageUrl;
+        const finalPartNumber = it.partNumber || it.itemCode || matchedProd?.partNumber || resolved.partNumber;
+        const finalNcm = it.ncm || matchedProd?.ncm || resolved.ncm;
+        const itemUrl = (it.sourceUrl && isExactProductUrl(it.sourceUrl)) ? it.sourceUrl : (isExactProductUrl(resolved.sourceUrl) ? resolved.sourceUrl : (isExactProductUrl(matchedProd?.sourceUrl) ? matchedProd?.sourceUrl : ''));
+        return {
+          id: `item-${Date.now()}-${idx}`,
+          itemNumber: idx + 1,
+          productId: matchedProd?.id,
+          name: formatProductSentenceCase(resolved.standardizedName || it.name),
+          description: it.description ? formatProductSentenceCase(it.description) : '',
+          rawSearchQuery: exactSearchRef,
+          partNumber: finalPartNumber,
+          ncm: finalNcm,
+          imageUrl: finalImageUrl,
+          showImage: false,
+          quantity: it.quantity,
+          unit: it.unit || 'Un.',
+          costPrice: cost,
+          shippingCost: shipping,
+          taxPercent: tax,
+          markupPercent: markup,
+          unitPrice,
+          totalPrice,
+          sourceUrl: itemUrl
+        };
+      });
+
+      if (reconstructed.length > 0) {
+        if (q.code) saveQuoteItemsBackup(q.code, reconstructed);
+        if (q.id) saveQuoteItemsBackup(q.id, reconstructed);
+        return reconstructed;
+      }
+    }
+
+    // 7. Auto-recuperação infalível baseada nos totais da proposta (evita tabela vazia)
+    if (Number(q.totalAmount || 0) > 0 || Number(q.totalCost || 0) > 0) {
+      const cost = Number(q.totalCost || 0);
+      const shipping = Number(q.totalShipping || 0);
+      const tax = Number(q.globalTaxPercent || 6);
+      const markup = Number(q.averageMargin || q.globalMarkupPercent || 35);
+      const total = Number(q.totalAmount || 0);
+      const fallbackItem: QuoteItem = {
+        id: `item-${Date.now()}-1`,
+        itemNumber: 1,
+        name: q.subject || `Fornecimento para ${q.clientCompany || 'Cliente'}`,
+        description: '',
+        rawSearchQuery: q.subject || q.code,
+        partNumber: '',
+        ncm: '',
+        imageUrl: '',
+        showImage: false,
+        quantity: 1,
+        unit: 'Un.',
+        costPrice: cost,
+        shippingCost: shipping,
+        taxPercent: tax,
+        markupPercent: markup,
+        unitPrice: total,
+        totalPrice: total,
+        sourceUrl: '',
+        supplier: ''
+      };
+      if (q.code) saveQuoteItemsBackup(q.code, [fallbackItem]);
+      if (q.id) saveQuoteItemsBackup(q.id, [fallbackItem]);
+      return [fallbackItem];
+    }
+
+    return [];
   };
 
   return (
@@ -1169,172 +1300,40 @@ export const App: React.FC = () => {
         {activeTab === 'history' && (
           <SentHistoryView
             quotes={quotes}
-            onOpenQuote={(q) => {
+            onOpenQuote={async (q) => {
               const matched = quotes.find(item => item.id === q.id || item.code === q.code);
-              let itemsToUse = (q.items && q.items.length > 0)
-                ? q.items
-                : (matched && matched.items && matched.items.length > 0 ? matched.items : []);
-
-              if (itemsToUse.length === 0) {
-                const bCode = q.code ? getQuoteItemsBackup(q.code) : null;
-                const bId = q.id ? getQuoteItemsBackup(q.id) : null;
-                if (bCode && bCode.length > 0) itemsToUse = bCode;
-                else if (bId && bId.length > 0) itemsToUse = bId;
-              }
-
-              if (itemsToUse.length === 0) {
-                const searchList = [...emails, ...manualAnalyses];
-                const matchingSource = searchList.find(e => {
-                  const sEmail = (e.senderEmail || '').toLowerCase().trim();
-                  const qEmail = (q.clientEmail || '').toLowerCase().trim();
-                  const sComp = (e.senderCompany || '').toLowerCase().trim();
-                  const qComp = (q.clientCompany || '').toLowerCase().trim();
-                  const codePrefix = (q.code || '').split(' ')[0].toLowerCase();
-                  return (
-                    (qEmail && sEmail === qEmail) ||
-                    (qComp && (sComp.includes(qComp) || qComp.includes(sComp))) ||
-                    (codePrefix && sComp.includes(codePrefix))
-                  );
-                });
-
-                if (matchingSource && matchingSource.suggestedItems?.length > 0) {
-                  const markup = q.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 35;
-                  const tax = q.globalTaxPercent ?? settings.defaultTaxPercent ?? 6;
-                  const shipping = q.globalShipping ?? settings.defaultShippingCost ?? 0;
-                  itemsToUse = matchingSource.suggestedItems.map((it, idx) => {
-                    const matchedProd = products.find(p => p.name.toLowerCase() === it.name.toLowerCase() || p.name.toLowerCase().includes(it.name.toLowerCase()));
-                    const exactSearchRef = it.rawSearchQuery || [it.name, it.description].filter(Boolean).join(' - ');
-                    const resolved = resolveProductDetails(exactSearchRef, it.description);
-                    const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || it.estimatedCost || 150);
-                    const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
-                    const totalPrice = Number((unitPrice * it.quantity).toFixed(2));
-                    const finalImageUrl = it.imageUrl || matchedProd?.imageUrl || resolved.imageUrl;
-                    const finalPartNumber = it.partNumber || it.itemCode || matchedProd?.partNumber || resolved.partNumber;
-                    const finalNcm = it.ncm || matchedProd?.ncm || resolved.ncm;
-                    const itemUrl = (it.sourceUrl && isExactProductUrl(it.sourceUrl)) ? it.sourceUrl : (isExactProductUrl(resolved.sourceUrl) ? resolved.sourceUrl : (isExactProductUrl(matchedProd?.sourceUrl) ? matchedProd?.sourceUrl : ''));
-                    return {
-                      id: `item-${Date.now()}-${idx}`,
-                      itemNumber: idx + 1,
-                      productId: matchedProd?.id,
-                      name: formatProductSentenceCase(resolved.standardizedName || it.name),
-                      description: it.description ? formatProductSentenceCase(it.description) : '',
-                      rawSearchQuery: exactSearchRef,
-                      partNumber: finalPartNumber,
-                      ncm: finalNcm,
-                      imageUrl: finalImageUrl,
-                      showImage: false,
-                      quantity: it.quantity,
-                      unit: it.unit || 'Un.',
-                      costPrice: cost,
-                      shippingCost: shipping,
-                      taxPercent: tax,
-                      markupPercent: markup,
-                      unitPrice,
-                      totalPrice,
-                      sourceUrl: itemUrl
-                    };
-                  });
-                }
-              }
-
-              if (itemsToUse.length > 0 && q.code) {
-                saveQuoteItemsBackup(q.code, itemsToUse);
-              }
-
+              const itemsToUse = await resolveQuoteItems(q, quotes);
               const fullQuote = { ...matched, ...q, items: itemsToUse };
               setCurrentQuote(fullQuote);
+              saveCurrentDraftQuote(fullQuote);
               setActiveTab('preview');
             }}
-            onEditQuote={(q) => {
+            onEditQuote={async (q) => {
               const matched = quotes.find(item => item.id === q.id || item.code === q.code);
-              const draft = getCurrentDraftQuote();
-              const draftMatches = draft && (draft.id === q.id || draft.code === q.code);
-
-              let itemsToUse = (q.items && q.items.length > 0) ? q.items : [];
-              if (itemsToUse.length === 0 && matched && matched.items && matched.items.length > 0) {
-                itemsToUse = matched.items;
-              }
-              if (itemsToUse.length === 0 && draftMatches && draft.items && draft.items.length > 0) {
-                itemsToUse = draft.items;
-              }
-
-              if (itemsToUse.length === 0) {
-                const bCode = q.code ? getQuoteItemsBackup(q.code) : null;
-                const bId = q.id ? getQuoteItemsBackup(q.id) : null;
-                if (bCode && bCode.length > 0) itemsToUse = bCode;
-                else if (bId && bId.length > 0) itemsToUse = bId;
-              }
-
-              if (itemsToUse.length === 0) {
-                const searchList = [...emails, ...manualAnalyses];
-                const matchingSource = searchList.find(e => {
-                  const sEmail = (e.senderEmail || '').toLowerCase().trim();
-                  const qEmail = (q.clientEmail || '').toLowerCase().trim();
-                  const sComp = (e.senderCompany || '').toLowerCase().trim();
-                  const qComp = (q.clientCompany || '').toLowerCase().trim();
-                  const codePrefix = (q.code || '').split(' ')[0].toLowerCase();
-                  return (
-                    (qEmail && sEmail === qEmail) ||
-                    (qComp && (sComp.includes(qComp) || qComp.includes(sComp))) ||
-                    (codePrefix && sComp.includes(codePrefix))
-                  );
-                });
-
-                if (matchingSource && matchingSource.suggestedItems?.length > 0) {
-                  const markup = q.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 35;
-                  const tax = q.globalTaxPercent ?? settings.defaultTaxPercent ?? 6;
-                  const shipping = q.globalShipping ?? settings.defaultShippingCost ?? 0;
-                  itemsToUse = matchingSource.suggestedItems.map((it, idx) => {
-                    const matchedProd = products.find(p => p.name.toLowerCase() === it.name.toLowerCase() || p.name.toLowerCase().includes(it.name.toLowerCase()));
-                    const exactSearchRef = it.rawSearchQuery || [it.name, it.description].filter(Boolean).join(' - ');
-                    const resolved = resolveProductDetails(exactSearchRef, it.description);
-                    const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || it.estimatedCost || 150);
-                    const unitPrice = calculateCommercialUnitPrice(cost, shipping, markup, tax);
-                    const totalPrice = Number((unitPrice * it.quantity).toFixed(2));
-                    const finalImageUrl = it.imageUrl || matchedProd?.imageUrl || resolved.imageUrl;
-                    const finalPartNumber = it.partNumber || it.itemCode || matchedProd?.partNumber || resolved.partNumber;
-                    const finalNcm = it.ncm || matchedProd?.ncm || resolved.ncm;
-                    const itemUrl = (it.sourceUrl && isExactProductUrl(it.sourceUrl)) ? it.sourceUrl : (isExactProductUrl(resolved.sourceUrl) ? resolved.sourceUrl : (isExactProductUrl(matchedProd?.sourceUrl) ? matchedProd?.sourceUrl : ''));
-                    return {
-                      id: `item-${Date.now()}-${idx}`,
-                      itemNumber: idx + 1,
-                      productId: matchedProd?.id,
-                      name: formatProductSentenceCase(resolved.standardizedName || it.name),
-                      description: it.description ? formatProductSentenceCase(it.description) : '',
-                      rawSearchQuery: exactSearchRef,
-                      partNumber: finalPartNumber,
-                      ncm: finalNcm,
-                      imageUrl: finalImageUrl,
-                      showImage: false,
-                      quantity: it.quantity,
-                      unit: it.unit || 'Un.',
-                      costPrice: cost,
-                      shippingCost: shipping,
-                      taxPercent: tax,
-                      markupPercent: markup,
-                      unitPrice,
-                      totalPrice,
-                      sourceUrl: itemUrl
-                    };
-                  });
-                }
-              }
-
-              if (itemsToUse.length > 0 && q.code) {
-                saveQuoteItemsBackup(q.code, itemsToUse);
-              }
-
-              const quoteToEdit = {
-                ...matched,
-                ...q,
-                items: itemsToUse
-              };
-
+              const itemsToUse = await resolveQuoteItems(q, quotes);
+              const quoteToEdit = { ...matched, ...q, items: itemsToUse };
               setCurrentQuote(quoteToEdit);
               saveCurrentDraftQuote(quoteToEdit);
               setActiveTab('builder');
             }}
             onDeleteQuote={handleDeleteQuote}
+            onUpdateQuoteStatus={(quoteId, newStatus) => {
+              setQuotes(prev => {
+                const next = prev.map(q => q.id === quoteId ? { ...q, status: newStatus } : q);
+                saveQuotes(next);
+                const updated = next.find(q => q.id === quoteId);
+                if (updated) syncQuoteToSupabase(updated);
+                return next;
+              });
+            }}
+          />
+        )}
+
+        {activeTab === 'dashboard' && (
+          <DashboardView
+            quotes={quotes}
+            onNavigateToHistory={() => setActiveTab('history')}
+            onNavigateToBuilder={() => setActiveTab('builder')}
           />
         )}
 
@@ -1377,6 +1376,8 @@ export const App: React.FC = () => {
         quote={currentQuote}
         settings={settings}
         onConfirmSend={handleConfirmSendEmail}
+        connectedUserEmail={connectedUserEmail}
+        onSwitchAccount={handleSwitchGoogleAccount}
       />
 
       <SettingsModal
@@ -1384,26 +1385,6 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSaveSettings={handleSaveSettings}
-      />
-
-      <ClientManagementModal
-        isOpen={isClientsModalOpen}
-        onClose={() => setIsClientsModalOpen(false)}
-        companies={clientCompanies}
-        onSaveCompanies={handleSaveCompanies}
-        onDeleteCompany={handleDeleteCompany}
-        onDeleteContact={handleDeleteContact}
-        onOpenEmailScanner={() => setIsScannerModalOpen(true)}
-        onSelectBuyerForQuote={(companyName, contact) => {
-          setCurrentQuote(prev => ({
-            ...prev,
-            clientCompany: formatCompanyPrefix(companyName),
-            contactPerson: formatContactPerson(contact.name),
-            clientEmail: (contact.email || prev.clientEmail || '').toLowerCase().trim(),
-            clientPhone: contact.phone || prev.clientPhone
-          }));
-          setActiveTab('builder');
-        }}
       />
 
       <EmailContactScannerModal

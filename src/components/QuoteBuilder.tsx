@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import {
   Plus,
   Trash2,
@@ -69,8 +69,14 @@ import {
   getCategoryFromNcm
 } from '../utils/aiEmailParser';
 import { getClientCompanies, saveClientCompanies, registerOrUpdateClient } from '../utils/storage';
-import { ClientManagementModal } from './ClientManagementModal';
 import { exportCostSheetToExcel } from '../utils/excelExport';
+import { UniversalListImportModal } from './UniversalListImportModal';
+import { validateNcm, formatNcm } from '../utils/ncmValidator';
+import { PRICING_PROFILES, suggestMarkupForItem } from '../utils/pricingProfiles';
+import { savePriceToCache } from '../services/priceCacheService';
+import { recalculateQuoteTotals } from '../services/pricingEngine';
+import { MultiSupplierMatrixModal } from './MultiSupplierMatrixModal';
+import { auditProductOfferCompatibility } from '../utils/specAuditService';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -131,9 +137,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   const [isLocationSearchOpen, setIsLocationSearchOpen] = useState(false);
   const locationSearchContainerRef = useRef<HTMLDivElement>(null);
   const [localClientCompanies, setLocalClientCompanies] = useState<ClientCompany[]>(() => getClientCompanies());
-  const [isClientsModalOpen, setIsClientsModalOpen] = useState(false);
+  
+  // Estado para Modal de ImportaÃ§Ã£o Universal (MEL-10) e Perfis de Margem (MEL-07)
+  const [isUniversalImportOpen, setIsUniversalImportOpen] = useState(false);
+  const [selectedPricingProfile, setSelectedPricingProfile] = useState<string>('corporativo_padrao');
+  const [isSupplierMatrixOpen, setIsSupplierMatrixOpen] = useState(false);
 
-  // Estado da regra de exceção no prazo de entrega (ex: Exceto para os itens 1 e 2 em até 25 dias úteis)
+  // Estado da regra de exceÃ§Ã£o no prazo de entrega (ex: Exceto para os itens 1 e 2 em atÃ© 25 dias Ãºteis)
   const [showDeliveryException, setShowDeliveryException] = useState(() => {
     const details = extractDeliveryExceptionDetails(currentQuote.deliveryDays);
     return details.hasException;
@@ -147,31 +157,31 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     return details.days;
   });
 
-  // Estado da janela de verificação geral antes de salvar no catálogo
+  // Estado da janela de verificaÃ§Ã£o geral antes de salvar no catÃ¡logo
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [catalogReviewProduct, setCatalogReviewProduct] = useState<Partial<Product> | null>(null);
   const [catalogReviewCostInput, setCatalogReviewCostInput] = useState<string>('');
   const [targetQuoteItemId, setTargetQuoteItemId] = useState<string | null>(null);
 
-  // Seleção múltipla de itens para Ações em Lote e campo de Margem/Lucro % em Lote
+  // SeleÃ§Ã£o mÃºltipla de itens para AÃ§Ãµes em Lote e campo de Margem/Lucro % em Lote
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [batchMarkupInput, setBatchMarkupInput] = useState<string>('');
 
-  // Modo de visualização da tabela (Compacto vs Completo com NCM/PartNumber/Links)
+  // Modo de visualizaÃ§Ã£o da tabela (Compacto vs Completo com NCM/PartNumber/Links)
   const [isCompactTableMode, setIsCompactTableMode] = useState<boolean>(false);
 
-  // Painel sanfona retrátil de Condições Gerais de Fornecimento
+  // Painel sanfona retrÃ¡til de CondiÃ§Ãµes Gerais de Fornecimento
   const [isCommercialConditionsOpen, setIsCommercialConditionsOpen] = useState<boolean>(true);
 
   // Estado do zoom da foto em tela cheia (lightbox)
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string; itemNumber?: number } | null>(null);
 
-  // Menu de Formatação de Texto estilo Word (Maiúsculas, Minúsculas, 1ª da frase, 1ª de Cada Palavra)
+  // Menu de FormataÃ§Ã£o de Texto estilo Word (MaiÃºsculas, MinÃºsculas, 1Âª da frase, 1Âª de Cada Palavra)
   const [isQuoteCaseMenuOpen, setIsQuoteCaseMenuOpen] = useState(false);
   const [activeQuoteCaseStyle, setActiveQuoteCaseStyle] = useState<WordCaseStyle>('sentence');
   const quoteCaseMenuRef = useRef<HTMLDivElement>(null);
 
-  // Referência para upload de arquivo e item ativo para imagem
+  // ReferÃªncia para upload de arquivo e item ativo para imagem
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeImageUploadIndexRef = useRef<number | null>(null);
   const catalogFileInputRef = useRef<HTMLInputElement>(null);
@@ -189,11 +199,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     }
   };
 
-  // Ref para acompanhar alterações em settings e sincronizar com a cotação ativa
+  // Ref para acompanhar alteraÃ§Ãµes em settings e sincronizar com a cotaÃ§Ã£o ativa
   const prevSettingsMarkupRef = useRef<number | undefined>(settings.defaultMarkupPercent);
 
   React.useEffect(() => {
-    // Se o usuário alterou a margem padrão nas Configurações da Empresa, atualiza imediatamente a cotação
+    // Se o usuÃ¡rio alterou a margem padrÃ£o nas ConfiguraÃ§Ãµes da Empresa, atualiza imediatamente a cotaÃ§Ã£o
     if (settings.defaultMarkupPercent !== undefined && settings.defaultMarkupPercent !== prevSettingsMarkupRef.current) {
       prevSettingsMarkupRef.current = settings.defaultMarkupPercent;
       setGlobalMarkup(settings.defaultMarkupPercent);
@@ -206,7 +216,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             ...it,
             markupPercent: settings.defaultMarkupPercent!,
             unitPrice: uPrice,
-            totalPrice: Number((uPrice * it.quantity).toFixed(2))
+            totalPrice: Math.round(uPrice) * it.quantity
           };
         });
         const totals = recalculateQuote(updatedItems);
@@ -235,13 +245,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       setGlobalShipping(settings.defaultShippingCost);
     }
 
-    // Se a cotação não tiver cidade definida, assume a cidade da sede configurada na empresa
+    // Se a cotaÃ§Ã£o nÃ£o tiver cidade definida, assume a cidade da sede configurada na empresa
     if (!currentQuote.city && settings.cityState) {
-      const defaultCity = settings.cityState.split('-')[0].trim() || 'Brasília';
+      const defaultCity = settings.cityState.split('-')[0].trim() || 'BrasÃ­lia';
       setCurrentQuote(prev => ({ ...prev, city: defaultCity }));
     }
 
-    // Sincroniza estado de exceção caso venha salvo da cotação
+    // Sincroniza estado de exceÃ§Ã£o caso venha salvo da cotaÃ§Ã£o
     const excDetails = extractDeliveryExceptionDetails(currentQuote.deliveryDays);
     if (excDetails.hasException) {
       setExceptionItemNumbers(excDetails.itemNumbers);
@@ -267,7 +277,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Estado para edição fluida dos campos numéricos com formatação pt-BR
+  // Estado para ediÃ§Ã£o fluida dos campos numÃ©ricos com formataÃ§Ã£o pt-BR
   const [editingInputs, setEditingInputs] = useState<Record<string, string>>({});
 
   const persistClientDetails = () => {
@@ -291,7 +301,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   const [isTaxModalOpen, setIsTaxModalOpen] = useState(false);
   const [modalTaxInput, setModalTaxInput] = useState('');
 
-  // Estado da validação pré-envio / checklist antifalhas
+  // Estado da validaÃ§Ã£o prÃ©-envio / checklist antifalhas
   const [validationModal, setValidationModal] = useState<{
     isOpen: boolean;
     issues: { type: 'error' | 'warning'; message: string; actionText?: string }[];
@@ -306,43 +316,43 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     const issues: { type: 'error' | 'warning'; message: string }[] = [];
 
     if (!currentQuote.clientCompany?.trim()) {
-      issues.push({ type: 'error', message: 'O nome da empresa cliente não foi preenchido.' });
+      issues.push({ type: 'error', message: 'O nome da empresa cliente nÃ£o foi preenchido.' });
     }
     if (!currentQuote.contactPerson?.trim()) {
-      issues.push({ type: 'warning', message: 'O nome do comprador (A/C) está em branco.' });
+      issues.push({ type: 'warning', message: 'O nome do comprador (A/C) estÃ¡ em branco.' });
     }
     if (!currentQuote.clientEmail?.trim()) {
-      issues.push({ type: 'warning', message: 'O e-mail de contato do cliente está vazio.' });
+      issues.push({ type: 'warning', message: 'O e-mail de contato do cliente estÃ¡ vazio.' });
     }
     if (!currentQuote.items || currentQuote.items.length === 0) {
-      issues.push({ type: 'error', message: 'A proposta não possui nenhum produto cadastrado.' });
+      issues.push({ type: 'error', message: 'A proposta nÃ£o possui nenhum produto cadastrado.' });
     } else {
       currentQuote.items.forEach((it, idx) => {
         const itemLabel = `Item ${it.itemNumber || idx + 1}`;
         if (!it.name || !it.name.trim()) {
-          issues.push({ type: 'error', message: `${itemLabel}: descrição do produto está vazia.` });
+          issues.push({ type: 'error', message: `${itemLabel}: descriÃ§Ã£o do produto estÃ¡ vazia.` });
         }
         if (it.unitPrice <= 0) {
-          issues.push({ type: 'error', message: `${itemLabel}: valor unitário está zerado (R$ 0,00).` });
+          issues.push({ type: 'error', message: `${itemLabel}: valor unitÃ¡rio estÃ¡ zerado (R$ 0,00).` });
         }
         if (it.costPrice <= 0) {
-          issues.push({ type: 'warning', message: `${itemLabel}: preço de custo está zerado (R$ 0,00).` });
+          issues.push({ type: 'warning', message: `${itemLabel}: preÃ§o de custo estÃ¡ zerado (R$ 0,00).` });
         }
         if (it.quantity <= 0) {
-          issues.push({ type: 'error', message: `${itemLabel}: quantidade é menor ou igual a zero.` });
+          issues.push({ type: 'error', message: `${itemLabel}: quantidade Ã© menor ou igual a zero.` });
         }
       });
     }
 
     if (currentQuote.averageMargin < 10 && currentQuote.items.length > 0) {
-      issues.push({ type: 'warning', message: `Margem de lucro média está muito baixa (${currentQuote.averageMargin.toFixed(1)}%). Recomenda-se conferir os custos.` });
+      issues.push({ type: 'warning', message: `Margem de lucro mÃ©dia estÃ¡ muito baixa (${currentQuote.averageMargin.toFixed(1)}%). Recomenda-se conferir os custos.` });
     }
 
     if (!currentQuote.validityDays?.trim()) {
-      issues.push({ type: 'warning', message: 'Prazo de validade da proposta não definido.' });
+      issues.push({ type: 'warning', message: 'Prazo de validade da proposta nÃ£o definido.' });
     }
     if (!currentQuote.deliveryDays?.trim()) {
-      issues.push({ type: 'warning', message: 'Prazo de entrega da proposta não definido.' });
+      issues.push({ type: 'warning', message: 'Prazo de entrega da proposta nÃ£o definido.' });
     }
 
     return issues;
@@ -364,7 +374,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     action();
   };
 
-  const cleanCompName = (currentQuote.clientCompany || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+  const cleanCompName = (currentQuote.clientCompany || '').replace(/^(ao|Ã |a|para)\s+/i, '').trim().toLowerCase();
   const matchedCompany = clientCompanies.find(c =>
     cleanCompName && (
       c.name.toLowerCase() === cleanCompName ||
@@ -399,11 +409,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       currentQuote.deliveryLocation
     );
     handleUpdateCompanies(updated);
-    setLinkNotification(`Comprador "${cleanContactName}" vinculado à "${matchedCompany?.name || currentQuote.clientCompany}" com sucesso!`);
+    setLinkNotification(`Comprador "${cleanContactName}" vinculado Ã  "${matchedCompany?.name || currentQuote.clientCompany}" com sucesso!`);
     setTimeout(() => setLinkNotification(null), 4000);
   };
 
-  // Helpers de formatação brasileira com separador de milhar (.) e 2 casas decimais (,): ex: 1.100,00
+  // Helpers de formataÃ§Ã£o brasileira com separador de milhar (.) e 2 casas decimais (,): ex: 1.100,00
   const formatCurrencyPtBr = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) return '0,00';
     return Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -431,50 +441,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     return calculateCommercialUnitPrice(cost, shipping, markup, tax);
   };
 
-  const recalculateQuote = (items: QuoteItem[]): {
-    totalCost: number;
-    totalShipping: number;
-    totalTaxes: number;
-    totalProfit: number;
-    totalAmount: number;
-    averageMargin: number
-  } => {
-    let totalCost = 0;
-    let totalShipping = 0;
-    let totalAmount = 0;
-    let totalTaxes = 0;
-
-    items.forEach(item => {
-      const qty = item.quantity || 1;
-      const itemCost = (item.costPrice || 0) * qty;
-      const itemShipping = (item.shippingCost ?? globalShipping ?? 0) * qty;
-      const itemTotal = (item.unitPrice || 0) * qty;
-
-      // Metodologia Planilha Infodesk:
-      // Imposto Real sobre a fatura = Preço Faturado * Alíquota
-      const taxRate = (item.taxPercent ?? globalTax ?? 0) / 100;
-      const itemTaxAmount = itemTotal * taxRate;
-
-      totalCost += itemCost;
-      totalShipping += itemShipping;
-      totalAmount += itemTotal;
-      totalTaxes += itemTaxAmount;
+  const recalculateQuote = (items: QuoteItem[]) => {
+    return recalculateQuoteTotals(items, {
+      globalShipping,
+      globalMarkup,
+      globalTax
     });
-
-    // Lucro líquido = Faturamento - Custos - Fretes - Impostos
-    const totalProfit = totalAmount - totalCost - totalShipping - totalTaxes;
-    const baseTotalCost = totalCost + totalShipping;
-    // Margem Líquida Real sobre o Custo (ex: 200 de lucro sobre 1000 de custo = 20%)
-    const averageMargin = baseTotalCost > 0 ? (totalProfit / baseTotalCost) * 100 : 0;
-
-    return {
-      totalCost: Number(totalCost.toFixed(2)),
-      totalShipping: Number(totalShipping.toFixed(2)),
-      totalTaxes: Number(totalTaxes.toFixed(2)),
-      totalProfit: Number(totalProfit.toFixed(2)),
-      totalAmount: Number(totalAmount.toFixed(2)),
-      averageMargin: Number(averageMargin.toFixed(1))
-    };
   };
 
   const handleApplyGlobalMarkup = (markup: number) => {
@@ -483,7 +455,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       const tax = item.taxPercent ?? globalTax;
       const shipping = item.shippingCost ?? globalShipping;
       const unitPrice = calculateItemUnitPrice(item.costPrice, shipping, markup, tax);
-      const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
+      const totalPrice = Math.round(unitPrice) * item.quantity;
       return {
         ...item,
         markupPercent: markup,
@@ -511,7 +483,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       const markup = item.markupPercent ?? globalMarkup;
       const shipping = item.shippingCost ?? globalShipping;
       const unitPrice = calculateItemUnitPrice(item.costPrice, shipping, markup, tax);
-      const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
+      const totalPrice = Math.round(unitPrice) * item.quantity;
       return {
         ...item,
         taxPercent: tax,
@@ -539,7 +511,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       const markup = item.markupPercent ?? globalMarkup;
       const tax = item.taxPercent ?? globalTax;
       const unitPrice = calculateItemUnitPrice(item.costPrice, shipping, markup, tax);
-      const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
+      const totalPrice = Math.round(unitPrice) * item.quantity;
       return {
         ...item,
         shippingCost: shipping,
@@ -572,23 +544,25 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       const tax = field === 'taxPercent' ? Number(value) : (item.taxPercent ?? globalTax);
 
       item.unitPrice = calculateItemUnitPrice(cost, shipping, markup, tax);
-      item.totalPrice = Number((item.unitPrice * item.quantity).toFixed(2));
+      item.totalPrice = Math.round(item.unitPrice) * item.quantity;
     } else if (field === 'unitPrice') {
       const uPrice = Number(value);
       item.unitPrice = uPrice;
-      item.totalPrice = Number((uPrice * item.quantity).toFixed(2));
+      item.totalPrice = Math.round(uPrice) * item.quantity;
       const baseCost = item.costPrice + (item.shippingCost ?? globalShipping);
       if (baseCost > 0) {
         const taxRate = (item.taxPercent ?? globalTax) / 100;
-        // Lucro Líquido = Preço * (1 - Imposto%) - Custo
-        // Margem de Lucro sobre o Custo = (Lucro Líquido / Custo) * 100
+        // Lucro LÃ­quido = PreÃ§o * (1 - Imposto%) - Custo
+        // Margem de Lucro sobre o Custo = (Lucro LÃ­quido / Custo) * 100
         const netProfit = uPrice * (1 - taxRate) - baseCost;
         item.markupPercent = Number(((netProfit / baseCost) * 100).toFixed(2));
+      } else {
+        item.markupPercent = globalMarkup;
       }
     } else if (field === 'quantity') {
       const qty = Number(value) || 1;
       item.quantity = qty;
-      item.totalPrice = Number((item.unitPrice * qty).toFixed(2));
+      item.totalPrice = Math.round(item.unitPrice) * qty;
     } else if (field === 'sourceUrl') {
       const detectedStore = extractStoreNameFromUrl(value);
       if (detectedStore) {
@@ -634,7 +608,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     }));
   };
 
-  // Upload e Colar Imagem para Itens da Cotação
+  // Upload e Colar Imagem para Itens da CotaÃ§Ã£o
   const handleTriggerUploadImage = (index: number) => {
     activeImageUploadIndexRef.current = index;
     if (fileInputRef.current) {
@@ -662,9 +636,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
   // Helper universal para extrair imagem de ClipboardEvent ou navigator.clipboard
   const extractImageFromClipboard = async (clipboardData: DataTransfer | null): Promise<string | null> => {
-    // 1. Tenta extrair direto do DataTransfer síncrono (event.clipboardData)
+    // 1. Tenta extrair direto do DataTransfer sÃ­ncrono (event.clipboardData)
     if (clipboardData) {
-      // 1.1 Items (blobs / arquivos em memória gerados por print screen ou copiar imagem)
+      // 1.1 Items (blobs / arquivos em memÃ³ria gerados por print screen ou copiar imagem)
       const items = clipboardData.items;
       if (items && items.length > 0) {
         for (let i = 0; i < items.length; i++) {
@@ -702,7 +676,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       }
     }
 
-    // 2. Fallback via navigator.clipboard.read (acesso direto à área de transferência do sistema operacional)
+    // 2. Fallback via navigator.clipboard.read (acesso direto Ã  Ã¡rea de transferÃªncia do sistema operacional)
     if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.read) {
       try {
         const clipboardItems = await navigator.clipboard.read();
@@ -720,14 +694,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           }
         }
       } catch (err) {
-        // Permissão de clipboard pode exigir clique direto do usuário
+        // PermissÃ£o de clipboard pode exigir clique direto do usuÃ¡rio
       }
     }
 
     return null;
   };
 
-  // Leitura direta com acionamento por clique (garante permissão do navegador para ler o print)
+  // Leitura direta com acionamento por clique (garante permissÃ£o do navegador para ler o print)
   const readImageFromSystemClipboard = async (): Promise<string | null> => {
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.read) {
@@ -746,7 +720,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         }
       }
     } catch (err) {
-      console.warn('Erro ao ler imagem da área de transferência:', err);
+      console.warn('Erro ao ler imagem da Ã¡rea de transferÃªncia:', err);
     }
     return null;
   };
@@ -769,11 +743,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       handleItemChange(index, 'imageUrl', dataUrl);
       handleItemChange(index, 'showImage', true);
     } else {
-      alert('Nenhuma imagem encontrada na área de transferência. Tire um print (PrintScreen ou Win+Shift+S) ou copie uma imagem antes de colar.');
+      alert('Nenhuma imagem encontrada na Ã¡rea de transferÃªncia. Tire um print (PrintScreen ou Win+Shift+S) ou copie uma imagem antes de colar.');
     }
   };
 
-  // Upload e Colar Imagem para o Modal de Catálogo
+  // Upload e Colar Imagem para o Modal de CatÃ¡logo
   const handleTriggerCatalogImageUpload = () => {
     if (catalogFileInputRef.current) {
       catalogFileInputRef.current.value = '';
@@ -811,7 +785,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     if (dataUrl) {
       setCatalogReviewProduct(prev => prev ? { ...prev, imageUrl: dataUrl } : null);
     } else {
-      alert('Nenhuma imagem encontrada na área de transferência. Tire um print (PrintScreen ou Win+Shift+S) ou copie uma imagem antes de colar.');
+      alert('Nenhuma imagem encontrada na Ã¡rea de transferÃªncia. Tire um print (PrintScreen ou Win+Shift+S) ou copie uma imagem antes de colar.');
     }
   };
 
@@ -821,11 +795,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       const dataUrl = await extractImageFromClipboard(e.clipboardData);
       if (!dataUrl) return;
 
-      // Se há imagem no print screen copiado:
+      // Se hÃ¡ imagem no print screen copiado:
       e.preventDefault();
       e.stopPropagation();
 
-      // 1. Se o modal do catálogo estiver aberto, cola nele
+      // 1. Se o modal do catÃ¡logo estiver aberto, cola nele
       if (isCatalogModalOpen) {
         setCatalogReviewProduct(prev => prev ? { ...prev, imageUrl: dataUrl } : null);
         return;
@@ -839,7 +813,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         return;
       }
 
-      // 3. Procura o primeiro item sem foto na cotação, ou o item que está com foco
+      // 3. Procura o primeiro item sem foto na cotaÃ§Ã£o, ou o item que estÃ¡ com foco
       const activeEl = document.activeElement;
       let targetItemIdx = -1;
 
@@ -857,7 +831,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       }
 
       if (targetItemIdx === -1 && currentQuote.items.length > 0) {
-        // Se todos já tiverem foto, coloca no primeiro
+        // Se todos jÃ¡ tiverem foto, coloca no primeiro
         targetItemIdx = 0;
       }
 
@@ -875,7 +849,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     };
   }, [isCatalogModalOpen, currentQuote.items]);
 
-  // Fechar menu de capitalização do QuoteBuilder ao clicar fora
+  // Fechar menu de capitalizaÃ§Ã£o do QuoteBuilder ao clicar fora
   React.useEffect(() => {
     const handleClickOutsideQuoteCase = (e: MouseEvent) => {
       if (quoteCaseMenuRef.current && !quoteCaseMenuRef.current.contains(e.target as Node)) {
@@ -888,7 +862,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutsideQuoteCase);
   }, [isQuoteCaseMenuOpen]);
 
-  // Fecha os dropdowns de busca dinâmica ao clicar fora
+  // Fecha os dropdowns de busca dinÃ¢mica ao clicar fora
   React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -913,8 +887,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           setIsCatalogModalOpen(false);
         } else if (validationModal.isOpen) {
           setValidationModal(prev => ({ ...prev, isOpen: false }));
-        } else if (isClientsModalOpen) {
-          setIsClientsModalOpen(false);
         }
       }
     };
@@ -933,6 +905,103 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     } catch (err) {
       console.error('Erro ao exportar planilha de custos para Excel:', err);
     }
+  };
+
+  const handleImportUniversalItems = (importedItems: Partial<QuoteItem>[]) => {
+    const currentCount = currentQuote.items?.length || 0;
+    const newItems: QuoteItem[] = importedItems.map((item, idx) => {
+      const cost = item.costPrice || 0;
+      const markup = item.markupPercent || globalMarkup || 25;
+      const unitPrice = calculateItemUnitPrice(cost, globalShipping, markup, globalTax);
+      const qty = item.quantity || 1;
+      const totalPrice = Math.round(unitPrice) * qty;
+
+      // Salvar no cache se tiver Part Number e custo informado
+      if (item.partNumber && cost > 0) {
+        savePriceToCache({
+          partNumber: item.partNumber,
+          name: item.name || '',
+          supplier: item.supplier || 'Planilha Importada',
+          costPrice: cost
+        });
+      }
+
+      return {
+        id: `item-${Date.now()}-${idx}`,
+        itemNumber: currentCount + idx + 1,
+        name: item.name || `Item ${currentCount + idx + 1}`,
+        description: item.description || item.name || '',
+        partNumber: item.partNumber || '',
+        ncm: formatNcm(item.ncm) || '',
+        quantity: qty,
+        unit: item.unit || 'Un.',
+        costPrice: cost,
+        shippingCost: globalShipping,
+        taxPercent: globalTax,
+        markupPercent: markup,
+        unitPrice,
+        totalPrice,
+        imageUrl: item.imageUrl || '',
+        showImage: false,
+        supplier: item.supplier || '',
+        sourceUrl: item.sourceUrl || ''
+      };
+    });
+
+    const updatedItems = [...(currentQuote.items || []), ...newItems];
+    const totals = recalculateQuote(updatedItems);
+    setCurrentQuote(prev => ({
+      ...prev,
+      items: updatedItems,
+      ...totals
+    }));
+  };
+
+  const handleApplyPricingProfile = (profileId: string) => {
+    setSelectedPricingProfile(profileId);
+    if (!currentQuote.items || currentQuote.items.length === 0) return;
+
+    const updatedItems = currentQuote.items.map(item => {
+      const suggested = suggestMarkupForItem(profileId, item.costPrice || 0, item.name, item.description);
+      const unitPrice = calculateItemUnitPrice(item.costPrice, item.shippingCost ?? globalShipping, suggested, item.taxPercent ?? globalTax);
+      const totalPrice = Math.round(unitPrice) * item.quantity;
+      return {
+        ...item,
+        markupPercent: suggested,
+        unitPrice,
+        totalPrice
+      };
+    });
+
+    const totals = recalculateQuote(updatedItems);
+    setCurrentQuote(prev => ({
+      ...prev,
+      items: updatedItems,
+      ...totals
+    }));
+  };
+
+  const handleApplyOptimizedBasket = (updatedItems: QuoteItem[]) => {
+    const recalculated = updatedItems.map(item => {
+      const uPrice = calculateItemUnitPrice(
+        item.costPrice,
+        item.shippingCost ?? globalShipping,
+        item.markupPercent || globalMarkup,
+        item.taxPercent ?? globalTax
+      );
+      return {
+        ...item,
+        unitPrice: uPrice,
+        totalPrice: Math.round(uPrice) * item.quantity
+      };
+    });
+    const totals = recalculateQuote(recalculated);
+    setCurrentQuote(prev => ({
+      ...prev,
+      items: recalculated,
+      ...totals
+    }));
+    setIsSupplierMatrixOpen(false);
   };
 
   const handleAddFromCatalog = (productIdToAdd?: string) => {
@@ -982,9 +1051,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     setSelectedProductId('');
   };
 
-  // Abre a janela do produto para verificação geral antes de salvar no catálogo
+  // Abre a janela do produto para verificaÃ§Ã£o geral antes de salvar no catÃ¡logo
   const handleOpenCatalogReviewModal = (item: QuoteItem) => {
-    // Buscar o item mais atualizado da cotação corrente para garantir que todas as edições feitas na tela sejam carregadas
+    // Buscar o item mais atualizado da cotaÃ§Ã£o corrente para garantir que todas as ediÃ§Ãµes feitas na tela sejam carregadas
     const freshItem = currentQuote.items.find(it => it.id === item.id) || item;
     const generatedSku = freshItem.partNumber ? freshItem.partNumber.trim() : (freshItem.productId || `INF-${Date.now().toString().slice(-4)}`);
     const initialCategory = getCategoryFromNcm(freshItem.ncm, 'Geral');
@@ -1009,7 +1078,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     setIsCatalogModalOpen(true);
   };
 
-  // Salva a foto, descrição e demais dados apenas na proposta corrente (sem cadastrar no catálogo geral)
+  // Salva a foto, descriÃ§Ã£o e demais dados apenas na proposta corrente (sem cadastrar no catÃ¡logo geral)
   const handleSaveToCurrentQuote = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!catalogReviewProduct || !targetQuoteItemId) {
@@ -1040,7 +1109,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         supplier: catalogReviewProduct.supplier || currentItem.supplier,
         sourceUrl: catalogReviewProduct.sourceUrl || currentItem.sourceUrl,
         unitPrice: newUnitPrice,
-        totalPrice: Number((newUnitPrice * currentItem.quantity).toFixed(2))
+        totalPrice: Math.round(newUnitPrice) * currentItem.quantity
       };
 
       const totals = recalculateQuote(updatedItems);
@@ -1056,7 +1125,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     setTargetQuoteItemId(null);
   };
 
-  // Efetiva o salvamento no catálogo com o OK final do usuário
+  // Efetiva o salvamento no catÃ¡logo com o OK final do usuÃ¡rio
   const handleConfirmSaveCatalog = (e: React.FormEvent) => {
     e.preventDefault();
     if (!catalogReviewProduct || !catalogReviewProduct.name) return;
@@ -1082,7 +1151,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
       onSaveToCatalog(finalProd);
 
-      // Também sincroniza a proposta corrente para que a foto e o nome revisados fiquem nela
+      // TambÃ©m sincroniza a proposta corrente para que a foto e o nome revisados fiquem nela
       if (targetQuoteItemId) {
         const itemIdx = currentQuote.items.findIndex(it => it.id === targetQuoteItemId);
         if (itemIdx >= 0) {
@@ -1108,7 +1177,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             supplier: finalProd.supplier,
             sourceUrl: finalProd.sourceUrl,
             unitPrice: newUnitPrice,
-            totalPrice: Number((newUnitPrice * currentItem.quantity).toFixed(2))
+            totalPrice: Math.round(newUnitPrice) * currentItem.quantity
           };
 
           const totals = recalculateQuote(updatedItems);
@@ -1149,7 +1218,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     }));
   };
 
-  // Duplicação instantânea de item
+  // DuplicaÃ§Ã£o instantÃ¢nea de item
   const handleDuplicateItem = (index: number) => {
     const original = currentQuote.items[index];
     if (!original) return;
@@ -1172,7 +1241,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     }));
   };
 
-  // Reordenação de item para cima
+  // ReordenaÃ§Ã£o de item para cima
   const handleMoveItemUp = (index: number) => {
     if (index <= 0) return;
     const itemsCopy = [...currentQuote.items];
@@ -1191,7 +1260,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     }));
   };
 
-  // Reordenação de item para baixo
+  // ReordenaÃ§Ã£o de item para baixo
   const handleMoveItemDown = (index: number) => {
     if (index >= currentQuote.items.length - 1) return;
     const itemsCopy = [...currentQuote.items];
@@ -1210,14 +1279,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     }));
   };
 
-  // Alterna seleção individual de item
+  // Alterna seleÃ§Ã£o individual de item
   const handleToggleSelectItem = (id: string) => {
     setSelectedItemIds(prev =>
       prev.includes(id) ? prev.filter(itemKey => itemKey !== id) : [...prev, id]
     );
   };
 
-  // Alterna selecionar todos os itens ou limpar seleção
+  // Alterna selecionar todos os itens ou limpar seleÃ§Ã£o
   const handleToggleSelectAll = () => {
     if (selectedItemIds.length === currentQuote.items.length) {
       setSelectedItemIds([]);
@@ -1231,7 +1300,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     const parsed = parsePtBrNumber(val);
     if (isNaN(parsed) || parsed < 0) return;
 
-    // Se nenhum item foi explicitamente marcado com checkbox, avisa o usuário ou não altera
+    // Se nenhum item foi explicitamente marcado com checkbox, avisa o usuÃ¡rio ou nÃ£o altera
     if (selectedItemIds.length === 0) {
       alert('Selecione ao menos um item da proposta marcando a caixinha ao lado do item para alterar a margem em lote.');
       return;
@@ -1242,7 +1311,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         const shipping = item.shippingCost ?? globalShipping;
         const tax = item.taxPercent ?? globalTax;
         const unitPrice = calculateItemUnitPrice(item.costPrice, shipping, parsed, tax);
-        const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
+        const totalPrice = Math.round(unitPrice) * item.quantity;
         return {
           ...item,
           markupPercent: parsed,
@@ -1279,7 +1348,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     }));
   };
 
-  // Preenchimento em lote: aplicar formatação de texto estilo Word em todos os itens da cotação
+  // Preenchimento em lote: aplicar formataÃ§Ã£o de texto estilo Word em todos os itens da cotaÃ§Ã£o
   const handleApplyCaseToQuoteItems = (style: WordCaseStyle) => {
     setActiveQuoteCaseStyle(style);
     setIsQuoteCaseMenuOpen(false);
@@ -1292,9 +1361,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     }));
   };
 
-  // Alterna Maiúsculas/Minúsculas no item:
-  // Se o usuário selecionou uma ou mais palavras no textarea, aplica APENAS na seleção!
-  // Se não houver seleção, aplica no nome completo do item.
+  // Alterna MaiÃºsculas/MinÃºsculas no item:
+  // Se o usuÃ¡rio selecionou uma ou mais palavras no textarea, aplica APENAS na seleÃ§Ã£o!
+  // Se nÃ£o houver seleÃ§Ã£o, aplica no nome completo do item.
   const handleCycleItemTextCase = (idx: number, itemId: string) => {
     const item = currentQuote.items[idx];
     if (!item) return;
@@ -1302,14 +1371,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     const textarea = itemNameTextareaRefs.current[itemId];
     const fullText = item.name || '';
 
-    // Verifica se há texto/palavras selecionadas
+    // Verifica se hÃ¡ texto/palavras selecionadas
     if (textarea && textarea.selectionStart !== undefined && textarea.selectionEnd !== undefined && textarea.selectionEnd > textarea.selectionStart) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const selectedText = fullText.substring(start, end);
 
       if (selectedText.trim()) {
-        // Determina o próximo estilo para o trecho selecionado
+        // Determina o prÃ³ximo estilo para o trecho selecionado
         let nextStyle: WordCaseStyle = 'uppercase';
         if (selectedText === applyTextCase(selectedText, 'uppercase')) {
           nextStyle = 'lowercase';
@@ -1326,7 +1395,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
         handleItemChange(idx, 'name', newFullText);
 
-        // Restaura a seleção do trecho e devolve o foco no textarea
+        // Restaura a seleÃ§Ã£o do trecho e devolve o foco no textarea
         setTimeout(() => {
           if (textarea) {
             textarea.focus();
@@ -1374,7 +1443,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Configure os dados do cliente, custos, alíquota de impostos e margem de lucro da Infodesk.
+            Configure os dados do cliente, custos, alÃ­quota de impostos e margem de lucro da Infodesk.
           </p>
         </div>
 
@@ -1384,7 +1453,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="button"
               onClick={() => {
                 if (currentQuote.items.length > 0) {
-                  if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
+                  if (window.confirm('Deseja iniciar um Novo OrÃ§amento? As alteraÃ§Ãµes nÃ£o salvas da proposta atual serÃ£o substituÃ­das.')) {
                     onNewQuote();
                   }
                 } else {
@@ -1392,10 +1461,10 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 }
               }}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-xs transition active:scale-95 whitespace-nowrap cursor-pointer"
-              title="Iniciar um novo orçamento em branco"
+              title="Iniciar um novo orÃ§amento em branco"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Novo Orçamento</span>
+              <span>Novo OrÃ§amento</span>
             </button>
           </div>
         )}
@@ -1412,7 +1481,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           <p className="text-base font-bold text-slate-900 font-mono">
             R$ {currentQuote.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <span className="text-[10px] text-slate-400">Preço de compra fornecedor</span>
+          <span className="text-[10px] text-slate-400">PreÃ§o de compra fornecedor</span>
         </div>
 
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
@@ -1423,7 +1492,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           <p className="text-base font-bold text-slate-900 font-mono">
             R$ {quoteShipping.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <span className="text-[10px] text-amber-600 font-medium">Logística e entrega</span>
+          <span className="text-[10px] text-amber-600 font-medium">LogÃ­stica e entrega</span>
         </div>
 
         <div 
@@ -1432,12 +1501,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             setIsTaxModalOpen(true);
           }}
           className="bg-white hover:bg-indigo-50/40 border border-slate-200 hover:border-indigo-300 p-4 rounded-2xl shadow-xs cursor-pointer transition group select-none active:scale-[0.99]"
-          title="Clique para editar a alíquota de impostos desta proposta"
+          title="Clique para editar a alÃ­quota de impostos desta proposta"
         >
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-indigo-700 transition">Impostos ({globalTax}%)</span>
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-indigo-500 opacity-0 group-hover:opacity-100 transition font-bold">Editar ✎</span>
+              <span className="text-[9px] text-indigo-500 opacity-0 group-hover:opacity-100 transition font-bold">Editar âœŽ</span>
               <Receipt className="w-4 h-4 text-indigo-500" />
             </div>
           </div>
@@ -1473,9 +1542,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           title="Clique para editar a Margem de Lucro (% Markup) de todos os itens"
         >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-emerald-700 transition">Lucro Líquido Real</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-emerald-700 transition">Lucro LÃ­quido Real</span>
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-emerald-600 opacity-0 group-hover:opacity-100 transition font-bold">Editar ✎</span>
+              <span className="text-[9px] text-emerald-600 opacity-0 group-hover:opacity-100 transition font-bold">Editar âœŽ</span>
               {currentQuote.averageMargin < 12 && currentQuote.items.length > 0 ? (
                 <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md">
                   <AlertTriangle className="w-3 h-3 text-amber-600" />
@@ -1491,8 +1560,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           }`}>
             R$ {currentQuote.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <div className="text-[10px] text-slate-600 font-semibold flex items-center justify-between pt-0.5" title={`Margem líquida após impostos: ${currentQuote.averageMargin.toFixed(1)}% | Markup comercial: ${globalMarkup}%`}>
-            <span>Margem real: <strong className={currentQuote.averageMargin < 12 && currentQuote.items.length > 0 ? 'text-amber-700 font-bold' : 'text-emerald-700'}>{currentQuote.averageMargin.toFixed(1)}%</strong></span>
+          <div className="text-[10px] text-slate-600 font-semibold flex items-center justify-between pt-0.5" title={`% Margem LÃ­quida (sobre venda): ${currentQuote.averageMargin.toFixed(1)}% | % Markup (sobre custo): ${globalMarkup}%`}>
+            <span>% Margem LÃ­q: <strong className={currentQuote.averageMargin < 12 && currentQuote.items.length > 0 ? 'text-amber-700 font-bold' : 'text-emerald-700'}>{currentQuote.averageMargin.toFixed(1)}% (venda)</strong></span>
             <button
               type="button"
               onClick={(e) => {
@@ -1501,8 +1570,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 setIsMarkupModalOpen(true);
               }}
               className="text-[9.5px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition"
+              title="Clique para alterar % Markup (sobre custo)"
             >
-              Alterar
+              % Markup: {globalMarkup}% âœŽ
             </button>
           </div>
         </div>
@@ -1527,40 +1597,40 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <Building className="w-4 h-4 text-sky-600" />
-            <span>Dados do Solicitante & Identificação</span>
+            <span>Dados do Solicitante & IdentificaÃ§Ã£o</span>
           </h3>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-medium text-slate-600">Empresa / Órgão</label>
+              <label className="block text-xs font-medium text-slate-600">Empresa / Ã“rgÃ£o</label>
               <div className="flex items-center gap-1">
                 {matchedCompany && (
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mr-1">
-                    ✓ Cadastrada
+                    âœ“ Cadastrada
                   </span>
                 )}
                 <span className="text-[10px] text-slate-400 font-medium">Prefixo:</span>
                 <button
                   type="button"
                   onClick={() => {
-                    const current = currentQuote.clientCompany.replace(/^(ao|à|a|para)\s+/i, '').trim();
-                    setCurrentQuote(prev => ({ ...prev, clientCompany: `À ${current}` }));
+                    const current = currentQuote.clientCompany.replace(/^(ao|Ã |a|para)\s+/i, '').trim();
+                    setCurrentQuote(prev => ({ ...prev, clientCompany: `Ã€ ${current}` }));
                   }}
                   className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition ${
-                    currentQuote.clientCompany.trim().startsWith('À')
+                    currentQuote.clientCompany.trim().startsWith('Ã€')
                       ? 'bg-sky-600 text-white shadow-2xs'
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                   }`}
-                  title="Mudar para 'À [Empresa]'"
+                  title="Mudar para 'Ã€ [Empresa]'"
                 >
-                  À
+                  Ã€
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    const current = currentQuote.clientCompany.replace(/^(ao|à|a|para)\s+/i, '').trim();
+                    const current = currentQuote.clientCompany.replace(/^(ao|Ã |a|para)\s+/i, '').trim();
                     setCurrentQuote(prev => ({ ...prev, clientCompany: `Ao ${current}` }));
                   }}
                   className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition ${
@@ -1568,7 +1638,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       ? 'bg-sky-600 text-white shadow-2xs'
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                   }`}
-                  title="Mudar para 'Ao [Órgão/Condomínio]'"
+                  title="Mudar para 'Ao [Ã“rgÃ£o/CondomÃ­nio]'"
                 >
                   Ao
                 </button>
@@ -1622,7 +1692,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   <div className="p-2 overflow-y-auto divide-y divide-slate-100">
                     {(() => {
                       const query = (currentQuote.clientCompany || '')
-                        .replace(/^(ao|à|a|para)\s+/i, '')
+                        .replace(/^(ao|Ã |a|para)\s+/i, '')
                         .trim()
                         .toLowerCase();
 
@@ -1648,7 +1718,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                           <div className="p-3.5 text-center text-xs text-slate-500">
                             <p className="font-semibold text-slate-700">Nenhuma empresa salva como "{currentQuote.clientCompany}"</p>
                             <p className="text-[10.5px] text-slate-400 mt-1">
-                              Você pode continuar digitando normalmente para usar essa empresa nesta proposta.
+                              VocÃª pode continuar digitando normalmente para usar essa empresa nesta proposta.
                             </p>
                           </div>
                         );
@@ -1685,9 +1755,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                     {c.name}
                                   </div>
                                   <div className="text-[10.5px] text-slate-500 flex items-center gap-2 truncate">
-                                    {c.defaultDeliveryLocation && <span>📍 {c.defaultDeliveryLocation}</span>}
+                                    {c.defaultDeliveryLocation && <span>ðŸ“ {c.defaultDeliveryLocation}</span>}
                                     {c.contacts?.length > 0 && (
-                                      <span>👥 {c.contacts.length} comprador(es)</span>
+                                      <span>ðŸ‘¥ {c.contacts.length} comprador(es)</span>
                                     )}
                                   </div>
                                 </div>
@@ -1712,7 +1782,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               <label className="block text-xs font-medium text-slate-600">A/C (Nome do Comprador)</label>
               {matchedCompany && matchedCompany.contacts.length > 0 && (
                 <span className="text-[10px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded font-semibold border border-sky-200">
-                  {matchedCompany.contacts.length} comprador(es) disponível(is)
+                  {matchedCompany.contacts.length} comprador(es) disponÃ­vel(is)
                 </span>
               )}
             </div>
@@ -1753,7 +1823,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 )}
               </div>
 
-              {/* Dropdown de compradores vinculados exclusivamente à empresa escolhida */}
+              {/* Dropdown de compradores vinculados exclusivamente Ã  empresa escolhida */}
               {isBuyerSearchOpen && matchedCompany && matchedCompany.contacts.length > 0 && (
                 <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-60 flex flex-col animate-scaleIn">
                   <div className="p-2 overflow-y-auto divide-y divide-slate-100">
@@ -1777,7 +1847,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                           <div className="p-3 text-center text-xs text-slate-500">
                             <p className="font-semibold text-slate-700">Nenhum comprador cadastrado com "{currentQuote.contactPerson}"</p>
                             <p className="text-[10.5px] text-slate-400 mt-1">
-                              Você pode continuar digitando normalmente para usar este novo comprador.
+                              VocÃª pode continuar digitando normalmente para usar este novo comprador.
                             </p>
                           </div>
                         );
@@ -1786,7 +1856,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       return (
                         <div className="pt-0.5 space-y-1">
                           <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                            <span>Compradores da {matchedCompany.name.split('—')[0].split('-')[0].trim()} ({filteredContacts.length})</span>
+                            <span>Compradores da {matchedCompany.name.split('â€”')[0].split('-')[0].trim()} ({filteredContacts.length})</span>
                             <span className="text-[9px] font-normal text-slate-400">Clique para selecionar</span>
                           </div>
                           {filteredContacts.map(contact => {
@@ -1822,8 +1892,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                       {contact.title || 'Sr(a).'} {contact.name}
                                     </div>
                                     <div className="text-[10.5px] text-slate-500 flex items-center gap-2 truncate">
-                                      {contact.email && <span>✉️ {contact.email}</span>}
-                                      {contact.phone && <span>📞 {contact.phone}</span>}
+                                      {contact.email && <span>âœ‰ï¸ {contact.email}</span>}
+                                      {contact.phone && <span>ðŸ“ž {contact.phone}</span>}
                                     </div>
                                   </div>
                                 </div>
@@ -1874,7 +1944,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Código / Referência</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">CÃ³digo / ReferÃªncia</label>
             <input
               type="text"
               value={currentQuote.code}
@@ -1885,7 +1955,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Data de Emissão</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Data de EmissÃ£o</label>
             <input
               type="text"
               value={currentQuote.date}
@@ -1919,7 +1989,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     setIsLocationSearchOpen(true);
                   }
                 }}
-                placeholder={matchedCompany?.locations && matchedCompany.locations.length > 0 ? "Clique para listar cidades da empresa ou digite para buscar..." : "Ex: Brasília, Coronel Fabriciano, Joinville..."}
+                placeholder={matchedCompany?.locations && matchedCompany.locations.length > 0 ? "Clique para listar cidades da empresa ou digite para buscar..." : "Ex: BrasÃ­lia, Coronel Fabriciano, Joinville..."}
                 className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
               />
               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
@@ -1945,7 +2015,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               )}
             </div>
 
-            {/* Dropdown de destinos de frete vinculados exclusivamente à empresa escolhida */}
+            {/* Dropdown de destinos de frete vinculados exclusivamente Ã  empresa escolhida */}
             {isLocationSearchOpen && matchedCompany && matchedCompany.locations && matchedCompany.locations.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-60 flex flex-col animate-scaleIn">
                 <div className="p-2 overflow-y-auto divide-y divide-slate-100">
@@ -1961,7 +2031,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         <div className="p-3 text-center text-xs text-slate-500">
                           <p className="font-semibold text-slate-700">Nenhum destino cadastrado com "{currentQuote.deliveryLocation}"</p>
                           <p className="text-[10.5px] text-slate-400 mt-1">
-                            Você pode continuar digitando livremente para usar este destino.
+                            VocÃª pode continuar digitando livremente para usar este destino.
                           </p>
                         </div>
                       );
@@ -1970,7 +2040,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     return (
                       <div className="pt-0.5 space-y-1">
                         <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                          <span>Destinos da {matchedCompany.name.split('—')[0].split('-')[0].trim()} ({filteredLocations.length})</span>
+                          <span>Destinos da {matchedCompany.name.split('â€”')[0].split('-')[0].trim()} ({filteredLocations.length})</span>
                           <span className="text-[9px] font-normal text-slate-400">Clique para selecionar</span>
                         </div>
                         {filteredLocations.map(loc => {
@@ -2035,18 +2105,42 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         <div className="p-4 bg-slate-50/70 border-b border-slate-200">
           <div className="flex items-center justify-between gap-2 mb-1.5">
             <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
-              <span>Produtos/Serviços</span>
+              <span>Produtos/ServiÃ§os</span>
               <span className="text-red-500 font-bold">*</span>
               <span className="text-slate-400 font-normal">|</span>
               <span className="text-slate-600 font-semibold flex items-center gap-1">
                 Selecione ou crie um novo item
-                <span title="Selecione um produto da sua base de Produtos Infodesk para inserir com foto e custos já preenchidos, ou crie uma nova linha em branco para preenchimento manual.">
+                <span title="Selecione um produto da sua base de Produtos Infodesk para inserir com foto e custos jÃ¡ preenchidos, ou crie uma nova linha em branco para preenchimento manual.">
                   <HelpCircle className="w-3.5 h-3.5 text-slate-400 hover:text-sky-600 cursor-help transition" />
                 </span>
               </span>
             </label>
             <div className="flex items-center gap-2.5">
-              {/* Botão de Alternância de Visualização Compacta / Detalhada */}
+              {/* BotÃ£o de ImportaÃ§Ã£o Universal (MEL-10) */}
+              <button
+                type="button"
+                onClick={() => setIsUniversalImportOpen(true)}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 shadow-2xs cursor-pointer active:scale-95"
+                title="Importar produtos em lote a partir de planilha Excel (.xlsx), CSV ou copiar e colar cÃ©lulas (Ctrl+V)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Importar Planilha / Excel</span>
+              </button>
+
+              {/* BotÃ£o de Matriz Multi-Fornecedor & Split (MEL-06) */}
+              {currentQuote.items && currentQuote.items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsSupplierMatrixOpen(true)}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/90 shadow-2xs cursor-pointer active:scale-95"
+                  title="Abrir matriz comparativa de fornecedores e simular cesta mais barata (MEL-06)"
+                >
+                  <Layers className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Matriz Fornecedores & Split</span>
+                </button>
+              )}
+
+              {/* BotÃ£o de AlternÃ¢ncia de VisualizaÃ§Ã£o Compacta / Detalhada */}
               {currentQuote.items && currentQuote.items.length > 0 && (
                 <button
                   type="button"
@@ -2056,16 +2150,16 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       ? 'bg-sky-50 text-sky-700 border-sky-300 ring-1 ring-sky-200'
                       : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'
                   }`}
-                  title="Alternar entre modo compacto (linhas menores e mais limpas) e detalhado (com utilitários de fotos e links expandidos)"
+                  title="Alternar entre modo compacto (linhas menores e mais limpas) e detalhado (com utilitÃ¡rios de fotos e links expandidos)"
                 >
                   <LayoutList className="w-3.5 h-3.5 text-sky-600" />
-                  <span>{isCompactTableMode ? 'Visualização Detalhada' : 'Visualização Compacta'}</span>
+                  <span>{isCompactTableMode ? 'VisualizaÃ§Ã£o Detalhada' : 'VisualizaÃ§Ã£o Compacta'}</span>
                 </button>
               )}
 
               {currentQuote.items && currentQuote.items.length > 0 && (
                 <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
-                  {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item na cotação' : 'itens na cotação'}
+                  {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item na cotaÃ§Ã£o' : 'itens na cotaÃ§Ã£o'}
                 </span>
               )}
             </div>
@@ -2084,7 +2178,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   onFocus={() => {
                     setIsProductSearchOpen(true);
                   }}
-                  placeholder="Digite o nome, código ou marca para buscar nos produtos..."
+                  placeholder="Digite o nome, cÃ³digo ou marca para buscar nos produtos..."
                   className="w-full bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-24 py-2.5 text-xs text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 shadow-2xs transition"
                 />
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
@@ -2124,7 +2218,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               {isProductSearchOpen && (
                 <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-80 flex flex-col animate-scaleIn">
                   <div className="p-2 overflow-y-auto divide-y divide-slate-100">
-                    {/* Opção Rápida de Criar Novo */}
+                    {/* OpÃ§Ã£o RÃ¡pida de Criar Novo */}
                     <button
                       type="button"
                       onClick={() => {
@@ -2138,18 +2232,18 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         <Plus className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span>+ Criar novo item em branco na cotação</span>
+                        <span>+ Criar novo item em branco na cotaÃ§Ã£o</span>
                         <p className="text-[10.5px] font-normal text-slate-500">
-                          {productSearchQuery ? `Ou use "${productSearchQuery}" como descrição inicial` : 'Preenchimento manual de código, custo e fotos'}
+                          {productSearchQuery ? `Ou use "${productSearchQuery}" como descriÃ§Ã£o inicial` : 'Preenchimento manual de cÃ³digo, custo e fotos'}
                         </p>
                       </div>
                     </button>
 
-                    {/* Resultados da busca incremental no catálogo */}
+                    {/* Resultados da busca incremental no catÃ¡logo */}
                     {(() => {
                       const query = productSearchQuery.trim().toLowerCase();
                       const filtered = products.filter(p => {
-                        if (!query) return false; // Não abre todos os itens se não digitou nada!
+                        if (!query) return false; // NÃ£o abre todos os itens se nÃ£o digitou nada!
                         const nameMatch = (p.name || '').toLowerCase().includes(query);
                         const skuMatch = (p.sku || '').toLowerCase().includes(query);
                         const partMatch = (p.partNumber || '').toLowerCase().includes(query);
@@ -2161,7 +2255,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         return (
                           <div className="p-4 text-center text-xs text-slate-400">
                             <p className="font-semibold text-slate-600">Digite para buscar nos produtos...</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">Ex: "Café", "Cabo", "Intelbras", "0901" ou código do produto.</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Ex: "CafÃ©", "Cabo", "Intelbras", "0901" ou cÃ³digo do produto.</p>
                           </div>
                         );
                       }
@@ -2171,7 +2265,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                           <div className="p-4 text-center text-xs text-slate-500">
                             <p className="font-semibold text-slate-700">Nenhum item encontrado para "{productSearchQuery}"</p>
                             <p className="text-[11px] text-slate-400 mt-1">
-                              Clique no botão <strong className="text-sky-600">+ Criar novo item</strong> acima para adicionar manualmente.
+                              Clique no botÃ£o <strong className="text-sky-600">+ Criar novo item</strong> acima para adicionar manualmente.
                             </p>
                           </div>
                         );
@@ -2212,7 +2306,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                 <div className="flex items-center gap-2 mt-0.5 text-[10.5px] text-slate-500 font-mono">
                                   {p.partNumber && <span>Part: {p.partNumber}</span>}
                                   {p.sku && <span>SKU: {p.sku}</span>}
-                                  <span className="text-slate-400 font-sans">• {p.unit || 'Un.'}</span>
+                                  <span className="text-slate-400 font-sans">â€¢ {p.unit || 'Un.'}</span>
                                 </div>
                               </div>
                               <div className="text-right shrink-0">
@@ -2232,13 +2326,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             </div>
           </div>
 
-          {/* Barra de Operações Rápidas em Lote (Bulk Actions) */}
+          {/* Barra de OperaÃ§Ãµes RÃ¡pidas em Lote (Bulk Actions) */}
           {currentQuote.items && currentQuote.items.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Ações em Lote:</span>
+                  <span>AÃ§Ãµes em Lote:</span>
                 </span>
 
                 <button
@@ -2248,7 +2342,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     if (brand) handleApplyPrefixOrBrandToAll(brand);
                   }}
                   className="px-2.5 py-1 bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer"
-                  title="Aplica o nome da marca na frente da descrição dos itens que ainda não a possuem"
+                  title="Aplica o nome da marca na frente da descriÃ§Ã£o dos itens que ainda nÃ£o a possuem"
                 >
                   + Inserir Marca em Todos
                 </button>
@@ -2256,7 +2350,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const months = window.prompt('Definir meses de garantia padrão para o texto da proposta (Ex: 12, 24, 36):', '12');
+                    const months = window.prompt('Definir meses de garantia padrÃ£o para o texto da proposta (Ex: 12, 24, 36):', '12');
                     if (months) {
                       const num = parseInt(months, 10);
                       if (!isNaN(num) && num > 0) {
@@ -2268,12 +2362,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     }
                   }}
                   className="px-2.5 py-1 bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer"
-                  title="Padroniza cláusula de garantia na proposta para todos os itens"
+                  title="Padroniza clÃ¡usula de garantia na proposta para todos os itens"
                 >
                   Garantia Padronizada
                 </button>
 
-                {/* Botão de Formatação Word (Maiúsculas/Minúsculas) em Lote */}
+                {/* BotÃ£o de FormataÃ§Ã£o Word (MaiÃºsculas/MinÃºsculas) em Lote */}
                 <div className="relative" ref={quoteCaseMenuRef}>
                   <button
                     type="button"
@@ -2283,19 +2377,19 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         ? 'bg-sky-50 text-sky-700 border-sky-300 ring-1 ring-sky-200'
                         : 'bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border-slate-200'
                     }`}
-                    title="Altera maiúsculas/minúsculas de todos os itens da cotação (estilo Microsoft Word)"
+                    title="Altera maiÃºsculas/minÃºsculas de todos os itens da cotaÃ§Ã£o (estilo Microsoft Word)"
                   >
                     <span className="font-serif font-bold text-xs tracking-tight text-sky-700 bg-sky-100 px-1 py-0.2 rounded">
                       Aa
                     </span>
-                    <span>Maiúsculas / Minúsculas</span>
+                    <span>MaiÃºsculas / MinÃºsculas</span>
                     <ChevronDown className="w-3 h-3 text-slate-400" />
                   </button>
 
                   {isQuoteCaseMenuOpen && (
                     <div className="absolute left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-40 animate-in fade-in slide-in-from-top-1">
                       <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Formatar Itens da Cotação (Word)
+                        Formatar Itens da CotaÃ§Ã£o (Word)
                       </div>
 
                       <button
@@ -2306,7 +2400,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         }`}
                       >
                         <div className="flex flex-col">
-                          <span className="font-semibold">Primeira da frase maiúscula</span>
+                          <span className="font-semibold">Primeira da frase maiÃºscula</span>
                           <span className="text-[10px] text-slate-400">Ex: Teclado sem fio logitech k380</span>
                         </div>
                         {activeQuoteCaseStyle === 'sentence' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
@@ -2320,7 +2414,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         }`}
                       >
                         <div className="flex flex-col">
-                          <span className="font-semibold">minúsculas</span>
+                          <span className="font-semibold">minÃºsculas</span>
                           <span className="text-[10px] text-slate-400">Ex: teclado sem fio logitech k380</span>
                         </div>
                         {activeQuoteCaseStyle === 'lowercase' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
@@ -2334,7 +2428,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         }`}
                       >
                         <div className="flex flex-col">
-                          <span className="font-semibold">MAIÚSCULAS</span>
+                          <span className="font-semibold">MAIÃšSCULAS</span>
                           <span className="text-[10px] text-slate-400">Ex: TECLADO SEM FIO LOGITECH K380</span>
                         </div>
                         {activeQuoteCaseStyle === 'uppercase' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
@@ -2348,7 +2442,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         }`}
                       >
                         <div className="flex flex-col">
-                          <span className="font-semibold">Primeira de Cada Palavra Maiúscula</span>
+                          <span className="font-semibold">Primeira de Cada Palavra MaiÃºscula</span>
                           <span className="text-[10px] text-slate-400">Ex: Teclado Sem Fio Logitech K380</span>
                         </div>
                         {activeQuoteCaseStyle === 'title' && <Check className="w-4 h-4 text-sky-600 shrink-0" />}
@@ -2365,7 +2459,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     setCurrentQuote(prev => ({ ...prev, items: updated }));
                   }}
                   className="px-2.5 py-1 bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer"
-                  title="Ativa ou desativa a exibição das fotos no PDF/Word para todos os itens simultaneamente"
+                  title="Ativa ou desativa a exibiÃ§Ã£o das fotos no PDF/Word para todos os itens simultaneamente"
                 >
                   {currentQuote.items.every(i => i.showImage) ? 'Ocultar Fotos no PDF' : 'Exibir Fotos no PDF (Todos)'}
                 </button>
@@ -2373,7 +2467,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 {/* Divisor vertical */}
                 <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
 
-                {/* Campo Editável de Porcentagem de Lucro para Itens Selecionados */}
+                {/* Campo EditÃ¡vel de Porcentagem de Lucro para Itens Selecionados */}
                 <div className="flex items-center gap-1.5 bg-sky-50/80 border border-sky-200/80 px-2.5 py-1 rounded-xl shadow-2xs">
                   <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1">
                     <Percent className="w-3.5 h-3.5 text-sky-600" />
@@ -2401,7 +2495,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       type="button"
                       onClick={() => handleApplyMarkupToSelectedItems(batchMarkupInput)}
                       className="px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer whitespace-nowrap"
-                      title={selectedItemIds.length > 0 ? `Aplicar ${batchMarkupInput || formatPercentPtBr(globalMarkup)}% nos ${selectedItemIds.length} item(ns) selecionado(s)` : 'Selecione os itens pelas caixinhas ao lado do número para aplicar'}
+                      title={selectedItemIds.length > 0 ? `Aplicar ${batchMarkupInput || formatPercentPtBr(globalMarkup)}% nos ${selectedItemIds.length} item(ns) selecionado(s)` : 'Selecione os itens pelas caixinhas ao lado do nÃºmero para aplicar'}
                     >
                       Aplicar nos Selecionados {selectedItemIds.length > 0 && `(${selectedItemIds.length})`}
                     </button>
@@ -2413,14 +2507,33 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       className="text-[10px] text-slate-500 hover:text-rose-600 underline font-semibold transition ml-1"
                       title="Desmarcar todos os itens"
                     >
-                      Limpar seleção
+                      Limpar seleÃ§Ã£o
                     </button>
                   )}
+                  {/* Seletor de Perfis de PrecificaÃ§Ã£o DinÃ¢mica (MEL-07) */}
+                  <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+                    <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-500" />
+                      <span>Perfil de Margem:</span>
+                    </span>
+                    <select
+                      value={selectedPricingProfile}
+                      onChange={(e) => handleApplyPricingProfile(e.target.value)}
+                      className="h-7 bg-white border border-slate-300 hover:border-sky-400 rounded-lg px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer shadow-2xs"
+                      title="Aplicar regras inteligentes de markup por categoria e faixa de preÃ§o"
+                    >
+                      {PRICING_PROFILES.map(prof => (
+                        <option key={prof.id} value={prof.id}>
+                          {prof.name} ({prof.badge})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
               <div className="text-[11px] text-slate-500 font-medium">
-                Dica: Você pode <strong>duplicar</strong> itens e <strong>reordenar</strong> nas setinhas da tabela.
+                Dica: VocÃª pode <strong>duplicar</strong> itens e <strong>reordenar</strong> nas setinhas da tabela.
               </div>
             </div>
           )}
@@ -2442,7 +2555,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     <span>Item</span>
                   </div>
                 </th>
-                <th className="p-3 min-w-[280px]">Descrição Detalhada do Produto</th>
+                <th className="p-3 min-w-[280px]">DescriÃ§Ã£o Detalhada do Produto</th>
                 <th className="p-3 w-20 min-w-[76px] text-center">Qtd.</th>
                 <th className="p-3 w-16 text-center">Un.</th>
                 <th className="p-3 w-24 text-center">Custo (R$)</th>
@@ -2458,19 +2571,19 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     title="Margem de Lucro (% Markup). Clique para aplicar uma nova margem em lote para todos os itens"
                   >
                     <span>Margem %</span>
-                    <span className="text-[9px] text-sky-500 opacity-60 group-hover/mth:opacity-100 font-normal">✎</span>
+                    <span className="text-[9px] text-sky-500 opacity-60 group-hover/mth:opacity-100 font-normal">âœŽ</span>
                   </button>
                 </th>
-                <th className="p-3 w-28 text-center">Preço Unit. (R$)</th>
-                <th className="p-3 w-28 text-center">Preço Total (R$)</th>
-                <th className="p-3 w-12 text-center">Ações</th>
+                <th className="p-3 w-28 text-center">PreÃ§o Unit. (R$)</th>
+                <th className="p-3 w-28 text-center">PreÃ§o Total (R$)</th>
+                <th className="p-3 w-12 text-center">AÃ§Ãµes</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {currentQuote.items.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-10 text-slate-400">
-                    Nenhum produto adicionado. Use o botão acima ou selecione um e-mail no Inbox para carregar itens com IA.
+                    Nenhum produto adicionado. Use o botÃ£o acima ou selecione um e-mail no Inbox para carregar itens com IA.
                   </td>
                 </tr>
               ) : (
@@ -2493,7 +2606,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                           checked={selectedItemIds.includes(item.id)}
                           onChange={() => handleToggleSelectItem(item.id)}
                           className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
-                          title={`Selecionar item ${item.itemNumber || idx + 1} para ações em lote`}
+                          title={`Selecionar item ${item.itemNumber || idx + 1} para aÃ§Ãµes em lote`}
                         />
                         <span className="text-[11px] font-mono text-slate-600">{item.itemNumber}</span>
                       </div>
@@ -2501,7 +2614,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
                     <td className="p-3">
                       <div className="flex flex-col gap-2">
-                        {/* Linha principal: Foto + Descrição */}
+                        {/* Linha principal: Foto + DescriÃ§Ã£o */}
                         <div className="flex items-start gap-2.5">
                           {/* Caixa de Foto / Upload / Zoom */}
                           <div
@@ -2551,7 +2664,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                             )}
                           </div>
 
-                          {/* Campo de Descrição */}
+                          {/* Campo de DescriÃ§Ã£o */}
                           <div className="flex-1 min-w-0">
                             <textarea
                               ref={(el) => { itemNameTextareaRefs.current[item.id] = el; }}
@@ -2560,7 +2673,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                               onFocus={() => { activeImageUploadIndexRef.current = idx; }}
                               onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
                               onPaste={(e) => handlePasteImageToItem(e, idx)}
-                              placeholder="Descrição padronizada do produto"
+                              placeholder="DescriÃ§Ã£o padronizada do produto"
                               className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white resize-y leading-relaxed"
                             />
                           </div>
@@ -2598,7 +2711,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                   type="button"
                                   onClick={(e) => handleDirectPasteToItem(e, idx)}
                                   className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1.5 py-0.5 rounded transition"
-                                  title="Colar print da área de transferência direto para este item (Ctrl+V)"
+                                  title="Colar print da Ã¡rea de transferÃªncia direto para este item (Ctrl+V)"
                                 >
                                   <ClipboardPaste className="w-2.5 h-2.5" />
                                   <span>Colar Print</span>
@@ -2622,7 +2735,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                   target="_blank"
                                   rel="noreferrer"
                                   className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 hover:underline text-[10px]"
-                                  title="Buscar preços no Google Shopping"
+                                  title="Buscar preÃ§os no Google Shopping"
                                 >
                                   <ExternalLink className="w-3 h-3" />
                                   <span>Ver Ofertas</span>
@@ -2634,7 +2747,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleOpenCatalogReviewModal(item)}
-                                title="Editar foto, descrição padronizada, NCM e dados deste item"
+                                title="Editar foto, descriÃ§Ã£o padronizada, NCM e dados deste item"
                                 className={`text-[10px] font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition ${savedCatalogIds[item.id]
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                   : 'bg-slate-100 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 text-slate-600 border-slate-200'
@@ -2679,7 +2792,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       />
                     </td>
 
-                    {/* Custo Unitário */}
+                    {/* Custo UnitÃ¡rio */}
                     <td className="p-3">
                       <input
                         type="text"
@@ -2714,7 +2827,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       />
                     </td>
 
-                    {/* Frete Unitário */}
+                    {/* Frete UnitÃ¡rio */}
                     <td className="p-3">
                       <input
                         type="text"
@@ -2789,7 +2902,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       </div>
                     </td>
 
-                    {/* Preço Unitário */}
+                    {/* PreÃ§o UnitÃ¡rio */}
                     <td className="p-3">
                       <input
                         type="text"
@@ -2830,7 +2943,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       />
                     </td>
 
-                    {/* Preço Total do Item */}
+                    {/* PreÃ§o Total do Item */}
                     <td className="p-3 text-center font-bold text-emerald-700 font-mono text-xs whitespace-nowrap pt-5">
                       R$ {formatCurrencyPtBr(item.totalPrice)}
                     </td>
@@ -2897,7 +3010,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         </div>
       </div>
 
-      {/* Commercial Terms & Conditions (Sanfona Retrátil com Resumo) */}
+      {/* Commercial Terms & Conditions (Sanfona RetrÃ¡til com Resumo) */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
         <div 
           onClick={() => setIsCommercialConditionsOpen(prev => !prev)}
@@ -2906,21 +3019,21 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           <div className="flex items-center gap-2.5 flex-wrap">
             <Calendar className="w-4 h-4 text-sky-600" />
             <h3 className="text-sm font-bold text-slate-900 group-hover:text-sky-700 transition">
-              Condições Gerais de Fornecimento (Padrão Infodesk)
+              CondiÃ§Ãµes Gerais de Fornecimento (PadrÃ£o Infodesk)
             </h3>
             {/* Chips de Resumo Visual quando recolhido */}
             <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-semibold">
-                ⏳ {extractValidityDaysNumber(currentQuote.validityDays)} dias validade
+                â³ {extractValidityDaysNumber(currentQuote.validityDays)} dias validade
               </span>
               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-semibold">
-                💳 {currentQuote.paymentTerms?.split('.')[0] || 'Faturado'}
+                ðŸ’³ {currentQuote.paymentTerms?.split('.')[0] || 'Faturado'}
               </span>
               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-semibold">
-                🚚 {extractDeliveryDaysNumber(currentQuote.deliveryDays)} dias entrega
+                ðŸšš {extractDeliveryDaysNumber(currentQuote.deliveryDays)} dias entrega
               </span>
               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-semibold">
-                🛡️ {extractWarrantyMonthsNumber(currentQuote.warrantyTerms)} meses garantia
+                ðŸ›¡ï¸ {extractWarrantyMonthsNumber(currentQuote.warrantyTerms)} meses garantia
               </span>
             </div>
           </div>
@@ -2928,7 +3041,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           <button
             type="button"
             className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 group-hover:text-sky-600 transition"
-            title={isCommercialConditionsOpen ? "Recolher condições gerais" : "Expandir condições gerais"}
+            title={isCommercialConditionsOpen ? "Recolher condiÃ§Ãµes gerais" : "Expandir condiÃ§Ãµes gerais"}
           >
             {isCommercialConditionsOpen ? (
               <ChevronUp className="w-4 h-4" />
@@ -2992,15 +3105,15 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             />
           </div>
 
-          {/* Condições de Pagamento */}
+          {/* CondiÃ§Ãµes de Pagamento */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="block text-slate-600 font-medium">Condições de Pagamento</label>
+              <label className="block text-slate-600 font-medium">CondiÃ§Ãµes de Pagamento</label>
               <span className="text-[11px] font-bold text-sky-700 font-mono">
                 {currentQuote.paymentTerms?.toLowerCase().includes('faturado')
                   ? 'Faturado'
                   : currentQuote.paymentTerms?.toLowerCase().includes('vista')
-                    ? 'À vista'
+                    ? 'Ã€ vista'
                     : `${extractPaymentDaysNumber(currentQuote.paymentTerms)} dias`}
               </span>
             </div>
@@ -3022,14 +3135,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 type="button"
                 onClick={() => setCurrentQuote(prev => ({
                   ...prev,
-                  paymentTerms: 'À vista.'
+                  paymentTerms: 'Ã€ vista.'
                 }))}
                 className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${currentQuote.paymentTerms?.toLowerCase().includes('vista')
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                   }`}
               >
-                À vista
+                Ã€ vista
               </button>
               {[15, 21, 28, 30, 45, 60].map(days => (
                 <button
@@ -3057,7 +3170,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     const d = parseInt(e.target.value, 10);
                     setCurrentQuote(prev => ({
                       ...prev,
-                      paymentTerms: d === 0 ? 'À vista.' : formatPaymentTermsDays(d || 30)
+                      paymentTerms: d === 0 ? 'Ã€ vista.' : formatPaymentTermsDays(d || 30)
                     }));
                   }}
                   className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-0.5 text-center text-xs font-bold text-slate-900 focus:outline-none focus:border-sky-500"
@@ -3076,7 +3189,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           {/* Prazo de Entrega */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-slate-600 font-medium">Prazo de Entrega (Dias Úteis)</label>
+              <label className="block text-slate-600 font-medium">Prazo de Entrega (Dias Ãšteis)</label>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -3088,9 +3201,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         ? 'bg-amber-100 text-amber-900 border-amber-300'
                         : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                   }`}
-                  title="Configurar prazo diferente para itens específicos"
+                  title="Configurar prazo diferente para itens especÃ­ficos"
                 >
-                  <span>⚡ {showDeliveryException ? 'Ocultar Exceção' : (exceptionItemNumbers.length > 0 ? `Exceção ativa (${exceptionItemNumbers.length})` : '+ Regra de Exceção')}</span>
+                  <span>âš¡ {showDeliveryException ? 'Ocultar ExceÃ§Ã£o' : (exceptionItemNumbers.length > 0 ? `ExceÃ§Ã£o ativa (${exceptionItemNumbers.length})` : '+ Regra de ExceÃ§Ã£o')}</span>
                 </button>
                 <span className="text-[11px] font-bold text-sky-700 font-mono">
                   {extractDeliveryDaysNumber(currentQuote.deliveryDays)} dias
@@ -3100,7 +3213,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
             {/* Dias gerais da proposta */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10.5px] text-slate-400 font-medium mr-0.5">Padrão:</span>
+              <span className="text-[10.5px] text-slate-400 font-medium mr-0.5">PadrÃ£o:</span>
               {[3, 5, 7, 10, 15, 20, 30].map(days => (
                 <button
                   key={days}
@@ -3143,13 +3256,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               </div>
             </div>
 
-            {/* Painel de Regra de Exceção por Itens */}
+            {/* Painel de Regra de ExceÃ§Ã£o por Itens */}
             {showDeliveryException && (
               <div className="p-3 bg-amber-50/80 border border-amber-200/90 rounded-xl space-y-2 animate-in fade-in">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
-                    <span>⚠️ Regra de Exceção:</span>
-                    <span className="font-normal text-amber-800">Escolha quais itens terão prazo diferente</span>
+                    <span>âš ï¸ Regra de ExceÃ§Ã£o:</span>
+                    <span className="font-normal text-amber-800">Escolha quais itens terÃ£o prazo diferente</span>
                   </span>
                   {exceptionItemNumbers.length > 0 && (
                     <button
@@ -3164,12 +3277,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       }}
                       className="text-[10px] text-amber-800 hover:underline font-semibold"
                     >
-                      Limpar exceção
+                      Limpar exceÃ§Ã£o
                     </button>
                   )}
                 </div>
 
-                {/* Seleção dos itens */}
+                {/* SeleÃ§Ã£o dos itens */}
                 {currentQuote.items && currentQuote.items.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {currentQuote.items.map((it, idx) => {
@@ -3212,7 +3325,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     })}
                   </div>
                 ) : (
-                  <p className="text-[10.5px] text-amber-700 italic">Adicione produtos na cotação para selecionar os itens da exceção.</p>
+                  <p className="text-[10.5px] text-amber-700 italic">Adicione produtos na cotaÃ§Ã£o para selecionar os itens da exceÃ§Ã£o.</p>
                 )}
 
                 {/* Prazo para os itens selecionados */}
@@ -3269,7 +3382,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.deliveryDays}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, deliveryDays: e.target.value }))}
-              placeholder="em até 10 (dez) dias úteis após autorização de fornecimento."
+              placeholder="em atÃ© 10 (dez) dias Ãºteis apÃ³s autorizaÃ§Ã£o de fornecimento."
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
             />
           </div>
@@ -3320,7 +3433,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.warrantyTerms}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, warrantyTerms: e.target.value }))}
-              placeholder="12 (doze) meses balcão para defeitos de fabricação."
+              placeholder="12 (doze) meses balcÃ£o para defeitos de fabricaÃ§Ã£o."
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
             />
           </div>
@@ -3328,20 +3441,20 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           <div className="md:col-span-2">
             <label className="block text-slate-600 font-medium mb-1 flex items-center gap-1">
               <Truck className="w-3.5 h-3.5 text-sky-600" />
-              <span>Cláusula de Frete na Proposta</span>
+              <span>ClÃ¡usula de Frete na Proposta</span>
             </label>
             <input
               type="text"
-              value={currentQuote.shippingTerms || `Frete incluso p/ ${currentQuote.deliveryLocation || 'Brasília'}.`}
+              value={currentQuote.shippingTerms || `Frete incluso p/ ${currentQuote.deliveryLocation || 'BrasÃ­lia'}.`}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, shippingTerms: e.target.value }))}
-              placeholder="Ex: Frete incluso p/ São Paulo."
+              placeholder="Ex: Frete incluso p/ SÃ£o Paulo."
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-sky-500 font-medium"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-slate-600 font-medium mb-1 text-xs">Parágrafo de Abertura da Proposta</label>
+          <label className="block text-slate-600 font-medium mb-1 text-xs">ParÃ¡grafo de Abertura da Proposta</label>
           <textarea
             rows={2}
             value={currentQuote.openingText}
@@ -3353,14 +3466,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       )}
     </div>
 
-      {/* Barra de Ações Finais da Cotação (Barra Flutuante Fixa / Sticky Footer) */}
+      {/* Barra de AÃ§Ãµes Finais da CotaÃ§Ã£o (Barra Flutuante Fixa / Sticky Footer) */}
       <div className="sticky bottom-3 z-30 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all">
         <div className="text-left w-full sm:w-auto">
           <p className="text-xs text-slate-500 font-medium">
-            Total da Cotação: <strong className="text-slate-900 font-mono text-base ml-1">R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            Total da CotaÃ§Ã£o: <strong className="text-slate-900 font-mono text-base ml-1">R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </p>
           <p className="text-[11px] text-slate-400">
-            {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'} • Margem média de {currentQuote.averageMargin.toFixed(1)}%
+            {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'} â€¢ Margem mÃ©dia de {currentQuote.averageMargin.toFixed(1)}%
           </p>
         </div>
 
@@ -3370,7 +3483,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="button"
               onClick={() => {
                 if (currentQuote.items.length > 0) {
-                  if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
+                  if (window.confirm('Deseja iniciar um Novo OrÃ§amento? As alteraÃ§Ãµes nÃ£o salvas da proposta atual serÃ£o substituÃ­das.')) {
                     onNewQuote();
                   }
                 } else {
@@ -3378,10 +3491,10 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 }
               }}
               className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-sky-700 border border-sky-200/90 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-              title="Iniciar um novo orçamento em branco"
+              title="Iniciar um novo orÃ§amento em branco"
             >
               <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
-              <span>Novo Orçamento</span>
+              <span>Novo OrÃ§amento</span>
             </button>
           )}
 
@@ -3389,7 +3502,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             type="button"
             onClick={() => persistAndProceed(onSave)}
             className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-            title="Salva alterações na proposta atual (rascunho)"
+            title="Salva alteraÃ§Ãµes na proposta atual (rascunho)"
           >
             <Save className="w-3.5 h-3.5 text-slate-600" />
             <span>Salvar</span>
@@ -3399,13 +3512,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             type="button"
             onClick={() => {
               if (!currentQuote.items || currentQuote.items.length === 0) {
-                alert('Adicione ao menos um produto na cotação para exportar a planilha Excel.');
+                alert('Adicione ao menos um produto na cotaÃ§Ã£o para exportar a planilha Excel.');
                 return;
               }
               handleExportExcel();
             }}
             className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-            title="Baixar planilha de custos e precificação detalhada no Excel (.xlsx)"
+            title="Baixar planilha de custos e precificaÃ§Ã£o detalhada no Excel (.xlsx)"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>Salvar Excel</span>
@@ -3415,7 +3528,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             type="button"
             onClick={() => persistAndProceed(onPreview, true)}
             className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-sky-600/25 cursor-pointer active:scale-95"
-            title="Visualizar documento pronto para impressão ou download em PDF"
+            title="Visualizar documento pronto para impressÃ£o ou download em PDF"
           >
             <Eye className="w-4 h-4" />
             <span>Visualizar proposta</span>
@@ -3433,30 +3546,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         </div>
       </div>
 
-      {/* Modal de Gestão de Empresas e Compradores */}
-      <ClientManagementModal
-        isOpen={isClientsModalOpen}
-        onClose={() => setIsClientsModalOpen(false)}
-        companies={clientCompanies}
-        onSaveCompanies={handleUpdateCompanies}
-        onDeleteCompany={propsOnDeleteCompany}
-        onDeleteContact={propsOnDeleteContact}
-        onOpenEmailScanner={propsOnOpenEmailScanner}
-        onSelectBuyerForQuote={(compName, contact) => {
-          const formattedCompany = formatCompanyPrefix(compName);
-          const formattedContact = formatContactPerson(contact.name);
-          setCurrentQuote(prev => ({
-            ...prev,
-            clientCompany: formattedCompany,
-            contactPerson: formattedContact,
-            clientEmail: (contact.email || prev.clientEmail || '').toLowerCase().trim(),
-            clientPhone: contact.phone || prev.clientPhone,
-            code: generateQuoteCode(compName)
-          }));
-        }}
-      />
 
-      {/* Modal de Verificação Geral antes de Salvar no Catálogo */}
+
+      {/* Modal de VerificaÃ§Ã£o Geral antes de Salvar no CatÃ¡logo */}
       {isCatalogModalOpen && catalogReviewProduct && (
         <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
@@ -3472,13 +3564,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    Verificação Geral do Produto
+                    VerificaÃ§Ã£o Geral do Produto
                     <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-[10px] rounded-full font-bold">
                       Proposta & Produtos
                     </span>
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Revise os dados comerciais, foto e descrição. Você pode salvar apenas na proposta corrente ou cadastrar na base de produtos geral.
+                    Revise os dados comerciais, foto e descriÃ§Ã£o. VocÃª pode salvar apenas na proposta corrente ou cadastrar na base de produtos geral.
                   </p>
                 </div>
               </div>
@@ -3531,7 +3623,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   <button
                     type="button"
                     onClick={handleDirectPasteToCatalog}
-                    title="Colar print screen ou imagem da área de transferência (Ctrl+V)"
+                    title="Colar print screen ou imagem da Ã¡rea de transferÃªncia (Ctrl+V)"
                     className="px-2 py-0.5 rounded text-[9.5px] font-semibold bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 shadow-2xs flex items-center gap-1 transition"
                   >
                     <ClipboardPaste className="w-3 h-3" />
@@ -3548,7 +3640,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       <button
                         type="button"
                         onMouseDown={(e) => {
-                          // Impede que o clique no botão desfaça a seleção no input
+                          // Impede que o clique no botÃ£o desfaÃ§a a seleÃ§Ã£o no input
                           e.preventDefault();
                         }}
                         onClick={() => {
@@ -3556,7 +3648,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                           const input = catalogProductNameInputRef.current;
                           const fullText = catalogReviewProduct.name;
 
-                          // 1. Se há texto selecionado no input, transforma APENAS o trecho selecionado
+                          // 1. Se hÃ¡ texto selecionado no input, transforma APENAS o trecho selecionado
                           if (input && input.selectionStart !== null && input.selectionEnd !== null && input.selectionEnd > input.selectionStart) {
                             const start = input.selectionStart;
                             const end = input.selectionEnd;
@@ -3582,7 +3674,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                 name: newFullText
                               } : null);
 
-                              // Preserva a seleção e devolve o foco no trecho
+                              // Preserva a seleÃ§Ã£o e devolve o foco no trecho
                               setTimeout(() => {
                                 if (input) {
                                   input.focus();
@@ -3611,7 +3703,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                           } : null);
                         }}
                         className="inline-flex items-center gap-1 text-slate-500 hover:text-sky-700 bg-slate-100 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-1.5 py-0.5 rounded font-bold transition text-[10px] cursor-pointer active:scale-95"
-                        title="Altera maiúsculas/minúsculas estilo Word. Se você selecionou uma ou mais palavras, altera APENAS o trecho selecionado!"
+                        title="Altera maiÃºsculas/minÃºsculas estilo Word. Se vocÃª selecionou uma ou mais palavras, altera APENAS o trecho selecionado!"
                       >
                         <span className="font-serif font-bold text-[11px] leading-none text-sky-700">Aa</span>
                         <span className="text-[9px] font-medium text-slate-600">Mudar Caso</span>
@@ -3628,7 +3720,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     value={catalogReviewProduct.name || ''}
                     onChange={(e) => setCatalogReviewProduct({ ...catalogReviewProduct, name: e.target.value })}
                     onPaste={handlePasteImageToCatalog}
-                    placeholder="Nome completo do produto sem traços ou vírgulas"
+                    placeholder="Nome completo do produto sem traÃ§os ou vÃ­rgulas"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
                   />
                   {catalogReviewProduct.imageUrl && (
@@ -3643,16 +3735,16 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Especificações Técnicas Completas */}
+              {/* EspecificaÃ§Ãµes TÃ©cnicas Completas */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Especificações Técnicas Completas
+                  EspecificaÃ§Ãµes TÃ©cnicas Completas
                 </label>
                 <textarea
                   rows={2}
                   value={catalogReviewProduct.description || ''}
                   onChange={(e) => setCatalogReviewProduct({ ...catalogReviewProduct, description: e.target.value })}
-                  placeholder="Ex: 4K UHD IPS, USB-C 65W, Ajuste de Altura, HDMI (deixe em branco se não houver)"
+                  placeholder="Ex: 4K UHD IPS, USB-C 65W, Ajuste de Altura, HDMI (deixe em branco se nÃ£o houver)"
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 text-xs transition"
                 />
               </div>
@@ -3661,7 +3753,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Código / SKU / Part Number / Modelo
+                    CÃ³digo / SKU / Part Number / Modelo
                   </label>
                   <input
                     type="text"
@@ -3673,32 +3765,54 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    NCM Fiscal (8 dígitos)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      NCM Fiscal (8 dÃ­gitos TIPI)
+                    </label>
+                    {catalogReviewProduct.ncm && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                        validateNcm(catalogReviewProduct.ncm).isKnown
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : validateNcm(catalogReviewProduct.ncm).isValid
+                          ? 'bg-sky-100 text-sky-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {validateNcm(catalogReviewProduct.ncm).isKnown
+                          ? 'Oficial TI'
+                          : validateNcm(catalogReviewProduct.ncm).isValid
+                          ? '8 DÃ­gitos'
+                          : 'Incompleto'}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={catalogReviewProduct.ncm || ''}
                     onChange={(e) => {
-                      const newNcm = e.target.value;
-                      const autoCategory = getCategoryFromNcm(newNcm);
+                      const formatted = formatNcm(e.target.value);
+                      const autoCategory = getCategoryFromNcm(formatted);
                       setCatalogReviewProduct(prev => prev ? {
                         ...prev,
-                        ncm: newNcm,
+                        ncm: formatted,
                         category: autoCategory !== 'Geral' ? autoCategory : prev.category
                       } : null);
                     }}
-                    placeholder="Ex: 0901.21.00"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500"
+                    placeholder="Ex: 8517.62.54"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500 text-xs"
                   />
+                  {catalogReviewProduct.ncm && validateNcm(catalogReviewProduct.ncm).description && (
+                    <p className="text-[10px] text-emerald-700 font-medium mt-1 truncate" title={validateNcm(catalogReviewProduct.ncm).description}>
+                      âœ“ {validateNcm(catalogReviewProduct.ncm).description}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Preço de Custo e Unidade */}
+              {/* PreÃ§o de Custo e Unidade */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Preço de Custo (R$) *
+                    PreÃ§o de Custo (R$) *
                   </label>
                   <input
                     type="text"
@@ -3756,7 +3870,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Fornecedor / Loja de Referência
+                    Fornecedor / Loja de ReferÃªncia
                   </label>
                   <input
                     type="text"
@@ -3768,10 +3882,10 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Link de Compra / Referência */}
+              {/* Link de Compra / ReferÃªncia */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Link Direto de Compra ou Referência
+                  Link Direto de Compra ou ReferÃªncia
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -3803,7 +3917,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Footer de Ações */}
+              {/* Footer de AÃ§Ãµes */}
               <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
@@ -3814,22 +3928,22 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </button>
 
                 <div className="flex items-center gap-2">
-                  {/* Botão 1: Salvar apenas na proposta corrente */}
+                  {/* BotÃ£o 1: Salvar apenas na proposta corrente */}
                   <button
                     type="button"
                     onClick={handleSaveToCurrentQuote}
                     className="px-4 py-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 hover:text-sky-800 rounded-xl font-bold shadow-2xs transition flex items-center gap-1.5 cursor-pointer text-xs"
-                    title="Aplica a foto e descrição editadas exclusivamente no item desta cotação atual"
+                    title="Aplica a foto e descriÃ§Ã£o editadas exclusivamente no item desta cotaÃ§Ã£o atual"
                   >
                     <FileText className="w-4 h-4 text-sky-600" />
                     <span>Salvar na Proposta</span>
                   </button>
 
-                  {/* Botão 2: Salvar na base de produtos (e também na proposta) */}
+                  {/* BotÃ£o 2: Salvar na base de produtos (e tambÃ©m na proposta) */}
                   <button
                     type="submit"
                     className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs"
-                    title="Registra este produto definitivamente na base geral de Produtos Infodesk para futuros orçamentos"
+                    title="Registra este produto definitivamente na base geral de Produtos Infodesk para futuros orÃ§amentos"
                   >
                     <BookmarkPlus className="w-4 h-4 text-white" />
                     <span>Salvar em Produtos</span>
@@ -3841,7 +3955,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         </div>
       )}
 
-      {/* Modal de Zoom da Foto no Meio da Tela (Fiel à Referência Visual) */}
+      {/* Modal de Zoom da Foto no Meio da Tela (Fiel Ã  ReferÃªncia Visual) */}
       {zoomedImage && (
         <div 
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
@@ -3849,7 +3963,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           <div 
             className="relative bg-white rounded-3xl pt-6 pb-7 px-6 sm:px-8 shadow-2xl max-w-md sm:max-w-lg w-full flex flex-col items-center animate-scaleIn border border-slate-100/80"
           >
-            {/* Botão X discreto no canto superior direito exatamente como na foto */}
+            {/* BotÃ£o X discreto no canto superior direito exatamente como na foto */}
             <button
               type="button"
               onClick={() => setZoomedImage(null)}
@@ -3859,13 +3973,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               <X className="w-5 h-5 stroke-[2.2]" />
             </button>
 
-            {/* Cabeçalho de Texto Fiel: Nome em negrito pesado escuro e subtítulo estilizado */}
+            {/* CabeÃ§alho de Texto Fiel: Nome em negrito pesado escuro e subtÃ­tulo estilizado */}
             <div className="text-center px-4 pt-1 pb-5 w-full">
               <h2 className="text-base sm:text-lg font-black text-[#261f18] uppercase tracking-wide leading-tight font-sans">
                 {zoomedImage.title}
               </h2>
               <p className="text-[11px] sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
-                {zoomedImage.itemNumber ? `ITEM ${zoomedImage.itemNumber} • ESPECIFICAÇÃO TÉCNICA` : 'ESPECIFICAÇÃO TÉCNICA'}
+                {zoomedImage.itemNumber ? `ITEM ${zoomedImage.itemNumber} â€¢ ESPECIFICAÃ‡ÃƒO TÃ‰CNICA` : 'ESPECIFICAÃ‡ÃƒO TÃ‰CNICA'}
               </p>
             </div>
 
@@ -3878,7 +3992,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               />
             </div>
 
-            {/* Botão Fechar Retangular Clássico com borda fina e cantos levemente arredondados */}
+            {/* BotÃ£o Fechar Retangular ClÃ¡ssico com borda fina e cantos levemente arredondados */}
             <div className="mt-4">
               <button
                 type="button"
@@ -3892,7 +4006,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         </div>
       )}
 
-      {/* Modal de Validação Pré-Envio / Checklist Antifalhas */}
+      {/* Modal de ValidaÃ§Ã£o PrÃ©-Envio / Checklist Antifalhas */}
       {validationModal.isOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
@@ -3913,7 +4027,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   <h3 className="text-sm font-bold text-slate-900">Checklist Antifalhas da Proposta</h3>
                   <p className="text-[11px] text-slate-500">
                     {validationModal.issues.some(i => i.type === 'error')
-                      ? 'Corrija os pontos críticos abaixo antes de prosseguir'
+                      ? 'Corrija os pontos crÃ­ticos abaixo antes de prosseguir'
                       : 'Revise os alertas recomendados antes de enviar ao cliente'}
                   </p>
                 </div>
@@ -3954,7 +4068,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 Voltar e Ajustar
               </button>
 
-              {/* Se tiver erro crítico impeditivo, bloqueia; se for só aviso, permite prosseguir */}
+              {/* Se tiver erro crÃ­tico impeditivo, bloqueia; se for sÃ³ aviso, permite prosseguir */}
               {!validationModal.issues.some(i => i.type === 'error') ? (
                 <button
                   type="button"
@@ -3970,7 +4084,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </button>
               ) : (
                 <span className="text-[11px] font-bold text-rose-600">
-                  Ajuste os erros críticos acima para liberar o envio
+                  Ajuste os erros crÃ­ticos acima para liberar o envio
                 </span>
               )}
             </div>
@@ -3989,7 +4103,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Margem de Lucro (% Markup)</h3>
-                  <p className="text-xs text-slate-500">Defina o markup global e padrão da Infodesk</p>
+                  <p className="text-xs text-slate-500">Defina o markup global e padrÃ£o da Infodesk</p>
                 </div>
               </div>
               <button
@@ -3997,7 +4111,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 onClick={() => setIsMarkupModalOpen(false)}
                 className="w-8 h-8 rounded-lg bg-white/80 hover:bg-white text-slate-400 hover:text-slate-700 flex items-center justify-center transition"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
@@ -4030,11 +4144,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-                  💡 Ao aplicar, recalcula todos os preços unitários e totais dos produtos, atualiza o Lucro Líquido Real e grava a nova margem no banco de dados e rascunho.
+                  ðŸ’¡ Ao aplicar, recalcula todos os preÃ§os unitÃ¡rios e totais dos produtos, atualiza o Lucro LÃ­quido Real e grava a nova margem no banco de dados e rascunho.
                 </p>
               </div>
 
-              {/* Botões de atalho rápido */}
+              {/* BotÃµes de atalho rÃ¡pido */}
               <div className="flex items-center gap-2 pt-1">
                 <span className="text-[11px] font-bold text-slate-400">Atalhos:</span>
                 {[20, 23.5, 25, 30, 35].map(val => (
@@ -4070,7 +4184,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         </div>
       )}
 
-      {/* Modal Interativo de Ajuste e Salvamento da Alíquota de Impostos (% Tax) */}
+      {/* Modal Interativo de Ajuste e Salvamento da AlÃ­quota de Impostos (% Tax) */}
       {isTaxModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-scaleIn">
@@ -4080,7 +4194,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   <Receipt className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Alíquota de Impostos (%)</h3>
+                  <h3 className="text-base font-bold text-slate-900">AlÃ­quota de Impostos (%)</h3>
                   <p className="text-xs text-slate-500">Simples Nacional / ICMS embutido da Infodesk</p>
                 </div>
               </div>
@@ -4089,7 +4203,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 onClick={() => setIsTaxModalOpen(false)}
                 className="w-8 h-8 rounded-lg bg-white/80 hover:bg-white text-slate-400 hover:text-slate-700 flex items-center justify-center transition"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
@@ -4122,11 +4236,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-                  💡 Atualiza a alíquota em todos os produtos da cotação, recalcula os preços comerciais e o total de impostos.
+                  ðŸ’¡ Atualiza a alÃ­quota em todos os produtos da cotaÃ§Ã£o, recalcula os preÃ§os comerciais e o total de impostos.
                 </p>
               </div>
 
-              {/* Botões de atalho rápido */}
+              {/* BotÃµes de atalho rÃ¡pido */}
               <div className="flex items-center gap-2 pt-1">
                 <span className="text-[11px] font-bold text-slate-400">Atalhos:</span>
                 {[4, 6, 8.5, 9.1, 12].map(val => (
@@ -4177,7 +4291,23 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         accept="image/*"
         className="hidden"
       />
+      {/* Modal de ImportaÃ§Ã£o Universal (MEL-10) */}
+      <UniversalListImportModal
+        isOpen={isUniversalImportOpen}
+        onClose={() => setIsUniversalImportOpen(false)}
+        onImportItems={handleImportUniversalItems}
+        defaultMarkupPercent={globalMarkup}
+      />
+
+      {/* Modal de Matriz Multi-Fornecedor & Split (MEL-06) */}
+      <MultiSupplierMatrixModal
+        isOpen={isSupplierMatrixOpen}
+        onClose={() => setIsSupplierMatrixOpen(false)}
+        items={currentQuote.items || []}
+        onApplyOptimizedBasket={handleApplyOptimizedBasket}
+      />
 
     </div>
   );
 };
+

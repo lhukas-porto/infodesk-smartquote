@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sku TEXT NOT NULL,
   part_number TEXT,
-  ncm TEXT DEFAULT '84713019',
+  ncm TEXT,
   name TEXT NOT NULL,
   description TEXT,
   category TEXT DEFAULT 'Informática & Tecnologia',
@@ -314,3 +314,170 @@ INSERT INTO products (sku, part_number, ncm, name, description, category, cost_p
 ('KNG-SSD-1TB', 'SKC3000S/1024G', '84717040', 'SSD Kingston KC3000 1TB M.2 NVMe', 'SSD Kingston KC3000 PCIe 4.0 NVMe M.2 2280 Leitura 7000MB/s Gravação 6000MB/s', 'Armazenamento', 410.00, 'Un.', 'Kingston Tech BR', 24),
 ('CIS-SW-24P', 'CBS250-24P-4G', '85176239', 'Switch Cisco Business 24 Portas Gigabit PoE+ CBS250', 'Switch Gerenciável Cisco CBS250-24P-4G 24 Portas Gigabit PoE+ 195W + 4 Portas SFP Gigabit', 'Redes & Conectividade', 2450.00, 'Un.', 'Cisco Distribuição', 3)
 ON CONFLICT DO NOTHING;
+
+-- ==============================================================================
+-- 13. FUNÇÃO RPC ATÔMICA: save_quote_atomic
+-- Salva a proposta comercial e seus itens em uma transação única (BEGIN ... COMMIT)
+-- Eliminando o risco de perda de itens caso o insert falhe após o delete
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION save_quote_atomic(
+  p_quote JSONB,
+  p_items JSONB
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_quote_id UUID;
+  v_code TEXT;
+BEGIN
+  v_code := p_quote->>'code';
+  
+  -- 1. Upsert da Cotação Principal
+  INSERT INTO quotes (
+    code,
+    client_company,
+    contact_person,
+    client_email,
+    client_phone,
+    subject,
+    city,
+    date,
+    validity_days,
+    payment_terms,
+    delivery_days,
+    warranty_terms,
+    delivery_location,
+    shipping_terms,
+    opening_text,
+    show_product_images,
+    total_cost,
+    total_shipping,
+    total_taxes,
+    total_profit,
+    total_amount,
+    average_margin,
+    global_markup_percent,
+    global_tax_percent,
+    global_shipping,
+    status,
+    recipient_emails,
+    cc_emails,
+    sent_at,
+    updated_at
+  ) VALUES (
+    v_code,
+    p_quote->>'client_company',
+    p_quote->>'contact_person',
+    p_quote->>'client_email',
+    p_quote->>'client_phone',
+    p_quote->>'subject',
+    COALESCE(p_quote->>'city', 'Brasília'),
+    p_quote->>'date',
+    p_quote->>'validity_days',
+    p_quote->>'payment_terms',
+    p_quote->>'delivery_days',
+    p_quote->>'warranty_terms',
+    p_quote->>'delivery_location',
+    p_quote->>'shipping_terms',
+    p_quote->>'opening_text',
+    COALESCE((p_quote->>'show_product_images')::BOOLEAN, false),
+    COALESCE((p_quote->>'total_cost')::NUMERIC, 0),
+    COALESCE((p_quote->>'total_shipping')::NUMERIC, 0),
+    COALESCE((p_quote->>'total_taxes')::NUMERIC, 0),
+    COALESCE((p_quote->>'total_profit')::NUMERIC, 0),
+    COALESCE((p_quote->>'total_amount')::NUMERIC, 0),
+    COALESCE((p_quote->>'average_margin')::NUMERIC, 0),
+    (p_quote->>'global_markup_percent')::NUMERIC,
+    (p_quote->>'global_tax_percent')::NUMERIC,
+    (p_quote->>'global_shipping')::NUMERIC,
+    COALESCE(p_quote->>'status', 'draft'),
+    p_quote->>'recipient_emails',
+    p_quote->>'cc_emails',
+    CASE WHEN p_quote->>'sent_at' IS NOT NULL THEN (p_quote->>'sent_at')::TIMESTAMPTZ ELSE NULL END,
+    NOW()
+  )
+  ON CONFLICT (code) DO UPDATE SET
+    client_company = EXCLUDED.client_company,
+    contact_person = EXCLUDED.contact_person,
+    client_email = EXCLUDED.client_email,
+    client_phone = EXCLUDED.client_phone,
+    subject = EXCLUDED.subject,
+    city = EXCLUDED.city,
+    date = EXCLUDED.date,
+    validity_days = EXCLUDED.validity_days,
+    payment_terms = EXCLUDED.payment_terms,
+    delivery_days = EXCLUDED.delivery_days,
+    warranty_terms = EXCLUDED.warranty_terms,
+    delivery_location = EXCLUDED.delivery_location,
+    shipping_terms = EXCLUDED.shipping_terms,
+    opening_text = EXCLUDED.opening_text,
+    show_product_images = EXCLUDED.show_product_images,
+    total_cost = EXCLUDED.total_cost,
+    total_shipping = EXCLUDED.total_shipping,
+    total_taxes = EXCLUDED.total_taxes,
+    total_profit = EXCLUDED.total_profit,
+    total_amount = EXCLUDED.total_amount,
+    average_margin = EXCLUDED.average_margin,
+    global_markup_percent = EXCLUDED.global_markup_percent,
+    global_tax_percent = EXCLUDED.global_tax_percent,
+    global_shipping = EXCLUDED.global_shipping,
+    status = EXCLUDED.status,
+    recipient_emails = EXCLUDED.recipient_emails,
+    cc_emails = EXCLUDED.cc_emails,
+    sent_at = EXCLUDED.sent_at,
+    updated_at = NOW()
+  RETURNING id INTO v_quote_id;
+
+  -- 2. Deletar itens antigos da proposta
+  DELETE FROM quote_items WHERE quote_id = v_quote_id;
+
+  -- 3. Inserir novos itens se houver
+  IF p_items IS NOT NULL AND jsonb_array_length(p_items) > 0 THEN
+    INSERT INTO quote_items (
+      quote_id,
+      item_number,
+      product_id,
+      name,
+      description,
+      quantity,
+      unit,
+      cost_price,
+      shipping_cost,
+      tax_percent,
+      markup_percent,
+      unit_price,
+      total_price,
+      part_number,
+      ncm,
+      image_url,
+      show_image,
+      source_url,
+      raw_search_query
+    )
+    SELECT
+      v_quote_id,
+      COALESCE((item->>'item_number')::INTEGER, 1),
+      CASE WHEN (item->>'product_id') IS NOT NULL AND (item->>'product_id') ~ '^[0-9a-fA-F-]{36}$' THEN (item->>'product_id')::UUID ELSE NULL END,
+      item->>'name',
+      COALESCE(item->>'description', ''),
+      COALESCE((item->>'quantity')::INTEGER, 1),
+      COALESCE(item->>'unit', 'Un.'),
+      COALESCE((item->>'cost_price')::NUMERIC, 0),
+      COALESCE((item->>'shipping_cost')::NUMERIC, 0),
+      COALESCE((item->>'tax_percent')::NUMERIC, 6),
+      COALESCE((item->>'markup_percent')::NUMERIC, 0),
+      COALESCE((item->>'unit_price')::NUMERIC, 0),
+      COALESCE((item->>'total_price')::NUMERIC, 0),
+      item->>'part_number',
+      item->>'ncm',
+      item->>'image_url',
+      COALESCE((item->>'show_image')::BOOLEAN, false),
+      item->>'source_url',
+      item->>'raw_search_query'
+    FROM jsonb_array_elements(p_items) AS item;
+  END IF;
+END;
+$$;
+

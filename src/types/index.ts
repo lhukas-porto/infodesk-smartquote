@@ -15,6 +15,17 @@ export interface Product {
   imageUrl?: string;
 }
 
+export interface SupplierOffer {
+  id: string;
+  supplier: string;
+  costPrice: number;
+  deliveryDays?: number;
+  stock?: number;
+  sourceUrl?: string;
+  notes?: string;
+  isSelected?: boolean;
+}
+
 export interface QuoteItem {
   id: string;
   productId?: string;
@@ -37,6 +48,7 @@ export interface QuoteItem {
   sourceUrl?: string;
   supplier?: string;
   dollarPrice?: number;
+  alternativeOffers?: SupplierOffer[];
 }
 
 export interface Quote {
@@ -69,9 +81,12 @@ export interface Quote {
   globalMarkupPercent?: number;
   globalTaxPercent?: number;
   globalShipping?: number;
-  status: 'draft' | 'sent' | 'approved' | 'rejected';
+  status: 'draft' | 'sent' | 'negotiating' | 'approved' | 'rejected' | 'lost';
   createdAt: string;
   sentAt?: string;
+  followUpAt?: string;
+  lastFollowUpSentAt?: string;
+  notes?: string;
 }
 
 export interface IncomingEmail {

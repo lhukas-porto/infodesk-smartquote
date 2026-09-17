@@ -47,10 +47,6 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
     const excDetails = extractDeliveryExceptionDetails(quote.deliveryDays);
     const itemsRows = quote.items.map(item => {
       const isException = excDetails.hasException && excDetails.itemNumbers.includes(item.itemNumber);
-      const hasDescription = item.description && 
-        item.description !== item.name && 
-        !item.description.toLowerCase().includes('menor pre') && 
-        !item.description.toLowerCase().includes('apurado');
       const hasImage = item.showImage && item.imageUrl;
 
       return `
@@ -61,7 +57,6 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
             ${item.name}
             ${isException ? `<span style="font-size: 8pt; color: #b45309; font-weight: bold; margin-left: 6pt;">(Prazo diferenciado: ${excDetails.days} dias úteis)</span>` : ''}
           </div>
-          ${hasDescription ? `<div style="font-size: 8.5pt; color: #334155; margin-top: 3pt; line-height: 1.3; white-space: pre-line;">${item.description}</div>` : ''}
           ${hasImage ? `<div style="margin-top: 6pt; margin-bottom: 3pt;"><img src="${item.imageUrl}" alt="${item.name}" height="140" style="height: 140px; width: auto; max-width: 260px; object-fit: contain; display: block;" /></div>` : ''}
         </td>
         <td style="border: 1pt solid #000000; padding: 4pt 6pt; text-align: center; vertical-align: top;">${item.quantity}</td>
@@ -402,12 +397,6 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                             </span>
                           )}
                         </div>
-                        {item.description && 
-                         item.description !== item.name && 
-                         !item.description.toLowerCase().includes('menor pre') && 
-                         !item.description.toLowerCase().includes('apurado') && (
-                          <div className="text-[8.5pt] text-slate-700 mt-0.5 whitespace-pre-line">{item.description}</div>
-                        )}
                         {item.showImage && item.imageUrl && (
                           <div className="mt-2 mb-1 flex justify-start">
                             <img
@@ -445,7 +434,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 
             {/* General Conditions */}
             <div 
-              className="space-y-1 mb-8 leading-relaxed text-black"
+              className="space-y-1 mb-8 leading-relaxed text-black sq-avoid-break"
               style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt' }}
             >
               <p className="font-bold underline mb-2" style={{ fontSize: '10pt' }}>Condições gerais:</p>
@@ -462,7 +451,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 
             {/* Date & Signature (Right-aligned as in the original document) */}
             <div 
-              className="flex flex-col items-end text-right ml-auto space-y-7 mb-8 text-black"
+              className="flex flex-col items-end text-right ml-auto space-y-7 mb-8 text-black sq-avoid-break"
               style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt' }}
             >
               <div>

@@ -124,7 +124,7 @@ function parseTableFormat(lines: string[]): ExtractedImageQuoteData['items'] {
           rawSearchQuery: code ? `${desc} ${code}` : desc,
           quantity: qty,
           unit: unit.includes('CX') ? 'Cx.' : unit.includes('KG') ? 'Kg' : 'Un.',
-          itemCode: code, partNumber: code, estimatedCost: 150
+          itemCode: code, partNumber: code, estimatedCost: 0
         });
       }
     }
@@ -256,7 +256,7 @@ function parseWhatsAppBlockFormat(rawText: string): ExtractedImageQuoteData['ite
       quantity: qty,
       unit: 'Un.',
       partNumber: ref || undefined,
-      estimatedCost: 150
+      estimatedCost: 0
     });
   }
 
@@ -287,7 +287,7 @@ function parseLiberalFallback(lines: string[]): ExtractedImageQuoteData['items']
           rawSearchQuery: name,
           quantity: qty,
           unit: 'Un.',
-          estimatedCost: 150
+          estimatedCost: 0
         });
       }
     }

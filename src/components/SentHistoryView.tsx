@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Send, 
   CheckCircle2, 
@@ -10,235 +10,505 @@ import {
   History, 
   Trash2,
   AlertTriangle,
-  X
+  X,
+  Flame,
+  MessageSquare,
+  TrendingUp,
+  DollarSign,
+  Filter,
+  Check,
+  ChevronRight,
+  Sparkles,
+  ArrowUpDown,
+  Building2,
+  User
 } from 'lucide-react';
 import { Quote } from '../types';
 
 interface SentHistoryViewProps {
   quotes: Quote[];
-  onOpenQuote: (quote: Quote) => void;
-  onEditQuote?: (quote: Quote) => void;
+  onOpenQuote: (quote: Quote) => void | Promise<void>;
+  onEditQuote?: (quote: Quote) => void | Promise<void>;
   onDeleteQuote?: (quote: Quote) => void;
+  onUpdateQuoteStatus?: (quoteId: string, newStatus: Quote['status']) => void;
 }
+
+type StageId = 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost';
+
+interface StageStep {
+  id: StageId;
+  label: string;
+  shortLabel: string;
+  icon: React.ElementType;
+  activeColor: string;
+  activeBorder: string;
+  activeBg: string;
+  activeText: string;
+}
+
+const PIPELINE_STAGES: StageStep[] = [
+  {
+    id: 'draft',
+    label: 'Rascunho',
+    shortLabel: 'Rascunho',
+    icon: Clock,
+    activeColor: 'bg-amber-500',
+    activeBorder: 'border-amber-300',
+    activeBg: 'bg-amber-50',
+    activeText: 'text-amber-800'
+  },
+  {
+    id: 'sent',
+    label: 'Enviada',
+    shortLabel: 'Enviada',
+    icon: Send,
+    activeColor: 'bg-sky-500',
+    activeBorder: 'border-sky-300',
+    activeBg: 'bg-sky-50',
+    activeText: 'text-sky-800'
+  },
+  {
+    id: 'negotiating',
+    label: 'Em Negociação',
+    shortLabel: 'Negociação',
+    icon: MessageSquare,
+    activeColor: 'bg-purple-500',
+    activeBorder: 'border-purple-300',
+    activeBg: 'bg-purple-50',
+    activeText: 'text-purple-800'
+  },
+  {
+    id: 'approved',
+    label: 'Aprovada / Ganha 🏆',
+    shortLabel: 'Aprovada',
+    icon: CheckCircle2,
+    activeColor: 'bg-emerald-500',
+    activeBorder: 'border-emerald-300',
+    activeBg: 'bg-emerald-50',
+    activeText: 'text-emerald-800'
+  }
+];
 
 export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   quotes,
   onOpenQuote,
   onEditQuote,
-  onDeleteQuote
+  onDeleteQuote,
+  onUpdateQuoteStatus
 }) => {
-  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent'>('all');
+  const [selectedStageFilter, setSelectedStageFilter] = useState<StageId | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [onlyFollowUpDue, setOnlyFollowUpDue] = useState(false);
+  const [sortBy, setSortBy] = useState<'recent' | 'amount_desc' | 'amount_asc'>('recent');
   const [quoteToDelete, setQuoteToDelete] = useState<Quote | null>(null);
 
-  const draftsCount = quotes.filter(q => q.status === 'draft').length;
-  const sentCount = quotes.filter(q => q.status === 'sent').length;
+  // Normaliza o status do quote
+  const normalizeStatus = (q: Quote): StageId => {
+    if (q.status === 'rejected' || q.status === 'lost') return 'lost';
+    if (q.status === 'approved') return 'approved';
+    if (q.status === 'negotiating') return 'negotiating';
+    if (q.status === 'sent') return 'sent';
+    return 'draft';
+  };
 
-  const filteredQuotes = quotes.filter(q => {
-    const isSent = q.status === 'sent';
-    const isDraft = q.status === 'draft' || !q.status;
+  // Verifica se uma proposta enviada ou em negociação tem mais de 48 horas (precisa de Follow-up)
+  const isFollowUpDue = (q: Quote): boolean => {
+    const status = normalizeStatus(q);
+    if (status !== 'sent' && status !== 'negotiating') return false;
 
-    if (statusFilter === 'draft' && !isDraft) return false;
-    if (statusFilter === 'sent' && !isSent) return false;
+    const dateStr = q.sentAt || q.createdAt || q.date;
+    if (!dateStr) return false;
 
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      const comp = (q.clientCompany || '').toLowerCase();
-      const contact = (q.contactPerson || '').toLowerCase();
-      const code = (q.code || '').toLowerCase();
-      return comp.includes(term) || contact.includes(term) || code.includes(term);
+    let timestamp = Date.now();
+    if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        if (!isNaN(d.getTime())) timestamp = d.getTime();
+      }
+    } else {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) timestamp = d.getTime();
     }
 
-    return true;
-  });
+    const diffHours = (Date.now() - timestamp) / (1000 * 60 * 60);
+    return diffHours >= 48;
+  };
+
+  // Totais e métricas por estágio
+  const stageStats = useMemo(() => {
+    const stats: Record<StageId | 'all', { count: number; totalAmount: number }> = {
+      all: { count: quotes.length, totalAmount: 0 },
+      draft: { count: 0, totalAmount: 0 },
+      sent: { count: 0, totalAmount: 0 },
+      negotiating: { count: 0, totalAmount: 0 },
+      approved: { count: 0, totalAmount: 0 },
+      lost: { count: 0, totalAmount: 0 },
+    };
+
+    quotes.forEach(q => {
+      const amt = q.totalAmount || 0;
+      stats.all.totalAmount += amt;
+      const st = normalizeStatus(q);
+      stats[st].count += 1;
+      stats[st].totalAmount += amt;
+    });
+
+    return stats;
+  }, [quotes]);
+
+  const followUpRequiredQuotes = useMemo(() => {
+    return quotes.filter(isFollowUpDue);
+  }, [quotes]);
+
+  // Lista filtrada e ordenada
+  const filteredQuotes = useMemo(() => {
+    return quotes
+      .filter(q => {
+        const norm = normalizeStatus(q);
+        if (selectedStageFilter !== 'all' && norm !== selectedStageFilter) return false;
+        if (onlyFollowUpDue && !isFollowUpDue(q)) return false;
+
+        if (searchTerm.trim()) {
+          const term = searchTerm.toLowerCase();
+          const comp = (q.clientCompany || '').toLowerCase();
+          const contact = (q.contactPerson || '').toLowerCase();
+          const code = (q.code || '').toLowerCase();
+          return comp.includes(term) || contact.includes(term) || code.includes(term);
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'amount_desc') return (b.totalAmount || 0) - (a.totalAmount || 0);
+        if (sortBy === 'amount_asc') return (a.totalAmount || 0) - (b.totalAmount || 0);
+        return 0; // Ordem cronológica original
+      });
+  }, [quotes, selectedStageFilter, onlyFollowUpDue, searchTerm, sortBy]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 animate-fadeIn">
       
-      {/* Header */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
+      {/* Header com Design System Oficial */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-sky-50 text-sky-600 rounded-xl border border-sky-100 shrink-0">
             <History className="w-5 h-5 text-sky-600" />
-            <h1 className="text-xl font-bold text-slate-900">Histórico de Propostas & Cotações</h1>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Gerencie seus orçamentos em andamento (rascunhos) e propostas finalizadas/enviadas.
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
+                Pipeline & Histórico Comercial
+              </h1>
+              <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
+                MEL-08
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Gerencie cada proposta na régua de estágios, acompanhe valores em negociação e controle os prazos de follow-up.
+            </p>
+          </div>
         </div>
 
-        {/* Filtros de Status (Todos / Rascunhos / Enviados) */}
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shrink-0">
-          <button
-            type="button"
-            onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-              statusFilter === 'all'
-                ? 'bg-white text-sky-700 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Todos ({quotes.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('draft')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-              statusFilter === 'draft'
-                ? 'bg-white text-amber-700 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Clock className="w-3 h-3 text-amber-500" />
-            <span>Rascunhos ({draftsCount})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('sent')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-              statusFilter === 'sent'
-                ? 'bg-white text-emerald-700 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-            <span>Enviados ({sentCount})</span>
-          </button>
+        {/* Resumo Rápido */}
+        <div className="flex items-center gap-2">
+          <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-right">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Volume em Propostas
+            </span>
+            <span className="text-sm font-bold font-mono text-slate-900">
+              R$ {stageStats.all.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Barra de Busca rápida */}
-      {quotes.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar orçamento por empresa, comprador ou código..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500"
-            />
+      {/* Cards de Métricas & Filtros Interativos (Chips Superiores) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        {[
+          { id: 'all', title: 'Todas as Propostas', count: stageStats.all.count, amount: stageStats.all.totalAmount, badge: 'text-slate-700 bg-slate-100', dot: 'bg-slate-400' },
+          { id: 'draft', title: '1. Rascunhos', count: stageStats.draft.count, amount: stageStats.draft.totalAmount, badge: 'text-amber-800 bg-amber-50 border-amber-200', dot: 'bg-amber-500' },
+          { id: 'sent', title: '2. Enviadas', count: stageStats.sent.count, amount: stageStats.sent.totalAmount, badge: 'text-sky-800 bg-sky-50 border-sky-200', dot: 'bg-sky-500' },
+          { id: 'negotiating', title: '3. Em Negociação', count: stageStats.negotiating.count, amount: stageStats.negotiating.totalAmount, badge: 'text-purple-800 bg-purple-50 border-purple-200', dot: 'bg-purple-500' },
+          { id: 'approved', title: '4. Aprovadas 🏆', count: stageStats.approved.count, amount: stageStats.approved.totalAmount, badge: 'text-emerald-800 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
+          { id: 'lost', title: '5. Perdidas', count: stageStats.lost.count, amount: stageStats.lost.totalAmount, badge: 'text-rose-800 bg-rose-50 border-rose-200', dot: 'bg-rose-400' },
+        ].map(card => {
+          const isSelected = selectedStageFilter === card.id;
+          return (
+            <button
+              key={card.id}
+              type="button"
+              onClick={() => {
+                setSelectedStageFilter(card.id as any);
+                setOnlyFollowUpDue(false);
+              }}
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                isSelected
+                  ? 'bg-sky-50/80 border-sky-400 ring-2 ring-sky-200 shadow-xs'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 shadow-2xs'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="text-[11px] font-bold text-slate-600 truncate flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${card.dot}`}></span>
+                  <span className="truncate">{card.title}</span>
+                </span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold shrink-0 ${card.badge}`}>
+                  {card.count}
+                </span>
+              </div>
+              <div className="font-mono text-xs font-bold text-slate-900 mt-1">
+                R$ {card.amount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Alerta de Follow-up Inteligente (+48h) */}
+      {followUpRequiredQuotes.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center shrink-0">
+              <Flame className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-amber-950">
+                  Atenção de Vendas: Follow-up Recomendado
+                </h4>
+                <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full text-[10px] font-mono font-bold">
+                  {followUpRequiredQuotes.length} proposta(s) sem retorno (+48h)
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                Propostas formais enviadas que ainda não foram convertidas em negociação ou fechamento.
+              </p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setOnlyFollowUpDue(prev => !prev)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              onlyFollowUpDue
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>{onlyFollowUpDue ? 'Exibindo Apenas +48h (Remover Filtro)' : 'Filtrar Propostas +48h'}</span>
+          </button>
         </div>
       )}
 
-      {/* Lista de Cards */}
+      {/* Barra de Busca e Ordenação */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="relative flex-1 w-full">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por nome da empresa, comprador ou código da proposta..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 transition"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+            <span>Ordenar:</span>
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-sky-500"
+          >
+            <option value="recent">Mais Recentes</option>
+            <option value="amount_desc">Maior Valor (R$)</option>
+            <option value="amount_asc">Menor Valor (R$)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Lista de Propostas em Estilo Pipeline Row */}
       {filteredQuotes.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center max-w-lg mx-auto shadow-xs space-y-3">
           <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mx-auto border border-sky-100">
             <FileText className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-800">
-            {statusFilter === 'draft' 
-              ? 'Nenhum rascunho pendente' 
-              : statusFilter === 'sent' 
-                ? 'Nenhuma proposta enviada ainda' 
-                : 'Nenhuma proposta encontrada'}
+            Nenhuma proposta encontrada
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            {searchTerm 
-              ? 'Nenhum resultado corresponde à busca. Tente buscar por outros termos.' 
-              : 'Ao salvar orçamentos na tela de Cotação, seus rascunhos e históricos completos aparecerão aqui.'}
+            {searchTerm || selectedStageFilter !== 'all' || onlyFollowUpDue
+              ? 'Nenhum orçamento corresponde aos filtros selecionados. Tente limpar a busca ou selecionar outro estágio.'
+              : 'Ao salvar orçamentos no SmartQuote, suas propostas comerciais aparecerão aqui.'}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="space-y-3">
           {filteredQuotes.map((q) => {
-            const isDraft = q.status === 'draft' || !q.status;
+            const currentStage = normalizeStatus(q);
+            const isDue = isFollowUpDue(q);
+
             return (
               <div
                 key={q.id}
-                className="bg-white border border-slate-200 hover:border-slate-300 p-5 rounded-2xl shadow-xs transition flex flex-col justify-between space-y-4 group"
+                className={`bg-white border rounded-2xl p-4 shadow-xs transition hover:shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4 group ${
+                  isDue ? 'border-amber-300/80 bg-amber-50/10' : 'border-slate-200 hover:border-sky-300'
+                }`}
               >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                {/* 1. Identificação da Proposta & Cliente */}
+                <div className="min-w-[280px] max-w-md space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
                       {q.code || 'PROPOSTA'}
                     </span>
-                    {isDraft ? (
-                      <span className="text-[10px] text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 font-bold">
-                        <Clock className="w-3 h-3 text-amber-600" /> Rascunho
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {q.date}
+                    </span>
+                    {isDue && (
+                      <span 
+                        className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1 animate-pulse"
+                        title="Enviada há mais de 48h sem resposta do cliente"
+                      >
+                        <Flame className="w-2.5 h-2.5 text-amber-600" />
+                        +48h sem retorno
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 group-hover:text-sky-700 transition flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>{q.clientCompany || 'Cliente sem nome'}</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                      <User className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span>{q.contactPerson || 'Comprador não especificado'}</span>
+                      {q.clientEmail && (
+                        <span className="text-slate-400 truncate max-w-[180px]">
+                          • {q.clientEmail}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. Stepper de Estágio Comercial Interativo */}
+                <div className="flex-1 max-w-xl">
+                  <div className="flex items-center bg-slate-50 p-1 rounded-xl border border-slate-200 overflow-x-auto">
+                    {PIPELINE_STAGES.map((stage, idx) => {
+                      const isCurrent = currentStage === stage.id;
+                      const Icon = stage.icon;
+
+                      return (
+                        <React.Fragment key={stage.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onUpdateQuoteStatus) {
+                                onUpdateQuoteStatus(q.id, stage.id);
+                              }
+                            }}
+                            className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                              isCurrent
+                                ? `${stage.activeBg} ${stage.activeText} border ${stage.activeBorder} shadow-2xs`
+                                : 'text-slate-500 hover:text-slate-800 hover:bg-white/80'
+                            }`}
+                            title={`Mover para estágio: ${stage.label}`}
+                          >
+                            <Icon className={`w-3.5 h-3.5 ${isCurrent ? stage.activeText : 'text-slate-400'}`} />
+                            <span className="text-[11px]">{stage.shortLabel}</span>
+                          </button>
+                          {idx < PIPELINE_STAGES.length - 1 && (
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 mx-0.5" />
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+
+                  {/* Opção discreta de marcar como Perdida */}
+                  <div className="flex items-center justify-end mt-1 px-1">
+                    {currentStage === 'lost' ? (
+                      <span className="text-[10px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 font-bold flex items-center gap-1">
+                        <X className="w-3 h-3 text-rose-600" /> Proposta Perdida / Declinada
                       </span>
                     ) : (
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1 font-bold">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Enviado
-                      </span>
+                      onUpdateQuoteStatus && (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateQuoteStatus(q.id, 'lost')}
+                          className="text-[10.5px] text-slate-400 hover:text-rose-600 transition flex items-center gap-1"
+                        >
+                          <X className="w-3 h-3" />
+                          <span>Marcar como perdida</span>
+                        </button>
+                      )
                     )}
-                  </div>
-
-                  <h3 className="font-bold text-slate-900 text-sm group-hover:text-sky-700 transition">
-                    {q.clientCompany}
-                  </h3>
-                  <div className="text-xs text-slate-500 space-y-0.5">
-                    <p className="font-medium text-slate-700">{q.contactPerson}</p>
-                    <p className="text-[11px] text-slate-500 break-all">
-                      <span className="font-semibold text-slate-600">Para:</span> {q.recipientEmails || q.clientEmail || 'Não informado'}
-                    </p>
-                    {q.ccEmails && (
-                      <p className="text-[10px] text-slate-400 break-all">
-                        <span className="font-semibold text-slate-500">Cc:</span> {q.ccEmails}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 space-y-1 text-xs">
-                    <div className="flex items-center justify-between text-slate-500">
-                      <span>Itens Cotados:</span>
-                      <span className="font-semibold text-slate-800">{q.items.length} produto(s)</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-500">
-                      <span>Margem Média:</span>
-                      <span className="font-semibold text-sky-700">{q.averageMargin?.toFixed(1) || 35}%</span>
-                    </div>
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                      <span className="font-bold text-slate-700">Valor Total:</span>
-                      <span className="font-mono font-bold text-emerald-700 text-sm">
-                        R$ {q.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px]">
-                  <span className="text-slate-400">{q.date}</span>
-                  
-                  <div className="flex items-center gap-1.5">
-                    {onEditQuote && (
-                      <button
-                        type="button"
-                        onClick={() => onEditQuote(q)}
-                        className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 border border-sky-200 rounded-lg font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                        title="Reabrir orçamento diretamente na tela de edição para alterar itens e preços"
-                      >
-                        <FileEdit className="w-3.5 h-3.5 text-sky-600" />
-                        <span>Editar</span>
-                      </button>
-                    )}
+                {/* 3. Valores Financeiros & Itens */}
+                <div className="xl:text-right min-w-[150px] border-t xl:border-t-0 pt-2 xl:pt-0 border-slate-100 flex xl:flex-col justify-between items-end">
+                  <span className="text-sm md:text-base font-mono font-bold text-emerald-700 block">
+                    R$ {q.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <div className="flex items-center xl:justify-end gap-2 text-[11px] text-slate-500 mt-0.5">
+                    <span>{q.items?.length || 0} produto(s)</span>
+                    <span>•</span>
+                    <span className="font-semibold text-sky-700 font-mono">
+                      {q.averageMargin?.toFixed(0) || 25}% margem
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. Botões de Ação Padronizados */}
+                <div className="flex items-center xl:justify-end gap-1.5 shrink-0 border-t xl:border-t-0 pt-2 xl:pt-0 border-slate-100">
+                  {onEditQuote && (
                     <button
                       type="button"
-                      onClick={() => onOpenQuote(q)}
-                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg font-semibold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                      title="Visualizar documento pronto / impressão"
+                      onClick={() => onEditQuote(q)}
+                      className="px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 border border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                      title="Editar proposta no QuoteBuilder"
                     >
-                      <Eye className="w-3.5 h-3.5 text-slate-600" />
-                      <span>Ver Proposta</span>
+                      <FileEdit className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Editar</span>
                     </button>
-                    {onDeleteQuote && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQuoteToDelete(q);
-                        }}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-lg transition shadow-2xs cursor-pointer"
-                        title={`Excluir orçamento ${q.code || ''} do histórico`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                      </button>
-                    )}
-                  </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenQuote(q)}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                    title="Visualizar documento pronto para impressão/PDF"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Visualizar</span>
+                  </button>
+
+                  {onDeleteQuote && (
+                    <button
+                      type="button"
+                      onClick={() => setQuoteToDelete(q)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition shadow-2xs cursor-pointer"
+                      title="Excluir proposta"
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-500" />
+                    </button>
+                  )}
                 </div>
+
               </div>
             );
           })}
@@ -287,10 +557,6 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                   R$ {quoteToDelete.totalAmount?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span>Itens:</span>
-                <span className="font-medium text-slate-800">{quoteToDelete.items?.length || 0} produto(s)</span>
-              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
@@ -322,4 +588,3 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     </div>
   );
 };
-

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { IncomingEmail } from '../types';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
+import DOMPurify from 'dompurify';
 
 interface ManualAnalysesViewProps {
   analyses: IncomingEmail[];
@@ -415,7 +416,7 @@ export const ManualAnalysesView: React.FC<ManualAnalysesViewProps> = ({
                   <div
                     className="text-xs border border-slate-200 rounded-xl overflow-auto bg-white"
                     style={{ maxHeight: '300px' }}
-                    dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selected.bodyHtml) }}
                   />
                 ) : (
                   <pre className="text-xs text-slate-600 whitespace-pre-wrap bg-slate-50 border border-slate-200 rounded-xl p-4 max-h-64 overflow-y-auto">

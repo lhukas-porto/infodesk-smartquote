@@ -32,6 +32,7 @@ import { IncomingEmail } from '../types';
 import { EmailPeriodFilter } from '../services/gmailService';
 import { registerOrUpdateClient } from '../utils/storage';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
+import { extractQuoteItemsWithAI } from '../services/multiItemExtractorService';
 
 interface InboxViewProps {
   emails: IncomingEmail[];
@@ -470,9 +471,44 @@ export const InboxView: React.FC<InboxViewProps> = ({
         rawSearchQuery: '',
         quantity: 1,
         unit: 'Un.',
-        estimatedCost: 150
+        estimatedCost: 0
       }
     ]);
+  };
+
+  const [isExtractingItemsAI, setIsExtractingItemsAI] = useState(false);
+
+  const handleExtractItemsWithAI = async () => {
+    if (!selectedEmail) return;
+    const contentToExtract = selectedEmail.body || selectedEmail.snippet || selectedEmail.subject;
+    if (!contentToExtract) return;
+
+    setIsExtractingItemsAI(true);
+    try {
+      const result = await extractQuoteItemsWithAI(contentToExtract);
+      if (result.items && result.items.length > 0) {
+        const formattedItems = result.items.map(it => ({
+          name: it.name,
+          description: it.description || it.name,
+          rawSearchQuery: it.partNumber || it.name,
+          partNumber: it.partNumber,
+          ncm: it.ncm,
+          quantity: it.quantity || 1,
+          unit: it.unit || 'UN',
+          estimatedCost: it.estimatedCost || 0
+        }));
+        setEditableItems(formattedItems);
+        if (onUpdateEmailDetails) {
+          onUpdateEmailDetails(selectedEmail.id, {
+            suggestedItems: formattedItems
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao extrair itens com IA:', err);
+    } finally {
+      setIsExtractingItemsAI(false);
+    }
   };
 
   const handleLoadToQuote = () => {
@@ -1066,9 +1102,29 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
                     <button
                       type="button"
+                      onClick={handleExtractItemsWithAI}
+                      disabled={isExtractingItemsAI}
+                      className="px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                      title="Extrair todos os itens, quantidades e Part Numbers do e-mail com IA"
+                    >
+                      {isExtractingItemsAI ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          <span>Extraindo Itens...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 text-amber-300" />
+                          <span>Extrair Itens do E-mail (IA)</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={handleLoadToQuote}
                       disabled={editableItems.length === 0}
-                      className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 active:scale-95"
+                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 active:scale-95 cursor-pointer"
                     >
                       <Sparkles className="w-4 h-4 text-amber-300" />
                       <span>Gerar Orçamento IA</span>

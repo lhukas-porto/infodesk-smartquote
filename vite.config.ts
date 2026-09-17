@@ -60,7 +60,7 @@ function imageSearchPlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), imageSearchPlugin()],
   server: {
-    port: 5180,
+    port: 5173,
     host: true
   }
 });

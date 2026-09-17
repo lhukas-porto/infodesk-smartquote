@@ -144,18 +144,27 @@
 
 @media print {
   @page {
-    size: A4;
-    margin: 15mm 15mm 15mm 15mm;
+    size: A4 portrait;
+    margin: 12mm 12mm 14mm 12mm;
   }
+
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   body {
     background: white !important;
     color: black !important;
     margin: 0 !important;
     padding: 0 !important;
+    font-size: 10pt !important;
   }
+
   .no-print {
     display: none !important;
   }
+
   .print-page {
     box-shadow: none !important;
     border: none !important;
@@ -163,7 +172,57 @@
     margin: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
-    min-height: 100% !important;
-    height: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Repetição automática do cabeçalho da tabela em caso de quebra para página 2 ou 3 */
+  table {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  /* Impede que uma linha de produto seja cortada ao meio */
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Evita corte no meio de blocos de resumo, dados bancários e assinaturas */
+  .sq-avoid-break,
+  .sq-quote-summary,
+  .sq-signature-block,
+  .sq-payment-terms {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  img {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    max-height: 180px !important;
+    object-fit: contain !important;
+  }
+
+  .sq-page-break-before {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  .sq-page-break-after {
+    page-break-after: always !important;
+    break-after: page !important;
   }
 }
+

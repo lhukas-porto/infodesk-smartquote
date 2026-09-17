@@ -34,24 +34,57 @@ export const disconnectGmailAccount = () => {
   localStorage.removeItem(GMAIL_USER_EMAIL);
 };
 
-export const requestGmailAccessToken = async (clientId: string): Promise<{ token: string; email: string }> => {
+export const requestGmailAccessToken = async (clientId: string, forceSelectAccount: boolean = true): Promise<{ token: string; email: string }> => {
   return new Promise((resolve, reject) => {
     if (!window.google?.accounts?.oauth2) {
       reject(new Error('Google Identity Services não foi carregado. Recarregue a página e tente novamente.'));
       return;
     }
 
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error('Tempo limite de autenticação Google atingido. Se você fechou a janela, clique novamente para tentar.'));
+      }
+    }, 90000);
+
+    const safeResolve = (val: { token: string; email: string }) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve(val);
+      }
+    };
+
+    const safeReject = (err: any) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(err instanceof Error ? err : new Error(err?.message || String(err)));
+      }
+    };
+
     try {
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+        error_callback: (err: any) => {
+          console.warn('Google Identity Services error_callback:', err);
+          safeReject(new Error(err?.message || err?.type || 'Autenticação Google cancelada ou janela fechada.'));
+        },
         callback: async (response: any) => {
           if (response.error) {
-            reject(new Error(response.error_description || response.error));
+            safeReject(new Error(response.error_description || response.error));
             return;
           }
 
           const accessToken = response.access_token;
+          if (!accessToken) {
+            safeReject(new Error('Nenhum token de acesso foi retornado pelo Google.'));
+            return;
+          }
+
           const expiresIn = response.expires_in || 3600;
           const expiryTime = Date.now() + Number(expiresIn) * 1000;
 
@@ -59,24 +92,37 @@ export const requestGmailAccessToken = async (clientId: string): Promise<{ token
           localStorage.setItem(GMAIL_TOKEN_EXPIRY, String(expiryTime));
 
           try {
-            // Fetch User Profile
+            // Validar perfil e e-mail real da conta selecionada
             const profileRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
               headers: { Authorization: `Bearer ${accessToken}` }
             });
-            const profile = await profileRes.json();
-            const userEmail = profile.emailAddress || 'lucas@infodesk.com.br';
-            localStorage.setItem(GMAIL_USER_EMAIL, userEmail);
 
-            resolve({ token: accessToken, email: userEmail });
-          } catch (err) {
-            resolve({ token: accessToken, email: 'lucas@infodesk.com.br' });
+            if (!profileRes.ok) {
+              const errData = await profileRes.json().catch(() => ({}));
+              disconnectGmailAccount();
+              safeReject(new Error(errData.error?.message || `A conta Google selecionada não tem acesso ao Gmail (${profileRes.status}). Escolha a conta correta.`));
+              return;
+            }
+
+            const profile = await profileRes.json();
+            const userEmail = (profile.emailAddress || '').toLowerCase().trim();
+            if (userEmail) {
+              localStorage.setItem(GMAIL_USER_EMAIL, userEmail);
+            }
+
+            safeResolve({ token: accessToken, email: userEmail || 'lucas@infodesk.com.br' });
+          } catch (err: any) {
+            console.error('Erro ao consultar perfil da conta Google:', err);
+            disconnectGmailAccount();
+            safeReject(new Error(`Não foi possível validar a conta Google selecionada: ${err.message}`));
           }
         },
       });
 
-      client.requestAccessToken({ prompt: 'consent' });
+      // Se forceSelectAccount for true, força a seleção de conta para evitar login automático na conta errada
+      client.requestAccessToken({ prompt: forceSelectAccount ? 'select_account' : 'consent' });
     } catch (err: any) {
-      reject(err);
+      safeReject(err);
     }
   });
 };
@@ -245,63 +291,70 @@ export const fetchRealGmailMessages = async (
 
   const data = await res.json();
   const messageList = data.messages || [];
+  const targetList = messageList.slice(0, Math.min(messageList.length, maxCount));
+  const detailedMessages: (IncomingEmail | null)[] = [];
+  const BATCH_SIZE = 5;
 
-  const detailedMessages = await Promise.all(
-    messageList.slice(0, Math.min(messageList.length, maxCount)).map(async (msgItem: any) => {
-      try {
-        const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgItem.id}?format=full`, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        if (!msgRes.ok) return null;
-        const msg = await msgRes.json();
+  for (let i = 0; i < targetList.length; i += BATCH_SIZE) {
+    const batch = targetList.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map(async (msgItem: any) => {
+        try {
+          const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgItem.id}?format=full`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
+          if (!msgRes.ok) return null;
+          const msg = await msgRes.json();
 
-        const headers = msg.payload?.headers || [];
-        const subjectHeader = headers.find((h: any) => h.name.toLowerCase() === 'subject');
-        const fromHeader = headers.find((h: any) => h.name.toLowerCase() === 'from');
-        const dateHeader = headers.find((h: any) => h.name.toLowerCase() === 'date');
+          const headers = msg.payload?.headers || [];
+          const subjectHeader = headers.find((h: any) => h.name.toLowerCase() === 'subject');
+          const fromHeader = headers.find((h: any) => h.name.toLowerCase() === 'from');
+          const dateHeader = headers.find((h: any) => h.name.toLowerCase() === 'date');
 
-        const fromRaw = fromHeader ? fromHeader.value : 'Cliente Desconhecido';
-        const senderNameMatch = fromRaw.match(/^(.*?)(?:<.*?>)?$/);
-        let senderName = senderNameMatch ? senderNameMatch[1].replace(/["']/g, '').trim() : fromRaw;
-        if (!senderName) senderName = fromRaw;
+          const fromRaw = fromHeader ? fromHeader.value : 'Cliente Desconhecido';
+          const senderNameMatch = fromRaw.match(/^(.*?)(?:<.*?>)?$/);
+          let senderName = senderNameMatch ? senderNameMatch[1].replace(/["']/g, '').trim() : fromRaw;
+          if (!senderName) senderName = fromRaw;
 
-        const emailMatch = fromRaw.match(/<([^>]+)>/);
-        const senderEmail = (emailMatch ? emailMatch[1] : fromRaw).toLowerCase().trim();
+          const emailMatch = fromRaw.match(/<([^>]+)>/);
+          const senderEmail = (emailMatch ? emailMatch[1] : fromRaw).toLowerCase().trim();
 
-        const subject = subjectHeader ? subjectHeader.value : '(Sem Assunto)';
-        const dateStr = dateHeader ? new Date(dateHeader.value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Hoje';
+          const subject = subjectHeader ? subjectHeader.value : '(Sem Assunto)';
+          const dateStr = dateHeader ? new Date(dateHeader.value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Hoje';
 
-        const { html, text } = await resolveInlineImagesAndHtml(msg.id, msg.payload, accessToken);
-        const bodyContent = text.trim() || msg.snippet || 'Sem conteúdo de texto.';
-        const suggestedItems = extractItemsFromEmailContent(html || text || msg.snippet || '');
+          const { html, text } = await resolveInlineImagesAndHtml(msg.id, msg.payload, accessToken);
+          const bodyContent = text.trim() || msg.snippet || 'Sem conteúdo de texto.';
+          const suggestedItems = extractItemsFromEmailContent(html || text || msg.snippet || '');
 
-        const senderCompany = extractFullCompanyName(fromRaw, senderEmail, subject, bodyContent);
-        const deliveryLocation = extractDeliveryLocation(bodyContent, `${msg.snippet || ''} ${senderCompany}`);
-        const senderPhone = extractContactPhone(html || text || '');
+          const senderCompany = extractFullCompanyName(fromRaw, senderEmail, subject, bodyContent);
+          const deliveryLocation = extractDeliveryLocation(bodyContent, `${msg.snippet || ''} ${senderCompany}`);
+          const senderPhone = extractContactPhone(html || text || '');
 
-        const emailObj: IncomingEmail = {
-          id: String(msg.id),
-          senderName: String(senderName || 'Cliente / Solicitante'),
-          senderEmail: String(senderEmail || 'cliente@empresa.com.br'),
-          senderCompany: String(senderCompany || 'Empresa / Solicitante'),
-          senderPhone: senderPhone ? String(senderPhone) : '',
-          deliveryLocation: deliveryLocation ? String(deliveryLocation) : 'Brasília - DF',
-          subject: String(subject || '(Sem Assunto)'),
-          date: String(dateStr || 'Hoje'),
-          snippet: String(msg.snippet || bodyContent.slice(0, 100) || ''),
-          body: String(bodyContent || ''),
-          bodyHtml: html ? String(html) : undefined,
-          unread: Boolean(msg.labelIds?.includes('UNREAD')),
-          status: 'new',
-          suggestedItems: Array.isArray(suggestedItems) ? suggestedItems : []
-        };
+          const emailObj: IncomingEmail = {
+            id: String(msg.id),
+            senderName: String(senderName || 'Cliente / Solicitante'),
+            senderEmail: String(senderEmail || 'cliente@empresa.com.br'),
+            senderCompany: String(senderCompany || 'Empresa / Solicitante'),
+            senderPhone: senderPhone ? String(senderPhone) : '',
+            deliveryLocation: deliveryLocation ? String(deliveryLocation) : 'Brasília - DF',
+            subject: String(subject || '(Sem Assunto)'),
+            date: String(dateStr || 'Hoje'),
+            snippet: String(msg.snippet || bodyContent.slice(0, 100) || ''),
+            body: String(bodyContent || ''),
+            bodyHtml: html ? String(html) : undefined,
+            unread: Boolean(msg.labelIds?.includes('UNREAD')),
+            status: 'new',
+            suggestedItems: Array.isArray(suggestedItems) ? suggestedItems : []
+          };
 
-        return emailObj;
-      } catch (err) {
-        return null;
-      }
-    })
-  );
+          return emailObj;
+        } catch (err) {
+          return null;
+        }
+      })
+    );
+    detailedMessages.push(...batchResults);
+  }
 
   return detailedMessages.filter(Boolean) as IncomingEmail[];
 };
