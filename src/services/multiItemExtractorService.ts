@@ -72,80 +72,76 @@ Regras:
 
   const prompt = `Texto da solicitação de cotação:\n"""\n${rawText.slice(0, 12000)}\n"""`;
 
-  try {
-    const model = 'gemini-2.0-flash';
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeApiKey}`;
+  const models = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest'];
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: `${systemInstruction}\n\n${prompt}` }]
+  for (const model of models) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeApiKey}`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: `${systemInstruction}\n\n${prompt}` }]
+            }
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+            temperature: 0.1
           }
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          temperature: 0.1
-        }
-      })
-    });
+        })
+      });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API HTTP ${response.status}: ${response.statusText}`);
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!candidateText) continue;
+
+      let parsed = JSON.parse(candidateText);
+      if (!Array.isArray(parsed) && parsed.items && Array.isArray(parsed.items)) {
+        parsed = parsed.items;
+      }
+
+      if (!Array.isArray(parsed)) continue;
+
+      const cleanedItems: ExtractedMultiItem[] = parsed.map((item: any) => ({
+        name: String(item.name || item.description || 'Produto').trim(),
+        description: String(item.description || item.name || '').trim(),
+        partNumber: item.partNumber ? String(item.partNumber).trim() : undefined,
+        quantity: typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : 1,
+        unit: item.unit ? String(item.unit).trim().toUpperCase() : 'UN',
+        estimatedCost: typeof item.estimatedCost === 'number' && item.estimatedCost > 0 ? item.estimatedCost : 0,
+        ncm: item.ncm ? String(item.ncm).replace(/[^0-9]/g, '') : undefined
+      }));
+
+      if (cleanedItems.length === 0) continue;
+
+      return {
+        items: cleanedItems,
+        source: 'gemini_ai',
+        rawResponse: candidateText
+      };
+    } catch (error: any) {
+      console.warn(`[multiItemExtractorService] Modelo ${model} falhou:`, error?.message);
     }
-
-    const data = await response.json();
-    const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!candidateText) {
-      throw new Error('Resposta vazia da API do Gemini');
-    }
-
-    let parsed = JSON.parse(candidateText);
-    if (!Array.isArray(parsed) && parsed.items && Array.isArray(parsed.items)) {
-      parsed = parsed.items;
-    }
-
-    if (!Array.isArray(parsed)) {
-      throw new Error('Formato retornado pela IA não é uma lista de itens');
-    }
-
-    const cleanedItems: ExtractedMultiItem[] = parsed.map((item: any) => ({
-      name: String(item.name || item.description || 'Produto').trim(),
-      description: String(item.description || item.name || '').trim(),
-      partNumber: item.partNumber ? String(item.partNumber).trim() : undefined,
-      quantity: typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : 1,
-      unit: item.unit ? String(item.unit).trim().toUpperCase() : 'UN',
-      estimatedCost: typeof item.estimatedCost === 'number' && item.estimatedCost > 0 ? item.estimatedCost : 0,
-      ncm: item.ncm ? String(item.ncm).replace(/[^0-9]/g, '') : undefined
-    }));
-
-    if (cleanedItems.length === 0) {
-      throw new Error('Nenhum item válido identificado pela IA');
-    }
-
-    return {
-      items: cleanedItems,
-      source: 'gemini_ai',
-      rawResponse: candidateText
-    };
-  } catch (error: any) {
-    console.warn('[multiItemExtractorService] Falha na IA, usando fallback heurístico:', error?.message);
-    const fallbackItems = extractItemsFromEmailContent(rawText);
-    return {
-      items: fallbackItems.map(it => ({
-        name: it.name,
-        description: it.description || it.name,
-        partNumber: it.partNumber,
-        quantity: it.quantity || 1,
-        unit: it.unit || 'UN',
-        estimatedCost: it.estimatedCost,
-        ncm: it.ncm
-      })),
-      source: 'heuristic_fallback',
-      error: error?.message
-    };
   }
+
+  console.warn('[multiItemExtractorService] Todos os modelos falharam, usando fallback heurístico');
+  const fallbackItems = extractItemsFromEmailContent(rawText);
+  return {
+    items: fallbackItems.map(it => ({
+      name: it.name,
+      description: it.description || it.name,
+      partNumber: it.partNumber,
+      quantity: it.quantity || 1,
+      unit: it.unit || 'UN',
+      estimatedCost: it.estimatedCost,
+      ncm: it.ncm
+    })),
+    source: 'heuristic_fallback'
+  };
 }
