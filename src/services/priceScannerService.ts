@@ -28,6 +28,14 @@ export interface ScannedPriceResult {
   category?: string;
   quantity?: number;
   unit?: string;
+  description?: string;
+  specifications?: Array<{ label: string; value: string }>;
+  weight?: string;
+  dimensions?: string;
+  suggestedPrice?: number;
+  costPrice?: number;
+  ean?: string;
+  manufacturer?: string;
 }
 
 export interface BatchScanProgress {
@@ -749,52 +757,170 @@ export async function scanSingleProductPrice(query: string, geminiApiKey?: strin
 /**
  * Call Gemini AI to scan best price across all valid Brazilian websites and suppliers
  */
-async function executeGeminiSearchGrounding(query: string, apiKey: string): Promise<ScannedPriceResult | null> {
-  // Modelos suportados na v1beta
-  const modelsToTry = [
-    'gemini-flash-lite-latest',
-    'gemini-3.1-flash-lite',
-    'gemini-flash-latest'
-  ];
+/**
+ * ============================================================================
+ * ARQUITETURA EM 2 FASES (METODOLOGIA INFODESK STORE + SMARTQUOTE INTELLIGENCE)
+ * ============================================================================
+ */
 
-  const prompt = `Você é o Scanner Especialista de Suprimentos Corporativos e Menor Preço da Infodesk Brasil.
-Analise a fundo o produto: "${query}".
+/**
+ * FASE 1: DESCOBERTA E ENGENHARIA REVERSA DE PRODUTO
+ * Recebe texto bruto, pedidos de compras, lista de 200 características técnicas,
+ * dados elétricos, pinagem, encapsulamento ou descrições ruidosas e deduz
+ * EXATAMENTE qual é o produto físico real no mercado brasileiro.
+ */
+async function phase1DiscoverExactProduct(query: string, apiKey: string): Promise<{
+  standardizedName: string;
+  brand: string;
+  manufacturer: string;
+  model: string;
+  partNumber: string;
+  category: string;
+  confidence: number;
+} | null> {
+  const models = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 
-MISSÃO OBRIGATÓRIA:
-1. NOMENCLATURA PADRONIZADA DO FABRICANTE: Padronize o nome para o formato oficial de catálogo:
-   [Tipo do Produto] [Marca] [Linha Especificação Sabor] [Embalagem Gramatura Tamanho]
-   - PRESERVE A INTENÇÃO EXATA: Se o termo fornecido já for um nome canônico (como "Café Torrado e Moído Tradicional Vácuo 500g Café do Sítio" ou "Chá Twinings Sabores Diversos Caixa com 100 Sachês"), NÃO altere termos fundamentais e NÃO invente palavras adicionais (como não adicione "Chá Preto e Verde").
-   - REGRA DE OURO DE PONTUAÇÃO: NUNCA use vírgulas (,) no nome ou descrição dos produtos. Traços, hífens (-), barras ou outros símbolos são permitidos quando fizerem parte do modelo, código ou especificação. Substitua apenas vírgulas por espaços ou pontuação apropriada sem vírgula.
-2. MENOR PREÇO REAL NO BRASIL: Pesquise e indique o menor preço de mercado em Reais (R$) em QUALQUER site de e-commerce, atacadista, distribuidora ou loja oficial válida na internet brasileira (ex: Mercado Livre, Amazon Brasil, Kalunga, Gimba, Assaí, Atacadão, Shopee, distribuidor especializado ou site do fabricante).
-3. LOJA E LINK DIRETO: Diga o nome exato da loja/distribuidor com menor preço encontrado (campo "store").
-   IMPORTANTE PARA O LINK: Forneça um link de busca exata e direta do produto na respectiva loja encontrada, ou deixe vazio para que o sistema gere automaticamente. NUNCA invente códigos de URL interna (como ASIN fictício da Amazon /dp/B0... ou slugs inexistentes).
-4. NCM REAL: Identifique o NCM fiscal correto de 8 dígitos (ex: café = 0901.21.00; chá = 0902.30.00; informática = 8471...; material plástico = 3924...).
+  const prompt = `Você é um engenheiro sênior especialista em suprimentos corporativos, componentes eletrônicos, informática, automação comercial e compras industriais no Brasil.
+Sua missão na FASE 1 é ANALISAR MINUCIOSAMENTE o texto bruto fornecido pelo comprador e DEDUZIR COM PRECISÃO CIRÚRGICA qual é o PRODUTO REAL.
 
-Retorne ESTRITAMENTE um objeto JSON válido (sem markdown, sem crases, sem texto adicional):
+TEXTO / CARACTERÍSTICAS TÉCNICAS DO COMPRADOR:
+"""
+${query}
+"""
+
+DIRETRIZES DE ENGENHARIA REVERSA (FASE 1):
+1. CRUZE TODAS AS CARACTERÍSTICAS: O texto pode conter dezenas ou centenas de características (pinagem, encapsulamento, tensão, corrente, dimensões, velocidade, capacidade, part numbers parciais, códigos de fabricante ou termos em inglês).
+2. DEDUÇÃO DO MODELO EXATO: Conecte todas as pistas e deduza o produto canônico exato (ex: se o texto traz "smd 144 pinos LPC 2378 NXP", deduza: "Circuito Integrado NXP LPC2378FBD144 LQFP144").
+3. NOME PADRONIZADO: Formate o nome comercial no padrão de mercado brasileiro: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. NUNCA use vírgulas (,) no nome (substitua por espaços ou traços).
+4. ISOLAMENTO DE CAMPOS:
+   - "brand": Marca comercial oficial (ex: NXP, Elgin, Kingston, Logitech, Zebra, Epson, Schneider).
+   - "manufacturer": Razão social oficial do fabricante.
+   - "model": Modelo específico do item.
+   - "partNumber": Part Number oficial / MPN / Código exato do fabricante.
+   - "category": Categoria ideal (ex: "Componentes Eletrônicos", "Automação Comercial", "Hardware", "Periféricos", "Redes", "Elétrica", "Ferramentas", etc.).
+
+Retorne ESTRITAMENTE um JSON válido no formato:
 {
-  "standardizedName": "Nome completo e padronizado do fabricante sem virgulas (tracos e simbolos permitidos)",
-  "partNumber": "Código do fabricante, EAN/GTIN ou SKU se houver",
-  "ncm": "0901.21.00",
-  "bestPrice": 22.90,
-  "isPixPrice": true,
-  "store": "Nome da loja ou distribuidor (ex: Amazon Brasil, Kalunga, Mercado Livre, Café do Sítio Loja)",
-  "observation": "Menor preço apurado no mercado nacional (à vista/Pix)",
-  "status": "exact",
-  "buyUrl": "",
-  "imageUrl": ""
+  "standardizedName": "Nome completo padronizado sem virgulas",
+  "brand": "Marca",
+  "manufacturer": "Fabricante",
+  "model": "Modelo",
+  "partNumber": "Part Number / MPN",
+  "category": "Categoria",
+  "confidence": 0.95
 }`;
 
-  for (const model of modelsToTry) {
+  for (const model of models) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json'
+          }
+        })
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (rawText) {
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.standardizedName) {
+            return {
+              standardizedName: (parsed.standardizedName || query).replace(/,/g, ' ').replace(/\s{2,}/g, ' ').trim(),
+              brand: (parsed.brand || '').trim(),
+              manufacturer: (parsed.manufacturer || parsed.brand || '').trim(),
+              model: (parsed.model || '').trim(),
+              partNumber: (parsed.partNumber || '').trim(),
+              category: (parsed.category || 'Suprimentos').trim(),
+              confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9
+            };
+          }
+        }
+      }
+    } catch (e) {
+      // continua próxima tentativa
+    }
+  }
+  return null;
+}
+
+/**
+ * FASE 2: ENRIQUECIMENTO 360° (METODOLOGIA INFODESK STORE) + COTAÇÃO REAL DE PREÇO
+ * Com o produto exato identificado na Fase 1:
+ * - Gera especificações técnicas estruturadas, NCM oficial do Brasil, peso, dimensões e descrição persuasiva em 2-3 parágrafos.
+ * - Varre a internet brasileira ao vivo via Google Search Grounding em busca da menor oferta e link direto.
+ */
+async function phase2EnrichAndScanPrice(
+  discovered: { standardizedName: string; brand: string; manufacturer: string; model: string; partNumber: string; category: string },
+  originalQuery: string,
+  apiKey: string
+): Promise<ScannedPriceResult | null> {
+  const models = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+
+  const prompt = `Você é o Especialista em Catalogação Técnica e Menor Preço da Infodesk Store e SmartQuote Brasil.
+Com base no produto EXATO já identificado na FASE 1:
+- Produto Canônico: "${discovered.standardizedName}"
+- Marca: "${discovered.brand}" | Modelo: "${discovered.model}" | Part Number: "${discovered.partNumber}"
+- Categoria: "${discovered.category}"
+
+SUA MISSÃO NA FASE 2:
+1. ENRIQUECIMENTO TÉCNICO E COMERCIAL COMPLETO (METODOLOGIA INFODESK STORE):
+   - "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, ideal para a proposta comercial do cliente, destacando diferenciais técnicos, durabilidade, tecnologia empregada e cenários de uso recomendados. NUNCA use vírgulas para separar atributos (use pontos, traços ou quebras de linha).
+   - "specifications": Array com 3 a 6 especificações técnicas reais do produto no formato [{"label": "...", "value": "..."}].
+   - "ncm": Código NCM oficial de 8 dígitos para classificação fiscal brasileira (ex: 8443.32.31, 8542.31.90, 8471.70.40).
+   - "ean": Código de barras EAN/GTIN de 13 dígitos numéricos se conhecido no Brasil, senão string vazia "".
+   - "weight": Peso aproximado da embalagem para frete em kg (ex: "1.800 kg", "0.080 kg"). Mínimo 0.050 kg.
+   - "dimensions": Dimensões aproximadas da embalagem em cm no formato "CxLxA cm" (ex: "25cm x 20cm x 18cm").
+   - "costPrice": Preço de custo médio estimado de atacado/distribuidor em Reais (número decimal, ex: 85.00).
+
+2. MENOR PREÇO REAL ATIVO NO BRASIL:
+   - "bestPrice": Menor preço ativo encontrado na internet brasileira em Reais (número decimal, ex: 119.90).
+   - "isPixPrice": true se for preço à vista/Pix.
+   - "store": Nome da loja ou distribuidora no Brasil com melhor oferta ativa (ex: Mercado Livre, Amazon Brasil, Kalunga, Farnell, Mouser Brasil, etc.).
+   - "observation": Resumo comercial da apuração (ex: "Menor preço apurado no mercado nacional (à vista/Pix)").
+   - "status": "exact" se produto com preço confirmado, ou "on_demand" se sob cotação.
+   - "buyUrl": URL de busca direta ou produto na loja encontrada.
+   - "imageUrl": URL de foto real do produto.
+
+Retorne ESTRITAMENTE um objeto JSON válido:
+{
+  "standardizedName": "${discovered.standardizedName}",
+  "brand": "${discovered.brand}",
+  "model": "${discovered.model}",
+  "partNumber": "${discovered.partNumber}",
+  "ncm": "8471.70.40",
+  "ean": "",
+  "bestPrice": 0.0,
+  "costPrice": 0.0,
+  "isPixPrice": true,
+  "store": "Nome da Loja",
+  "observation": "Menor preço apurado no mercado nacional",
+  "status": "exact",
+  "buyUrl": "",
+  "imageUrl": "",
+  "weight": "0.200 kg",
+  "dimensions": "15cm x 10cm x 5cm",
+  "description": "Texto técnico e comercial em 2 a 3 parágrafos...",
+  "specifications": [
+    { "label": "Característica", "value": "Valor" }
+  ]
+}`;
+
+  for (const model of models) {
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-      // Tenta requisição com Google Search Grounding oficial ativado
       let requestBody: any = {
         contents: [{ parts: [{ text: prompt }] }],
         tools: [{ googleSearch: {} }],
-        generationConfig: {
-          temperature: 0.1
-        }
+        generationConfig: { temperature: 0.1 }
       };
 
       let response = await fetch(endpoint, {
@@ -803,7 +929,6 @@ Retorne ESTRITAMENTE um objeto JSON válido (sem markdown, sem crases, sem texto
         body: JSON.stringify(requestBody)
       });
 
-      // Se o endpoint rejeitar a tool googleSearch, tenta com responseMimeType sem tool
       if (!response.ok) {
         requestBody = {
           contents: [{ parts: [{ text: prompt }] }],
@@ -825,16 +950,13 @@ Retorne ESTRITAMENTE um objeto JSON válido (sem markdown, sem crases, sem texto
       const textOutput = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!textOutput) continue;
 
-      // Clean JSON markup if any
       const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
       if (!jsonMatch) continue;
 
       const parsed = JSON.parse(jsonMatch[0]);
-      const bestPrice = typeof parsed.bestPrice === 'number' ? parsed.bestPrice : 0;
-      
-      // Sanitização estrita do nome: remove apenas vírgulas (preserva traços, hífens e outros símbolos)
-      const rawName = (parsed.standardizedName || query).trim();
-      const stdName = rawName
+      const bestPrice = typeof parsed.bestPrice === 'number' ? parsed.bestPrice : (typeof parsed.costPrice === 'number' ? parsed.costPrice : 0);
+
+      const stdName = (parsed.standardizedName || discovered.standardizedName)
         .replace(/,/g, ' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
@@ -847,52 +969,22 @@ Retorne ESTRITAMENTE um objeto JSON válido (sem markdown, sem crases, sem texto
         finalImg = resolveImageForDescription(stdName);
       }
 
-      // Constrói link funcional e infalível na loja identificada
       let finalBuyUrl = (parsed.buyUrl || '').trim();
-      const storeLower = (parsed.store || '').toLowerCase();
-      
-      // Sanitiza busca para URL: seleciona palavras essenciais sem ruído
-      const cleanSearchKeywords = stdName
-        .replace(/[-–—|]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      // URLs alucinadas comuns: ASIN fictício da Amazon (/dp/B0...), domínio raiz sem busca, exemplos
-      const isFakeAmazonDp = /amazon\.[a-z.]+\/dp\/[A-Z0-9]{8,12}/i.test(finalBuyUrl);
-      const isFakeUrl = !finalBuyUrl.startsWith('http') || 
-        isFakeAmazonDp ||
-        finalBuyUrl.includes('exemplo.com') ||
-        finalBuyUrl.includes('infodeskbrasil.com') ||
-        finalBuyUrl.includes('xyz') ||
-        (finalBuyUrl.endsWith('.com.br') || finalBuyUrl.endsWith('.com.br/')) ||
-        (finalBuyUrl.endsWith('.com') || finalBuyUrl.endsWith('.com/'));
-
-      if (isFakeUrl) {
-        if (storeLower.includes('mercado livre') || storeLower.includes('mercadolivre')) {
-          finalBuyUrl = `https://lista.mercadolivre.com.br/${encodeURIComponent(cleanSearchKeywords)}`;
-        } else if (storeLower.includes('amazon')) {
-          finalBuyUrl = `https://www.amazon.com.br/s?k=${encodeURIComponent(cleanSearchKeywords)}`;
-        } else if (storeLower.includes('kalunga')) {
-          finalBuyUrl = `https://www.kalunga.com.br/busca/${encodeURIComponent(cleanSearchKeywords)}`;
-        } else if (storeLower.includes('gimba')) {
-          finalBuyUrl = `https://www.gimba.com.br/busca?q=${encodeURIComponent(cleanSearchKeywords)}`;
-        } else if (storeLower.includes('shopee')) {
-          finalBuyUrl = `https://shopee.com.br/search?keyword=${encodeURIComponent(cleanSearchKeywords)}`;
-        } else if (storeLower.includes('magalu') || storeLower.includes('magazine luiza')) {
-          finalBuyUrl = `https://www.magazineluiza.com.br/busca/${encodeURIComponent(cleanSearchKeywords)}`;
-        } else {
-          finalBuyUrl = `https://www.google.com/search?q=${encodeURIComponent(cleanSearchKeywords + ' menor preço comprar')}&tbm=shop`;
-        }
+      const cleanSearchKeywords = stdName.replace(/[-–—|]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!finalBuyUrl.startsWith('http') || finalBuyUrl.includes('exemplo.com')) {
+        finalBuyUrl = `https://www.google.com/search?q=${encodeURIComponent(cleanSearchKeywords + ' menor preço comprar')}&tbm=shop`;
       }
 
       const scannedNcm = cleanNcmCode(parsed.ncm);
-      const scannedCategory = getCategoryFromNcm(scannedNcm);
+      const scannedCategory = getCategoryFromNcm(scannedNcm, discovered.category);
 
       return {
         id: `scan-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        originalQuery: query,
+        originalQuery,
         standardizedName: stdName,
-        partNumber: cleanAlphanumericCode(parsed.partNumber),
+        brand: parsed.brand || discovered.brand,
+        modelOrCode: parsed.model || discovered.model,
+        partNumber: cleanAlphanumericCode(parsed.partNumber || discovered.partNumber),
         ncm: scannedNcm,
         category: scannedCategory,
         bestPrice: bestPrice,
@@ -903,10 +995,18 @@ Retorne ESTRITAMENTE um objeto JSON válido (sem markdown, sem crases, sem texto
         status: parsed.status || (bestPrice > 0 ? 'exact' : 'on_demand'),
         buyUrl: finalBuyUrl,
         imageUrl: finalImg,
-        rating: 4.8
+        rating: 4.8,
+        description: parsed.description || '',
+        specifications: Array.isArray(parsed.specifications) ? parsed.specifications : [],
+        weight: parsed.weight || '',
+        dimensions: parsed.dimensions || '',
+        suggestedPrice: typeof parsed.suggestedPrice === 'number' ? parsed.suggestedPrice : undefined,
+        costPrice: typeof parsed.costPrice === 'number' ? parsed.costPrice : bestPrice,
+        ean: parsed.ean || '',
+        manufacturer: parsed.manufacturer || discovered.manufacturer
       };
     } catch (errLoop) {
-      console.warn(`[priceScanner] Tentativa no modelo ${model} falhou:`, errLoop);
+      console.warn(`[phase2] Tentativa no modelo ${model} falhou:`, errLoop);
     }
   }
 
@@ -914,8 +1014,49 @@ Retorne ESTRITAMENTE um objeto JSON válido (sem markdown, sem crases, sem texto
 }
 
 /**
- * Executes a batch scan across multiple products with parallel concurrency (Speed x3)
+ * Call Gemini AI to scan best price across all valid Brazilian websites and suppliers
+ * ORQUESTRADOR DAS DUAS FASES: FASE 1 (Dedução Técnica) -> FASE 2 (Enriquecimento 360° + Cotação)
  */
+async function executeGeminiSearchGrounding(query: string, apiKey: string): Promise<ScannedPriceResult | null> {
+  // FASE 1: Descobrir o produto exato a partir das 200 características ou texto bruto
+  let discovered = await phase1DiscoverExactProduct(query, apiKey);
+  if (!discovered) {
+    discovered = {
+      standardizedName: query,
+      brand: '',
+      manufacturer: '',
+      model: '',
+      partNumber: '',
+      category: 'Suprimentos',
+      confidence: 0.5
+    };
+  }
+
+  // FASE 2: Enriquecimento 360° (padrão Infodesk Store) + Cotação Real de Preço
+  const enrichedResult = await phase2EnrichAndScanPrice(discovered, query, apiKey);
+  if (enrichedResult) {
+    return enrichedResult;
+  }
+
+  // Fallback se a Fase 2 falhar na conexão externa
+  return {
+    id: `scan-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    originalQuery: query,
+    standardizedName: discovered.standardizedName,
+    partNumber: cleanAlphanumericCode(discovered.partNumber),
+    brand: discovered.brand,
+    category: discovered.category,
+    bestPrice: 0,
+    priceFormatted: '—',
+    store: 'Sob Consulta',
+    observation: 'Produto identificado via Fase 1 (consulte distribuidores)',
+    status: 'on_demand',
+    buyUrl: `https://www.google.com/search?q=${encodeURIComponent(discovered.standardizedName)}&tbm=shop`,
+    imageUrl: resolveImageForDescription(discovered.standardizedName),
+    rating: 4.5
+  };
+}
+
 export async function runBatchPriceScan(
   queriesOrItems: (string | ParsedBatchQuery)[],
   onProgress: (progress: BatchScanProgress, currentResults: ScannedPriceResult[]) => void,

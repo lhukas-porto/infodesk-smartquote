@@ -98,6 +98,8 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState('Un.');
   const [candidateListings, setCandidateListings] = useState<ProductCandidateListing[]>([]);
+  const [description, setDescription] = useState('');
+  const [specifications, setSpecifications] = useState<Array<{ label: string; value: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Batch Mode State
@@ -177,6 +179,8 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
       setSourceUrl(exactSourceUrl);
       setCategory(finalCategory);
       setCandidateListings(details.candidateListings || []);
+      setDescription(scanned.description || '');
+      setSpecifications(scanned.specifications || []);
     } catch (e) {
       console.error('Error running single standardization:', e);
     } finally {
@@ -283,7 +287,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
     selected.forEach(res => {
       onAddToQuote({
         name: res.standardizedName,
-        description: res.observation || '',
+        description: res.description || res.observation || '',
         partNumber: cleanAlphanumericCode(res.partNumber || ''),
         ncm: cleanNcmCode(res.ncm || ''),
         imageUrl: res.imageUrl,
@@ -317,7 +321,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
 
       return {
         name: cleanName,
-        description: res.observation || '',
+        description: res.description || res.observation || '',
         partNumber: cleanAlphanumericCode(res.partNumber || ''),
         ncm: cleanNcmCode(res.ncm || ''),
         imageUrl: res.imageUrl,
@@ -426,7 +430,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
   const handleApplySingleToQuote = () => {
     const itemData: Partial<QuoteItem> = {
       name: standardizedName,
-      description: '',
+      description: description || existingItem?.description || '',
       partNumber: cleanAlphanumericCode(partNumber),
       ncm: cleanNcmCode(ncm),
       imageUrl,
@@ -459,7 +463,7 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
       partNumber: cleanAlphanumericCode(partNumber),
       ncm: cleanNcmCode(ncm),
       name: standardizedName,
-      description: `Part Number: ${cleanAlphanumericCode(partNumber)} | NCM: ${cleanNcmCode(ncm)}`,
+      description: description || `Part Number: ${cleanAlphanumericCode(partNumber)} | NCM: ${cleanNcmCode(ncm)}`,
       category,
       costPrice: estimatedCost,
       unit,
@@ -954,6 +958,11 @@ export const WebSearchModal: React.FC<WebSearchModalProps> = ({
                               )}
                               <span>{item.observation}</span>
                             </div>
+                            {item.description && (
+                              <p className="text-[11px] text-slate-600 mt-1.5 line-clamp-2 italic leading-relaxed">
+                                {item.description}
+                              </p>
+                            )}
                           </div>
                         </div>
 
