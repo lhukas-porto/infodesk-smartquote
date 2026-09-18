@@ -2434,7 +2434,8 @@ export function formatCompanyPrefix(companyName: string, explicitPrefix?: string
     'sindicato', 'cartorio', 'laboratorio', 'governo', 'municipio', 'posto',
     'hotel', 'parque', 'aeroporto', 'comando', 'senado', 'congresso',
     'tjdft', 'stj', 'stf', 'tcu', 'trf', 'tre', 'trt', 'mpt', 'mpf',
-    'sesc', 'senai', 'sebrae', 'senac', 'sesi', 'cnc', 'crea', 'crm', 'cro'
+    'sesc', 'senai', 'sebrae', 'senac', 'sesi', 'crea', 'crm', 'cro',
+    'sabin'
   ];
 
   const isMasculine = masculineKeywords.some(kw => {
@@ -2442,8 +2443,12 @@ export function formatCompanyPrefix(companyName: string, explicitPrefix?: string
     return regex.test(lower);
   });
 
-  // Se já possui prefixo explícito ("Ao", "À", "Para"), RESPEITA fielmente a escolha do usuário!
+  // Se já possui prefixo explícito ("Ao", "À", "Para")
   if (hasExplicitPrefix) {
+    // Se a entidade é comprovadamente masculina (ex: Sabin, Hospital, Laboratório) e estava com "À", corrige para "Ao"!
+    if (isMasculine && userPrefix === 'à') {
+      return `Ao ${baseName}`;
+    }
     const prefixNormalized = (userPrefix === 'ao') ? 'Ao' : (userPrefix === 'para' ? 'Para' : 'À');
     return `${prefixNormalized} ${baseName}`;
   }

@@ -75,14 +75,10 @@ const qTodayIso: Quote = {
   clientCompany: 'Empresa A',
   status: 'approved',
   items: [],
-  subtotal: 1000,
-  taxAmount: 0,
-  shippingAmount: 0,
   totalAmount: 1000,
-  validityDays: 10,
-  paymentTerms: 'À vista',
-  deliveryTime: 'Imediato'
-};
+  validityDays: '10 dias',
+  paymentTerms: 'À vista'
+} as unknown as Quote;
 
 const qTodayPt: Quote = {
   ...qTodayIso,

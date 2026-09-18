@@ -18,6 +18,7 @@ import {
   ArrowRight 
 } from 'lucide-react';
 import { Quote } from '../types';
+import { formatCompanyPrefix } from '../utils/aiEmailParser';
 
 interface DashboardViewProps {
   quotes: Quote[];
@@ -220,8 +221,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         draftCount++;
       }
 
-      // Agrupamento por cliente
-      const clientName = q.clientCompany || 'Cliente não informado';
+      // Agrupamento por cliente com preposição gramaticalmente corrigida e unificada
+      const rawCompany = q.clientCompany?.trim();
+      const clientName = rawCompany 
+        ? formatCompanyPrefix(rawCompany) 
+        : 'Cliente não informado';
+
       if (!clientMap[clientName]) {
         clientMap[clientName] = { company: clientName, count: 0, totalAmount: 0, approvedAmount: 0 };
       }

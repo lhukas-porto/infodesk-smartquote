@@ -38,7 +38,16 @@ assert.equal(resExplicitAo, 'Ao Universidade Católica', 'explicitPrefix "Ao" de
 const resExplicitA = formatCompanyPrefix('Hospital Regional', 'À');
 assert.equal(resExplicitA, 'À Hospital Regional', 'explicitPrefix "À" deve ser aplicado');
 
-console.log('✓ Teste 1 aprovado: formatCompanyPrefix respeita fielmente escolhas explícitas do usuário ("Ao" e "À")!');
+const resSabin = formatCompanyPrefix('Sabin');
+assert.equal(resSabin, 'Ao Sabin', 'formatCompanyPrefix("Sabin") deve retornar "Ao Sabin" (entidade laboratorial masculina)');
+
+const resASabin = formatCompanyPrefix('À Sabin');
+assert.equal(resASabin, 'Ao Sabin', 'formatCompanyPrefix("À Sabin") deve corrigir para "Ao Sabin"');
+
+const resCnc = formatCompanyPrefix('CNC');
+assert.equal(resCnc, 'À CNC', 'formatCompanyPrefix("CNC") deve retornar "À CNC" (confederação feminina)');
+
+console.log('✓ Teste 1 aprovado: formatCompanyPrefix respeita fielmente escolhas explícitas e gramática de entidades ("Ao Sabin", "À CNC")!');
 
 // 2. Teste de salvamento e recuperação no storage
 const testCompany: ClientCompany = {
