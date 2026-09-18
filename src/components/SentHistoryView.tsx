@@ -365,11 +365,11 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {[
           { id: 'all', title: 'Todas as Propostas', count: stageStats.all.count, amount: stageStats.all.totalAmount, badge: 'text-slate-700 bg-slate-100', dot: 'bg-slate-400' },
-          { id: 'draft', title: '1. Rascunhos', count: stageStats.draft.count, amount: stageStats.draft.totalAmount, badge: 'text-amber-800 bg-amber-50 border-amber-200', dot: 'bg-amber-500' },
-          { id: 'sent', title: '2. Enviadas', count: stageStats.sent.count, amount: stageStats.sent.totalAmount, badge: 'text-sky-800 bg-sky-50 border-sky-200', dot: 'bg-sky-500' },
-          { id: 'negotiating', title: '3. Em Negociação', count: stageStats.negotiating.count, amount: stageStats.negotiating.totalAmount, badge: 'text-purple-800 bg-purple-50 border-purple-200', dot: 'bg-purple-500' },
-          { id: 'approved', title: '4. Aprovadas 🏆', count: stageStats.approved.count, amount: stageStats.approved.totalAmount, badge: 'text-emerald-800 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
-          { id: 'lost', title: '5. Perdidas', count: stageStats.lost.count, amount: stageStats.lost.totalAmount, badge: 'text-rose-800 bg-rose-50 border-rose-200', dot: 'bg-rose-400' },
+          { id: 'draft', title: 'Rascunhos', count: stageStats.draft.count, amount: stageStats.draft.totalAmount, badge: 'text-amber-800 bg-amber-50 border-amber-200', dot: 'bg-amber-500' },
+          { id: 'sent', title: 'Enviadas', count: stageStats.sent.count, amount: stageStats.sent.totalAmount, badge: 'text-sky-800 bg-sky-50 border-sky-200', dot: 'bg-sky-500' },
+          { id: 'negotiating', title: 'Em Negociação', count: stageStats.negotiating.count, amount: stageStats.negotiating.totalAmount, badge: 'text-purple-800 bg-purple-50 border-purple-200', dot: 'bg-purple-500' },
+          { id: 'approved', title: 'Aprovadas 🏆', count: stageStats.approved.count, amount: stageStats.approved.totalAmount, badge: 'text-emerald-800 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
+          { id: 'lost', title: 'Perdidas', count: stageStats.lost.count, amount: stageStats.lost.totalAmount, badge: 'text-rose-800 bg-rose-50 border-rose-200', dot: 'bg-rose-400' },
         ].map(card => {
           const isSelected = selectedStageFilter === card.id;
           return (
