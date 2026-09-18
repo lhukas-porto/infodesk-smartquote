@@ -310,35 +310,19 @@ export const App: React.FC = () => {
 
         // 3. Catálogo de Produtos
         const remoteProducts = await fetchProductsFromSupabase();
-        const localProducts = getProducts();
-
         if (remoteProducts && remoteProducts.length > 0) {
-          // Identifica produtos locais que ainda não foram para o Supabase e envia imediatamente
-          const remoteSkus = new Set(remoteProducts.map(p => (p.sku || p.partNumber || '').trim().toLowerCase()));
-          const missingLocals = localProducts.filter(lp => {
-            const sku = (lp.sku || lp.partNumber || '').trim().toLowerCase();
-            return sku && !remoteSkus.has(sku);
-          });
-
-          if (missingLocals.length > 0) {
-            console.log(`[SmartQuote] Enviando ${missingLocals.length} produtos locais pendentes diretamente para o Supabase...`);
-            syncBatchProductsToSupabase(missingLocals).catch(err => {
-              console.warn('[SmartQuote] Erro ao sincronizar produtos pendentes com o Supabase:', err);
-            });
-            const merged = [...remoteProducts, ...missingLocals];
-            setProducts(merged);
-            saveProducts(merged);
-          } else {
-            setProducts(remoteProducts);
-            saveProducts(remoteProducts);
-          }
-        } else if (localProducts && localProducts.length > 0) {
-          // Se a tabela do banco estava vazia, envia todos os produtos locais imediatamente para o Supabase
-          console.log(`[SmartQuote] Cadastrando imediatamente ${localProducts.length} produtos locais no Supabase...`);
-          syncBatchProductsToSupabase(localProducts).catch(err => {
-            console.warn('[SmartQuote] Falha ao cadastrar produtos locais no Supabase:', err);
-          });
-          setProducts(localProducts);
+          const MOCK_SKUS_SET = new Set([
+            'tra-plu-01',
+            'del-mon-27',
+            'log-mxk-01',
+            'apc-nob-1500',
+            'kng-ssd-1tb',
+            'fur-cab-cat6',
+            'cis-sw-24p'
+          ]);
+          const cleanRemote = remoteProducts.filter(p => !MOCK_SKUS_SET.has((p.sku || '').trim().toLowerCase()));
+          setProducts(cleanRemote);
+          saveProducts(cleanRemote);
         }
 
         // 4. Empresas e Cidades de Frete

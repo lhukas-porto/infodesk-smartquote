@@ -219,12 +219,27 @@ export const saveSettings = (settings: CompanySettings): void => {
   }
 };
 
+const MOCK_SKUS_SET = new Set([
+  'tra-plu-01',
+  'del-mon-27',
+  'log-mxk-01',
+  'apc-nob-1500',
+  'kng-ssd-1tb',
+  'fur-cab-cat6',
+  'cis-sw-24p'
+]);
+
 export const getProducts = (): Product[] => {
   const saved = localStorage.getItem(PRODUCTS_KEY);
   if (saved) {
-    try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(p => !MOCK_SKUS_SET.has((p.sku || '').trim().toLowerCase()));
+      }
+    } catch (e) { console.error(e); }
   }
-  return initialProducts;
+  return [];
 };
 
 export const saveProducts = (products: Product[]): void => {
