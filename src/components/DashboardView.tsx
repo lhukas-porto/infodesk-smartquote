@@ -14,8 +14,7 @@ import {
   CalendarDays,
   FileText,
   Sparkles, 
-  ArrowUpRight, 
-  ArrowRight 
+  ArrowUpRight
 } from 'lucide-react';
 import { Quote, ClientCompany, Product } from '../types';
 import { formatCompanyPrefix, resolveSupplierName } from '../utils/aiEmailParser';
@@ -593,14 +592,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <TrendingUp className="w-4 h-4 text-sky-600" />
               <span>Funil de Conversão Comercial</span>
             </h2>
-            <button
-              type="button"
-              onClick={onNavigateToHistory}
-              className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 transition"
-            >
-              <span>Ver Kanban</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
           </div>
 
           <div className="space-y-3 pt-2">
