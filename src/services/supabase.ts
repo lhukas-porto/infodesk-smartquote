@@ -811,7 +811,7 @@ export async function fetchRegisteredMetadataFromSupabase(): Promise<{ categorie
     const categoriesSet = new Set<string>();
     const unitsSet = new Set<string>();
 
-    // 1. Tentar ler de company_settings (se colunas já existirem no banco)
+    // 1. Tentar ler de company_settings (fonte canônica da verdade gerenciada pelo usuário)
     try {
       const { data: settingsData } = await supabase
         .from('company_settings')
@@ -821,26 +821,30 @@ export async function fetchRegisteredMetadataFromSupabase(): Promise<{ categorie
         .maybeSingle();
 
       if (settingsData) {
-        if (Array.isArray(settingsData.registered_categories)) {
-          settingsData.registered_categories.forEach((c: any) => {
-            if (typeof c === 'string' && c.trim()) categoriesSet.add(c.trim());
-          });
-        }
-        if (Array.isArray(settingsData.registered_units)) {
-          settingsData.registered_units.forEach((u: any) => {
-            if (typeof u === 'string' && u.trim()) unitsSet.add(u.trim());
-          });
+        const hasCategories = Array.isArray(settingsData.registered_categories) && settingsData.registered_categories.length > 0;
+        const hasUnits = Array.isArray(settingsData.registered_units) && settingsData.registered_units.length > 0;
+
+        if (hasCategories || hasUnits) {
+          const categories = hasCategories
+            ? Array.from(new Set((settingsData.registered_categories as string[]).map(c => c?.trim()).filter(Boolean)))
+            : [];
+          const units = hasUnits
+            ? Array.from(new Set((settingsData.registered_units as string[]).map(u => u?.trim()).filter(Boolean)))
+            : [];
+
+          return { categories, units };
         }
       }
     } catch {
-      // Colunas podem não existir ainda no banco físico; segue graciosamente
+      // Colunas podem não existir ainda no banco físico; segue graciosamente para bootstrap inicial
     }
 
-    // 2. Extrair categorias e unidades diretamente da tabela products já existente
+    // 2. Fallback de bootstrap inicial apenas se company_settings estiver completamente vazio
     try {
       const { data: productsData } = await supabase
         .from('products')
-        .select('category, unit');
+        .select('category, unit')
+        .limit(50);
 
       if (Array.isArray(productsData)) {
         productsData.forEach((p: any) => {
@@ -853,24 +857,7 @@ export async function fetchRegisteredMetadataFromSupabase(): Promise<{ categorie
         });
       }
     } catch (e) {
-      console.warn('Aviso ao ler categorias de products no Supabase:', e);
-    }
-
-    // 3. Extrair unidades das quote_items já salvas no banco
-    try {
-      const { data: quoteItemsData } = await supabase
-        .from('quote_items')
-        .select('unit');
-
-      if (Array.isArray(quoteItemsData)) {
-        quoteItemsData.forEach((qi: any) => {
-          if (qi.unit && typeof qi.unit === 'string' && qi.unit.trim()) {
-            unitsSet.add(qi.unit.trim());
-          }
-        });
-      }
-    } catch {
-      // Ignorar se falhar
+      console.warn('Aviso no fallback inicial de categorias/unidades no Supabase:', e);
     }
 
     return {

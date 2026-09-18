@@ -29,7 +29,9 @@ import {
   saveRegisteredCategory,
   updateRegisteredCategory,
   deleteRegisteredCategory,
-  resetRegisteredCategories
+  resetRegisteredCategories,
+  saveRegisteredCategoriesList,
+  saveRegisteredUnitsList
 } from '../utils/storage';
 import { getStoredGeminiKey, saveStoredGeminiKey } from '../services/priceScannerService';
 import { maskPhone } from '../utils/aiEmailParser';
@@ -96,8 +98,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         onClose();
       }
     };
+    const handleMetaChanged = () => {
+      setCategories(getRegisteredCategories());
+      setUnits(getRegisteredUnits());
+    };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('infodesk_metadata_changed', handleMetaChanged);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('infodesk_metadata_changed', handleMetaChanged);
+    };
   }, [isOpen, settings, onClose]);
 
   if (!isOpen) return null;
@@ -224,6 +234,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     saveSettings(updatedForm);
     saveStoredGeminiKey(geminiKey);
+    saveRegisteredCategoriesList(categories);
+    saveRegisteredUnitsList(units);
     try {
       if (onSaveSettings) {
         await onSaveSettings(updatedForm);

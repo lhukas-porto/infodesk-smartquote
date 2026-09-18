@@ -738,7 +738,7 @@ export const updateRegisteredUnit = (oldUnit: string, newUnit: string): string[]
 export const deleteRegisteredUnit = (unit: string): string[] => {
   const clean = unit.trim();
   const current = getRegisteredUnits();
-  const updated = current.filter(u => u.toLowerCase() !== clean.toLowerCase());
+  const updated = current.filter(u => u.trim() !== clean && u.trim().toLowerCase() !== clean.toLowerCase());
   return saveRegisteredUnitsList(updated);
 };
 
@@ -799,7 +799,7 @@ export const updateRegisteredCategory = (oldCategory: string, newCategory: strin
 export const deleteRegisteredCategory = (category: string): string[] => {
   const clean = category.trim();
   const current = getRegisteredCategories();
-  const updated = current.filter(c => c.toLowerCase() !== clean.toLowerCase());
+  const updated = current.filter(c => c.trim() !== clean && c.trim().toLowerCase() !== clean.toLowerCase());
   return saveRegisteredCategoriesList(updated);
 };
 
