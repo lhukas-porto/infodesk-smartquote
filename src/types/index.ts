@@ -146,6 +146,8 @@ export interface CompanySettings {
   defaultShippingCost: number;
   googleWorkspaceConnected: boolean;
   googleAccountEmail: string;
+  registeredCategories?: string[];
+  registeredUnits?: string[];
 }
 
 export interface WebSearchResult {

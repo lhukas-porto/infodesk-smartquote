@@ -32,8 +32,15 @@ CREATE TABLE IF NOT EXISTS company_settings (
   default_shipping_cost NUMERIC(10,2) NOT NULL DEFAULT 0.00,
   google_workspace_connected BOOLEAN NOT NULL DEFAULT true,
   google_account_email TEXT DEFAULT 'lucas@infodesk.com.br',
+  registered_categories TEXT[] DEFAULT ARRAY[]::TEXT[],
+  registered_units TEXT[] DEFAULT ARRAY[]::TEXT[],
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migração retroativa idempotente para Categorias e Unidades unificadas:
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS registered_categories TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS registered_units TEXT[] DEFAULT ARRAY[]::TEXT[];
+
 
 -- ==============================================================================
 -- 3. TABELA: client_companies (Empresas Clientes & Cidades de Destino de Frete)

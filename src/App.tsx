@@ -42,7 +42,11 @@ import {
   getManualAnalyses,
   saveManualAnalyses,
   getQuoteItemsBackup,
-  saveQuoteItemsBackup
+  saveQuoteItemsBackup,
+  getRegisteredCategories,
+  saveRegisteredCategoriesList,
+  getRegisteredUnits,
+  saveRegisteredUnitsList
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -85,7 +89,9 @@ import {
   deleteContactFromSupabase,
   deleteQuoteFromSupabase,
   fetchIncomingEmailsFromSupabase,
-  syncIncomingEmailsToSupabase
+  syncIncomingEmailsToSupabase,
+  fetchRegisteredMetadataFromSupabase,
+  syncRegisteredMetadataToSupabase
 } from './services/supabase';
 import { 
   calculateCommercialUnitPrice, 
@@ -232,6 +238,21 @@ export const App: React.FC = () => {
           saveSettings(remoteSettings);
         }
 
+        // Sincronização e unificação de Categorias & Unidades com Supabase
+        const remoteMeta = await fetchRegisteredMetadataFromSupabase();
+        if (remoteMeta) {
+          if (remoteMeta.categories && remoteMeta.categories.length > 0) {
+            const currentCats = getRegisteredCategories();
+            const mergedCats = Array.from(new Set([...currentCats, ...remoteMeta.categories]));
+            saveRegisteredCategoriesList(mergedCats);
+          }
+          if (remoteMeta.units && remoteMeta.units.length > 0) {
+            const currentUnits = getRegisteredUnits();
+            const mergedUnits = Array.from(new Set([...currentUnits, ...remoteMeta.units]));
+            saveRegisteredUnitsList(mergedUnits);
+          }
+        }
+
         // 2. Orçamentos
         const remoteQuotes = await fetchQuotesFromSupabase();
         if (remoteQuotes && remoteQuotes.length > 0) {
@@ -323,6 +344,16 @@ export const App: React.FC = () => {
           const cleanRemote = remoteProducts.filter(p => !MOCK_SKUS_SET.has((p.sku || '').trim().toLowerCase()));
           setProducts(cleanRemote);
           saveProducts(cleanRemote);
+
+          // Auto-aprende e unifica categorias e unidades dos produtos cadastrados no banco
+          const productCats = cleanRemote.map(p => p.category?.trim()).filter(Boolean) as string[];
+          const productUnits = cleanRemote.map(p => p.unit?.trim()).filter(Boolean) as string[];
+          if (productCats.length > 0) {
+            saveRegisteredCategoriesList(Array.from(new Set([...getRegisteredCategories(), ...productCats])));
+          }
+          if (productUnits.length > 0) {
+            saveRegisteredUnitsList(Array.from(new Set([...getRegisteredUnits(), ...productUnits])));
+          }
         }
 
         // 4. Empresas e Cidades de Frete

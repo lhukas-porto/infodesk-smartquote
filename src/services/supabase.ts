@@ -2,8 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { extractStoreNameFromUrl } from '../utils/aiEmailParser';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_URL) || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : '') || '';
+const supabaseAnonKey = (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY) || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : '') || '';
+
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
@@ -40,7 +41,9 @@ export async function fetchCompanySettingsFromSupabase(): Promise<CompanySetting
       defaultTaxPercent: !isNaN(Number(data.default_tax_percent)) ? Number(data.default_tax_percent) : 9.1,
       defaultShippingCost: !isNaN(Number(data.default_shipping_cost)) ? Number(data.default_shipping_cost) : 0,
       googleWorkspaceConnected: Boolean(data.google_workspace_connected ?? true),
-      googleAccountEmail: data.google_account_email || data.email
+      googleAccountEmail: data.google_account_email || data.email,
+      registeredCategories: Array.isArray(data.registered_categories) ? data.registered_categories : undefined,
+      registeredUnits: Array.isArray(data.registered_units) ? data.registered_units : undefined
     };
   } catch (err) {
     console.warn('Erro ao consultar configurações no Supabase:', err);
@@ -70,6 +73,8 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
       default_markup_percent: settings.defaultMarkupPercent,
       default_tax_percent: settings.defaultTaxPercent,
       default_shipping_cost: settings.defaultShippingCost,
+      ...(Array.isArray(settings.registeredCategories) ? { registered_categories: settings.registeredCategories } : {}),
+      ...(Array.isArray(settings.registeredUnits) ? { registered_units: settings.registeredUnits } : {}),
       updated_at: new Date().toISOString()
     };
 
@@ -85,12 +90,25 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
     if (targetId) {
       const { error } = await supabase.from('company_settings').update(payload).eq('id', targetId);
       if (error) {
-        console.error('Erro ao atualizar company_settings no Supabase:', error);
+        // Se a coluna ainda não existir no Postgres, tenta sem os campos de categorias/unidades para não quebrar a persistência
+        const fallbackPayload = { ...payload };
+        delete (fallbackPayload as any).registered_categories;
+        delete (fallbackPayload as any).registered_units;
+        const { error: retryError } = await supabase.from('company_settings').update(fallbackPayload).eq('id', targetId);
+        if (retryError) {
+          console.error('Erro ao atualizar company_settings no Supabase:', retryError);
+        }
       }
     } else {
       const { error } = await supabase.from('company_settings').insert(payload);
       if (error) {
-        console.error('Erro ao inserir company_settings no Supabase:', error);
+        const fallbackPayload = { ...payload };
+        delete (fallbackPayload as any).registered_categories;
+        delete (fallbackPayload as any).registered_units;
+        const { error: retryError } = await supabase.from('company_settings').insert(fallbackPayload);
+        if (retryError) {
+          console.error('Erro ao inserir company_settings no Supabase:', retryError);
+        }
       }
     }
   } catch (err) {
@@ -767,3 +785,118 @@ export async function syncIncomingEmailsToSupabase(emails: IncomingEmail[]): Pro
     console.warn('Erro ao sincronizar e-mails no Supabase:', err);
   }
 }
+
+// ==============================================================================
+// 6. METADADOS: CATEGORIAS E UNIDADES REGISTRADAS (Unificação com Banco)
+// ==============================================================================
+export async function fetchRegisteredMetadataFromSupabase(): Promise<{ categories: string[]; units: string[] } | null> {
+  if (!supabase) return null;
+  try {
+    const categoriesSet = new Set<string>();
+    const unitsSet = new Set<string>();
+
+    // 1. Tentar ler de company_settings (se colunas já existirem no banco)
+    try {
+      const { data: settingsData } = await supabase
+        .from('company_settings')
+        .select('registered_categories, registered_units')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (settingsData) {
+        if (Array.isArray(settingsData.registered_categories)) {
+          settingsData.registered_categories.forEach((c: any) => {
+            if (typeof c === 'string' && c.trim()) categoriesSet.add(c.trim());
+          });
+        }
+        if (Array.isArray(settingsData.registered_units)) {
+          settingsData.registered_units.forEach((u: any) => {
+            if (typeof u === 'string' && u.trim()) unitsSet.add(u.trim());
+          });
+        }
+      }
+    } catch {
+      // Colunas podem não existir ainda no banco físico; segue graciosamente
+    }
+
+    // 2. Extrair categorias e unidades diretamente da tabela products já existente
+    try {
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('category, unit');
+
+      if (Array.isArray(productsData)) {
+        productsData.forEach((p: any) => {
+          if (p.category && typeof p.category === 'string' && p.category.trim()) {
+            categoriesSet.add(p.category.trim());
+          }
+          if (p.unit && typeof p.unit === 'string' && p.unit.trim()) {
+            unitsSet.add(p.unit.trim());
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Aviso ao ler categorias de products no Supabase:', e);
+    }
+
+    // 3. Extrair unidades das quote_items já salvas no banco
+    try {
+      const { data: quoteItemsData } = await supabase
+        .from('quote_items')
+        .select('unit');
+
+      if (Array.isArray(quoteItemsData)) {
+        quoteItemsData.forEach((qi: any) => {
+          if (qi.unit && typeof qi.unit === 'string' && qi.unit.trim()) {
+            unitsSet.add(qi.unit.trim());
+          }
+        });
+      }
+    } catch {
+      // Ignorar se falhar
+    }
+
+    return {
+      categories: Array.from(categoriesSet),
+      units: Array.from(unitsSet)
+    };
+  } catch (err) {
+    console.warn('Erro ao consultar metadados de categorias/unidades no Supabase:', err);
+    return null;
+  }
+}
+
+export async function syncRegisteredMetadataToSupabase(categories: string[], units: string[]): Promise<void> {
+  if (!supabase) return;
+  try {
+    const cleanCats = Array.from(new Set(categories.map(c => c.trim()).filter(Boolean)));
+    const cleanUnits = Array.from(new Set(units.map(u => u.trim()).filter(Boolean)));
+
+    // Buscar o ID de company_settings existente
+    const { data: existing } = await supabase
+      .from('company_settings')
+      .select('id')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from('company_settings')
+        .update({
+          registered_categories: cleanCats,
+          registered_units: cleanUnits,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.id);
+
+      if (error) {
+        console.warn('Aviso ao sincronizar categorias/unidades no Supabase (colunas registradas requerem execução do schema.sql):', error.message);
+      }
+    }
+  } catch (err) {
+    console.warn('Erro silencioso ao sincronizar metadados no Supabase:', err);
+  }
+}
+

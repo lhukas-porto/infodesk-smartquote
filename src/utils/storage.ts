@@ -1,5 +1,6 @@
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
+import { syncRegisteredMetadataToSupabase } from '../services/supabase';
 
 const SETTINGS_KEY = 'infodesk_settings';
 const PRODUCTS_KEY = 'infodesk_products';
@@ -707,6 +708,9 @@ export const saveRegisteredUnitsList = (units: string[]): string[] => {
     console.warn('Erro ao salvar lista de unidades:', e);
   }
   notifyMetadataChanged();
+  try {
+    syncRegisteredMetadataToSupabase(getRegisteredCategories(), cleanList).catch(() => {});
+  } catch { /* noop */ }
   return cleanList;
 };
 
@@ -765,6 +769,9 @@ export const saveRegisteredCategoriesList = (categories: string[]): string[] => 
     console.warn('Erro ao salvar lista de categorias:', e);
   }
   notifyMetadataChanged();
+  try {
+    syncRegisteredMetadataToSupabase(cleanList, getRegisteredUnits()).catch(() => {});
+  } catch { /* noop */ }
   return cleanList;
 };
 
