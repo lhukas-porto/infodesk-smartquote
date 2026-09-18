@@ -235,6 +235,8 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
         globalTaxPercent: Number(q.global_tax_percent || 6),
         globalShipping: Number(q.global_shipping || 0),
         status: q.status || 'draft',
+        recipientEmails: q.recipient_emails || [],
+        ccEmails: q.cc_emails || [],
         createdAt: q.created_at,
         sentAt: q.sent_at
       };
@@ -309,6 +311,7 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     markup_percent: item.markupPercent,
     unit_price: item.unitPrice,
     total_price: item.totalPrice,
+    supplier: item.supplier || null,
     source_url: item.sourceUrl || null
   }));
 
@@ -342,9 +345,9 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         global_tax_percent: quote.globalTaxPercent ?? 6,
         global_shipping: quote.globalShipping ?? 0,
         status: quote.status,
-        recipient_emails: quote.recipientEmails,
-        cc_emails: quote.ccEmails,
-        sent_at: quote.sentAt
+        recipient_emails: quote.recipientEmails || [],
+        cc_emails: quote.ccEmails || [],
+        sent_at: quote.sentAt || null
       },
       p_items: itemsPayload
     });
@@ -381,9 +384,13 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       total_profit: quote.totalProfit,
       total_amount: quote.totalAmount,
       average_margin: quote.averageMargin,
+      global_markup_percent: quote.globalMarkupPercent ?? 35,
       global_tax_percent: quote.globalTaxPercent ?? 6,
       global_shipping: quote.globalShipping ?? 0,
       status: quote.status,
+      recipient_emails: quote.recipientEmails || [],
+      cc_emails: quote.ccEmails || [],
+      sent_at: quote.sentAt || null,
       updated_at: new Date().toISOString()
     }, { onConflict: 'code' }).select().single();
 
@@ -415,6 +422,7 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         markup_percent: item.markupPercent,
         unit_price: item.unitPrice,
         total_price: item.totalPrice,
+        supplier: item.supplier || null,
         source_url: item.sourceUrl || null
       }));
 
@@ -469,8 +477,12 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
 
 export async function syncProductToSupabase(product: Product): Promise<void> {
   if (!supabase) return;
-  const sku = (product.sku || product.partNumber || '').trim();
-  if (!sku) return;
+  let sku = (product.sku || product.partNumber || '').trim();
+  if (!sku) {
+    const safeNameHash = (product.name || 'PROD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase();
+    const uniqueSuffix = (product.id || Date.now().toString()).slice(-6);
+    sku = `INF-${safeNameHash || 'AUTO'}-${uniqueSuffix}`;
+  }
 
   const payload = {
     sku,
@@ -521,8 +533,12 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
     
     // Deduplica por SKU para evitar erro do PostgreSQL ON CONFLICT DO UPDATE em lote
     for (const p of products) {
-      const sku = (p.sku || p.partNumber || '').trim();
-      if (!sku) continue;
+      let sku = (p.sku || p.partNumber || '').trim();
+      if (!sku) {
+        const safeNameHash = (p.name || 'PROD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase();
+        const uniqueSuffix = (p.id || Math.random().toString(36).substring(2, 8)).slice(-6);
+        sku = `INF-${safeNameHash || 'AUTO'}-${uniqueSuffix}`;
+      }
       if (!seenSkus.has(sku.toLowerCase())) {
         seenSkus.add(sku.toLowerCase());
         validProducts.push({ ...p, sku });

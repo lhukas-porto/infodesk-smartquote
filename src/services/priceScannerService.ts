@@ -61,9 +61,9 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
  */
 export const MODERN_GEMINI_MODELS = [
   'gemini-3.5-flash',
-  'gemini-flash-latest',
   'gemini-3.6-flash',
   'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
   'gemini-flash-lite-latest'
 ];
 
@@ -203,7 +203,15 @@ export function getStoredGeminiKey(): string {
     if (envKey && typeof envKey === 'string' && envKey.trim()) {
       return envKey.trim();
     }
-    return localStorage.getItem(STORAGE_GEMINI_KEY) || '';
+    const localKey = localStorage.getItem(STORAGE_GEMINI_KEY);
+    if (localKey && typeof localKey === 'string' && localKey.trim()) {
+      return localKey.trim();
+    }
+    const altKey = localStorage.getItem('gemini_api_key');
+    if (altKey && typeof altKey === 'string' && altKey.trim()) {
+      return altKey.trim();
+    }
+    return '';
   } catch {
     return '';
   }

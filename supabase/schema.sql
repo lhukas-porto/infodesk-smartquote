@@ -138,13 +138,21 @@ CREATE TABLE IF NOT EXISTS quotes (
   total_profit NUMERIC(12,2) NOT NULL DEFAULT 0.00,
   total_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
   average_margin NUMERIC(6,2) NOT NULL DEFAULT 35.00,
+  global_markup_percent NUMERIC(6,2) DEFAULT 35.00,
   global_tax_percent NUMERIC(6,2) NOT NULL DEFAULT 6.00,
   global_shipping NUMERIC(10,2) NOT NULL DEFAULT 0.00,
   status TEXT NOT NULL DEFAULT 'draft',
+  recipient_emails TEXT[] DEFAULT ARRAY[]::TEXT[],
+  cc_emails TEXT[] DEFAULT ARRAY[]::TEXT[],
   sent_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migrações retroativas idempotentes para a tabela quotes:
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS recipient_emails TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS cc_emails TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS global_markup_percent NUMERIC(6,2) DEFAULT 35.00;
 
 -- ==============================================================================
 -- 7. TABELA: quote_items (Itens da Proposta com Imagem Proporcional 4cm)
@@ -445,8 +453,16 @@ BEGIN
     (p_quote->>'global_tax_percent')::NUMERIC,
     (p_quote->>'global_shipping')::NUMERIC,
     COALESCE(p_quote->>'status', 'draft'),
-    p_quote->>'recipient_emails',
-    p_quote->>'cc_emails',
+    CASE 
+      WHEN jsonb_typeof(p_quote->'recipient_emails') = 'array' 
+      THEN (SELECT COALESCE(array_agg(x), ARRAY[]::TEXT[]) FROM jsonb_array_elements_text(p_quote->'recipient_emails') t(x))
+      ELSE ARRAY[]::TEXT[]
+    END,
+    CASE 
+      WHEN jsonb_typeof(p_quote->'cc_emails') = 'array' 
+      THEN (SELECT COALESCE(array_agg(x), ARRAY[]::TEXT[]) FROM jsonb_array_elements_text(p_quote->'cc_emails') t(x))
+      ELSE ARRAY[]::TEXT[]
+    END,
     CASE WHEN p_quote->>'sent_at' IS NOT NULL THEN (p_quote->>'sent_at')::TIMESTAMPTZ ELSE NULL END,
     NOW()
   )
@@ -501,6 +517,7 @@ BEGIN
       markup_percent,
       unit_price,
       total_price,
+      supplier,
       part_number,
       ncm,
       image_url,
@@ -522,6 +539,7 @@ BEGIN
       COALESCE((item->>'markup_percent')::NUMERIC, 0),
       COALESCE((item->>'unit_price')::NUMERIC, 0),
       COALESCE((item->>'total_price')::NUMERIC, 0),
+      item->>'supplier',
       item->>'part_number',
       item->>'ncm',
       item->>'image_url',

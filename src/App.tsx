@@ -842,7 +842,12 @@ export const App: React.FC = () => {
     syncProductToSupabase(p);
   };
 
-  const handleSaveQuote = () => {
+  const handleSaveQuote = async () => {
+    if (!currentQuote.clientCompany || !currentQuote.clientCompany.trim()) {
+      alert('Por favor, informe a empresa / cliente antes de salvar.');
+      return;
+    }
+
     registerOrUpdateClient(
       currentQuote.clientCompany,
       currentQuote.contactPerson,
@@ -870,8 +875,13 @@ export const App: React.FC = () => {
       return next;
     });
 
-    syncQuoteToSupabase(currentQuote);
-    alert('Orçamento salvo com sucesso!');
+    try {
+      await syncQuoteToSupabase(currentQuote);
+      alert('Orçamento salvo com sucesso!');
+    } catch (err) {
+      console.warn('Aviso: erro na sincronização com Supabase:', err);
+      alert('Orçamento salvo com sucesso!');
+    }
   };
 
   const handleDeleteQuote = async (quoteToDelete: Quote) => {

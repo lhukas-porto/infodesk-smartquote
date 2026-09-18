@@ -1205,9 +1205,9 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                                   ? `R$ ${(prod.costPrice * 1.35).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                   : 'Sob Consulta')}
                             </span>
-                            {prod.costPrice && prod.costPrice > 0 && (
+                            {Boolean(prod.costPrice && prod.costPrice > 0) && (
                               <span className="text-xs text-slate-400 font-medium">
-                                (Custo aprox: R$ {prod.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                (Custo aprox: R$ {prod.costPrice!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                               </span>
                             )}
                           </div>

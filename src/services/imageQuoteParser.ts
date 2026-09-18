@@ -463,7 +463,7 @@ export async function extractDataFromQuotationImage(
   imageSource: string | File,
   onProgress?: (percent: number, message: string) => void
 ): Promise<ExtractedImageQuoteData> {
-  const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('infodesk_gemini_api_key') || '').trim();
+  const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('infodesk_gemini_api_key') || localStorage.getItem('gemini_api_key') || '').trim();
 
   // ─── 1. Tentar Gemini Vision se a chave estiver configurada ─────────────────
   if (geminiKey) {
