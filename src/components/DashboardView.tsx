@@ -305,11 +305,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Filtros de Período & Badge Contador Rápido */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-wrap">
+        {/* Filtros de Período & Badge Contador Rápido (Justificados à Direita) */}
+        <div className="flex flex-col items-end gap-2 ml-auto shrink-0 w-full sm:w-auto">
           
           {/* Badge Contador Rápido no Header */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50/80 border border-sky-200/90 rounded-xl text-sky-950 shadow-2xs">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50/80 border border-sky-200/90 rounded-xl text-sky-950 shadow-2xs self-end">
             <FileText className="w-4 h-4 text-sky-600 shrink-0" />
             <span className="text-xs font-medium text-slate-600">No período:</span>
             <span className="font-mono font-bold text-sky-800 text-sm bg-white px-2 py-0.5 rounded-lg border border-sky-100 shadow-2xs">
@@ -318,7 +318,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Botões de Seleção de Período */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-0.5 overflow-x-auto max-w-full">
+          <div className="flex items-center justify-end bg-slate-100 p-1 rounded-xl border border-slate-200 gap-0.5 overflow-x-auto max-w-full self-end">
             <button
               type="button"
               onClick={() => setPeriod('today')}
@@ -390,7 +390,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Barra de Filtro Customizado de Datas (aparece quando selecionado 'Datas') */}
       {period === 'custom' && (
-        <div className="bg-sky-50/60 border border-sky-200/80 p-3 rounded-2xl flex flex-wrap items-center gap-3 text-xs animate-fadeIn">
+        <div className="bg-sky-50/60 border border-sky-200/80 p-3 rounded-2xl flex flex-wrap items-center justify-end gap-3 text-xs animate-fadeIn ml-auto w-fit">
           <div className="flex items-center gap-1.5 font-semibold text-sky-900">
             <Filter className="w-3.5 h-3.5 text-sky-600" />
             <span>Intervalo Personalizado:</span>
