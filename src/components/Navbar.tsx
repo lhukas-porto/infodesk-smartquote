@@ -7,7 +7,8 @@ import {
   Settings, 
   Users,
   History,
-  BarChart3
+  BarChart3,
+  Clock
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 
@@ -22,6 +23,8 @@ interface NavbarProps {
   onNewQuote?: () => void;
   analysesCount?: number;
   isScannerOpen?: boolean;
+  draftsCount?: number;
+  onOpenDraftsHistory?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,7 +37,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   settings,
   onNewQuote,
   analysesCount = 0,
-  isScannerOpen = false
+  isScannerOpen = false,
+  draftsCount = 0,
+  onOpenDraftsHistory
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 shadow-xs">
@@ -192,6 +197,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Users className="w-3.5 h-3.5" />
               <span>Empresas</span>
             </button>
+
+            {draftsCount > 0 && (
+              <button
+                type="button"
+                onClick={onOpenDraftsHistory}
+                className="group relative flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white rounded-xl shadow-xs hover:shadow-md transition-all duration-200 border border-amber-300/50 text-xs font-bold cursor-pointer shrink-0 animate-in fade-in"
+                title={`Existe${draftsCount > 1 ? 'm' : ''} ${draftsCount} orçamento${draftsCount > 1 ? 's' : ''} em rascunho pendente${draftsCount > 1 ? 's' : ''}. Clique para abrir o histórico filtrado.`}
+              >
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-200 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                </span>
+                <Clock className="w-3.5 h-3.5 text-amber-100 shrink-0" />
+                <span className="whitespace-nowrap font-mono tracking-tight text-white drop-shadow-2xs">
+                  {draftsCount} {draftsCount === 1 ? 'Rascunho' : 'Rascunhos'}
+                </span>
+              </button>
+            )}
 
             <button
               onClick={openSettings}

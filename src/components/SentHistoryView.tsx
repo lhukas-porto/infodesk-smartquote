@@ -37,6 +37,8 @@ interface SentHistoryViewProps {
   onEditQuote?: (quote: Quote) => void | Promise<void>;
   onDeleteQuote?: (quote: Quote) => void;
   onUpdateQuoteStatus?: (quoteId: string, newStatus: Quote['status']) => void;
+  initialStageFilter?: StageId | 'all';
+  onStageFilterChange?: (stage: StageId | 'all') => void;
 }
 
 type StageId = 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost';
@@ -102,7 +104,9 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   onOpenQuote,
   onEditQuote,
   onDeleteQuote,
-  onUpdateQuoteStatus
+  onUpdateQuoteStatus,
+  initialStageFilter = 'all',
+  onStageFilterChange
 }) => {
   const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('today');
   const [specificDate, setSpecificDate] = useState<string>(() => {
@@ -115,11 +119,22 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
 
-  const [selectedStageFilter, setSelectedStageFilter] = useState<StageId | 'all'>('all');
+  const [selectedStageFilter, setSelectedStageFilter] = useState<StageId | 'all'>(initialStageFilter);
   const [searchTerm, setSearchTerm] = useState('');
   const [onlyFollowUpDue, setOnlyFollowUpDue] = useState(false);
   const [sortBy, setSortBy] = useState<'recent' | 'amount_desc' | 'amount_asc'>('recent');
   const [quoteToDelete, setQuoteToDelete] = useState<Quote | null>(null);
+
+  React.useEffect(() => {
+    if (initialStageFilter !== undefined) {
+      setSelectedStageFilter(initialStageFilter);
+    }
+  }, [initialStageFilter]);
+
+  const handleSelectStage = (stage: StageId | 'all') => {
+    setSelectedStageFilter(stage);
+    onStageFilterChange?.(stage);
+  };
 
   // Helper para comparar se dois timestamps pertencem ao mesmo dia civil
   const isSameDay = (t1: number, t2: number): boolean => {
@@ -180,12 +195,18 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
 
   // 1. Filtra as cotações por DATA / PERÍODO (Padrão: Hoje / Dia Corrente)
   const dateFilteredQuotes = useMemo(() => {
+    // Se o estágio selecionado for especificamente 'draft', exibe todos os rascunhos para gestão completa
+    if (selectedStageFilter === 'draft') {
+      return quotes.filter(q => normalizeStatus(q) === 'draft');
+    }
+
     if (dateFilter === 'all') return quotes;
     const now = new Date();
 
     if (dateFilter === 'today') {
       const todayMs = now.getTime();
-      return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), todayMs));
+      // Sempre traz para o dia atual os orçamentos que estão no status rascunho
+      return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), todayMs) || normalizeStatus(q) === 'draft');
     }
 
     if (dateFilter === 'yesterday') {
@@ -228,7 +249,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     }
 
     return quotes;
-  }, [quotes, dateFilter, specificDate, customStartDate, customEndDate]);
+  }, [quotes, dateFilter, specificDate, customStartDate, customEndDate, selectedStageFilter]);
 
   // 2. Totais e métricas por estágio calculados sobre o período ativo
   const stageStats = useMemo(() => {
@@ -295,7 +316,14 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
       .sort((a, b) => {
         if (sortBy === 'amount_desc') return (b.totalAmount || 0) - (a.totalAmount || 0);
         if (sortBy === 'amount_asc') return (a.totalAmount || 0) - (b.totalAmount || 0);
-        return 0; // Ordem cronológica original
+
+        // No modo cronológico recente, prioriza rascunhos em aberto no topo para visibilidade imediata
+        const aDraft = normalizeStatus(a) === 'draft';
+        const bDraft = normalizeStatus(b) === 'draft';
+        if (aDraft && !bDraft) return -1;
+        if (!aDraft && bDraft) return 1;
+
+        return parseQuoteTimestamp(b) - parseQuoteTimestamp(a);
       });
   }, [dateFilteredQuotes, selectedStageFilter, onlyFollowUpDue, searchTerm, sortBy]);
 
@@ -349,7 +377,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
               key={card.id}
               type="button"
               onClick={() => {
-                setSelectedStageFilter(card.id as any);
+                handleSelectStage(card.id as any);
                 setOnlyFollowUpDue(false);
               }}
               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
@@ -666,6 +694,15 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                     <span className="text-[11px] text-slate-400 font-medium">
                       {q.date}
                     </span>
+                    {currentStage === 'draft' && (
+                      <span 
+                        className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1"
+                        title="Orçamento em rascunho (pendente de envio)"
+                      >
+                        <Clock className="w-2.5 h-2.5 text-amber-600" />
+                        Rascunho
+                      </span>
+                    )}
                     {isDue && (
                       <span 
                         className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1 animate-pulse"

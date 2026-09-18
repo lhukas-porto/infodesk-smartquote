@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Navbar } from './components/Navbar';
 import { InboxView } from './components/InboxView';
 import { QuoteBuilder } from './components/QuoteBuilder';
@@ -108,6 +108,11 @@ export const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(getProducts());
   const [emails, setEmails] = useState<IncomingEmail[]>(getEmails());
   const [quotes, setQuotes] = useState<Quote[]>(getQuotes());
+  const [historyStageFilter, setHistoryStageFilter] = useState<'all' | 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost'>('all');
+
+  const draftQuotesCount = useMemo(() => {
+    return quotes.filter(q => (q.status || 'draft') === 'draft').length;
+  }, [quotes]);
 
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('infodesk_scanner_panel_open');
@@ -1352,6 +1357,11 @@ export const App: React.FC = () => {
         settings={settings}
         onNewQuote={handleNewQuote}
         analysesCount={manualAnalyses.length}
+        draftsCount={draftQuotesCount}
+        onOpenDraftsHistory={() => {
+          setHistoryStageFilter('draft');
+          setActiveTab('history');
+        }}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -1483,6 +1493,8 @@ export const App: React.FC = () => {
         {activeTab === 'history' && (
           <SentHistoryView
             quotes={quotes}
+            initialStageFilter={historyStageFilter}
+            onStageFilterChange={setHistoryStageFilter}
             onOpenQuote={async (q) => {
               const matched = quotes.find(item => item.id === q.id || item.code === q.code);
               const itemsToUse = await resolveQuoteItems(q, quotes);

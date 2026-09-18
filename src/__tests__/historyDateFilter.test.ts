@@ -32,7 +32,8 @@ function filterQuotesByDate(
 
   if (filter === 'today') {
     const todayMs = now.getTime();
-    return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), todayMs));
+    // Sempre traz para o dia atual os orçamentos que estão no status rascunho
+    return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), todayMs) || q.status === 'draft');
   }
 
   if (filter === 'yesterday') {
@@ -123,12 +124,12 @@ const mockQuotes: Quote[] = [
   } as any
 ];
 
-// Teste 1: Padrão é 'today'
+// Teste 1: Padrão é 'today' (Sempre traz para o dia atual os orçamentos que estão no status rascunho)
 const todayQuotes = filterQuotesByDate(mockQuotes, 'today');
-if (todayQuotes.length !== 1 || todayQuotes[0].id !== 'q1') {
-  throw new Error(`Falha no filtro padrão 'today'. Esperado 1 item (q1), recebido: ${todayQuotes.length}`);
+if (todayQuotes.length !== 2 || !todayQuotes.some(q => q.id === 'q1') || !todayQuotes.some(q => q.id === 'q3')) {
+  throw new Error(`Falha no filtro padrão 'today'. Esperado 2 itens (q1 de hoje e q3 rascunho antigo), recebido: ${todayQuotes.length}`);
 }
-console.log('✅ Teste 1: Filtro padrão "Hoje" retornou com precisão apenas as cotações do dia corrente.');
+console.log('✅ Teste 1: Filtro padrão "Hoje" retornou cotações de hoje E trouxe automaticamente o rascunho antigo q3.');
 
 // Teste 2: Filtro 'yesterday'
 const yesterdayQuotes = filterQuotesByDate(mockQuotes, 'yesterday');
