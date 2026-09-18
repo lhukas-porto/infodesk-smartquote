@@ -315,7 +315,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     const topSuppliers = Object.values(supplierMap)
       .sort((a, b) => b.totalAmount - a.totalAmount)
-      .slice(0, 8);
+      .slice(0, 5);
 
     return {
       totalQuotes,
@@ -641,7 +641,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
             <h2 className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-sky-600" />
-              <span>Top Clientes por Volume</span>
+              <span>Top 5 Clientes por Volume</span>
             </h2>
 
             {stats.topClients.length === 0 ? (
@@ -667,7 +667,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
             <h2 className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
               <Store className="w-4 h-4 text-emerald-600" />
-              <span>Top Fornecedores em Custo</span>
+              <span>Top 5 Fornecedores em Custo</span>
             </h2>
 
             {stats.topSuppliers.length === 0 ? (
