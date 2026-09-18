@@ -349,9 +349,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
                 Painel Executivo & BI de Propostas
               </h1>
-              <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
-                MEL-11
-              </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Indicadores de conversão, margem realizada, clientes mais recorrentes e fornecedores mais cotados.

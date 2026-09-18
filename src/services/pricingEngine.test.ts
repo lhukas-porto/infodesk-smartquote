@@ -12,7 +12,7 @@ function assert(condition: boolean, message: string) {
   }
 }
 
-console.log('🧪 Iniciando testes de precisão da PricingEngine (MEL-05)...');
+console.log('🧪 Iniciando testes de precisão da PricingEngine...');
 
 // Cenário 1: Item >= R$ 10 com centavos < 0,50 (arredonda para baixo em inteiro)
 // Custo 1000, Frete 0, Markup 20%, Imposto 10%

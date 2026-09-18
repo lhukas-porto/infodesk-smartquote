@@ -293,7 +293,6 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="sq-page-title text-base md:text-lg">Importador Universal de Listas</h2>
-                <span className="sq-badge-code">MEL-10 & MEL-13</span>
                 {detectedDistributor && detectedDistributor.id !== 'generic' && (
                   <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-md text-[11px] font-bold">
                     Tabela: {detectedDistributor.name}

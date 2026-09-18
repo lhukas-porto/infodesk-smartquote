@@ -2442,7 +2442,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               </span>
             </label>
             <div className="flex items-center gap-2.5">
-              {/* Botão de Importação Universal (MEL-10) */}
+              {/* Botão de Importação Universal */}
               <button
                 type="button"
                 onClick={() => setIsUniversalImportOpen(true)}
@@ -2453,13 +2453,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 <span>Importar Planilha / Excel</span>
               </button>
 
-              {/* Botão de Matriz Multi-Fornecedor & Split (MEL-06) */}
+              {/* Botão de Matriz Multi-Fornecedor & Split */}
               {currentQuote.items && currentQuote.items.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setIsSupplierMatrixOpen(true)}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/90 shadow-2xs cursor-pointer active:scale-95"
-                  title="Abrir matriz comparativa de fornecedores e simular cesta mais barata (MEL-06)"
+                  title="Abrir matriz comparativa de fornecedores e simular cesta mais barata"
                 >
                   <Layers className="w-3.5 h-3.5 text-sky-600" />
                   <span>Matriz Fornecedores & Split</span>

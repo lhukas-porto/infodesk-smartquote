@@ -313,9 +313,6 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
               <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
                 Histórico Comercial
               </h1>
-              <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
-                MEL-08
-              </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Gerencie cada proposta na régua de estágios, acompanhe valores em negociação e controle os prazos de follow-up.

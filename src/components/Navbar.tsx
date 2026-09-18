@@ -155,7 +155,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
-              title="Painel Executivo & Indicadores BI (MEL-11)"
+              title="Painel Executivo & Indicadores BI"
             >
               <BarChart3 className="w-3.5 h-3.5 text-sky-600" />
               <span>Painel BI</span>
