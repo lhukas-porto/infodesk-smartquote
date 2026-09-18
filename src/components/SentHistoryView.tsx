@@ -21,12 +21,15 @@ import {
   Sparkles,
   ArrowUpDown,
   Building2,
-  User,
-  Mail,
-  Package
+  User, 
+  Mail, 
+  Package,
+  Calendar,
+  CalendarDays
 } from 'lucide-react';
 import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
+import { parseQuoteTimestamp } from './DashboardView';
 
 interface SentHistoryViewProps {
   quotes: Quote[];
@@ -92,6 +95,8 @@ const PIPELINE_STAGES: StageStep[] = [
   }
 ];
 
+export type HistoryDateFilter = 'today' | 'yesterday' | '7days' | 'thisMonth' | 'all' | 'specificDate' | 'customRange';
+
 export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   quotes,
   onOpenQuote,
@@ -99,11 +104,60 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   onDeleteQuote,
   onUpdateQuoteStatus
 }) => {
+  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('today');
+  const [specificDate, setSpecificDate] = useState<string>(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+
   const [selectedStageFilter, setSelectedStageFilter] = useState<StageId | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [onlyFollowUpDue, setOnlyFollowUpDue] = useState(false);
   const [sortBy, setSortBy] = useState<'recent' | 'amount_desc' | 'amount_asc'>('recent');
   const [quoteToDelete, setQuoteToDelete] = useState<Quote | null>(null);
+
+  // Helper para comparar se dois timestamps pertencem ao mesmo dia civil
+  const isSameDay = (t1: number, t2: number): boolean => {
+    const d1 = new Date(t1);
+    const d2 = new Date(t2);
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  };
+
+  const formatDateBR = (isoDate: string): string => {
+    if (!isoDate) return '';
+    const parts = isoDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return isoDate;
+  };
+
+  const getDateFilterLabel = (filter: HistoryDateFilter): string => {
+    switch (filter) {
+      case 'today': return 'Hoje (Dia Corrente)';
+      case 'yesterday': return 'Ontem';
+      case '7days': return 'Últimos 7 dias';
+      case 'thisMonth': return 'Este Mês';
+      case 'all': return 'Todo o Histórico';
+      case 'specificDate': return specificDate ? `Dia ${formatDateBR(specificDate)}` : 'Por Dia';
+      case 'customRange': 
+        if (customStartDate && customEndDate) {
+          return `${formatDateBR(customStartDate)} até ${formatDateBR(customEndDate)}`;
+        }
+        return 'Período Personalizado';
+      default:
+        return 'Hoje';
+    }
+  };
 
   // Normaliza o status do quote
   const normalizeStatus = (q: Quote): StageId => {
@@ -119,29 +173,67 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     const status = normalizeStatus(q);
     if (status !== 'sent' && status !== 'negotiating') return false;
 
-    const dateStr = q.sentAt || q.createdAt || q.date;
-    if (!dateStr) return false;
-
-    let timestamp = Date.now();
-    if (dateStr.includes('/')) {
-      const parts = dateStr.split('/');
-      if (parts.length === 3) {
-        const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-        if (!isNaN(d.getTime())) timestamp = d.getTime();
-      }
-    } else {
-      const d = new Date(dateStr);
-      if (!isNaN(d.getTime())) timestamp = d.getTime();
-    }
-
+    const timestamp = parseQuoteTimestamp(q);
     const diffHours = (Date.now() - timestamp) / (1000 * 60 * 60);
     return diffHours >= 48;
   };
 
-  // Totais e métricas por estágio
+  // 1. Filtra as cotações por DATA / PERÍODO (Padrão: Hoje / Dia Corrente)
+  const dateFilteredQuotes = useMemo(() => {
+    if (dateFilter === 'all') return quotes;
+    const now = new Date();
+
+    if (dateFilter === 'today') {
+      const todayMs = now.getTime();
+      return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), todayMs));
+    }
+
+    if (dateFilter === 'yesterday') {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const yMs = y.getTime();
+      return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), yMs));
+    }
+
+    if (dateFilter === '7days') {
+      const past7d = now.getTime() - (7 * 24 * 60 * 60 * 1000);
+      return quotes.filter(q => parseQuoteTimestamp(q) >= past7d);
+    }
+
+    if (dateFilter === 'thisMonth') {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+      return quotes.filter(q => parseQuoteTimestamp(q) >= startOfMonth);
+    }
+
+    if (dateFilter === 'specificDate') {
+      if (!specificDate) return quotes;
+      const parts = specificDate.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        const targetTime = new Date(y, m, d, 12, 0, 0).getTime();
+        return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), targetTime));
+      }
+      return quotes;
+    }
+
+    if (dateFilter === 'customRange') {
+      const startMs = customStartDate ? new Date(`${customStartDate}T00:00:00`).getTime() : 0;
+      const endMs = customEndDate ? new Date(`${customEndDate}T23:59:59`).getTime() : Number.MAX_SAFE_INTEGER;
+      return quotes.filter(q => {
+        const t = parseQuoteTimestamp(q);
+        return t >= startMs && t <= endMs;
+      });
+    }
+
+    return quotes;
+  }, [quotes, dateFilter, specificDate, customStartDate, customEndDate]);
+
+  // 2. Totais e métricas por estágio calculados sobre o período ativo
   const stageStats = useMemo(() => {
     const stats: Record<StageId | 'all', { count: number; totalAmount: number }> = {
-      all: { count: quotes.length, totalAmount: 0 },
+      all: { count: dateFilteredQuotes.length, totalAmount: 0 },
       draft: { count: 0, totalAmount: 0 },
       sent: { count: 0, totalAmount: 0 },
       negotiating: { count: 0, totalAmount: 0 },
@@ -149,7 +241,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
       lost: { count: 0, totalAmount: 0 },
     };
 
-    quotes.forEach(q => {
+    dateFilteredQuotes.forEach(q => {
       const amt = q.totalAmount || 0;
       stats.all.totalAmount += amt;
       const st = normalizeStatus(q);
@@ -158,15 +250,15 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     });
 
     return stats;
-  }, [quotes]);
+  }, [dateFilteredQuotes]);
 
   const followUpRequiredQuotes = useMemo(() => {
-    return quotes.filter(isFollowUpDue);
-  }, [quotes]);
+    return dateFilteredQuotes.filter(isFollowUpDue);
+  }, [dateFilteredQuotes]);
 
-  // Lista filtrada e ordenada
+  // 3. Lista final filtrada por estágio, busca textual e ordenada
   const filteredQuotes = useMemo(() => {
-    return quotes
+    return dateFilteredQuotes
       .filter(q => {
         const norm = normalizeStatus(q);
         if (selectedStageFilter !== 'all' && norm !== selectedStageFilter) return false;
@@ -205,7 +297,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
         if (sortBy === 'amount_asc') return (a.totalAmount || 0) - (b.totalAmount || 0);
         return 0; // Ordem cronológica original
       });
-  }, [quotes, selectedStageFilter, onlyFollowUpDue, searchTerm, sortBy]);
+  }, [dateFilteredQuotes, selectedStageFilter, onlyFollowUpDue, searchTerm, sortBy]);
 
   return (
     <div className="space-y-5 animate-fadeIn">
@@ -323,6 +415,171 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
         </div>
       )}
 
+      {/* Barra de Filtro de Datas & Períodos (Padrão: Hoje / Dia Corrente) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        
+        {/* Esquerda: Contador de cotações no período selecionado */}
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-sky-50 text-sky-600 rounded-xl border border-sky-100 shrink-0">
+            <Calendar className="w-4 h-4 text-sky-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-800">
+                Período:
+              </span>
+              <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-lg text-[11px] font-mono font-bold">
+                {getDateFilterLabel(dateFilter)}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 font-medium">
+              {dateFilteredQuotes.length} {dateFilteredQuotes.length === 1 ? 'proposta no período' : 'propostas no período'}
+            </span>
+          </div>
+        </div>
+
+        {/* Direita: Seletores Rápidos de Período & Busca por Dia / Intervalo */}
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-wrap">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-0.5 overflow-x-auto max-w-full">
+            <button
+              type="button"
+              onClick={() => setDateFilter('today')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+                dateFilter === 'today' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Exibir cotações de hoje (Padrão)"
+            >
+              Hoje
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter('yesterday')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+                dateFilter === 'yesterday' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Exibir cotações de ontem"
+            >
+              Ontem
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter('7days')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+                dateFilter === '7days' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Últimos 7 dias"
+            >
+              7 dias
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter('thisMonth')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+                dateFilter === 'thisMonth' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Cotações deste mês"
+            >
+              Este Mês
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter('all')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+                dateFilter === 'all' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Todo o histórico de cotações"
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter('specificDate')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 flex items-center gap-1 ${
+                dateFilter === 'specificDate' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Filtrar por dia específico"
+            >
+              <Calendar className="w-3.5 h-3.5 text-sky-600" />
+              <span>Por Dia</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilter('customRange')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 flex items-center gap-1 ${
+                dateFilter === 'customRange' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Filtrar por intervalo de datas"
+            >
+              <CalendarDays className="w-3.5 h-3.5 text-sky-600" />
+              <span>Período</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Se dateFilter === 'specificDate', mostra o campo para escolher o dia */}
+      {dateFilter === 'specificDate' && (
+        <div className="bg-sky-50/60 border border-sky-200/80 p-3 rounded-2xl flex flex-wrap items-center justify-end gap-3 text-xs animate-fadeIn ml-auto w-fit">
+          <div className="flex items-center gap-1.5 font-semibold text-sky-900">
+            <Calendar className="w-3.5 h-3.5 text-sky-600" />
+            <span>Selecionar Dia:</span>
+          </div>
+          <input
+            type="date"
+            value={specificDate}
+            onChange={(e) => setSpecificDate(e.target.value)}
+            className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-xs font-mono"
+          />
+          {specificDate && (
+            <button
+              type="button"
+              onClick={() => setDateFilter('today')}
+              className="text-xs font-bold text-sky-700 hover:text-sky-900 underline cursor-pointer"
+            >
+              Voltar para Hoje
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Se dateFilter === 'customRange', mostra os campos De / Até */}
+      {dateFilter === 'customRange' && (
+        <div className="bg-sky-50/60 border border-sky-200/80 p-3 rounded-2xl flex flex-wrap items-center justify-end gap-3 text-xs animate-fadeIn ml-auto w-fit">
+          <div className="flex items-center gap-1.5 font-semibold text-sky-900">
+            <Filter className="w-3.5 h-3.5 text-sky-600" />
+            <span>Período Personalizado:</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-slate-600 font-medium">De:</label>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-xs font-mono"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-slate-600 font-medium">Até:</label>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-xs font-mono"
+            />
+          </div>
+          {(customStartDate || customEndDate) && (
+            <button
+              type="button"
+              onClick={() => { setCustomStartDate(''); setCustomEndDate(''); }}
+              className="text-xs font-bold text-sky-700 hover:text-sky-900 underline cursor-pointer"
+            >
+              Limpar datas
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Barra de Busca e Ordenação */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative flex-1 w-full">
@@ -372,9 +629,23 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             {searchTerm || selectedStageFilter !== 'all' || onlyFollowUpDue
-              ? 'Nenhum orçamento corresponde aos filtros selecionados. Tente limpar a busca ou selecionar outro estágio.'
-              : 'Ao salvar orçamentos no SmartQuote, suas propostas comerciais aparecerão aqui.'}
+              ? 'Nenhum orçamento corresponde aos filtros de busca ou estágio selecionados.'
+              : dateFilter === 'today'
+                ? 'Nenhum orçamento emitido no dia de hoje até o momento.'
+                : `Nenhum orçamento encontrado para o filtro (${getDateFilterLabel(dateFilter)}).`}
           </p>
+          {dateFilter !== 'all' && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setDateFilter('all')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl transition cursor-pointer"
+              >
+                <Calendar className="w-3.5 h-3.5 text-sky-600" />
+                Ver Todo o Histórico
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
