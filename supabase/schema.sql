@@ -41,12 +41,16 @@ CREATE TABLE IF NOT EXISTS company_settings (
 CREATE TABLE IF NOT EXISTS client_companies (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  prefix TEXT DEFAULT 'À',
   default_delivery_location TEXT DEFAULT 'Brasília',
   locations TEXT[] NOT NULL DEFAULT ARRAY['Brasília'],
   last_used TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migração retroativa idempotente:
+ALTER TABLE client_companies ADD COLUMN IF NOT EXISTS prefix TEXT DEFAULT 'À';
 
 -- ==============================================================================
 -- 4. TABELA: client_contacts (Compradores e Contatos das Empresas)
@@ -58,19 +62,21 @@ CREATE TABLE IF NOT EXISTS client_contacts (
   title TEXT DEFAULT 'Sr.',
   email TEXT,
   phone TEXT,
-  role TEXT DEFAULT 'Comprador',
   location TEXT,
   last_used TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Remoção retroativa do campo role / cargo:
+ALTER TABLE client_contacts DROP COLUMN IF EXISTS role;
+
 -- ==============================================================================
 -- 5. TABELA: products (Catálogo de Produtos com Part Number e NCM)
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  sku TEXT NOT NULL,
+  sku TEXT NOT NULL UNIQUE,
   part_number TEXT,
   ncm TEXT,
   name TEXT NOT NULL,
@@ -85,6 +91,18 @@ CREATE TABLE IF NOT EXISTS products (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Garantir constraint UNIQUE no campo sku caso a tabela já existisse sem ela
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'products_sku_key'
+  ) THEN
+    ALTER TABLE products ADD CONSTRAINT products_sku_key UNIQUE (sku);
+  END IF;
+EXCEPTION
+  WHEN others THEN NULL;
+END $$;
 
 -- ==============================================================================
 -- 6. TABELA: quotes (Propostas Comerciais / Orçamentos)

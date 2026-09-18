@@ -70,7 +70,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   const [contactTitle, setContactTitle] = useState<'Sr.' | 'Srta.' | 'Sra.' | 'Dr.' | 'Dra.'>('Sr.');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
-  const [contactRole, setContactRole] = useState('Comprador');
   const [contactCompanyId, setContactCompanyId] = useState<string>('');
 
   // Edit Contact state
@@ -80,7 +79,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   const [editContactTitle, setEditContactTitle] = useState<'Sr.' | 'Srta.' | 'Sra.' | 'Dr.' | 'Dra.'>('Sr.');
   const [editContactEmail, setEditContactEmail] = useState('');
   const [editContactPhone, setEditContactPhone] = useState('');
-  const [editContactRole, setEditContactRole] = useState('Comprador');
   const [editContactTargetCompanyId, setEditContactTargetCompanyId] = useState<string>('');
 
   // Location adding
@@ -106,18 +104,17 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   // Filtered companies
   const filteredCompanies = useMemo(() => {
     const q = searchFilter.toLowerCase().trim();
-    if (!q) return companies;
-    return companies.filter(c =>
+    const base = !q ? companies : companies.filter(c =>
       c.name.toLowerCase().includes(q) ||
       (c.defaultDeliveryLocation && c.defaultDeliveryLocation.toLowerCase().includes(q)) ||
       (Array.isArray(c.locations) && c.locations.some(l => l.toLowerCase().includes(q))) ||
       c.contacts.some(ct =>
         ct.name.toLowerCase().includes(q) ||
         ct.email.toLowerCase().includes(q) ||
-        (ct.phone && ct.phone.includes(q)) ||
-        (ct.role && ct.role.toLowerCase().includes(q))
+        (ct.phone && ct.phone.includes(q))
       )
     );
+    return base.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
   }, [companies, searchFilter]);
 
   // All buyers
@@ -229,7 +226,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     setContactName('');
     setContactEmail('');
     setContactPhone('');
-    setContactRole('Comprador');
     setContactTitle('Sr.');
     setContactCompanyId(targetCompanyId || selectedCompany?.id || companies[0]?.id || '');
     setIsAddingContact(true);
@@ -244,7 +240,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       title: contactTitle,
       email: contactEmail.toLowerCase().trim(),
       phone: maskPhone(contactPhone.trim()),
-      role: contactRole.trim() || 'Comprador',
       lastUsed: new Date().toISOString()
     };
     onSaveCompanies(companies.map(c => c.id === contactCompanyId ? { ...c, contacts: [...c.contacts, newContact] } : c));
@@ -259,7 +254,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     setEditContactTitle((contact.title as any) || 'Sr.');
     setEditContactEmail(contact.email || '');
     setEditContactPhone(contact.phone || '');
-    setEditContactRole(contact.role || 'Comprador');
     setEditContactTargetCompanyId(compId);
   };
 
@@ -272,8 +266,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       name: editContactName.trim(),
       title: editContactTitle,
       email: editContactEmail.toLowerCase().trim(),
-      phone: maskPhone(editContactPhone.trim()),
-      role: editContactRole.trim() || 'Comprador'
+      phone: maskPhone(editContactPhone.trim())
     };
     let updated: ClientCompany[];
     if (isTransferring) {
@@ -635,12 +628,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     <div>
                       <label className="block text-[11px] font-bold text-sky-800 mb-1 flex items-center gap-1"><Building className="w-3.5 h-3.5 text-sky-600" /><span>Empresa Vinculada</span></label>
                       <select value={editContactTargetCompanyId} onChange={(e) => setEditContactTargetCompanyId(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border-2 border-sky-300 rounded-lg font-bold text-sky-900 focus:outline-none focus:border-sky-600 shadow-sm cursor-pointer">
-                        {companies.map(c => <option key={c.id} value={c.id}>{c.name}{c.id === editingContactCompanyId ? ' (Atual)' : ''}</option>)}
+                        {companies.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })).map(c => <option key={c.id} value={c.id}>{c.name}{c.id === editingContactCompanyId ? ' (Atual)' : ''}</option>)}
                       </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Cargo / Função</label>
-                      <input type="text" value={editContactRole} onChange={(e) => setEditContactRole(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-amber-500 text-slate-900" />
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">E-mail</label>
@@ -680,12 +669,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     <div>
                       <label className="block text-[11px] font-bold text-sky-800 mb-1 flex items-center gap-1"><Building className="w-3.5 h-3.5 text-sky-600" /><span>Pertence à Empresa</span></label>
                       <select value={contactCompanyId} onChange={(e) => setContactCompanyId(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 focus:outline-none focus:border-sky-500 cursor-pointer">
-                        {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {companies.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Cargo</label>
-                      <input type="text" placeholder="Ex: Comprador / Suprimentos" value={contactRole} onChange={(e) => setContactRole(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" />
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">E-mail</label>
@@ -710,12 +695,14 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   <span>Compradores da {selectedCompany.name.split('—')[0].split('-')[0].trim()} ({selectedCompany.contacts.length})</span>
                 </h4>
                 <div className="grid grid-cols-1 gap-2.5">
-                  {selectedCompany.contacts.map((contact) => (
+                  {(selectedCompany.contacts || [])
+                    .slice()
+                    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }))
+                    .map((contact) => (
                     <div key={contact.id} className="p-3.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl shadow-sm hover:border-sky-300 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 group">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-slate-900">{contact.title || ''} {contact.name}</span>
-                          {contact.role && <span className="text-[10px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">{contact.role}</span>}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
                           {contact.email && <span className="flex items-center gap-1 text-sky-700"><Mail className="w-3 h-3 text-slate-400" />{contact.email}</span>}

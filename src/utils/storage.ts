@@ -1,4 +1,4 @@
-import { ClientCompany, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
+import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
 
 const SETTINGS_KEY = 'infodesk_settings';
@@ -405,8 +405,32 @@ export const saveQuotes = (quotes: Quote[]): void => {
   }
 };
 
+const COMPANY_PREFIXES_KEY = 'infodesk_company_prefixes';
+
+export const getCompanyPrefixesMap = (): Record<string, 'À' | 'Ao'> => {
+  try {
+    const saved = localStorage.getItem(COMPANY_PREFIXES_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const saveCompanyPrefixPreference = (id: string, name: string, prefix: 'À' | 'Ao'): void => {
+  try {
+    const map = getCompanyPrefixesMap();
+    if (id) map[id] = prefix;
+    if (name) {
+      const clean = name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+      map[clean] = prefix;
+    }
+    localStorage.setItem(COMPANY_PREFIXES_KEY, JSON.stringify(map));
+  } catch { /* noop */ }
+};
+
 export const getClientCompanies = (): ClientCompany[] => {
   try {
+    const prefixMap = getCompanyPrefixesMap();
     const saved = localStorage.getItem(CLIENT_COMPANIES_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
@@ -431,32 +455,73 @@ export const getClientCompanies = (): ClientCompany[] => {
               c.defaultDeliveryLocation = 'Brasília';
             }
           }
+
+          const cleanName = (c.name || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+          const resolvedPrefix = c.prefix || prefixMap[c.id] || prefixMap[cleanName] || (c.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
+
+          const sortedContacts = (Array.isArray(c.contacts) ? c.contacts : [])
+            .slice()
+            .sort((a: ClientContact, b: ClientContact) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+
           return {
             ...c,
+            prefix: resolvedPrefix as 'À' | 'Ao',
             defaultDeliveryLocation: c.defaultDeliveryLocation || locs[0] || 'Brasília',
-            locations: locs
+            locations: locs,
+            contacts: sortedContacts
           };
-        });
+        }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
       }
     }
   } catch (e) {
     console.error(e);
   }
-  return initialClientCompanies;
+  return initialClientCompanies
+    .map(comp => ({
+      ...comp,
+      contacts: (comp.contacts || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }))
+    }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 };
 
 export const saveClientCompanies = (companies: ClientCompany[]): void => {
   try {
-    const normalized = companies.map(comp => ({
-      ...comp,
-      locations: Array.isArray(comp.locations) && comp.locations.length > 0
-        ? Array.from(new Set(comp.locations.filter(Boolean).map(l => l.trim())))
-        : (comp.defaultDeliveryLocation ? [comp.defaultDeliveryLocation] : ['Brasília - DF']),
-      contacts: (comp.contacts || []).map(ct => ({
-        ...ct,
-        email: (ct.email || '').toLowerCase().trim()
-      }))
-    }));
+    const prefixMap = getCompanyPrefixesMap();
+    companies.forEach(c => {
+      if (c.prefix) {
+        if (c.id) prefixMap[c.id] = c.prefix as 'À' | 'Ao';
+        if (c.name) {
+          const clean = c.name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+          prefixMap[clean] = c.prefix as 'À' | 'Ao';
+        }
+      }
+    });
+    try {
+      localStorage.setItem(COMPANY_PREFIXES_KEY, JSON.stringify(prefixMap));
+    } catch { /* noop */ }
+
+    const normalized = companies
+      .map(comp => {
+        const clean = (comp.name || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+        const pref = comp.prefix || prefixMap[comp.id] || prefixMap[clean] || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
+        const sortedContacts = (comp.contacts || [])
+          .map(ct => ({
+            ...ct,
+            email: (ct.email || '').toLowerCase().trim()
+          }))
+          .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+
+        return {
+          ...comp,
+          prefix: pref as 'À' | 'Ao',
+          locations: Array.isArray(comp.locations) && comp.locations.length > 0
+            ? Array.from(new Set(comp.locations.filter(Boolean).map(l => l.trim())))
+            : (comp.defaultDeliveryLocation ? [comp.defaultDeliveryLocation] : ['Brasília - DF']),
+          contacts: sortedContacts
+        };
+      })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+
     localStorage.setItem(CLIENT_COMPANIES_KEY, JSON.stringify(normalized));
   } catch (err) {
     console.warn('Erro ao salvar empresas no localStorage:', err);
@@ -486,20 +551,30 @@ export const registerOrUpdateClient = (
   const prefixMatch = companyName.trim().match(/^(ao|à)\s+/i);
   const detectedPrefix = prefixMatch ? (prefixMatch[1].toLowerCase() === 'ao' ? 'Ao' : 'À') : undefined;
 
+  const prefixMap = getCompanyPrefixesMap();
+  const cleanLower = cleanCompanyName.toLowerCase();
+
   if (!comp) {
+    const resolvedPrefix = detectedPrefix || prefixMap[cleanLower] || 'À';
     comp = {
       id: `comp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: cleanCompanyName,
-      prefix: detectedPrefix || 'À',
+      prefix: resolvedPrefix,
       defaultDeliveryLocation: loc || 'Brasília - DF',
       locations: loc ? [loc] : ['Brasília - DF'],
       contacts: [],
       lastUsed: new Date().toISOString()
     };
     companies.push(comp);
+    saveCompanyPrefixPreference(comp.id, comp.name, resolvedPrefix as 'À' | 'Ao');
   } else {
+    // Se explicitamente informado na digitação (ex: digitou "Ao Empresa"), atualiza;
+    // Se a empresa já tinha prefixo próprio configurado, preserva fielmente.
     if (detectedPrefix) {
       comp.prefix = detectedPrefix;
+      saveCompanyPrefixPreference(comp.id, comp.name, detectedPrefix as 'À' | 'Ao');
+    } else if (!comp.prefix) {
+      comp.prefix = prefixMap[comp.id] || prefixMap[cleanLower] || 'À';
     }
     comp.lastUsed = new Date().toISOString();
     comp.locations = Array.isArray(comp.locations) ? comp.locations : (comp.defaultDeliveryLocation ? [comp.defaultDeliveryLocation] : []);
@@ -530,7 +605,6 @@ export const registerOrUpdateClient = (
           name: cleanContact,
           email: (email || '').toLowerCase().trim(),
           phone: phone || '',
-          role: 'Comprador',
           location: loc || comp.defaultDeliveryLocation,
           lastUsed: new Date().toISOString()
         };

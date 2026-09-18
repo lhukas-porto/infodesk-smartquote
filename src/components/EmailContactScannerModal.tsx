@@ -7,7 +7,6 @@ import {
   Mail, 
   Phone, 
   MapPin, 
-  Briefcase, 
   Check, 
   X, 
   Save, 
@@ -483,23 +482,6 @@ export const EmailContactScannerModal: React.FC<EmailContactScannerModalProps> =
                             className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:outline-none focus:border-sky-500 disabled:bg-slate-100"
                           />
                         </div>
-
-                        {/* Cargo / Departamento */}
-                        <div>
-                          <label className="block text-[10.5px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                            <Briefcase className="w-3 h-3 text-slate-400" />
-                            <span>Cargo / Departamento</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={c.role}
-                            onChange={(e) => handleUpdateCandidateField(c.id, 'role', e.target.value)}
-                            placeholder="Ex: Comprador TI"
-                            disabled={isSaved}
-                            className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:outline-none focus:border-sky-500 disabled:bg-slate-100"
-                          />
-                        </div>
-
                       </div>
                     </div>
                   );

@@ -461,6 +461,7 @@ export const initialClientCompanies: ClientCompany[] = [
   {
     id: 'comp-ubec',
     name: 'Universidade Brasileira de Educação Católica - UBEC',
+    prefix: 'À',
     defaultDeliveryLocation: 'Brasília',
     locations: [
       'Brasília',
@@ -476,7 +477,6 @@ export const initialClientCompanies: ClientCompany[] = [
         title: 'Sr.',
         email: 'alex.vasconcellos@ubec.edu.br',
         phone: '(61) 3403-2944',
-        role: 'Comprador',
         location: 'Brasília',
         lastUsed: '2026-09-03T12:00:00Z'
       },
@@ -486,7 +486,6 @@ export const initialClientCompanies: ClientCompany[] = [
         title: 'Sr.',
         email: 'rafael.costa@ubec.edu.br',
         phone: '(61) 3403-2900',
-        role: 'Comprador',
         location: 'Coronel Fabriciano'
       }
     ]
@@ -494,6 +493,7 @@ export const initialClientCompanies: ClientCompany[] = [
   {
     id: 'comp-pauloctavio',
     name: 'Casa Shopping Paulo Octávio',
+    prefix: 'Ao',
     defaultDeliveryLocation: 'Brasília',
     locations: [
       'Brasília',
@@ -508,7 +508,6 @@ export const initialClientCompanies: ClientCompany[] = [
         title: 'Sr.',
         email: 'marcelo.mattos@casashoppingpauloctavio.com',
         phone: '(61) 3218-4000',
-        role: 'Comprador',
         location: 'Brasília',
         lastUsed: '2026-09-03T11:49:00Z'
       }
@@ -517,6 +516,7 @@ export const initialClientCompanies: ClientCompany[] = [
   {
     id: 'comp-cnc',
     name: 'CNC — Confederação Nacional do Comércio',
+    prefix: 'À',
     defaultDeliveryLocation: 'Brasília',
     locations: [
       'Brasília',
@@ -531,7 +531,6 @@ export const initialClientCompanies: ClientCompany[] = [
         title: 'Srta.',
         email: 'alexandraoliveira@cnc.org.br',
         phone: '(61) 3033-0000',
-        role: 'Compradora',
         location: 'Brasília',
         lastUsed: '2026-08-28T10:00:00Z'
       }
@@ -540,6 +539,7 @@ export const initialClientCompanies: ClientCompany[] = [
   {
     id: 'comp-inframerica',
     name: 'Inframerica Concessionária do Aeroporto de Brasília',
+    prefix: 'À',
     defaultDeliveryLocation: 'Brasília',
     locations: [
       'Brasília',
@@ -553,7 +553,6 @@ export const initialClientCompanies: ClientCompany[] = [
         title: 'Sr.',
         email: 'compras@inframerica.aero',
         phone: '(61) 3364-9000',
-        role: 'Comprador Sênior',
         location: 'Brasília'
       },
       {
@@ -562,7 +561,6 @@ export const initialClientCompanies: ClientCompany[] = [
         title: 'Srta.',
         email: 'mariana.duarte@inframerica.aero',
         phone: '(61) 3364-9015',
-        role: 'Suprimentos & TI',
         location: 'Brasília'
       }
     ]
@@ -570,6 +568,7 @@ export const initialClientCompanies: ClientCompany[] = [
   {
     id: 'comp-terraco',
     name: 'Condomínio Shopping Terraço',
+    prefix: 'Ao',
     defaultDeliveryLocation: 'Brasília',
     locations: [
       'Brasília'
@@ -582,7 +581,6 @@ export const initialClientCompanies: ClientCompany[] = [
         title: 'Sr.',
         email: 'suprimentos@terraco.com.br',
         phone: '(61) 3403-2944',
-        role: 'Comprador',
         location: 'Brasília'
       }
     ]

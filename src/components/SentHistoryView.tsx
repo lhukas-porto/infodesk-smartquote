@@ -22,7 +22,8 @@ import {
   ArrowUpDown,
   Building2,
   User,
-  Mail
+  Mail,
+  Package
 } from 'lucide-react';
 import { Quote } from '../types';
 
@@ -171,11 +172,19 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
         if (onlyFollowUpDue && !isFollowUpDue(q)) return false;
 
         if (searchTerm.trim()) {
-          const term = searchTerm.toLowerCase();
+          const term = searchTerm.toLowerCase().trim();
           const comp = (q.clientCompany || '').toLowerCase();
           const contact = (q.contactPerson || '').toLowerCase();
           const code = (q.code || '').toLowerCase();
-          return comp.includes(term) || contact.includes(term) || code.includes(term);
+          const subject = (q.subject || '').toLowerCase();
+          const itemMatch = Array.isArray(q.items) && q.items.some(it => 
+            (it.name || '').toLowerCase().includes(term) ||
+            (it.description || '').toLowerCase().includes(term) ||
+            (it.partNumber || '').toLowerCase().includes(term) ||
+            (it.ncm || '').toLowerCase().includes(term) ||
+            (it.supplier || '').toLowerCase().includes(term)
+          );
+          return comp.includes(term) || contact.includes(term) || code.includes(term) || subject.includes(term) || itemMatch;
         }
         return true;
       })
@@ -310,7 +319,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nome da empresa, comprador ou código da proposta..."
+            placeholder="Buscar por produto, empresa, comprador, part number ou código..."
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 transition"
           />
           {searchTerm && (
@@ -407,6 +416,24 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                         <Mail className="w-3 h-3 text-sky-600 shrink-0" />
                         <span className="truncate">{q.subject}</span>
                       </p>
+                    )}
+
+                    {searchTerm.trim() && Array.isArray(q.items) && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {q.items
+                          .filter(it => 
+                            (it.name || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+                            (it.partNumber || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+                            (it.description || '').toLowerCase().includes(searchTerm.toLowerCase().trim())
+                          )
+                          .slice(0, 3)
+                          .map((it, idx) => (
+                            <span key={idx} className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-1.5 py-0.5 rounded font-medium flex items-center gap-1 shadow-2xs">
+                              <Package className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                              <span className="truncate max-w-[240px]">Produto: {it.name}</span>
+                            </span>
+                          ))}
+                      </div>
                     )}
                   </div>
                 </div>

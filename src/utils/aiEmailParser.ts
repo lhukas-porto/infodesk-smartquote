@@ -2442,18 +2442,9 @@ export function formatCompanyPrefix(companyName: string, explicitPrefix?: string
     return regex.test(lower);
   });
 
-  // If already prefixed with "Ao" but it's an obviously feminine company like Inframerica, correct it
+  // Se já possui prefixo explícito ("Ao", "À", "Para"), RESPEITA fielmente a escolha do usuário!
   if (hasExplicitPrefix) {
-    if (!isMasculine && userPrefix === 'ao' && (
-      lower.includes('inframerica') || 
-      lower.includes('concessionaria') || 
-      lower.includes('ubec') ||
-      lower.includes('empresa') ||
-      lower.endsWith('a')
-    )) {
-      return `À ${baseName}`;
-    }
-    const prefixNormalized = (userPrefix === 'ao') ? 'Ao' : (userPrefix === 'à' || userPrefix === 'a' ? 'À' : 'Para');
+    const prefixNormalized = (userPrefix === 'ao') ? 'Ao' : (userPrefix === 'para' ? 'Para' : 'À');
     return `${prefixNormalized} ${baseName}`;
   }
 

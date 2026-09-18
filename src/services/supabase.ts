@@ -474,14 +474,29 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
 export async function syncBatchProductsToSupabase(products: Product[]): Promise<void> {
   if (!supabase || !products || products.length === 0) return;
   try {
-    const payload = products.map(p => ({
+    const seenSkus = new Set<string>();
+    const validProducts: Product[] = [];
+    
+    // Deduplica por SKU para evitar erro do PostgreSQL ON CONFLICT DO UPDATE em lote
+    for (const p of products) {
+      const sku = (p.sku || p.partNumber || '').trim();
+      if (!sku) continue;
+      if (!seenSkus.has(sku)) {
+        seenSkus.add(sku);
+        validProducts.push({ ...p, sku });
+      }
+    }
+
+    if (validProducts.length === 0) return;
+
+    const payload = validProducts.map(p => ({
       sku: p.sku,
       part_number: p.partNumber || null,
       ncm: p.ncm || null,
       name: p.name,
-      description: p.description,
-      category: p.category,
-      cost_price: p.costPrice,
+      description: p.description || '',
+      category: p.category || 'Informática & Tecnologia',
+      cost_price: p.costPrice || 0,
       unit: p.unit || 'Un.',
       supplier: p.supplier || null,
       stock: p.stock ?? 0,
@@ -489,9 +504,15 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
       source_url: p.sourceUrl || null,
       updated_at: new Date().toISOString()
     }));
-    await supabase.from('products').upsert(payload, { onConflict: 'sku' });
+
+    const { error } = await supabase.from('products').upsert(payload, { onConflict: 'sku' });
+    if (error) {
+      console.warn('Erro retornado pelo Supabase ao sincronizar lote de produtos:', error.message);
+      throw error;
+    }
   } catch (err) {
     console.warn('Erro ao sincronizar lote de produtos no Supabase:', err);
+    throw err;
   }
 }
 
@@ -533,7 +554,7 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
         title: ct.title || 'Sr.',
         email: ct.email || '',
         phone: ct.phone || '',
-        role: ct.role || 'Comprador',
+        role: ct.role || undefined,
         location: ct.location || '',
         lastUsed: ct.last_used
       });
@@ -542,6 +563,7 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
     return companiesData.map((c: any) => ({
       id: c.id,
       name: c.name,
+      prefix: c.prefix || undefined,
       defaultDeliveryLocation: c.default_delivery_location || 'Brasília',
       locations: Array.isArray(c.locations) && c.locations.length > 0 ? c.locations : ['Brasília'],
       lastUsed: c.last_used,
@@ -556,16 +578,31 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
 export async function syncClientCompaniesToSupabase(companies: ClientCompany[]): Promise<void> {
   if (!supabase || !companies || companies.length === 0) return;
   try {
-    // 1. Batch upsert de todas as empresas
+    // 1. Batch upsert de todas as empresas (tentativa com prefix)
     const companiesPayload = companies.map(comp => ({
       id: comp.id,
       name: comp.name,
+      prefix: comp.prefix || null,
       default_delivery_location: comp.defaultDeliveryLocation || 'Brasília',
       locations: comp.locations || ['Brasília'],
       last_used: comp.lastUsed || new Date().toISOString(),
       updated_at: new Date().toISOString()
     }));
-    await supabase.from('client_companies').upsert(companiesPayload);
+    
+    const { error: upsertErr } = await supabase.from('client_companies').upsert(companiesPayload);
+    if (upsertErr) {
+      // Fallback sem prefix caso a coluna ainda não tenha sido criada no Supabase
+      console.warn('Tentativa com prefix falhou no Supabase, tentando payload padrão:', upsertErr.message);
+      const fallbackPayload = companies.map(comp => ({
+        id: comp.id,
+        name: comp.name,
+        default_delivery_location: comp.defaultDeliveryLocation || 'Brasília',
+        locations: comp.locations || ['Brasília'],
+        last_used: comp.lastUsed || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      await supabase.from('client_companies').upsert(fallbackPayload);
+    }
 
     // 2. Batch upsert de todos os contatos
     const allContactsPayload: any[] = [];
@@ -578,7 +615,6 @@ export async function syncClientCompaniesToSupabase(companies: ClientCompany[]):
           title: ct.title || 'Sr.',
           email: ct.email || '',
           phone: ct.phone || '',
-          role: ct.role || 'Comprador',
           location: ct.location || '',
           last_used: ct.lastUsed || new Date().toISOString(),
           updated_at: new Date().toISOString()

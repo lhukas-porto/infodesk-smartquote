@@ -78,6 +78,7 @@ import {
   syncQuoteToSupabase,
   fetchProductsFromSupabase,
   syncProductToSupabase,
+  syncBatchProductsToSupabase,
   fetchClientCompaniesFromSupabase,
   syncClientCompaniesToSupabase,
   deleteCompanyFromSupabase,
@@ -286,7 +287,7 @@ export const App: React.FC = () => {
             const draft = getCurrentDraftQuote();
             // Se já temos um rascunho recente que o usuário está editando, preserva o rascunho
             let chosen: Quote = prev;
-            if (draft && draft.items && draft.items.length > 0) {
+            if (draft && ((Array.isArray(draft.items) && draft.items.length > 0) || Boolean(draft.clientCompany && draft.clientCompany.trim()))) {
               chosen = draft;
             } else if (prev.code === 'CNC 280826' && remoteQuotes[0]) {
               const firstRemote = remoteQuotes[0];
@@ -312,13 +313,42 @@ export const App: React.FC = () => {
         if (remoteProducts && remoteProducts.length > 0) {
           setProducts(remoteProducts);
           saveProducts(remoteProducts);
+        } else {
+          // Se a tabela do Supabase estiver vazia, sincroniza automaticamente os produtos locais para o banco
+          const localProducts = getProducts();
+          if (localProducts && localProducts.length > 0) {
+            console.log(`[SmartQuote] Inicializando ${localProducts.length} produtos locais no Supabase...`);
+            syncBatchProductsToSupabase(localProducts).catch(err => {
+              console.warn('[SmartQuote] Falha ao auto-sincronizar produtos locais para o Supabase:', err);
+            });
+          }
         }
 
         // 4. Empresas e Cidades de Frete
         const remoteCompanies = await fetchClientCompaniesFromSupabase();
         if (remoteCompanies && remoteCompanies.length > 0) {
-          setClientCompanies(remoteCompanies);
-          saveClientCompanies(remoteCompanies);
+          const localCompanies = getClientCompanies();
+          const localPrefixById = new Map<string, string>();
+          const localPrefixByName = new Map<string, string>();
+          localCompanies.forEach(c => {
+            if (c.prefix) {
+              localPrefixById.set(c.id, c.prefix);
+              const clean = c.name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+              localPrefixByName.set(clean, c.prefix);
+            }
+          });
+
+          const mergedCompanies = remoteCompanies.map(rc => {
+            const clean = rc.name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+            const preservedPrefix = rc.prefix || localPrefixById.get(rc.id) || localPrefixByName.get(clean);
+            return {
+              ...rc,
+              prefix: (preservedPrefix as 'À' | 'Ao') || (rc.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À')
+            };
+          });
+
+          setClientCompanies(mergedCompanies);
+          saveClientCompanies(mergedCompanies);
         }
 
         // 5. E-mails e Cotações Capturadas
@@ -346,7 +376,7 @@ export const App: React.FC = () => {
 
   const [currentQuote, setCurrentQuote] = useState<Quote>(() => {
     const draft = getCurrentDraftQuote();
-    if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+    if (draft && ((Array.isArray(draft.items) && draft.items.length > 0) || Boolean(draft.clientCompany && draft.clientCompany.trim()))) {
       return draft;
     }
     const existing = quotes[0];
@@ -394,12 +424,21 @@ export const App: React.FC = () => {
   useEffect(() => { saveProducts(products); }, [products]);
   useEffect(() => { saveEmails(emails); }, [emails]);
   useEffect(() => { saveQuotes(quotes); }, [quotes]);
-  // Debounce suave de 400ms para evitar travamentos de I/O em digitação rápida
+  // Debounce suave de 400ms para salvar rascunho + salvamento imediato no beforeunload (F5 instantâneo)
   useEffect(() => {
     const timer = setTimeout(() => {
       saveCurrentDraftQuote(currentQuote);
     }, 400);
-    return () => clearTimeout(timer);
+
+    const handleBeforeUnload = () => {
+      saveCurrentDraftQuote(currentQuote);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, [currentQuote]);
   useEffect(() => { saveActiveTab(activeTab); }, [activeTab]);
 
