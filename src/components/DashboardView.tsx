@@ -107,6 +107,50 @@ export function parseQuoteTimestamp(q: Quote): number {
 }
 
 /**
+ * Compara se dois timestamps pertencem ao mesmo dia civil no horário local.
+ */
+export function isSameDay(t1: number, t2: number): boolean {
+  const d1 = new Date(t1);
+  const d2 = new Date(t2);
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}
+
+/**
+ * Garante que qualquer orçamento em status 'draft' (rascunho) que esteja com
+ * data anterior à data corrente seja automaticamente atualizado para a data de hoje.
+ */
+export function updateDraftQuotesToToday(quoteList: Quote[]): { updatedQuotes: Quote[]; hasChanges: boolean } {
+  const todayMs = Date.now();
+  const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const todayIso = new Date().toISOString();
+  let hasChanges = false;
+
+  const updatedQuotes = quoteList.map(q => {
+    const isDraft = (q.status || 'draft') === 'draft';
+    if (!isDraft) return q;
+
+    const timestamp = parseQuoteTimestamp(q);
+    const isToday = isSameDay(timestamp, todayMs);
+
+    if (!isToday) {
+      hasChanges = true;
+      return {
+        ...q,
+        date: todayFormatted,
+        createdAt: todayIso
+      };
+    }
+    return q;
+  });
+
+  return { updatedQuotes, hasChanges };
+}
+
+/**
  * Busca e normaliza a empresa EXATAMENTE como está cadastrada no Gerenciamento de Clientes (client_companies).
  * Se a empresa estiver cadastrada (ex: "Grupo Sonda" com prefixo "Ao"), exibe "Ao Grupo Sonda",
  * mesmo que na cotação esteja apenas "Sonda" ou "À Sonda".

@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
-import { parseQuoteTimestamp } from './DashboardView';
+import { parseQuoteTimestamp, isSameDay } from './DashboardView';
 
 interface SentHistoryViewProps {
   quotes: Quote[];
@@ -136,17 +136,6 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     onStageFilterChange?.(stage);
   };
 
-  // Helper para comparar se dois timestamps pertencem ao mesmo dia civil
-  const isSameDay = (t1: number, t2: number): boolean => {
-    const d1 = new Date(t1);
-    const d2 = new Date(t2);
-    return (
-      d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate()
-    );
-  };
-
   const formatDateBR = (isoDate: string): string => {
     if (!isoDate) return '';
     const parts = isoDate.split('-');
@@ -195,18 +184,34 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
 
   // 1. Filtra as cotações por DATA / PERÍODO (Padrão: Hoje / Dia Corrente)
   const dateFilteredQuotes = useMemo(() => {
+    const now = new Date();
+    const todayFormatted = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
     // Se o estágio selecionado for especificamente 'draft', exibe todos os rascunhos para gestão completa
     if (selectedStageFilter === 'draft') {
-      return quotes.filter(q => normalizeStatus(q) === 'draft');
+      return quotes
+        .filter(q => normalizeStatus(q) === 'draft')
+        .map(q => {
+          if (!isSameDay(parseQuoteTimestamp(q), now.getTime())) {
+            return { ...q, date: todayFormatted };
+          }
+          return q;
+        });
     }
 
     if (dateFilter === 'all') return quotes;
-    const now = new Date();
 
     if (dateFilter === 'today') {
       const todayMs = now.getTime();
-      // Sempre traz para o dia atual os orçamentos que estão no status rascunho
-      return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), todayMs) || normalizeStatus(q) === 'draft');
+      // Sempre traz para o dia atual os orçamentos que estão no status rascunho, atualizando a data dele para a data atual
+      return quotes
+        .filter(q => isSameDay(parseQuoteTimestamp(q), todayMs) || normalizeStatus(q) === 'draft')
+        .map(q => {
+          if (normalizeStatus(q) === 'draft' && !isSameDay(parseQuoteTimestamp(q), todayMs)) {
+            return { ...q, date: todayFormatted };
+          }
+          return q;
+        });
     }
 
     if (dateFilter === 'yesterday') {
@@ -839,7 +844,14 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                   {onEditQuote && (
                     <button
                       type="button"
-                      onClick={() => onEditQuote(q)}
+                      onClick={() => {
+                        if (currentStage === 'draft') {
+                          const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                          onEditQuote({ ...q, date: todayFormatted, createdAt: new Date().toISOString() });
+                        } else {
+                          onEditQuote(q);
+                        }
+                      }}
                       className="px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 border border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
                       title="Editar proposta no QuoteBuilder"
                     >
@@ -850,7 +862,14 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => onOpenQuote(q)}
+                    onClick={() => {
+                      if (currentStage === 'draft') {
+                        const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                        onOpenQuote({ ...q, date: todayFormatted, createdAt: new Date().toISOString() });
+                      } else {
+                        onOpenQuote(q);
+                      }
+                    }}
                     className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
                     title="Visualizar documento pronto para impressão/PDF"
                   >

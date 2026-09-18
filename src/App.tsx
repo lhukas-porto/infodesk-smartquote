@@ -11,7 +11,12 @@ import { SettingsModal } from './components/SettingsModal';
 import { ClientManagementView } from './components/ClientManagementView';
 import { EmailContactScannerModal } from './components/EmailContactScannerModal';
 import { ManualAnalysesView } from './components/ManualAnalysesView';
-import { DashboardView } from './components/DashboardView';
+import { 
+  DashboardView, 
+  isSameDay, 
+  parseQuoteTimestamp, 
+  updateDraftQuotesToToday 
+} from './components/DashboardView';
 import { ScannedContactCandidate } from './services/emailScannerService';
 import { 
   CompanySettings, 
@@ -107,8 +112,30 @@ export const App: React.FC = () => {
   const [settings, setSettings] = useState<CompanySettings>(getSettings());
   const [products, setProducts] = useState<Product[]>(getProducts());
   const [emails, setEmails] = useState<IncomingEmail[]>(getEmails());
-  const [quotes, setQuotes] = useState<Quote[]>(getQuotes());
+  const [quotes, setQuotes] = useState<Quote[]>(() => {
+    const raw = getQuotes();
+    const { updatedQuotes, hasChanges } = updateDraftQuotesToToday(raw);
+    if (hasChanges) {
+      saveQuotes(updatedQuotes);
+    }
+    return updatedQuotes;
+  });
   const [historyStageFilter, setHistoryStageFilter] = useState<'all' | 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost'>('all');
+
+  // Garante que qualquer rascunho com data anterior seja atualizado para a data de hoje
+  useEffect(() => {
+    const { updatedQuotes, hasChanges } = updateDraftQuotesToToday(quotes);
+    if (hasChanges) {
+      setQuotes(updatedQuotes);
+      saveQuotes(updatedQuotes);
+      updatedQuotes.forEach(q => {
+        const oldQ = quotes.find(item => item.id === q.id);
+        if (oldQ && (oldQ.date !== q.date || oldQ.createdAt !== q.createdAt)) {
+          syncQuoteToSupabase(q);
+        }
+      });
+    }
+  }, [quotes]);
 
   const draftQuotesCount = useMemo(() => {
     return quotes.filter(q => (q.status || 'draft') === 'draft').length;
@@ -301,8 +328,9 @@ export const App: React.FC = () => {
               }
               return rq;
             });
-            saveQuotes(merged);
-            return merged;
+            const { updatedQuotes: normalizedMerged } = updateDraftQuotesToToday(merged);
+            saveQuotes(normalizedMerged);
+            return normalizedMerged;
           });
 
           setCurrentQuote(prev => {
@@ -319,6 +347,15 @@ export const App: React.FC = () => {
               } else {
                 chosen = firstRemote;
               }
+            }
+            if ((chosen.status || 'draft') === 'draft' && !isSameDay(parseQuoteTimestamp(chosen), Date.now())) {
+              const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+              chosen = {
+                ...chosen,
+                date: todayFormatted,
+                createdAt: new Date().toISOString()
+              };
+              saveCurrentDraftQuote(chosen);
             }
             if (!chosen.openingText || chosen.openingText.trim() === 'Em atenção...' || chosen.openingText.trim() === 'Em atenção') {
               chosen = {
@@ -1499,6 +1536,11 @@ export const App: React.FC = () => {
               const matched = quotes.find(item => item.id === q.id || item.code === q.code);
               const itemsToUse = await resolveQuoteItems(q, quotes);
               const fullQuote = { ...matched, ...q, items: itemsToUse };
+              if ((fullQuote.status || 'draft') === 'draft') {
+                const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                fullQuote.date = todayFormatted;
+                fullQuote.createdAt = new Date().toISOString();
+              }
               setCurrentQuote(fullQuote);
               saveCurrentDraftQuote(fullQuote);
               setActiveTab('preview');
@@ -1507,6 +1549,11 @@ export const App: React.FC = () => {
               const matched = quotes.find(item => item.id === q.id || item.code === q.code);
               const itemsToUse = await resolveQuoteItems(q, quotes);
               const quoteToEdit = { ...matched, ...q, items: itemsToUse };
+              if ((quoteToEdit.status || 'draft') === 'draft') {
+                const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                quoteToEdit.date = todayFormatted;
+                quoteToEdit.createdAt = new Date().toISOString();
+              }
               setCurrentQuote(quoteToEdit);
               saveCurrentDraftQuote(quoteToEdit);
               setActiveTab('builder');

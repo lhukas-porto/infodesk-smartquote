@@ -7,18 +7,8 @@
  * 4. Possibilidade de exibir todo o histórico ('all')
  */
 
-import { parseQuoteTimestamp } from '../components/DashboardView';
+import { parseQuoteTimestamp, isSameDay, updateDraftQuotesToToday } from '../components/DashboardView';
 import type { Quote } from '../types';
-
-function isSameDay(t1: number, t2: number): boolean {
-  const d1 = new Date(t1);
-  const d2 = new Date(t2);
-  return (
-    d1.getFullYear() === d2.getFullYear() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getDate() === d2.getDate()
-  );
-}
 
 function filterQuotesByDate(
   quotes: Quote[],
@@ -174,5 +164,17 @@ if (rangeQuotes.length !== 2) {
   throw new Error(`Falha no filtro 'customRange'. Esperado 2 itens (hoje e ontem), recebido: ${rangeQuotes.length}`);
 }
 console.log('✅ Teste 5: Filtro "Período" retornou com sucesso o intervalo selecionado.');
+
+// Teste 6: Auto-atualização de data para rascunhos antigos trazidos para o dia atual
+const { updatedQuotes, hasChanges } = updateDraftQuotesToToday(mockQuotes);
+if (!hasChanges) {
+  throw new Error('updateDraftQuotesToToday deveria ter detectado rascunho antigo para atualizar.');
+}
+const updatedQ3 = updatedQuotes.find(q => q.id === 'q3');
+const expectedTodayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+if (!updatedQ3 || updatedQ3.date !== expectedTodayStr) {
+  throw new Error(`Data do rascunho q3 não foi atualizada para hoje. Esperado: ${expectedTodayStr}, recebido: ${updatedQ3?.date}`);
+}
+console.log('✅ Teste 6: Rascunho antigo teve sua data automaticamente atualizada para a data corrente de hoje.');
 
 console.log('🎉 TODOS OS TESTES DO FILTRO DE DATAS DO HISTÓRICO PASSARAM COM SUCESSO!\n');
