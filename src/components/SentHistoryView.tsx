@@ -143,7 +143,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
 
   const getDateFilterLabel = (filter: HistoryDateFilter): string => {
     switch (filter) {
-      case 'today': return 'Hoje (Dia Corrente)';
+      case 'today': return 'Hoje';
       case 'yesterday': return 'Ontem';
       case '7days': return 'Últimos 7 dias';
       case 'thisMonth': return 'Este Mês';

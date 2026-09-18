@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
+import { extractStoreNameFromUrl } from '../utils/aiEmailParser';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -158,7 +159,7 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
         unitPrice: Number(row.unit_price),
         totalPrice: Number(row.total_price),
         sourceUrl: row.source_url || '',
-        supplier: row.supplier || ''
+        supplier: row.supplier || extractStoreNameFromUrl(row.source_url) || ''
       });
     });
 
@@ -261,7 +262,7 @@ export async function fetchQuoteItemsByQuoteId(quoteId: string): Promise<QuoteIt
       unitPrice: Number(row.unit_price),
       totalPrice: Number(row.total_price),
       sourceUrl: row.source_url || '',
-      supplier: row.supplier || ''
+      supplier: row.supplier || extractStoreNameFromUrl(row.source_url) || ''
     }));
   } catch (err) {
     console.warn('Erro ao buscar itens de orçamento específico no Supabase:', err);

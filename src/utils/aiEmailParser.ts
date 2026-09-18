@@ -2003,10 +2003,18 @@ export function extractStoreNameFromUrl(url?: string): string {
     let hostname = '';
     try {
       const parsed = new URL(cleanUrl);
-      hostname = parsed.hostname.replace(/^www\./, '').toLowerCase();
+      hostname = parsed.hostname.toLowerCase();
     } catch {
       // Se a URL ainda está incompleta durante a digitação
-      hostname = cleanUrl.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
+      hostname = cleanUrl.replace(/^https?:\/\//, '').split('/')[0].toLowerCase();
+    }
+
+    // Remove subdomínios técnicos comuns
+    hostname = hostname.replace(/^(www\.|vendas\.|loja\.|lojas\.|compre\.|shop\.|m\.|br\.)+/, '');
+
+    // Links de busca do Google não são fornecedores
+    if (hostname.includes('google.') && (cleanUrl.includes('/search') || cleanUrl.includes('/url'))) {
+      return '';
     }
 
     if (hostname.includes('mercadolivre') || hostname.includes('mercado-livre')) return 'Mercado Livre';
@@ -2026,6 +2034,7 @@ export function extractStoreNameFromUrl(url?: string): string {
     if (hostname.includes('fastshop')) return 'Fast Shop';
     if (hostname.includes('shopee')) return 'Shopee';
     if (hostname.includes('aliexpress')) return 'AliExpress';
+    if (hostname.includes('agis')) return 'Agis Distribuição';
     if (hostname.includes('fischer')) return 'Fischer Oficial';
     if (hostname.includes('eletrolux') || hostname.includes('electrolux')) return 'Electrolux';
     if (hostname.includes('brastemp')) return 'Brastemp';
@@ -2034,6 +2043,16 @@ export function extractStoreNameFromUrl(url?: string): string {
     if (hostname.includes('philco')) return 'Philco';
     if (hostname.includes('leroymerlin')) return 'Leroy Merlin';
     if (hostname.includes('carrefour')) return 'Carrefour';
+    if (hostname.includes('dufrio')) return 'Dufrio';
+    if (hostname.includes('centralbrasilinstrumentos') || hostname.includes('centralbrasil')) return 'Central Brasil Instrumentos';
+    if (hostname.includes('notecom')) return 'Notecom';
+    if (hostname.includes('testequity')) return 'TestEquity';
+    if (hostname.includes('lojaeletrica')) return 'Loja Elétrica';
+    if (hostname.includes('leomadeiras')) return 'Léo Madeiras';
+    if (hostname.includes('ultramaquinas')) return 'Ultra Máquinas';
+    if (hostname.includes('comercialalvorada')) return 'Comercial Alvorada';
+    if (hostname.includes('sipolatti')) return 'Sipolatti';
+    if (hostname.includes('intelbras')) return 'Intelbras';
 
     // Para outros domínios, extrai o nome principal formatado (Ex: intelbras.com.br -> Intelbras)
     const basePart = hostname.split('.')[0];
@@ -2044,6 +2063,83 @@ export function extractStoreNameFromUrl(url?: string): string {
   } catch {
     return '';
   }
+}
+
+/**
+ * Resolve o fornecedor de um item com fallback em cascata inteligente:
+ * 1. Fornecedor preenchido explicitamente (diferente de 'Fornecedor Local')
+ * 2. Loja/distribuidor extraído do Link de Compra (sourceUrl)
+ * 3. Dados do produto vinculado no Catálogo de Produtos
+ * 4. Marcas e fabricantes conhecidos no título/descrição
+ */
+export function resolveSupplierName(
+  item: {
+    supplier?: string;
+    sourceUrl?: string;
+    source_url?: string;
+    productId?: string;
+    product_id?: string;
+    partNumber?: string;
+    part_number?: string;
+    name?: string;
+  },
+  catalogProducts?: Array<{
+    id: string;
+    supplier?: string;
+    sourceUrl?: string;
+    source_url?: string;
+    partNumber?: string;
+    part_number?: string;
+    name?: string;
+  }>
+): string {
+  // 1. Fornecedor explícito preenchido no item
+  const supp = (item.supplier || '').trim();
+  if (supp && !['fornecedor local', 'fornecedor', 'local', 'sem fornecedor'].includes(supp.toLowerCase())) {
+    return supp;
+  }
+
+  // 2. Extração inteligente via Link Direto de Compra (sourceUrl)
+  const fromUrl = extractStoreNameFromUrl(item.sourceUrl || item.source_url);
+  if (fromUrl) {
+    return fromUrl;
+  }
+
+  // 3. Correspondência com o Catálogo de Produtos
+  if (catalogProducts && catalogProducts.length > 0) {
+    const prod = catalogProducts.find(p => 
+      (item.productId && p.id === item.productId) ||
+      (item.product_id && p.id === item.product_id) ||
+      (item.partNumber && p.partNumber && p.partNumber.trim().toLowerCase() === item.partNumber.trim().toLowerCase()) ||
+      (item.part_number && p.part_number && p.part_number.trim().toLowerCase() === item.part_number.trim().toLowerCase()) ||
+      (item.name && p.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+    );
+
+    if (prod) {
+      const prodSupp = (prod.supplier || '').trim();
+      if (prodSupp && !['fornecedor local', 'fornecedor', 'local', 'sem fornecedor'].includes(prodSupp.toLowerCase())) {
+        return prodSupp;
+      }
+      const prodUrlStore = extractStoreNameFromUrl(prod.sourceUrl || prod.source_url);
+      if (prodUrlStore) return prodUrlStore;
+    }
+  }
+
+  // 4. Detecção por marcas / fabricantes conhecidos no nome do item
+  const nameLower = (item.name || '').toLowerCase();
+  if (nameLower.includes('furukawa')) return 'Furukawa Electric';
+  if (nameLower.includes('schneider')) return 'Schneider Electric';
+  if (nameLower.includes('cisco')) return 'Cisco Distribuição';
+  if (nameLower.includes('dell')) return 'Dell Brasil';
+  if (nameLower.includes('logitech')) return 'Logitech Store';
+  if (nameLower.includes('kingston')) return 'Kingston Brasil';
+  if (nameLower.includes('brother')) return 'Brother Distribuição';
+  if (nameLower.includes('zebra')) return 'Zebra';
+  if (nameLower.includes('consul')) return 'Consul';
+  if (nameLower.includes('electrolux') || nameLower.includes('eletrolux')) return 'Electrolux';
+  if (nameLower.includes('brastemp')) return 'Brastemp';
+
+  return 'Fornecedor Local';
 }
 
 /**

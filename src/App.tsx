@@ -1489,6 +1489,7 @@ export const App: React.FC = () => {
           <DashboardView
             quotes={quotes}
             clientCompanies={clientCompanies}
+            products={products}
             onNavigateToHistory={() => setActiveTab('history')}
             onNavigateToBuilder={() => setActiveTab('builder')}
           />

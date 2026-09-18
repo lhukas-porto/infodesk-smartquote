@@ -17,13 +17,14 @@ import {
   ArrowUpRight, 
   ArrowRight 
 } from 'lucide-react';
-import { Quote, ClientCompany } from '../types';
-import { formatCompanyPrefix } from '../utils/aiEmailParser';
+import { Quote, ClientCompany, Product } from '../types';
+import { formatCompanyPrefix, resolveSupplierName } from '../utils/aiEmailParser';
 import { getClientCompanies } from '../utils/storage';
 
 interface DashboardViewProps {
   quotes: Quote[];
   clientCompanies?: ClientCompany[];
+  products?: Product[];
   onNavigateToHistory: () => void;
   onNavigateToBuilder: () => void;
 }
@@ -161,6 +162,7 @@ export function resolveClientDisplayName(
 export const DashboardView: React.FC<DashboardViewProps> = ({
   quotes,
   clientCompanies,
+  products,
   onNavigateToHistory,
   onNavigateToBuilder
 }) => {
@@ -288,10 +290,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         clientMap[clientName].approvedAmount += amt;
       }
 
-      // Agrupamento por fornecedor dos itens
+      // Agrupamento inteligente por fornecedor/distribuidor dos itens
       if (q.items && q.items.length > 0) {
         for (const it of q.items) {
-          const supp = it.supplier || 'Fornecedor Local';
+          const supp = resolveSupplierName(it, products);
           if (!supplierMap[supp]) {
             supplierMap[supp] = { supplier: supp, itemCount: 0, totalAmount: 0 };
           }
@@ -314,7 +316,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     const topSuppliers = Object.values(supplierMap)
       .sort((a, b) => b.totalAmount - a.totalAmount)
-      .slice(0, 5);
+      .slice(0, 8);
 
     return {
       totalQuotes,
@@ -331,7 +333,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       topClients,
       topSuppliers
     };
-  }, [filteredQuotes]);
+  }, [filteredQuotes, clientCompanies, products]);
 
   return (
     <div className="space-y-6 animate-fadeIn">

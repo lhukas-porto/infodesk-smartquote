@@ -167,6 +167,9 @@ CREATE TABLE IF NOT EXISTS quote_items (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Migração retroativa idempotente para fornecedor do item:
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS supplier TEXT;
+
 -- ==============================================================================
 -- 8. TABELA: incoming_emails (E-mails e Cotações Capturadas)
 -- ==============================================================================
