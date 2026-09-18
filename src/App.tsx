@@ -310,18 +310,35 @@ export const App: React.FC = () => {
 
         // 3. Catálogo de Produtos
         const remoteProducts = await fetchProductsFromSupabase();
+        const localProducts = getProducts();
+
         if (remoteProducts && remoteProducts.length > 0) {
-          setProducts(remoteProducts);
-          saveProducts(remoteProducts);
-        } else {
-          // Se a tabela do Supabase estiver vazia, sincroniza automaticamente os produtos locais para o banco
-          const localProducts = getProducts();
-          if (localProducts && localProducts.length > 0) {
-            console.log(`[SmartQuote] Inicializando ${localProducts.length} produtos locais no Supabase...`);
-            syncBatchProductsToSupabase(localProducts).catch(err => {
-              console.warn('[SmartQuote] Falha ao auto-sincronizar produtos locais para o Supabase:', err);
+          // Identifica produtos locais que ainda não foram para o Supabase e envia imediatamente
+          const remoteSkus = new Set(remoteProducts.map(p => (p.sku || p.partNumber || '').trim().toLowerCase()));
+          const missingLocals = localProducts.filter(lp => {
+            const sku = (lp.sku || lp.partNumber || '').trim().toLowerCase();
+            return sku && !remoteSkus.has(sku);
+          });
+
+          if (missingLocals.length > 0) {
+            console.log(`[SmartQuote] Enviando ${missingLocals.length} produtos locais pendentes diretamente para o Supabase...`);
+            syncBatchProductsToSupabase(missingLocals).catch(err => {
+              console.warn('[SmartQuote] Erro ao sincronizar produtos pendentes com o Supabase:', err);
             });
+            const merged = [...remoteProducts, ...missingLocals];
+            setProducts(merged);
+            saveProducts(merged);
+          } else {
+            setProducts(remoteProducts);
+            saveProducts(remoteProducts);
           }
+        } else if (localProducts && localProducts.length > 0) {
+          // Se a tabela do banco estava vazia, envia todos os produtos locais imediatamente para o Supabase
+          console.log(`[SmartQuote] Cadastrando imediatamente ${localProducts.length} produtos locais no Supabase...`);
+          syncBatchProductsToSupabase(localProducts).catch(err => {
+            console.warn('[SmartQuote] Falha ao cadastrar produtos locais no Supabase:', err);
+          });
+          setProducts(localProducts);
         }
 
         // 4. Empresas e Cidades de Frete

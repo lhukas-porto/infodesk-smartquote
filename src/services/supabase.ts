@@ -450,22 +450,45 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
 
 export async function syncProductToSupabase(product: Product): Promise<void> {
   if (!supabase) return;
+  const sku = (product.sku || product.partNumber || '').trim();
+  if (!sku) return;
+
+  const payload = {
+    sku,
+    part_number: product.partNumber || null,
+    ncm: product.ncm || null,
+    name: product.name,
+    description: product.description || '',
+    category: product.category || 'Informática & Tecnologia',
+    cost_price: product.costPrice || 0,
+    unit: product.unit || 'Un.',
+    supplier: product.supplier || null,
+    stock: product.stock ?? 0,
+    image_url: product.imageUrl || null,
+    source_url: product.sourceUrl || null,
+    updated_at: new Date().toISOString()
+  };
+
   try {
-    await supabase.from('products').upsert({
-      sku: product.sku,
-      part_number: product.partNumber || null,
-      ncm: product.ncm || null,
-      name: product.name,
-      description: product.description,
-      category: product.category,
-      cost_price: product.costPrice,
-      unit: product.unit || 'Un.',
-      supplier: product.supplier || null,
-      stock: product.stock ?? 0,
-      image_url: product.imageUrl || null,
-      source_url: product.sourceUrl || null,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'sku' });
+    const { error: upsertErr } = await supabase
+      .from('products')
+      .upsert(payload, { onConflict: 'sku' });
+
+    if (!upsertErr) return;
+
+    // Fallback caso a tabela no Supabase não tenha constraint UNIQUE em sku (erro 42P10)
+    console.warn('[SmartQuote] Upsert de produto falhou, aplicando fallback direto:', upsertErr.message);
+    const { data: existing } = await supabase
+      .from('products')
+      .select('id')
+      .eq('sku', sku)
+      .maybeSingle();
+
+    if (existing && existing.id) {
+      await supabase.from('products').update(payload).eq('id', existing.id);
+    } else {
+      await supabase.from('products').insert(payload);
+    }
   } catch (err) {
     console.warn('Erro ao sincronizar produto no Supabase:', err);
   }
@@ -481,8 +504,8 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
     for (const p of products) {
       const sku = (p.sku || p.partNumber || '').trim();
       if (!sku) continue;
-      if (!seenSkus.has(sku)) {
-        seenSkus.add(sku);
+      if (!seenSkus.has(sku.toLowerCase())) {
+        seenSkus.add(sku.toLowerCase());
         validProducts.push({ ...p, sku });
       }
     }
@@ -505,14 +528,30 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
       updated_at: new Date().toISOString()
     }));
 
-    const { error } = await supabase.from('products').upsert(payload, { onConflict: 'sku' });
-    if (error) {
-      console.warn('Erro retornado pelo Supabase ao sincronizar lote de produtos:', error.message);
-      throw error;
+    const { error: batchErr } = await supabase.from('products').upsert(payload, { onConflict: 'sku' });
+    if (!batchErr) return;
+
+    // Fallback individual resiliente se o upsert em lote for rejeitado pelo banco
+    console.warn('[SmartQuote] Upsert em lote rejeitado pelo banco, aplicando fallback item a item:', batchErr.message);
+    for (const item of payload) {
+      try {
+        const { data: existing } = await supabase
+          .from('products')
+          .select('id')
+          .eq('sku', item.sku)
+          .maybeSingle();
+
+        if (existing && existing.id) {
+          await supabase.from('products').update(item).eq('id', existing.id);
+        } else {
+          await supabase.from('products').insert(item);
+        }
+      } catch (itemErr) {
+        console.warn(`[SmartQuote] Falha ao sincronizar item [${item.sku}]:`, itemErr);
+      }
     }
   } catch (err) {
     console.warn('Erro ao sincronizar lote de produtos no Supabase:', err);
-    throw err;
   }
 }
 
