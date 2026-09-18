@@ -17,11 +17,13 @@ import {
   ArrowUpRight, 
   ArrowRight 
 } from 'lucide-react';
-import { Quote } from '../types';
+import { Quote, ClientCompany } from '../types';
 import { formatCompanyPrefix } from '../utils/aiEmailParser';
+import { getClientCompanies } from '../utils/storage';
 
 interface DashboardViewProps {
   quotes: Quote[];
+  clientCompanies?: ClientCompany[];
   onNavigateToHistory: () => void;
   onNavigateToBuilder: () => void;
 }
@@ -104,8 +106,61 @@ export function parseQuoteTimestamp(q: Quote): number {
   return Date.now();
 }
 
+/**
+ * Busca e normaliza a empresa EXATAMENTE como está cadastrada no Gerenciamento de Clientes (client_companies).
+ * Se a empresa estiver cadastrada (ex: "Grupo Sonda" com prefixo "Ao"), exibe "Ao Grupo Sonda",
+ * mesmo que na cotação esteja apenas "Sonda" ou "À Sonda".
+ */
+export function resolveClientDisplayName(
+  rawCompany: string | undefined, 
+  registeredCompanies?: ClientCompany[]
+): string {
+  if (!rawCompany || !rawCompany.trim()) return 'Cliente não informado';
+  const clean = rawCompany.trim().replace(/^(ao|à|a|para)\s+/i, '').trim();
+  const norm = clean.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  let list: ClientCompany[] = [];
+  try {
+    list = registeredCompanies && registeredCompanies.length > 0 
+      ? registeredCompanies 
+      : getClientCompanies();
+  } catch {
+    list = registeredCompanies || [];
+  }
+
+  // 1. Tenta correspondência exata
+  for (const c of list) {
+    const cClean = (c.name || '').replace(/^(ao|à|a|para)\s+/i, '').trim();
+    const cNorm = cClean.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (cNorm === norm) {
+      const pref = c.prefix || (c.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
+      return `${pref} ${cClean}`;
+    }
+  }
+
+  // 2. Tenta correspondência por contenção ou palavras-chave significativas (ex: 'Sonda' -> 'Grupo Sonda')
+  for (const c of list) {
+    const cClean = (c.name || '').replace(/^(ao|à|a|para)\s+/i, '').trim();
+    const cNorm = cClean.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (cNorm.includes(norm) || norm.includes(cNorm)) {
+      const pref = c.prefix || (c.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
+      return `${pref} ${cClean}`;
+    }
+    const cWords = cNorm.split(/\s+/).filter(w => w.length >= 3);
+    const qWords = norm.split(/\s+/).filter(w => w.length >= 3);
+    if (cWords.some(cw => qWords.includes(cw))) {
+      const pref = c.prefix || (c.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
+      return `${pref} ${cClean}`;
+    }
+  }
+
+  // 3. Se não houver cadastro correspondente, aplica a formatação gramatical oficial
+  return formatCompanyPrefix(rawCompany);
+}
+
 export const DashboardView: React.FC<DashboardViewProps> = ({
   quotes,
+  clientCompanies,
   onNavigateToHistory,
   onNavigateToBuilder
 }) => {
@@ -221,11 +276,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         draftCount++;
       }
 
-      // Agrupamento por cliente com preposição gramaticalmente corrigida e unificada
-      const rawCompany = q.clientCompany?.trim();
-      const clientName = rawCompany 
-        ? formatCompanyPrefix(rawCompany) 
-        : 'Cliente não informado';
+      // Agrupamento por cliente buscando exatamente como está cadastrado no Gerenciamento de Clientes
+      const clientName = resolveClientDisplayName(q.clientCompany, clientCompanies);
 
       if (!clientMap[clientName]) {
         clientMap[clientName] = { company: clientName, count: 0, totalAmount: 0, approvedAmount: 0 };

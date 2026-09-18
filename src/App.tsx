@@ -1488,6 +1488,7 @@ export const App: React.FC = () => {
         {activeTab === 'dashboard' && (
           <DashboardView
             quotes={quotes}
+            clientCompanies={clientCompanies}
             onNavigateToHistory={() => setActiveTab('history')}
             onNavigateToBuilder={() => setActiveTab('builder')}
           />

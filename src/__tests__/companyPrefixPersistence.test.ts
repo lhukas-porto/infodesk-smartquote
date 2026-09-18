@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatCompanyPrefix } from '../utils/aiEmailParser';
+import { resolveClientDisplayName } from '../components/DashboardView';
 import { 
   getClientCompanies, 
   saveClientCompanies, 
@@ -108,4 +109,19 @@ assert.ok(compAfterRegister, 'Empresa deve ser localizada');
 assert.equal(compAfterRegister?.prefix, 'Ao', 'registerOrUpdateClient com "Ao" deve reter "Ao"');
 
 console.log('✓ Teste 4 aprovado: registerOrUpdateClient preserva prefixo configurado sem regressão!');
+
+// 5. Teste de resolução exata conforme cadastro oficial (resolveClientDisplayName)
+const mockRegistered: ClientCompany[] = [
+  { id: 'comp-sonda', name: 'Grupo Sonda', prefix: 'Ao', locations: ['Brasília'], contacts: [] },
+  { id: 'comp-sabin', name: 'Sabin', prefix: 'Ao', locations: ['Brasília'], contacts: [] },
+  { id: 'comp-ubec', name: 'UBEC', prefix: 'À', locations: ['Brasília'], contacts: [] }
+];
+
+const resResolvedSonda = resolveClientDisplayName('À Sonda', mockRegistered);
+assert.equal(resResolvedSonda, 'Ao Grupo Sonda', 'resolveClientDisplayName("À Sonda") deve resolver para "Ao Grupo Sonda" exatamente como cadastrado');
+
+const resResolvedSondaPlain = resolveClientDisplayName('Sonda', mockRegistered);
+assert.equal(resResolvedSondaPlain, 'Ao Grupo Sonda', 'resolveClientDisplayName("Sonda") deve resolver para "Ao Grupo Sonda" exatamente como cadastrado');
+
+console.log('✓ Teste 5 aprovado: resolveClientDisplayName busca e exibe a empresa exatamente conforme cadastrada no Gerenciamento de Clientes ("Ao Grupo Sonda")!');
 console.log('🎉 TODOS OS TESTES DE PERSISTÊNCIA DE PREFIXO PASSARAM COM SUCESSO!\n');
