@@ -26,6 +26,7 @@ import {
   Package
 } from 'lucide-react';
 import { Quote } from '../types';
+import { normalizeSearchText } from '../utils/aiEmailParser';
 
 interface SentHistoryViewProps {
   quotes: Quote[];
@@ -172,18 +173,29 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
         if (onlyFollowUpDue && !isFollowUpDue(q)) return false;
 
         if (searchTerm.trim()) {
-          const term = searchTerm.toLowerCase().trim();
-          const comp = (q.clientCompany || '').toLowerCase();
-          const contact = (q.contactPerson || '').toLowerCase();
-          const code = (q.code || '').toLowerCase();
-          const subject = (q.subject || '').toLowerCase();
-          const itemMatch = Array.isArray(q.items) && q.items.some(it => 
-            (it.name || '').toLowerCase().includes(term) ||
-            (it.description || '').toLowerCase().includes(term) ||
-            (it.partNumber || '').toLowerCase().includes(term) ||
-            (it.ncm || '').toLowerCase().includes(term) ||
-            (it.supplier || '').toLowerCase().includes(term)
-          );
+          const term = normalizeSearchText(searchTerm);
+          if (!term) return true;
+
+          const comp = normalizeSearchText(q.clientCompany);
+          const contact = normalizeSearchText(q.contactPerson);
+          const code = normalizeSearchText(q.code);
+          const subject = normalizeSearchText(q.subject);
+
+          const itemMatch = Array.isArray(q.items) && q.items.some(it => {
+            const name = normalizeSearchText(it.name);
+            const desc = normalizeSearchText(it.description);
+            const pn = normalizeSearchText(it.partNumber);
+            const ncm = normalizeSearchText(it.ncm);
+            const supp = normalizeSearchText(it.supplier);
+            return (
+              name.includes(term) ||
+              desc.includes(term) ||
+              pn.includes(term) ||
+              ncm.includes(term) ||
+              supp.includes(term)
+            );
+          });
+
           return comp.includes(term) || contact.includes(term) || code.includes(term) || subject.includes(term) || itemMatch;
         }
         return true;
@@ -418,23 +430,33 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                       </p>
                     )}
 
-                    {searchTerm.trim() && Array.isArray(q.items) && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {q.items
-                          .filter(it => 
-                            (it.name || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
-                            (it.partNumber || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
-                            (it.description || '').toLowerCase().includes(searchTerm.toLowerCase().trim())
-                          )
-                          .slice(0, 3)
-                          .map((it, idx) => (
+                    {searchTerm.trim() && Array.isArray(q.items) && (() => {
+                      const term = normalizeSearchText(searchTerm);
+                      if (!term) return null;
+                      const matched = q.items.filter(it => 
+                        normalizeSearchText(it.name).includes(term) ||
+                        normalizeSearchText(it.partNumber).includes(term) ||
+                        normalizeSearchText(it.description).includes(term) ||
+                        normalizeSearchText(it.ncm).includes(term) ||
+                        normalizeSearchText(it.supplier).includes(term)
+                      );
+                      if (matched.length === 0) return null;
+                      return (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {matched.slice(0, 3).map((it, idx) => (
                             <span key={idx} className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-1.5 py-0.5 rounded font-medium flex items-center gap-1 shadow-2xs">
                               <Package className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
                               <span className="truncate max-w-[240px]">Produto: {it.name}</span>
                             </span>
                           ))}
-                      </div>
-                    )}
+                          {matched.length > 3 && (
+                            <span className="text-[10px] text-slate-400 font-medium self-center">
+                              +{matched.length - 3} item(ns)
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 

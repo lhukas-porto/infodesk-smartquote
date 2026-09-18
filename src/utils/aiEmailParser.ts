@@ -3023,3 +3023,19 @@ export function buildDirectPurchaseUrl(
     store: ''
   };
 }
+
+/**
+ * Normaliza textos para buscas insensíveis a acentuação, cedilha e maiúsculas/minúsculas.
+ * Ex: "Cotação" -> "cotacao", "MEMÓRIA" -> "memoria", "Preço" -> "preco"
+ */
+export function normalizeSearchText(text: string | null | undefined): string {
+  if (!text) return '';
+  return text
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[çÇ]/g, 'c')
+    .toLowerCase()
+    .trim();
+}
+

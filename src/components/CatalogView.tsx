@@ -40,7 +40,8 @@ import {
   mergeSelectedRanges,
   applyCaseToRanges,
   WordCaseStyle,
-  getCategoryFromNcm
+  getCategoryFromNcm,
+  normalizeSearchText
 } from '../utils/aiEmailParser';
 
 interface CatalogViewProps {
@@ -454,9 +455,12 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const term = normalizeSearchText(searchTerm);
+    const matchesSearch = !term ||
+                          normalizeSearchText(p.name).includes(term) ||
+                          normalizeSearchText(p.sku).includes(term) ||
+                          normalizeSearchText(p.partNumber).includes(term) ||
+                          normalizeSearchText(p.description).includes(term);
     const matchesCat = selectedCategory === 'all' || p.category === selectedCategory;
     return matchesSearch && matchesCat;
   });
