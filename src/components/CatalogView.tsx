@@ -850,10 +850,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               }`}
               title="Filtrar produtos por categoria"
             >
-              <option value="all">Todas as Categorias ({products.length})</option>
+              <option value="all">Todas as Categorias</option>
               {categories.filter(c => c !== 'all').map(cat => (
                 <option key={cat} value={cat}>
-                  {cat} ({categoryCounts[cat] || 0})
+                  {cat}
                 </option>
               ))}
             </select>
@@ -894,9 +894,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-100 text-sky-800 border border-sky-200 font-bold rounded-lg text-xs shadow-2xs">
               <Layers className="w-3.5 h-3.5 text-sky-600" />
               <span>{selectedCategory}</span>
-              <span className="text-[10px] px-1.5 py-0.2 bg-sky-200 text-sky-900 rounded-full font-mono">
-                {categoryCounts[selectedCategory] || 0}
-              </span>
               <button
                 type="button"
                 onClick={() => setSelectedCategory('all')}
