@@ -80,7 +80,6 @@ import {
   getClientCompanies, 
   saveClientCompanies, 
   registerOrUpdateClient,
-  saveCompanyPrefixPreference,
   getRegisteredUnits, 
   saveRegisteredUnit, 
   getRegisteredCategories, 
@@ -572,29 +571,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     )
   );
 
-  const compPrefixMatch = (currentQuote.clientCompany || '').trim().match(/^(ao|à)\s+/i);
-  const currentCompanyPrefix: 'À' | 'Ao' = compPrefixMatch
-    ? (compPrefixMatch[1].toLowerCase() === 'ao' ? 'Ao' : 'À')
-    : ((matchedCompany?.prefix as 'À' | 'Ao') || 'À');
-
-  const handleToggleCompanyPrefix = (newPrefix: 'À' | 'Ao') => {
-    const raw = (currentQuote.clientCompany || '').trim();
-    const cleanBase = raw.replace(/^(ao|à|a|para)\s+/i, '').trim();
-    const updatedCompanyStr = cleanBase ? `${newPrefix} ${cleanBase}` : `${newPrefix} `;
-
-    setCurrentQuote(prev => ({
-      ...prev,
-      clientCompany: updatedCompanyStr
-    }));
-
-    if (matchedCompany) {
-      const updatedList = clientCompanies.map(c => 
-        c.id === matchedCompany.id ? { ...c, prefix: newPrefix } : c
-      );
-      handleUpdateCompanies(updatedList);
-      saveCompanyPrefixPreference(matchedCompany.id, matchedCompany.name, newPrefix);
-    }
-  };
 
   const cleanContactName = (currentQuote.contactPerson || '')
     .replace(/^a\/c\s*/i, '')
@@ -1923,27 +1899,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <label className="block text-xs font-medium text-slate-600">Empresa / Órgão</label>
-                <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleCompanyPrefix('À')}
-                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition ${currentCompanyPrefix === 'À' ? 'bg-sky-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}
-                    title="Prefixo de tratamento: À Empresa"
-                  >
-                    À
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleCompanyPrefix('Ao')}
-                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition ${currentCompanyPrefix === 'Ao' ? 'bg-sky-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'}`}
-                    title="Prefixo de tratamento: Ao Órgão/Condomínio/Tribunal"
-                  >
-                    Ao
-                  </button>
-                </div>
-              </div>
+              <label className="block text-xs font-medium text-slate-600">Empresa / Órgão</label>
               {matchedCompany && (
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                   ✓ Cadastrada
@@ -1973,17 +1929,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     });
                     setIsCompanySearchOpen(true);
 
-                    const typedPrefixMatch = val.trim().match(/^(ao|à)\s+/i);
-                    if (typedPrefixMatch && matchedCompany) {
-                      const typedPref: 'À' | 'Ao' = typedPrefixMatch[1].toLowerCase() === 'ao' ? 'Ao' : 'À';
-                      if (matchedCompany.prefix !== typedPref) {
-                        const updatedList = clientCompanies.map(c => 
-                          c.id === matchedCompany.id ? { ...c, prefix: typedPref } : c
-                        );
-                        handleUpdateCompanies(updatedList);
-                        saveCompanyPrefixPreference(matchedCompany.id, matchedCompany.name, typedPref);
-                      }
-                    }
                   }}
                   onFocus={() => {
                     if (currentQuote.clientCompany?.trim()) {
