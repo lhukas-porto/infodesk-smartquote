@@ -60,6 +60,143 @@ const getAvatarColor = (name: string) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+const KNOWN_COMPANY_DOMAINS: Record<string, string> = {
+  ubec: 'ubec.edu.br',
+  sonda: 'sonda.com',
+  'grupo sonda': 'sonda.com',
+  sabin: 'sabin.com.br',
+  ambev: 'ambev.com.br',
+  'rede d\'or': 'rededorsaoluiz.com.br',
+  rededor: 'rededorsaoluiz.com.br',
+  localiza: 'localiza.com',
+  boticário: 'boticario.com.br',
+  boticario: 'boticario.com.br',
+  'o boticário': 'boticario.com.br',
+  totvs: 'totvs.com',
+  petrobras: 'petrobras.com.br',
+  vale: 'vale.com',
+  embraer: 'embraer.com',
+  caixa: 'caixa.gov.br',
+  'banco do brasil': 'bb.com.br',
+  bb: 'bb.com.br',
+  itau: 'itau.com.br',
+  itaú: 'itau.com.br',
+  bradesco: 'bradesco.com.br',
+  santander: 'santander.com.br',
+  magalu: 'magazineluiza.com.br',
+  'magazine luiza': 'magazineluiza.com.br',
+  'mercado livre': 'mercadolivre.com.br',
+  unimed: 'unimed.coop.br',
+  hapvida: 'hapvida.com.br',
+  fleury: 'fleury.com.br',
+  dasa: 'dasa.com.br',
+  einstein: 'einstein.br',
+  'sirio libanes': 'hospitalsiriolibanes.org.br',
+  'sírio-libanês': 'hospitalsiriolibanes.org.br',
+  tjdft: 'tjdft.jus.br',
+  senado: 'senado.leg.br',
+  camara: 'camara.leg.br',
+  câmara: 'camara.leg.br',
+  stf: 'stf.jus.br',
+  stj: 'stj.jus.br',
+  tcu: 'tcu.gov.br',
+  gdf: 'df.gov.br',
+  'governo de brasília': 'df.gov.br',
+  anvisa: 'anvisa.gov.br',
+  anatel: 'anatel.gov.br',
+  correios: 'correios.com.br',
+  serpro: 'serpro.gov.br',
+  dataprev: 'dataprev.gov.br',
+  telebras: 'telebras.com.br',
+  infraero: 'infraero.gov.br',
+  sebrae: 'sebrae.com.br',
+  senai: 'portaldaindustria.com.br',
+  sesi: 'portaldaindustria.com.br',
+  sesc: 'sesc.com.br',
+  senac: 'senac.br',
+  fiocruz: 'fiocruz.br',
+  embrapa: 'embrapa.br'
+};
+
+const resolveCompanyLogo = (comp: ClientCompany): string | null => {
+  if (comp.logoUrl && comp.logoUrl.trim()) return comp.logoUrl.trim();
+
+  const cleanName = comp.name.toLowerCase().trim().replace(/^(ao|à|a|para)\s+/i, '');
+  
+  // 1. Dicionário de domínios conhecidos
+  for (const [key, domain] of Object.entries(KNOWN_COMPANY_DOMAINS)) {
+    if (cleanName.includes(key)) {
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+    }
+  }
+
+  // 2. Extração de domínio corporativo a partir dos e-mails dos contatos
+  if (comp.contacts && comp.contacts.length > 0) {
+    const publicDomains = new Set([
+      'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'yahoo.com.br', 
+      'bol.com.br', 'uol.com.br', 'live.com', 'icloud.com'
+    ]);
+    for (const ct of comp.contacts) {
+      if (ct.email && ct.email.includes('@')) {
+        const domain = ct.email.split('@')[1]?.toLowerCase().trim();
+        if (domain && !publicDomains.has(domain)) {
+          return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+        }
+      }
+    }
+  }
+
+  // 3. Fallback inteligente para termos únicos
+  const words = cleanName.split(/\s+/).filter(Boolean);
+  if (words.length === 1 && words[0].length >= 3) {
+    const slug = words[0].replace(/[^a-z0-9]/gi, '');
+    return `https://www.google.com/s2/favicons?domain=${slug}.com.br&sz=128`;
+  }
+
+  return null;
+};
+
+const CompanyLogoBadge: React.FC<{
+  company: ClientCompany;
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
+}> = ({ company, size = 'sm', className = '' }) => {
+  const [loadFailed, setLoadFailed] = useState(false);
+  const logoUrl = resolveCompanyLogo(company);
+  const initials = getCompanyInitials(company.name);
+  const avatarColor = getAvatarColor(company.name);
+
+  React.useEffect(() => {
+    setLoadFailed(false);
+  }, [company.id, company.logoUrl]);
+
+  const sizeClasses = {
+    sm: 'w-9 h-9 text-xs',
+    md: 'w-11 h-11 text-sm',
+    lg: 'w-14 h-14 text-base'
+  }[size];
+
+  if (logoUrl && !loadFailed) {
+    return (
+      <div className={`${sizeClasses} rounded-full border border-slate-200/90 bg-white p-1 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden ${className}`}>
+        <img
+          src={logoUrl}
+          alt={company.name}
+          className="w-full h-full object-contain"
+          onError={() => setLoadFailed(true)}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${sizeClasses} rounded-full border flex items-center justify-center font-bold font-mono shrink-0 shadow-2xs ${avatarColor} ${className}`}>
+      {initials}
+    </div>
+  );
+};
+
 export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   companies,
   onSaveCompanies,
@@ -81,11 +218,13 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyPrefix, setNewCompanyPrefix] = useState<'À' | 'Ao'>('À');
   const [newCompanyLocation, setNewCompanyLocation] = useState('Brasília - DF');
+  const [newCompanyLogoUrl, setNewCompanyLogoUrl] = useState('');
 
   // Edit Company state
   const [editCompanyName, setEditCompanyName] = useState('');
   const [editCompanyPrefix, setEditCompanyPrefix] = useState<'À' | 'Ao'>('À');
   const [editCompanyLocation, setEditCompanyLocation] = useState('');
+  const [editCompanyLogoUrl, setEditCompanyLogoUrl] = useState('');
 
   // New Contact form state
   const [isAddingContact, setIsAddingContact] = useState(false);
@@ -187,6 +326,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       defaultDeliveryLocation: loc,
       locations: [loc],
       contacts: [],
+      logoUrl: newCompanyLogoUrl.trim() || undefined,
       lastUsed: new Date().toISOString()
     };
     const updated = [newCompany, ...companies];
@@ -194,6 +334,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     setSelectedCompanyId(newCompany.id);
     setCompanyPage(1);
     setNewCompanyName('');
+    setNewCompanyLocation('Brasília - DF');
+    setNewCompanyLogoUrl('');
     setNewCompanyPrefix('À');
     setIsAddingCompany(false);
     showToast(`Empresa "${newCompany.prefix} ${newCompany.name}" cadastrada!`);
@@ -203,6 +345,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     setEditCompanyName(comp.name);
     setEditCompanyPrefix((comp.prefix as 'À' | 'Ao') || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À'));
     setEditCompanyLocation(comp.defaultDeliveryLocation || 'Brasília - DF');
+    setEditCompanyLogoUrl(comp.logoUrl || '');
     setIsEditingCompany(true);
   };
 
@@ -213,7 +356,14 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       if (c.id === companyId) {
         const existingLocs = Array.isArray(c.locations) ? c.locations : [];
         const nextLocs = existingLocs.includes(loc) ? existingLocs : [loc, ...existingLocs];
-        return { ...c, name: editCompanyName.trim(), prefix: editCompanyPrefix, defaultDeliveryLocation: loc, locations: nextLocs };
+        return { 
+          ...c, 
+          name: editCompanyName.trim(), 
+          prefix: editCompanyPrefix, 
+          defaultDeliveryLocation: loc, 
+          locations: nextLocs,
+          logoUrl: editCompanyLogoUrl.trim() || undefined
+        };
       }
       return c;
     });
@@ -438,7 +588,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col lg:grid lg:grid-cols-12 min-h-[640px]">
 
         {/* Left: Companies Grid List (Paginada em 2 Colunas - Opção 3) */}
-        <div className="lg:col-span-5 border-r border-slate-200 flex flex-col justify-between bg-slate-50/50 p-4 space-y-3 min-h-[640px] max-h-[84vh]">
+        <div className="lg:col-span-4 xl:col-span-4 border-r border-slate-200 flex flex-col justify-between bg-slate-50/50 p-4 space-y-3 min-h-[640px] max-h-[84vh]">
           <div className="flex-1 flex flex-col min-h-0 space-y-3">
             <div className="flex items-center justify-between pt-1 shrink-0">
               <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -482,6 +632,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   />
                 </div>
                 <input type="text" placeholder="Local padrão (Ex: Brasília - DF)" value={newCompanyLocation} onChange={(e) => setNewCompanyLocation(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500" />
+                <input type="url" placeholder="URL do Logo / Imagem (opcional - detectado automaticamente)" value={newCompanyLogoUrl} onChange={(e) => setNewCompanyLogoUrl(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500" />
                 <div className="flex justify-end gap-1.5 pt-1">
                   <button type="button" onClick={() => setIsAddingCompany(false)} className="text-xs px-2.5 py-1 text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer">Cancelar</button>
                   <button type="submit" className="text-xs px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg cursor-pointer">Salvar</button>
@@ -490,28 +641,24 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
             )}
 
             {/* Grid de Empresas em 2 Colunas */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1 overflow-y-auto pr-0.5 custom-scrollbar content-start">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5 flex-1 overflow-y-auto pr-0.5 custom-scrollbar content-start">
               {paginatedCompanies.map(comp => {
                 const isSelected = selectedCompany?.id === comp.id;
                 const displayPrefix = comp.prefix || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
-                const initials = getCompanyInitials(comp.name);
-                const avatarStyle = getAvatarColor(comp.name);
 
                 return (
                   <div
                     key={comp.id}
                     onClick={() => { setSelectedCompanyId(comp.id); setIsEditingCompany(false); setEditingContact(null); }}
-                    className={`p-3 rounded-2xl cursor-pointer border transition-all duration-150 flex flex-col justify-between gap-2.5 ${
+                    className={`p-2.5 rounded-2xl cursor-pointer border transition-all duration-150 flex flex-col justify-between gap-2 ${
                       isSelected
                         ? 'bg-sky-50/90 border-sky-400 shadow-xs ring-2 ring-sky-300/40'
                         : 'bg-white hover:bg-slate-50/90 border-slate-200/90 hover:border-slate-300 shadow-2xs'
                     }`}
                   >
-                    {/* Card Top: Avatar + Name + Location */}
-                    <div className="flex items-start gap-2.5">
-                      <div className={`w-9 h-9 rounded-full border flex items-center justify-center font-bold text-xs font-mono shrink-0 shadow-2xs ${avatarStyle}`}>
-                        {initials}
-                      </div>
+                    {/* Card Top: Logo / Avatar + Name + Location */}
+                    <div className="flex items-center gap-2.5">
+                      <CompanyLogoBadge company={comp} size="sm" />
                       <div className="min-w-0 flex-1">
                         <h4 className={`text-xs font-bold leading-tight truncate ${isSelected ? 'text-sky-950' : 'text-slate-900'}`} title={comp.name}>
                           {comp.name}
@@ -550,7 +697,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                 );
               })}
               {filteredCompanies.length === 0 && (
-                <div className="col-span-2 text-center py-12 text-slate-400 text-xs">Nenhuma empresa encontrada.</div>
+                <div className="col-span-full text-center py-12 text-slate-400 text-xs">Nenhuma empresa encontrada.</div>
               )}
             </div>
           </div>
@@ -615,8 +762,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
           )}
         </div>
 
-        {/* Right: Company Detail + Buyers Hero Banner */}
-        <div className="lg:col-span-7 flex flex-col p-6 overflow-y-auto space-y-5 min-h-[640px] max-h-[84vh] bg-white">
+        {/* Right: Company Detail + Buyers Hero Banner (Espaço Ampliado para Compradores) */}
+        <div className="lg:col-span-8 xl:col-span-8 flex flex-col p-6 overflow-y-auto space-y-5 min-h-[640px] max-h-[84vh] bg-white">
           {selectedCompany ? (
             <>
               {/* Company Header Hero Banner Card */}
@@ -653,21 +800,29 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         <label className="block text-[11px] font-semibold text-slate-700 mb-1">Local de Entrega Padrão</label>
                         <input type="text" value={editCompanyLocation} onChange={(e) => setEditCompanyLocation(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" />
                       </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">URL da Logomarca (opcional - detectada automaticamente)</label>
+                        <input 
+                          type="url" 
+                          placeholder="https://exemplo.com/logo.png" 
+                          value={editCompanyLogoUrl} 
+                          onChange={(e) => setEditCompanyLogoUrl(e.target.value)} 
+                          className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" 
+                        />
+                      </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-1">
-                      <button type="button" onClick={() => setIsEditingCompany(false)} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200/60 rounded-lg font-medium">Cancelar</button>
-                      <button type="submit" className="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5">
+                      <button type="button" onClick={() => setIsEditingCompany(false)} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200/60 rounded-lg font-medium cursor-pointer">Cancelar</button>
+                      <button type="submit" className="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5 cursor-pointer">
                         <Save className="w-3.5 h-3.5" /><span>Salvar</span>
                       </button>
                     </div>
                   </form>
                 ) : (
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    {/* Left: Avatar + Title + Subtitle */}
+                    {/* Left: Avatar / Logo + Title + Subtitle */}
                     <div className="flex items-center gap-3.5">
-                      <div className={`w-14 h-14 rounded-full border-2 border-slate-200/80 flex items-center justify-center text-sm font-bold font-mono shadow-xs shrink-0 ${getAvatarColor(selectedCompany.name)}`}>
-                        {getCompanyInitials(selectedCompany.name)}
-                      </div>
+                      <CompanyLogoBadge company={selectedCompany} size="lg" />
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{selectedCompany.name}</h2>
@@ -721,8 +876,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         {companyIdToDelete === selectedCompany.id ? (
                           <div className="flex items-center gap-1 bg-red-50 border border-red-200 px-2 py-1 rounded-xl">
                             <span className="text-[11px] font-bold text-red-700">Excluir?</span>
-                            <button type="button" onClick={() => handleDeleteCompanyAction(selectedCompany.id)} className="px-2 py-1 bg-red-600 text-white rounded text-xs font-bold">Sim</button>
-                            <button type="button" onClick={() => setCompanyIdToDelete(null)} className="px-2 py-1 bg-white text-slate-700 border rounded text-xs">Não</button>
+                            <button type="button" onClick={() => handleDeleteCompanyAction(selectedCompany.id)} className="px-2 py-1 bg-red-600 text-white rounded text-xs font-bold cursor-pointer">Sim</button>
+                            <button type="button" onClick={() => setCompanyIdToDelete(null)} className="px-2 py-1 bg-white text-slate-700 border rounded text-xs cursor-pointer">Não</button>
                           </div>
                         ) : (
                           <button

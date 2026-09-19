@@ -185,6 +185,7 @@ export interface ClientCompany {
   defaultDeliveryLocation?: string;
   locations?: string[];
   lastUsed?: string;
+  logoUrl?: string;
 }
 
 export interface DiscoveredProduct {
