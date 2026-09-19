@@ -594,13 +594,45 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         });
 
         if (parsed.length > 0) {
+          let updatedCount = 0;
+          let addedCount = 0;
+
           setProducts(prev => {
-            const next = [...parsed, ...prev];
+            const next = [...prev];
+            parsed.forEach(newItem => {
+              const normName = normalizeSearchText(newItem.name);
+              const normPn = (newItem.partNumber || '').trim().toLowerCase();
+              const normSku = (newItem.sku || '').trim().toLowerCase();
+
+              const existingIdx = next.findIndex(p => {
+                const pPn = (p.partNumber || '').trim().toLowerCase();
+                const pSku = (p.sku || '').trim().toLowerCase();
+                const pName = normalizeSearchText(p.name);
+
+                return (
+                  Boolean(normPn && pPn && pPn === normPn) ||
+                  Boolean(normSku && pSku && pSku === normSku) ||
+                  Boolean(normName && pName && pName === normName)
+                );
+              });
+
+              if (existingIdx >= 0) {
+                next[existingIdx] = {
+                  ...next[existingIdx],
+                  ...newItem,
+                  id: next[existingIdx].id
+                };
+                updatedCount++;
+              } else {
+                next.unshift(newItem);
+                addedCount++;
+              }
+            });
             saveProducts(next);
             return next;
           });
           syncBatchProductsToSupabase(parsed);
-          setImportStatus(`Sucesso! ${parsed.length} produtos importados e sincronizados com o banco de dados.`);
+          setImportStatus(`Importação concluída: ${addedCount} novos adicionados e ${updatedCount} existentes atualizados.`);
           setTimeout(() => setImportStatus(null), 4000);
         }
       },
@@ -634,6 +666,39 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     e.preventDefault();
     if (!newProd.name || !newProd.name.trim()) {
       alert('Por favor, informe ao menos o nome do produto.');
+      return;
+    }
+
+    const cleanName = newProd.name.trim();
+    const cleanPn = (newProd.partNumber || '').trim().toLowerCase();
+    const cleanSku = (newProd.sku || '').trim().toLowerCase();
+    const normName = normalizeSearchText(cleanName);
+
+    // 🛡️ Trava de Proteção Anti-Duplicidade (3 Níveis de Segurança):
+    // 1. Part Number / Código de Fabricante (se preenchido)
+    // 2. SKU / Código Interno (se preenchido e não vazio)
+    // 3. Nome do Produto Normalizado (sem acentos, sem maiúsculas, sem espaços extras)
+    const existingDuplicate = products.find(p => {
+      const pPn = (p.partNumber || '').trim().toLowerCase();
+      const pSku = (p.sku || '').trim().toLowerCase();
+      const pName = normalizeSearchText(p.name);
+
+      const matchPn = Boolean(cleanPn && pPn && cleanPn === pPn);
+      const matchSku = Boolean(cleanSku && pSku && cleanSku === pSku);
+      const matchName = Boolean(normName && pName && normName === pName);
+
+      return matchPn || matchSku || matchName;
+    });
+
+    if (existingDuplicate) {
+      const matchReason = 
+        cleanPn && (existingDuplicate.partNumber || '').trim().toLowerCase() === cleanPn
+          ? `Part Number idêntico (${existingDuplicate.partNumber})`
+          : cleanSku && (existingDuplicate.sku || '').trim().toLowerCase() === cleanSku
+          ? `Código/SKU idêntico (${existingDuplicate.sku})`
+          : `Nome idêntico ("${existingDuplicate.name}")`;
+
+      alert(`⚠️ Produto já cadastrado no sistema!\n\nFoi identificado um produto idêntico com base no critério: ${matchReason}.\n\n• Produto: ${existingDuplicate.name}\n• Categoria: ${existingDuplicate.category}\n• SKU: ${existingDuplicate.sku || 'N/A'}\n• Custo Atual: R$ ${existingDuplicate.costPrice.toFixed(2)}\n\nPara evitar itens duplicados no catálogo, localize o produto existente na lista e clique no lápis de edição para atualizar.`);
       return;
     }
 

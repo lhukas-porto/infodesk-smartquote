@@ -76,7 +76,8 @@ import {
   extractContactPersonFromText,
   generateQuoteCode,
   formatProductSentenceCase,
-  generateProposalEmailHtml
+  generateProposalEmailHtml,
+  normalizeSearchText
 } from './utils/aiEmailParser';
 import {
   isSupabaseConfigured,
@@ -868,16 +869,27 @@ export const App: React.FC = () => {
 
   const handleSaveProductToCatalog = (p: Product) => {
     setProducts(prev => {
-      const existingIdx = prev.findIndex(item => 
-        (p.id && item.id === p.id) || 
-        (p.partNumber && item.partNumber && item.partNumber.trim().toLowerCase() === p.partNumber.trim().toLowerCase()) ||
-        (p.sku && item.sku && item.sku.trim().toLowerCase() === p.sku.trim().toLowerCase()) ||
-        (p.name && item.name && item.name.trim().toLowerCase() === p.name.trim().toLowerCase())
-      );
+      const normName = normalizeSearchText(p.name);
+      const normPn = (p.partNumber || '').trim().toLowerCase();
+      const normSku = (p.sku || '').trim().toLowerCase();
+
+      const existingIdx = prev.findIndex(item => {
+        const itemPn = (item.partNumber || '').trim().toLowerCase();
+        const itemSku = (item.sku || '').trim().toLowerCase();
+        const itemName = normalizeSearchText(item.name);
+
+        return (
+          (p.id && item.id === p.id) || 
+          (normPn && itemPn && normPn === itemPn) ||
+          (normSku && itemSku && normSku === itemSku) ||
+          (normName && itemName && normName === itemName)
+        );
+      });
+
       let next: Product[];
       if (existingIdx >= 0) {
         next = [...prev];
-        next[existingIdx] = { ...prev[existingIdx], ...p };
+        next[existingIdx] = { ...prev[existingIdx], ...p, id: prev[existingIdx].id };
       } else {
         next = [p, ...prev];
       }
