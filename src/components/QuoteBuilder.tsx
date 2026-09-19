@@ -43,7 +43,8 @@ import {
   Sliders,
   LayoutList,
   PlusCircle,
-  Mail
+  Mail,
+  MoreVertical
 } from 'lucide-react';
 import { ClientCompany, ClientContact, CompanySettings, Product, Quote, QuoteItem } from '../types';
 import { 
@@ -204,6 +205,22 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   const [isQuoteCaseMenuOpen, setIsQuoteCaseMenuOpen] = useState(false);
   const [activeQuoteCaseStyle, setActiveQuoteCaseStyle] = useState<WordCaseStyle>('sentence');
   const quoteCaseMenuRef = useRef<HTMLDivElement>(null);
+
+  // Menu de Mais Ações no celular (Salvar Excel, Novo Orçamento, etc)
+  const [isMobileMoreActionsOpen, setIsMobileMoreActionsOpen] = useState(false);
+  const mobileMoreActionsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (mobileMoreActionsRef.current && !mobileMoreActionsRef.current.contains(e.target as Node)) {
+        setIsMobileMoreActionsOpen(false);
+      }
+    };
+    if (isMobileMoreActionsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMobileMoreActionsOpen]);
 
   // Menu dropdown de Mudar Caso dentro do modal Editar (Catálogo)
   const [isCatalogCaseMenuOpen, setIsCatalogCaseMenuOpen] = useState(false);
@@ -2447,29 +2464,30 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       {/* Items & Prices Table */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         {/* Barra superior estilo ERP / Sistema Comercial: Selecione ou crie um novo item */}
-        <div className="p-4 bg-slate-50/70 border-b border-slate-200">
-          <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className="p-3 sm:p-4 bg-slate-50/70 border-b border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-2">
             <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
               <span>Produtos/Serviços</span>
               <span className="text-red-500 font-bold">*</span>
-              <span className="text-slate-400 font-normal">|</span>
-              <span className="text-slate-600 font-semibold flex items-center gap-1">
+              <span className="text-slate-400 font-normal hidden sm:inline">|</span>
+              <span className="text-slate-600 font-semibold hidden sm:flex items-center gap-1">
                 Selecione ou crie um novo item
                 <span title="Selecione um produto da sua base de Produtos Infodesk para inserir com foto e custos já preenchidos, ou crie uma nova linha em branco para preenchimento manual.">
                   <HelpCircle className="w-3.5 h-3.5 text-slate-400 hover:text-sky-600 cursor-help transition" />
                 </span>
               </span>
             </label>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
               {/* Botão de Importação Universal */}
               <button
                 type="button"
                 onClick={() => setIsUniversalImportOpen(true)}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 shadow-2xs cursor-pointer active:scale-95"
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
                 title="Importar produtos em lote a partir de planilha Excel (.xlsx), CSV ou copiar e colar células (Ctrl+V)"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Importar Planilha / Excel</span>
+                <span className="hidden sm:inline">Importar Planilha / Excel</span>
+                <span className="sm:hidden">Importar</span>
               </button>
 
               {/* Botão de Matriz Multi-Fornecedor & Split */}
@@ -2477,11 +2495,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsSupplierMatrixOpen(true)}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/90 shadow-2xs cursor-pointer active:scale-95"
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/90 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
                   title="Abrir matriz comparativa de fornecedores e simular cesta mais barata"
                 >
                   <Layers className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Matriz Fornecedores & Split</span>
+                  <span className="hidden sm:inline">Matriz Fornecedores & Split</span>
+                  <span className="sm:hidden">Matriz</span>
                 </button>
               )}
 
@@ -2490,7 +2509,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsCompactTableMode(prev => !prev)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition flex items-center gap-1.5 border shadow-2xs cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition flex items-center gap-1.5 border shadow-2xs cursor-pointer shrink-0 whitespace-nowrap ${
                     isCompactTableMode
                       ? 'bg-sky-50 text-sky-700 border-sky-300 ring-1 ring-sky-200'
                       : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'
@@ -2498,13 +2517,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   title="Alternar entre modo compacto (linhas menores e mais limpas) e detalhado (com utilitários de fotos e links expandidos)"
                 >
                   <LayoutList className="w-3.5 h-3.5 text-sky-600" />
-                  <span>{isCompactTableMode ? 'Visualização Detalhada' : 'Visualização Compacta'}</span>
+                  <span className="hidden sm:inline">{isCompactTableMode ? 'Visualização Detalhada' : 'Visualização Compacta'}</span>
+                  <span className="sm:hidden">{isCompactTableMode ? 'Detalhada' : 'Compacta'}</span>
                 </button>
               )}
 
               {currentQuote.items && currentQuote.items.length > 0 && (
-                <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
-                  {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item na cotação' : 'itens na cotação'}
+                <span className="text-[11px] text-slate-500 font-medium hidden md:inline shrink-0 whitespace-nowrap">
+                  {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item' : 'itens'}
                 </span>
               )}
             </div>
@@ -2672,8 +2692,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
           {/* Barra de Operações Rápidas em Lote (Bulk Actions) */}
           {currentQuote.items && currentQuote.items.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 max-w-full">
                 <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-sky-600" />
                   <span>Ações em Lote:</span>
@@ -3870,83 +3890,199 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     </div>
 
       {/* Barra de Ações Finais da Cotação (Barra Flutuante Fixa / Sticky Footer) */}
-      <div className="sticky bottom-3 z-30 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-900/10 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all">
-        <div className="text-left w-full sm:w-auto">
-          <p className="text-xs text-slate-500 font-medium">
-            Total da Cotação: <strong className="text-slate-900 font-mono text-base ml-1">R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </p>
-          <p className="text-[11px] text-slate-400">
-            {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'} • Margem média de {currentQuote.averageMargin.toFixed(1)}%
-          </p>
-        </div>
+      <div className="sticky bottom-16 lg:bottom-3 z-30 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-3 sm:p-5 shadow-lg shadow-slate-900/10 transition-all">
+        
+        {/* Layout Desktop (sm e superior) */}
+        <div className="hidden sm:flex items-center justify-between gap-4">
+          <div className="text-left">
+            <p className="text-xs text-slate-500 font-medium">
+              Total da Cotação: <strong className="text-slate-900 font-mono text-base ml-1">R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            </p>
+            <p className="text-[11px] text-slate-400">
+              {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'} • Margem média de {currentQuote.averageMargin.toFixed(1)}%
+            </p>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-          {onNewQuote && (
+          <div className="flex items-center gap-2">
+            {onNewQuote && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentQuote.items.length > 0) {
+                    if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
+                      onNewQuote();
+                    }
+                  } else {
+                    onNewQuote();
+                  }
+                }}
+                className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-sky-700 border border-sky-200/90 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                title="Iniciar um novo orçamento em branco"
+              >
+                <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
+                <span>Novo Orçamento</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => persistAndProceed(onSave)}
+              className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+              title="Salva alterações na proposta atual (rascunho)"
+            >
+              <Save className="w-3.5 h-3.5 text-slate-600" />
+              <span>Salvar</span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
-                if (currentQuote.items.length > 0) {
-                  if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
-                    onNewQuote();
-                  }
-                } else {
-                  onNewQuote();
+                if (!currentQuote.items || currentQuote.items.length === 0) {
+                  alert('Adicione ao menos um produto na cotação para exportar a planilha Excel.');
+                  return;
                 }
+                handleExportExcel();
               }}
-              className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-sky-700 border border-sky-200/90 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-              title="Iniciar um novo orçamento em branco"
+              className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+              title="Baixar planilha de custos e precificação detalhada no Excel (.xlsx)"
             >
-              <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
-              <span>Novo Orçamento</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Salvar Excel</span>
             </button>
-          )}
 
-          <button
-            type="button"
-            onClick={() => persistAndProceed(onSave)}
-            className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-            title="Salva alterações na proposta atual (rascunho)"
-          >
-            <Save className="w-3.5 h-3.5 text-slate-600" />
-            <span>Salvar</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => persistAndProceed(onPreview, true)}
+              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-sky-600/25 cursor-pointer active:scale-95"
+              title="Visualizar documento pronto para impressão ou download em PDF"
+            >
+              <Eye className="w-4 h-4" />
+              <span>Visualizar proposta</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (!currentQuote.items || currentQuote.items.length === 0) {
-                alert('Adicione ao menos um produto na cotação para exportar a planilha Excel.');
-                return;
-              }
-              handleExportExcel();
-            }}
-            className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-            title="Baixar planilha de custos e precificação detalhada no Excel (.xlsx)"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>Salvar Excel</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => persistAndProceed(onPreview, true)}
-            className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-sky-600/25 cursor-pointer active:scale-95"
-            title="Visualizar documento pronto para impressão ou download em PDF"
-          >
-            <Eye className="w-4 h-4" />
-            <span>Visualizar proposta</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => persistAndProceed(onSendEmail, true)}
-            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-emerald-600/25 cursor-pointer active:scale-95"
-            title="Disparar proposta comercial formal por e-mail para o cliente"
-          >
-            <Send className="w-4 h-4" />
-            <span>Enviar e-mail</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => persistAndProceed(onSendEmail, true)}
+              className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-emerald-600/25 cursor-pointer active:scale-95"
+              title="Disparar proposta comercial formal por e-mail para o cliente"
+            >
+              <Send className="w-4 h-4" />
+              <span>Enviar e-mail</span>
+            </button>
+          </div>
         </div>
+
+        {/* Layout Mobile Otimizado (sem botões sobrepostos) */}
+        <div className="flex sm:hidden flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block leading-none mb-0.5">Total Proposta</span>
+              <span className="text-sm font-extrabold text-slate-900 font-mono leading-none">
+                R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            <span className="text-[10.5px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-lg font-medium">
+              {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item' : 'itens'} • {currentQuote.averageMargin.toFixed(0)}% margem
+            </span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-slate-100">
+            {/* Salvar Rascunho */}
+            <button
+              type="button"
+              onClick={() => persistAndProceed(onSave)}
+              className="flex flex-col items-center justify-center py-2 px-1 bg-slate-100 active:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold transition shadow-2xs cursor-pointer active:scale-95"
+              title="Salvar rascunho"
+            >
+              <Save className="w-4 h-4 text-slate-600 mb-0.5" />
+              <span>Salvar</span>
+            </button>
+
+            {/* Visualizar Proposta */}
+            <button
+              type="button"
+              onClick={() => persistAndProceed(onPreview, true)}
+              className="flex flex-col items-center justify-center py-2 px-1 bg-sky-600 active:bg-sky-700 text-white rounded-xl text-[10.5px] font-bold transition shadow-xs cursor-pointer active:scale-95"
+              title="Visualizar proposta"
+            >
+              <Eye className="w-4 h-4 mb-0.5" />
+              <span>Ver</span>
+            </button>
+
+            {/* Enviar E-mail */}
+            <button
+              type="button"
+              onClick={() => persistAndProceed(onSendEmail, true)}
+              className="flex flex-col items-center justify-center py-2 px-1 bg-emerald-600 active:bg-emerald-700 text-white rounded-xl text-[10.5px] font-bold transition shadow-xs cursor-pointer active:scale-95"
+              title="Enviar e-mail para cliente"
+            >
+              <Send className="w-4 h-4 mb-0.5" />
+              <span>Enviar</span>
+            </button>
+
+            {/* Mais Ações (Excel, Novo Orçamento) */}
+            <div className="relative" ref={mobileMoreActionsRef}>
+              <button
+                type="button"
+                onClick={() => setIsMobileMoreActionsOpen(prev => !prev)}
+                className={`w-full h-full flex flex-col items-center justify-center py-2 px-1 rounded-xl text-[10.5px] font-bold transition shadow-2xs cursor-pointer active:scale-95 border ${
+                  isMobileMoreActionsOpen 
+                    ? 'bg-sky-50 text-sky-700 border-sky-300' 
+                    : 'bg-slate-100 active:bg-slate-200 text-slate-700 border-slate-200'
+                }`}
+                title="Mais ações da proposta"
+              >
+                <MoreVertical className="w-4 h-4 mb-0.5 text-slate-600" />
+                <span>Mais</span>
+              </button>
+
+              {isMobileMoreActionsOpen && (
+                <div className="absolute right-0 bottom-full mb-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-50 animate-scaleIn">
+                  <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Mais Ações
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileMoreActionsOpen(false);
+                      if (!currentQuote.items || currentQuote.items.length === 0) {
+                        alert('Adicione ao menos um produto na cotação para exportar a planilha Excel.');
+                        return;
+                      }
+                      handleExportExcel();
+                    }}
+                    className="w-full px-3 py-2.5 text-left text-xs font-semibold text-emerald-800 hover:bg-emerald-50 flex items-center gap-2 transition"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    <span>Salvar Excel (.xlsx)</span>
+                  </button>
+
+                  {onNewQuote && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMoreActionsOpen(false);
+                        if (currentQuote.items.length > 0) {
+                          if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
+                            onNewQuote();
+                          }
+                        } else {
+                          onNewQuote();
+                        }
+                      }}
+                      className="w-full px-3 py-2.5 text-left text-xs font-semibold text-sky-700 hover:bg-sky-50 flex items-center gap-2 transition border-t border-slate-100"
+                    >
+                      <PlusCircle className="w-4 h-4 text-sky-600" />
+                      <span>Novo Orçamento</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
       </div>
 
 

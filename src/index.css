@@ -226,3 +226,17 @@
   }
 }
 
+/* Utilitário para ocultar scrollbars nativas mantendo a rolagem por toque no celular */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Área de segurança inferior para iPhones e Androids com barra de navegação gestual */
+.safe-area-bottom {
+  padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
+}
+

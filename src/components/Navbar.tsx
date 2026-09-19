@@ -227,6 +227,104 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         </div>
       </div>
+
+      {/* Barra de Navegação Inferior Fixa Nativa para Celular (Mobile Bottom Nav) */}
+      <nav 
+        aria-label="Navegação Mobile"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 lg:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.06)] px-2 py-1 flex items-center justify-around safe-area-bottom select-none"
+      >
+        {/* Inbox */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('inbox')}
+          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
+            activeTab === 'inbox'
+              ? 'text-sky-600 font-bold bg-sky-50/80'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <div className="relative">
+            <Mail className={`w-5 h-5 ${activeTab === 'inbox' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-sky-500 text-white text-[9px] font-extrabold rounded-full shadow-2xs">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight mt-1 leading-none">
+            Inbox
+          </span>
+        </button>
+
+        {/* Cotação */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('builder')}
+          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
+            activeTab === 'builder'
+              ? 'text-sky-600 font-bold bg-sky-50/80'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <FileText className={`w-5 h-5 ${activeTab === 'builder' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+          <span className="text-[10px] tracking-tight mt-1 leading-none">
+            Cotação
+          </span>
+        </button>
+
+        {/* Scanner de Preços */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('websearch')}
+          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
+            activeTab === 'websearch'
+              ? 'text-sky-600 font-bold bg-sky-50/80'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Search className={`w-5 h-5 ${activeTab === 'websearch' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+          <span className="text-[10px] tracking-tight mt-1 leading-none">
+            Scanner
+          </span>
+        </button>
+
+        {/* Produtos */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('catalog')}
+          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
+            activeTab === 'catalog'
+              ? 'text-sky-600 font-bold bg-sky-50/80'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Package className={`w-5 h-5 ${activeTab === 'catalog' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+          <span className="text-[10px] tracking-tight mt-1 leading-none">
+            Produtos
+          </span>
+        </button>
+
+        {/* Histórico */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('history')}
+          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
+            activeTab === 'history'
+              ? 'text-sky-600 font-bold bg-sky-50/80'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <div className="relative">
+            <History className={`w-5 h-5 ${activeTab === 'history' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+            {draftsCount > 0 && (
+              <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white"></span>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight mt-1 leading-none">
+            Histórico
+          </span>
+        </button>
+      </nav>
     </header>
   );
 };
