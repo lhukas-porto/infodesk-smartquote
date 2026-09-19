@@ -151,19 +151,12 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   }, []);
 
   const availableUnits = React.useMemo(() => {
-    const unwanted = new Set(['Frasco', 'Galão', 'Tubo', 'Lata', 'Peça']);
-    const fromProducts = (products || []).map(p => p.unit).filter(u => u && !unwanted.has(u));
-    return Array.from(new Set([...registeredUnits, ...fromProducts]))
-      .filter(u => u && !unwanted.has(u))
-      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [registeredUnits, products]);
+    return [...registeredUnits].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [registeredUnits]);
 
   const availableCategories = React.useMemo(() => {
-    const fromProducts = (products || []).map(p => p.category).filter(Boolean);
-    return Array.from(new Set([...registeredCategories, ...fromProducts]))
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [registeredCategories, products]);
+    return [...registeredCategories].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [registeredCategories]);
 
   const formatCurrencyPtBr = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) return '0,00';

@@ -246,20 +246,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   }, []);
 
   const availableUnits = React.useMemo(() => {
-    const unwanted = new Set(['Frasco', 'Galão', 'Tubo', 'Lata', 'Peça']);
-    const fromProducts = (products || []).map(p => p.unit).filter(u => u && !unwanted.has(u));
-    const fromQuotes = (currentQuote.items || []).map(i => i.unit).filter(u => u && !unwanted.has(u));
-    return Array.from(new Set([...registeredUnits, ...fromProducts, ...fromQuotes]))
-      .filter(u => u && !unwanted.has(u))
-      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [registeredUnits, products, currentQuote.items]);
+    return [...registeredUnits].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [registeredUnits]);
 
   const availableCategories = React.useMemo(() => {
-    const fromProducts = (products || []).map(p => p.category).filter(Boolean);
-    return Array.from(new Set([...registeredCategories, ...fromProducts]))
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [registeredCategories, products]);
+    return [...registeredCategories].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [registeredCategories]);
 
   const clientCompanies = propsClientCompanies || localClientCompanies;
 
