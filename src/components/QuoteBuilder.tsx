@@ -113,7 +113,6 @@ interface QuoteBuilderProps {
   onSaveCompanies?: (companies: ClientCompany[]) => void;
   onDeleteCompany?: (companyId: string) => void;
   onDeleteContact?: (contactId: string, companyId: string) => void;
-  onOpenEmailScanner?: () => void;
   onUpdateSettings?: (newSettings: CompanySettings) => void;
   onNewQuote?: () => void;
 }
@@ -133,7 +132,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   onSaveCompanies: propsOnSaveCompanies,
   onDeleteCompany: propsOnDeleteCompany,
   onDeleteContact: propsOnDeleteContact,
-  onOpenEmailScanner: propsOnOpenEmailScanner,
   onUpdateSettings,
   onNewQuote
 }) => {

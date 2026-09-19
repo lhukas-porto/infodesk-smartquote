@@ -9,7 +9,6 @@ import { PriceScannerView } from './components/PriceScannerView';
 import { EmailSendModal } from './components/EmailSendModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ClientManagementView } from './components/ClientManagementView';
-import { EmailContactScannerModal } from './components/EmailContactScannerModal';
 import { ManualAnalysesView } from './components/ManualAnalysesView';
 import { 
   DashboardView, 
@@ -17,7 +16,6 @@ import {
   parseQuoteTimestamp, 
   updateDraftQuotesToToday 
 } from './components/DashboardView';
-import { ScannedContactCandidate } from './services/emailScannerService';
 import { 
   CompanySettings, 
   IncomingEmail, 
@@ -159,7 +157,6 @@ export const App: React.FC = () => {
   };
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [clientCompanies, setClientCompanies] = useState<ClientCompany[]>(() => getClientCompanies());
   const [manualAnalyses, setManualAnalyses] = useState<IncomingEmail[]>(() => getManualAnalyses());
 
@@ -217,37 +214,6 @@ export const App: React.FC = () => {
     setClientCompanies(updated);
     saveClientCompanies(updated);
     syncClientCompaniesToSupabase(updated);
-  };
-
-  const handleSaveScannedCandidate = async (candidate: ScannedContactCandidate) => {
-    const fullName = `${candidate.title} ${candidate.contactName}`.trim();
-    const updated = registerOrUpdateClient(
-      candidate.companyName,
-      fullName,
-      candidate.email,
-      candidate.phone,
-      candidate.deliveryLocation
-    );
-    setClientCompanies(updated);
-    saveClientCompanies(updated);
-    await syncClientCompaniesToSupabase(updated);
-  };
-
-  const handleSaveAllScannedCandidates = async (candidatesList: ScannedContactCandidate[]) => {
-    let current = clientCompanies;
-    for (const candidate of candidatesList) {
-      const fullName = `${candidate.title} ${candidate.contactName}`.trim();
-      current = registerOrUpdateClient(
-        candidate.companyName,
-        fullName,
-        candidate.email,
-        candidate.phone,
-        candidate.deliveryLocation
-      );
-    }
-    setClientCompanies(current);
-    saveClientCompanies(current);
-    await syncClientCompaniesToSupabase(current);
   };
 
   const handleSaveSettings = async (newSettings: CompanySettings) => {
@@ -1527,7 +1493,6 @@ export const App: React.FC = () => {
             onSaveCompanies={handleSaveCompanies}
             onDeleteCompany={handleDeleteCompany}
             onDeleteContact={handleDeleteContact}
-            onOpenEmailScanner={() => setIsScannerModalOpen(true)}
             onPreview={() => setActiveTab('preview')}
             onSave={handleSaveQuote}
             onSendEmail={() => setIsEmailModalOpen(true)}
@@ -1670,7 +1635,6 @@ export const App: React.FC = () => {
             onSaveCompanies={handleSaveCompanies}
             onDeleteCompany={handleDeleteCompany}
             onDeleteContact={handleDeleteContact}
-            onOpenEmailScanner={() => setIsScannerModalOpen(true)}
             onSelectBuyerForQuote={(companyName, contact, location) => {
               setCurrentQuote(prev => ({
                 ...prev,
@@ -1701,16 +1665,6 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSaveSettings={handleSaveSettings}
-      />
-
-      <EmailContactScannerModal
-        isOpen={isScannerModalOpen}
-        onClose={() => setIsScannerModalOpen(false)}
-        existingCompanies={clientCompanies}
-        localEmails={emails}
-        accessToken={getStoredAccessToken()}
-        onSaveCandidate={handleSaveScannedCandidate}
-        onSaveAllCandidates={handleSaveAllScannedCandidates}
       />
 
     </div>

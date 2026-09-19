@@ -33,7 +33,6 @@ interface ClientManagementViewProps {
   onDeleteCompany?: (companyId: string) => void;
   onDeleteContact?: (contactId: string, companyId: string) => void;
   onSelectBuyerForQuote?: (companyName: string, contact: ClientContact, location?: string) => void;
-  onOpenEmailScanner?: () => void;
 }
 
 export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
@@ -41,8 +40,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   onSaveCompanies,
   onDeleteCompany,
   onDeleteContact,
-  onSelectBuyerForQuote,
-  onOpenEmailScanner
+  onSelectBuyerForQuote
 }) => {
   const [searchFilter, setSearchFilter] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() => companies[0]?.id || '');
@@ -323,12 +321,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
           <p className="sq-page-subtitle">Gestão centralizada de clientes, compradores e locais de entrega.</p>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
-          {onOpenEmailScanner && (
-            <button type="button" onClick={onOpenEmailScanner} className="sq-btn-neutral flex items-center gap-1.5" title="Escanear e-mails com IA">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Escanear E-mails (IA)</span>
-            </button>
-          )}
           <button type="button" onClick={() => setIsAddingCompany(true)} className="sq-btn-primary flex items-center gap-1.5">
             <Building2 className="w-4 h-4" />
             <span>+ Nova Empresa</span>
