@@ -864,16 +864,11 @@ export const App: React.FC = () => {
       const normSku = (p.sku || '').trim().toLowerCase();
 
       const existingIdx = prev.findIndex(item => {
-        const itemPn = (item.partNumber || '').trim().toLowerCase();
         const itemSku = (item.sku || '').trim().toLowerCase();
-        const itemName = normalizeSearchText(item.name);
-
-        return (
-          (p.id && item.id === p.id) || 
-          (normPn && itemPn && normPn === itemPn) ||
-          (normSku && itemSku && normSku === itemSku) ||
-          (normName && itemName && normName === itemName)
-        );
+        // Um produto só atualiza outro existente se tiver exatamente o mesmo ID ou o mesmo SKU oficial
+        if (p.id && item.id === p.id) return true;
+        if (normSku && itemSku && normSku === itemSku) return true;
+        return false;
       });
 
       let next: Product[];

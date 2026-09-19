@@ -51,8 +51,37 @@ import {
 } from '../services/priceCacheService';
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
 
+function extractBrandToken(text: string): string {
+  if (!text) return '';
+  const lower = text.toLowerCase();
+  const knownBrands = [
+    'intelbras', 'aquario', 'aquário', 'furukawa', 'nexans', 'sohoplus', 'logitech', 'dell', 'lenovo', 'hp', 'samsung', 'lg',
+    'acrilex', 'faber-castell', 'faber castell', 'bic', 'compactor', 'pilot', 'chamex', 'suzano', 'report',
+    '3m', 'norton', 'tramontina', 'tigre', 'krona', 'deca', 'docol', 'lorenzetti', 'corfio', 'sil', 'prysmian',
+    'ciser', 'placo', 'knauf', 'barbieri', 'coral', 'suvinil', 'quimisa', 'anjo', 'tarkett', 'starrett',
+    'multilaser', 'fortrek', 'redragon', 'kingston', 'sandisk', 'seagate', 'western digital', 'wd',
+    'apple', 'motorola', 'xiaomi', 'asus', 'acer', 'brother', 'epson', 'canon', 'elgin', 'bematech'
+  ];
+  for (const b of knownBrands) {
+    const cleanB = b.replace('-', '[- ]?');
+    if (new RegExp(`\\b${cleanB}\\b`, 'i').test(lower)) {
+      return b.replace(/[^a-z0-9]/gi, '');
+    }
+  }
+  return '';
+}
+
 export function findExistingCatalogProduct(
-  prod: { partNumber?: string; sku?: string; standardizedName?: string; name?: string; ncm?: string },
+  prod: { 
+    partNumber?: string; 
+    sku?: string; 
+    standardizedName?: string; 
+    name?: string; 
+    ncm?: string;
+    brand?: string;
+    manufacturer?: string;
+    model?: string;
+  },
   catalog: Product[] = []
 ): Product | null {
   if (!catalog || catalog.length === 0) return null;
@@ -60,43 +89,59 @@ export function findExistingCatalogProduct(
   const targetPn = cleanAlphanumericCode(prod.partNumber || '');
   const targetSku = cleanAlphanumericCode(prod.sku || '');
   const targetName = normalizeSearchText(prod.standardizedName || prod.name || '');
+  const targetBrand = (prod.brand || prod.manufacturer || extractBrandToken(prod.standardizedName || prod.name || '')).trim().toLowerCase();
 
-  // 1. Part Number do Fabricante
-  if (targetPn && targetPn.length >= 3) {
+  // Códigos genéricos conhecidos que NUNCA devem ser usados para casar produtos automaticamente
+  const isGenericCode = (code: string) => /^(antint|prod|item|peca|un|kit|cx|pct|01|02|03|1234|ref|padrao|default)$/i.test(code);
+
+  // 1. Part Number do Fabricante (ex: 4142031, 09112, ST61102ST)
+  if (targetPn && targetPn.length >= 4 && !isGenericCode(targetPn)) {
     const byPn = catalog.find(p => {
       const pPn = cleanAlphanumericCode(p.partNumber || '');
       const pSku = cleanAlphanumericCode(p.sku || '');
-      return (pPn && pPn === targetPn) || (pSku && pSku === targetPn);
+      const codeMatches = (pPn && pPn === targetPn) || (pSku && pSku === targetPn);
+      if (!codeMatches) return false;
+
+      // Se ambos tiverem marca, elas NÃO podem divergir!
+      const pBrand = extractBrandToken(p.name + ' ' + (p.supplier || '') + ' ' + (p.description || ''));
+      if (targetBrand && pBrand && targetBrand !== pBrand) {
+        return false; // Marcas diferentes -> NUNCA é o mesmo produto!
+      }
+      return true;
     });
     if (byPn) return byPn;
   }
 
-  // 2. SKU do Catálogo
-  if (targetSku && targetSku.length >= 3) {
+  // 2. SKU do Catálogo (ex: se o produto foi salvo com um SKU específico)
+  if (targetSku && targetSku.length >= 4 && !isGenericCode(targetSku)) {
     const bySku = catalog.find(p => {
       const pSku = cleanAlphanumericCode(p.sku || '');
       const pPn = cleanAlphanumericCode(p.partNumber || '');
-      return (pSku && pSku === targetSku) || (pPn && pPn === targetSku);
+      const skuMatches = (pSku && pSku === targetSku) || (pPn && pPn === targetSku);
+      if (!skuMatches) return false;
+
+      const pBrand = extractBrandToken(p.name + ' ' + (p.supplier || '') + ' ' + (p.description || ''));
+      if (targetBrand && pBrand && targetBrand !== pBrand) {
+        return false;
+      }
+      return true;
     });
     if (bySku) return bySku;
   }
 
-  // 3. Nome completo normalizado exato
-  if (targetName && targetName.length > 5) {
+  // 3. Nome completo normalizado EXATO (com checagem de marca)
+  if (targetName && targetName.length > 8) {
     const byName = catalog.find(p => {
       const pName = normalizeSearchText(p.name);
-      return pName && pName === targetName;
+      if (pName !== targetName) return false;
+
+      const pBrand = extractBrandToken(p.name + ' ' + (p.supplier || '') + ' ' + (p.description || ''));
+      if (targetBrand && pBrand && targetBrand !== pBrand) {
+        return false; // Marcas diferentes -> não é o mesmo produto
+      }
+      return true;
     });
     if (byName) return byName;
-  }
-
-  // 4. Se o nome contiver o Part Number
-  if (targetPn && targetPn.length >= 4) {
-    const byNameWithPn = catalog.find(p => {
-      const pName = normalizeSearchText(p.name);
-      return pName && pName.includes(targetPn.toLowerCase());
-    });
-    if (byNameWithPn) return byNameWithPn;
   }
 
   return null;
@@ -159,6 +204,9 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
     discovered: DiscoveredProduct;
     existing: Product;
   } | null>(null);
+
+  // Itens salvos ou atualizados nesta sessão (para feedback imediato)
+  const [savedInSessionIds, setSavedInSessionIds] = useState<Set<string>>(new Set());
 
   // Margem e Filtros
   const [targetMarginPercent, setTargetMarginPercent] = useState<number | null>(null);
@@ -478,6 +526,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
       };
       onSaveToCatalog(updatedProd);
       setCatalogConflictItem(null);
+      setSavedInSessionIds(prev => new Set(prev).add(prod.id));
       showToast(`Ficha técnica do produto "${existing.name}" atualizada com sucesso no catálogo!`);
     } else {
       const isDuplicate = Boolean(existing);
@@ -503,6 +552,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
       };
       onSaveToCatalog(newProd);
       setCatalogConflictItem(null);
+      setSavedInSessionIds(prev => new Set(prev).add(prod.id));
       showToast(isDuplicate 
         ? `Novo registro cadastrado no catálogo com código ${newSku}!` 
         : 'Produto salvo no catálogo com ficha técnica completa!');
@@ -1112,6 +1162,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               const activeImgIndex = prod.selectedImageIndex ?? 0;
               const currentImg = images[activeImgIndex] || images[0] || '';
               const existingInCatalog = findExistingCatalogProduct(prod, products);
+              const isJustSavedInSession = savedInSessionIds.has(prod.id);
 
               return (
                 <div
@@ -1131,7 +1182,12 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {existingInCatalog ? (
+                      {isJustSavedInSession ? (
+                        <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full text-xs font-bold shadow-2xs animate-fadeIn">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Cadastrado no Catálogo com Sucesso (Código: {existingInCatalog?.sku || prod.partNumber || 'OK'})</span>
+                        </span>
+                      ) : existingInCatalog ? (
                         <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-sky-100 text-sky-900 border border-sky-300 rounded-full text-xs font-bold shadow-2xs">
                           <Database className="w-3.5 h-3.5 text-sky-700" />
                           <span>Produto já Cadastrado no Catálogo (Código: {existingInCatalog.sku || existingInCatalog.partNumber})</span>
@@ -1365,28 +1421,39 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                             <span>+ Inserir na Cotação</span>
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleRequestSaveOrUpdate(prod, existingInCatalog)}
-                            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs ${
-                              existingInCatalog
-                                ? 'bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800'
-                                : 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700'
-                            }`}
-                            title={existingInCatalog ? 'Produto já cadastrado no catálogo. Clique para atualizar a ficha técnica existente ou duplicar.' : 'Salvar produto no catálogo para reutilizar'}
-                          >
-                            {existingInCatalog ? (
-                              <>
+                          {existingInCatalog ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => handleRequestSaveOrUpdate(prod, existingInCatalog)}
+                                className="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                                title="Atualizar dados, fotos e custos desta ficha no catálogo"
+                              >
                                 <RefreshCw className="w-4 h-4 text-sky-600" />
                                 <span>Atualizar no Catálogo</span>
-                              </>
-                            ) : (
-                              <>
-                                <Printer className="w-4 h-4 text-slate-500" />
-                                <span>Salvar no Catálogo</span>
-                              </>
-                            )}
-                          </button>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => executeSaveProductToCatalog(prod, null, 'create_new')}
+                                className="px-4 py-2.5 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                                title="Cadastrar como um novo item independente no catálogo (outra marca ou modelo alternativo)"
+                              >
+                                <Plus className="w-4 h-4 text-emerald-600" />
+                                <span>Salvar como Novo (Outra Marca/Modelo)</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleRequestSaveOrUpdate(prod, null)}
+                              className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                              title="Salvar produto no catálogo para reutilizar em cotações"
+                            >
+                              <Printer className="w-4 h-4 text-slate-500" />
+                              <span>Salvar no Catálogo</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1826,11 +1893,11 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => executeSaveProductToCatalog(catalogConflictItem.discovered, catalogConflictItem.existing, 'create_new')}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs"
-                  title="Salvar como um novo registro separado no catálogo com novo código"
+                  className="px-4 py-2.5 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-300 hover:border-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs"
+                  title="Cadastrar como um novo registro separado no catálogo (outra marca ou modelo)"
                 >
-                  <Plus className="w-4 h-4 text-slate-500" />
-                  <span>Salvar como Novo (Duplicar)</span>
+                  <Plus className="w-4 h-4 text-emerald-600" />
+                  <span>Salvar como Novo (Outra Marca/Modelo)</span>
                 </button>
 
                 <button
