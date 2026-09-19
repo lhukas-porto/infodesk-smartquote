@@ -131,7 +131,14 @@ const KNOWN_COMPANY_DOMAINS: Record<string, string> = {
   inframerica: 'bsb.aero',
   'inframérica': 'bsb.aero',
   'aeroporto de brasilia': 'bsb.aero',
-  'aeroporto de brasília': 'bsb.aero'
+  'aeroporto de brasília': 'bsb.aero',
+  cnc: 'cnc.org.br',
+  'portaldocomercio.org.br': 'cnc.org.br',
+  'portaldocomercio': 'cnc.org.br',
+  'confederação nacional do comércio': 'cnc.org.br',
+  'confederacao nacional do comercio': 'cnc.org.br',
+  micromed: 'micromed.health',
+  'micromed.health': 'micromed.health'
 };
 
 const KNOWN_COMPANY_DIRECT_LOGOS: Record<string, string> = {
@@ -139,7 +146,12 @@ const KNOWN_COMPANY_DIRECT_LOGOS: Record<string, string> = {
   inframerica: 'https://www.bsb.aero/apple-touch-icon.png',
   'inframérica': 'https://www.bsb.aero/apple-touch-icon.png',
   'aeroporto de brasilia': 'https://www.bsb.aero/apple-touch-icon.png',
-  'aeroporto de brasília': 'https://www.bsb.aero/apple-touch-icon.png'
+  'aeroporto de brasília': 'https://www.bsb.aero/apple-touch-icon.png',
+  'micromed.health': 'https://micromed.health/wp-content/uploads/2024/04/cropped-favicon-180x180.png',
+  micromed: 'https://micromed.health/wp-content/uploads/2024/04/cropped-favicon-180x180.png',
+  'cnc.org.br': 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png',
+  'portaldocomercio.org.br': 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png',
+  cnc: 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png'
 };
 
 const getCandidateLogosForDomain = (domain: string): string[] => {
@@ -153,22 +165,27 @@ const getCandidateLogosForDomain = (domain: string): string[] => {
     list.push(KNOWN_COMPANY_DIRECT_LOGOS[clean]);
   }
 
-  // 1. Ícones de alta resolução nativos da página (Apple Touch Icon / Favicons modernos)
+  // 1. Google Favicon v2 (scraper moderno que inspeciona o HTML da página e descobre favicons de CMS/WordPress)
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${clean}&size=128`);
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.${clean}&size=128`);
+
+  // 2. DuckDuckGo Favicon Service (altamente confiável para portais brasileiros .org.br e .gov.br)
+  list.push(`https://icons.duckduckgo.com/ip2/${clean}.ico`);
+
+  // 3. Unavatar Aggregator
+  list.push(`https://unavatar.io/${clean}`);
+
+  // 4. Ícones nativos da raiz da página (quando presentes)
   list.push(`https://www.${clean}/apple-touch-icon.png`);
   list.push(`https://${clean}/apple-touch-icon.png`);
   list.push(`https://www.${clean}/favicon-32x32.png`);
   list.push(`https://${clean}/favicon-32x32.png`);
+  list.push(`https://www.${clean}/favicon.ico`);
+  list.push(`https://${clean}/favicon.ico`);
 
-  // 2. Google Favicon v2 (scraper moderno que segue links de favicon no head)
-  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.${clean}&size=128`);
-  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${clean}&size=128`);
-
-  // 3. Google Favicon v1 (fallback clássico)
-  list.push(`https://www.google.com/s2/favicons?domain=www.${clean}&sz=128`);
+  // 5. Google Favicon v1 (fallback clássico)
   list.push(`https://www.google.com/s2/favicons?domain=${clean}&sz=128`);
-
-  // 4. DuckDuckGo Favicon Service
-  list.push(`https://icons.duckduckgo.com/ip2/${clean}.ico`);
+  list.push(`https://www.google.com/s2/favicons?domain=www.${clean}&sz=128`);
 
   return Array.from(new Set(list));
 };
@@ -190,6 +207,10 @@ const resolveCompanyCandidates = (comp: Partial<ClientCompany> & { name?: string
     const domain = extractCleanDomain(comp.website);
     if (domain && domain.includes('.')) {
       candidates.push(...getCandidateLogosForDomain(domain));
+      // Se o domínio informado tiver um alias oficial (ex: portaldocomercio.org.br -> cnc.org.br)
+      if (KNOWN_COMPANY_DOMAINS[domain]) {
+        candidates.push(...getCandidateLogosForDomain(KNOWN_COMPANY_DOMAINS[domain]));
+      }
     }
   }
 
@@ -203,14 +224,14 @@ const resolveCompanyCandidates = (comp: Partial<ClientCompany> & { name?: string
     }
   }
 
-  // 3. Dicionário de domínios conhecidos
+  // 3. Dicionário de domínios conhecidos por nome
   for (const [key, domain] of Object.entries(KNOWN_COMPANY_DOMAINS)) {
     if (cleanName.includes(key)) {
       candidates.push(...getCandidateLogosForDomain(domain));
     }
   }
 
-  // 4. Extração de domínio corporativo a partir dos e-mails dos contatos
+  // 4. Extração de domínio corporativo a partir dos e-mails dos contatos (fundamental para empresas com domínio diferente)
   if (comp.contacts && comp.contacts.length > 0) {
     const publicDomains = new Set([
       'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'yahoo.com.br', 
@@ -267,6 +288,13 @@ const CompanyLogoBadge: React.FC<{
           src={currentSrc}
           alt={company.name}
           className="w-full h-full object-contain"
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            // Descarta imagens dummy 1x1 ou transparentes que retornam HTTP 200 falso
+            if (img.naturalWidth <= 3 || img.naturalHeight <= 3) {
+              setCandidateIndex(prev => prev + 1);
+            }
+          }}
           onError={() => setCandidateIndex(prev => prev + 1)}
           loading="lazy"
         />
@@ -306,6 +334,12 @@ const WebsiteFaviconPreview: React.FC<{
         src={currentSrc}
         alt="Favicon"
         className="w-full h-full object-contain"
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          if (img.naturalWidth <= 3 || img.naturalHeight <= 3) {
+            setCandidateIndex(prev => prev + 1);
+          }
+        }}
         onError={() => setCandidateIndex(prev => prev + 1)}
       />
     </div>
