@@ -419,9 +419,33 @@ export const sendRealGmailMessage = async (
   messageParts.push('MIME-Version: 1.0');
 
   if (params.bodyHtml) {
-    const hasInlineLogo = params.bodyHtml.includes('cid:infodesk-logo');
+    // Identifica e extrai imagens inline em Base64 (data:image/...) para convertê-las em CIDs MIME nativos.
+    // Isso é indispensável para clientes como Microsoft Outlook Desktop, que bloqueiam tags <img src="data:...">
+    const dynamicInlineImages: Array<{ cid: string; mime: string; base64: string; filename: string }> = [];
+    let processedHtml = params.bodyHtml;
+    let imgCounter = 0;
 
-    if (hasInlineLogo) {
+    processedHtml = processedHtml.replace(
+      /src=["'](data:(image\/[a-zA-Z0-9.+_-]+);base64,([A-Za-z0-9+/=\s]+))["']/gi,
+      (_match, _fullUri, mime, rawBase64) => {
+        const cleanBase64 = rawBase64.replace(/\s+/g, '');
+        const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+        const cid = `product-item-img-${imgCounter++}`;
+        const filename = `item-preview-${imgCounter}.${ext}`;
+        dynamicInlineImages.push({
+          cid,
+          mime,
+          base64: cleanBase64,
+          filename
+        });
+        return `src="cid:${cid}"`;
+      }
+    );
+
+    const hasInlineLogo = processedHtml.includes('cid:infodesk-logo');
+    const hasAnyRelatedAttachments = hasInlineLogo || dynamicInlineImages.length > 0;
+
+    if (hasAnyRelatedAttachments) {
       // Estrutura multipart/related para suportar anexo inline (CID)
       const relatedBoundary = `__related_boundary_${Date.now()}__`;
       const altBoundary = `__alt_boundary_${Date.now()}__`;
@@ -447,26 +471,28 @@ export const sendRealGmailMessage = async (
       messageParts.push('Content-Type: text/html; charset=UTF-8');
       messageParts.push('Content-Transfer-Encoding: 7bit');
       messageParts.push('');
-      messageParts.push(params.bodyHtml);
+      messageParts.push(processedHtml);
       messageParts.push('');
       messageParts.push(`--${altBoundary}--`);
       messageParts.push('');
 
       // Parte 2 do Related: Imagem inline da Logo da Infodesk
-      messageParts.push(`--${relatedBoundary}`);
-      messageParts.push(`Content-Type: ${INFODESK_LOGO_MIME}; name="logo-infodesk.png"`);
-      messageParts.push('Content-Transfer-Encoding: base64');
-      messageParts.push('Content-ID: <infodesk-logo>');
-      messageParts.push('Content-Disposition: inline; filename="logo-infodesk.png"');
-      messageParts.push('');
-      
-      // Divide o base64 em linhas de até 76 caracteres conforme padrão MIME
-      const logoChunks = INFODESK_LOGO_BASE64.match(/.{1,76}/g) || [INFODESK_LOGO_BASE64];
-      messageParts.push(logoChunks.join('\r\n'));
-      messageParts.push('');
+      if (hasInlineLogo) {
+        messageParts.push(`--${relatedBoundary}`);
+        messageParts.push(`Content-Type: ${INFODESK_LOGO_MIME}; name="logo-infodesk.png"`);
+        messageParts.push('Content-Transfer-Encoding: base64');
+        messageParts.push('Content-ID: <infodesk-logo>');
+        messageParts.push('Content-Disposition: inline; filename="logo-infodesk.png"');
+        messageParts.push('');
+        
+        // Divide o base64 em linhas de até 76 caracteres conforme padrão MIME
+        const logoChunks = INFODESK_LOGO_BASE64.match(/.{1,76}/g) || [INFODESK_LOGO_BASE64];
+        messageParts.push(logoChunks.join('\r\n'));
+        messageParts.push('');
+      }
 
       // Parte 3 do Related: Ícone oficial do Telefone inline
-      if (params.bodyHtml.includes('cid:phone-icon')) {
+      if (processedHtml.includes('cid:phone-icon')) {
         messageParts.push(`--${relatedBoundary}`);
         messageParts.push(`Content-Type: ${PHONE_ICON_MIME}; name="phone-icon.png"`);
         messageParts.push('Content-Transfer-Encoding: base64');
@@ -480,7 +506,7 @@ export const sendRealGmailMessage = async (
       }
 
       // Parte 4 do Related: Ícone oficial do WhatsApp inline
-      if (params.bodyHtml.includes('cid:whatsapp-icon')) {
+      if (processedHtml.includes('cid:whatsapp-icon')) {
         messageParts.push(`--${relatedBoundary}`);
         messageParts.push(`Content-Type: ${WHATSAPP_ICON_MIME}; name="whatsapp-icon.png"`);
         messageParts.push('Content-Transfer-Encoding: base64');
@@ -490,6 +516,20 @@ export const sendRealGmailMessage = async (
         
         const waChunks = WHATSAPP_ICON_BASE64.match(/.{1,76}/g) || [WHATSAPP_ICON_BASE64];
         messageParts.push(waChunks.join('\r\n'));
+        messageParts.push('');
+      }
+
+      // Parte 5 do Related: Imagens dinâmicas de produtos inline
+      for (const dynImg of dynamicInlineImages) {
+        messageParts.push(`--${relatedBoundary}`);
+        messageParts.push(`Content-Type: ${dynImg.mime}; name="${dynImg.filename}"`);
+        messageParts.push('Content-Transfer-Encoding: base64');
+        messageParts.push(`Content-ID: <${dynImg.cid}>`);
+        messageParts.push(`Content-Disposition: inline; filename="${dynImg.filename}"`);
+        messageParts.push('');
+        
+        const dynChunks = dynImg.base64.match(/.{1,76}/g) || [dynImg.base64];
+        messageParts.push(dynChunks.join('\r\n'));
         messageParts.push('');
       }
 

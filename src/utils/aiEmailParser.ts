@@ -2894,7 +2894,7 @@ export function generateProposalEmailHtml(
     const safeImageUrl = encodeURI(item.imageUrl || '');
 
     return `
-      <tr>
+      <tr style="page-break-inside: avoid;">
         <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.itemNumber)}
         </td>
@@ -2903,7 +2903,15 @@ export function generateProposalEmailHtml(
             ${safeItemName}
             ${isException ? `<span style="font-size: 8pt; color: #b45309; font-weight: bold; margin-left: 6px;">(Prazo diferenciado: ${escapeHtml(excDetails.days)} dias úteis)</span>` : ''}
           </div>
-          ${hasImage ? `<div style="margin-top: 6px; margin-bottom: 4px;"><img src="${safeImageUrl}" alt="${safeItemName}" style="max-height: 2.71cm; max-width: 4cm; width: auto; height: auto; object-fit: contain; display: block;" /></div>` : ''}
+          ${hasImage ? `
+            <table border="0" cellpadding="0" cellspacing="0" width="130" style="width: 130px; max-width: 130px; margin-top: 6px; margin-bottom: 4px; border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; page-break-inside: avoid;">
+              <tr>
+                <td width="130" align="left" valign="top" style="width: 130px; max-width: 130px; padding: 0; margin: 0; line-height: 0;">
+                  <img src="${safeImageUrl}" alt="${safeItemName}" width="130" border="0" style="width: 130px; max-width: 130px; height: auto; max-height: 95px; object-fit: contain; display: block; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;" />
+                </td>
+              </tr>
+            </table>
+          ` : ''}
         </td>
         <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.quantity)}
@@ -2938,7 +2946,7 @@ export function generateProposalEmailHtml(
     
     <!-- Logo Infodesk (8,56 x 2,08 cm) -->
     <div style="margin-bottom: 20px; text-align: left;">
-      <img src="${logoImageSrc}" alt="Infodesk" style="width: 8.56cm; height: 2.08cm; max-width: 100%; object-fit: contain; display: block; border: 0;" />
+      <img src="${logoImageSrc}" alt="Infodesk" width="324" height="79" style="width: 8.56cm; height: 2.08cm; max-width: 100%; object-fit: contain; display: block; border: 0;" />
     </div>
 
     <!-- Dados do Cliente / Solicitante -->
