@@ -37,21 +37,13 @@ import {
   saveRegisteredCategory 
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
-import { WebImagePickerModal } from './WebImagePickerModal';
+import { ProductEditModal } from './ProductEditModal';
 import { 
   syncProductToSupabase, 
   syncBatchProductsToSupabase, 
   deleteProductFromSupabase 
 } from '../services/supabase';
 import {
-  extractStoreNameFromUrl,
-  applyTextCase,
-  getNextTextCase,
-  getWordOrSelectionRange,
-  mergeSelectedRanges,
-  applyCaseToRanges,
-  WordCaseStyle,
-  getCategoryFromNcm,
   normalizeSearchText
 } from '../utils/aiEmailParser';
 
@@ -72,14 +64,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
-  const [isWebImagePickerOpen, setIsWebImagePickerOpen] = useState(false);
-
-  const handlePhotoSelectedForCatalog = (imageUrl: string) => {
-    if (editingProduct) {
-      setEditingProduct(prev => prev ? { ...prev, imageUrl } : null);
-    }
-    setIsWebImagePickerOpen(false);
-  };
 
   // Paginação e Ordenação (Padrão: Ordem Alfabética A-Z)
   const [currentPage, setCurrentPage] = useState(1);
@@ -95,8 +79,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (isWebImagePickerOpen) {
-          setIsWebImagePickerOpen(false);
+        if (zoomedImage) {
+          setZoomedImage(null);
           return;
         }
         if (isAddModalOpen) setIsAddModalOpen(false);
@@ -105,38 +89,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAddModalOpen, editingProduct, isWebImagePickerOpen]);
-
-  // Intercepta o ESC na fase de captura para fechar o Zoom primeiro, sem fechar o modal de edição por baixo
-  React.useEffect(() => {
-    if (!zoomedImage) return;
-
-    const handleZoomKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        e.preventDefault();
-        setZoomedImage(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleZoomKeyDown, true);
-    return () => {
-      window.removeEventListener('keydown', handleZoomKeyDown, true);
-    };
-  }, [zoomedImage]);
-
-  const [newProd, setNewProd] = useState<Partial<Product>>({
-    sku: '',
-    name: '',
-    description: '',
-    category: 'Hardware',
-    costPrice: 0,
-    unit: 'Un.',
-    stock: 1
-  });
-  const [costPriceInput, setCostPriceInput] = useState<string>('');
-  const [editCostPriceInput, setEditCostPriceInput] = useState<string>('');
+  }, [isAddModalOpen, editingProduct, zoomedImage]);
 
   const [registeredUnits, setRegisteredUnits] = useState<string[]>(() => getRegisteredUnits());
   const [registeredCategories, setRegisteredCategories] = useState<string[]>(() => getRegisteredCategories());
@@ -158,331 +111,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     return [...registeredCategories].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [registeredCategories]);
 
-  const formatCurrencyPtBr = (value: number | undefined | null): string => {
-    if (value === undefined || value === null || isNaN(value)) return '0,00';
-    return Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
 
-  const parsePtBrNumber = (str: string): number => {
-    if (!str) return 0;
-    const sanitized = str.toString().trim().replace(/\./g, '').replace(',', '.');
-    const parsed = parseFloat(sanitized);
-    return isNaN(parsed) ? 0 : parsed;
-  };
-
-  const catalogFileInputRef = useRef<HTMLInputElement>(null);
-  const catalogProductNameInputRef = useRef<HTMLInputElement>(null);
-  const [isCatalogCaseMenuOpen, setIsCatalogCaseMenuOpen] = useState(false);
-  const catalogCaseMenuRef = useRef<HTMLDivElement>(null);
-  const [catalogSelectedRanges, setCatalogSelectedRanges] = useState<Array<{ start: number; end: number }>>([]);
-  const catalogBackdropRef = useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const handleClickOutsideCaseMenu = (e: MouseEvent) => {
-      if (catalogCaseMenuRef.current && !catalogCaseMenuRef.current.contains(e.target as Node)) {
-        setIsCatalogCaseMenuOpen(false);
-      }
-    };
-    if (isCatalogCaseMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutsideCaseMenu);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutsideCaseMenu);
-  }, [isCatalogCaseMenuOpen]);
-
-  const handleApplyCatalogNameCase = (targetStyle?: WordCaseStyle) => {
-    if (!editingProduct?.name) return;
-    const input = catalogProductNameInputRef.current;
-    const fullText = editingProduct.name;
-
-    // 1. Se existem palavras selecionadas com Ctrl (estilo Word)
-    if (catalogSelectedRanges.length > 0) {
-      const firstRange = catalogSelectedRanges[0];
-      const firstPart = fullText.substring(firstRange.start, firstRange.end);
-      const styleToApply = targetStyle || getNextTextCase(firstPart);
-
-      const { newText, newRanges } = applyCaseToRanges(fullText, catalogSelectedRanges, styleToApply);
-
-      setEditingProduct(prev => prev ? {
-        ...prev,
-        name: newText
-      } : null);
-
-      setCatalogSelectedRanges(newRanges);
-      setIsCatalogCaseMenuOpen(false);
-
-      setTimeout(() => {
-        if (input) {
-          input.focus();
-        }
-      }, 0);
-      return;
-    }
-
-    // 2. Se não há multi-seleção de Ctrl, segue a seleção única nativa ou palavra sob o cursor
-    const { start, end } = getWordOrSelectionRange(
-      fullText,
-      input?.selectionStart ?? null,
-      input?.selectionEnd ?? null
-    );
-
-    const targetPart = fullText.substring(start, end);
-    if (!targetPart.trim()) return;
-
-    const styleToApply = targetStyle || getNextTextCase(targetPart);
-    const transformedPart = applyTextCase(targetPart, styleToApply);
-    const newFullText = fullText.substring(0, start) + transformedPart + fullText.substring(end);
-
-    setEditingProduct(prev => prev ? {
-      ...prev,
-      name: newFullText
-    } : null);
-
-    setIsCatalogCaseMenuOpen(false);
-
-    setTimeout(() => {
-      if (input) {
-        input.focus();
-        input.setSelectionRange(start, start + transformedPart.length);
-      }
-    }, 0);
-  };
-
-  const handleCatalogInputMouseUp = (e: React.MouseEvent<HTMLInputElement>) => {
-    const input = e.currentTarget;
-    const start = input.selectionStart ?? 0;
-    const end = input.selectionEnd ?? 0;
-    const fullText = input.value;
-
-    if (e.ctrlKey) {
-      if (end > start) {
-        const newRange = { start, end };
-        setCatalogSelectedRanges(prev => {
-          const isExact = prev.some(r => r.start === start && r.end === end);
-          if (isExact) {
-            return prev.filter(r => !(r.start === start && r.end === end));
-          }
-          return mergeSelectedRanges([...prev, newRange]);
-        });
-      } else {
-        const { start: wordStart, end: wordEnd } = getWordOrSelectionRange(fullText, start, end);
-        if (wordEnd > wordStart) {
-          setCatalogSelectedRanges(prev => {
-            const exists = prev.some(r => Math.max(r.start, wordStart) < Math.min(r.end, wordEnd));
-            if (exists) {
-              return prev.filter(r => !(Math.max(r.start, wordStart) < Math.min(r.end, wordEnd)));
-            }
-            return mergeSelectedRanges([...prev, { start: wordStart, end: wordEnd }]);
-          });
-        }
-      }
-    } else {
-      if (end > start) {
-        if (catalogSelectedRanges.length > 0) {
-          setCatalogSelectedRanges([]);
-        }
-      } else {
-        if (catalogSelectedRanges.length > 0) {
-          setCatalogSelectedRanges([]);
-        }
-      }
-    }
-  };
-
-  const handleCatalogInputDoubleClick = (e: React.MouseEvent<HTMLInputElement>) => {
-    if (e.ctrlKey) {
-      e.preventDefault();
-      const input = e.currentTarget;
-      const start = input.selectionStart ?? 0;
-      const end = input.selectionEnd ?? 0;
-      const fullText = input.value;
-      const { start: wordStart, end: wordEnd } = getWordOrSelectionRange(fullText, start, end);
-      if (wordEnd > wordStart) {
-        setCatalogSelectedRanges(prev => {
-          const exists = prev.some(r => Math.max(r.start, wordStart) < Math.min(r.end, wordEnd));
-          if (exists) {
-            return prev.filter(r => !(Math.max(r.start, wordStart) < Math.min(r.end, wordEnd)));
-          }
-          return mergeSelectedRanges([...prev, { start: wordStart, end: wordEnd }]);
-        });
-      }
-    }
-  };
-
-  const renderBackdropHighlights = (text: string, ranges: Array<{ start: number; end: number }>) => {
-    if (!ranges || ranges.length === 0) return null;
-
-    const sorted = [...ranges].sort((a, b) => a.start - b.start);
-    const elements: React.ReactNode[] = [];
-    let lastIndex = 0;
-
-    sorted.forEach((r, idx) => {
-      if (r.start > lastIndex) {
-        elements.push(
-          <span key={`unsel-${idx}`} className="text-transparent">
-            {text.substring(lastIndex, r.start)}
-          </span>
-        );
-      }
-      elements.push(
-        <span
-          key={`sel-${idx}`}
-          className="bg-sky-200/90 text-transparent rounded-xs shadow-2xs border-b-2 border-sky-500 font-semibold"
-        >
-          {text.substring(r.start, r.end)}
-        </span>
-      );
-      lastIndex = r.end;
-    });
-
-    if (lastIndex < text.length) {
-      elements.push(
-        <span key="unsel-last" className="text-transparent">
-          {text.substring(lastIndex)}
-        </span>
-      );
-    }
-
-    return elements;
-  };
-
-  const extractImageFromClipboard = async (clipboardData: DataTransfer | null): Promise<string | null> => {
-    if (clipboardData) {
-      const items = clipboardData.items;
-      if (items && items.length > 0) {
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          if (item.type.startsWith('image/')) {
-            const blob = item.getAsFile();
-            if (blob) {
-              const res = await new Promise<string | null>((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (event) => resolve(event.target?.result as string || null);
-                reader.onerror = () => resolve(null);
-                reader.readAsDataURL(blob);
-              });
-              if (res) return res;
-            }
-          }
-        }
-      }
-      const files = clipboardData.files;
-      if (files && files.length > 0) {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          if (file.type.startsWith('image/')) {
-            const res = await new Promise<string | null>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = (event) => resolve(event.target?.result as string || null);
-              reader.onerror = () => resolve(null);
-              reader.readAsDataURL(file);
-            });
-            if (res) return res;
-          }
-        }
-      }
-    }
-    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.read) {
-      try {
-        const clipboardItems = await navigator.clipboard.read();
-        for (const item of clipboardItems) {
-          const imageType = item.types.find(t => t.startsWith('image/'));
-          if (imageType) {
-            const blob = await item.getType(imageType);
-            const res = await new Promise<string | null>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = (event) => resolve(event.target?.result as string || null);
-              reader.onerror = () => resolve(null);
-              reader.readAsDataURL(blob);
-            });
-            if (res) return res;
-          }
-        }
-      } catch (err) {
-        // Fallback silencioso
-      }
-    }
-    return null;
-  };
-
-  const readImageFromSystemClipboard = async (): Promise<string | null> => {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.read) {
-        const clipboardItems = await navigator.clipboard.read();
-        for (const item of clipboardItems) {
-          const imageType = item.types.find(t => t.startsWith('image/'));
-          if (imageType) {
-            const blob = await item.getType(imageType);
-            return await new Promise<string | null>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = (event) => resolve(event.target?.result as string || null);
-              reader.onerror = () => resolve(null);
-              reader.readAsDataURL(blob);
-            });
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Erro ao ler imagem da área de transferência:', err);
-    }
-    return null;
-  };
-
-  const handleTriggerCatalogImageUpload = () => {
-    if (catalogFileInputRef.current) {
-      catalogFileInputRef.current.value = '';
-      catalogFileInputRef.current.click();
-    }
-  };
-
-  const handleCatalogImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl && editingProduct) {
-        setEditingProduct(prev => prev ? { ...prev, imageUrl: dataUrl } : null);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handlePasteImageToCatalog = async (e: React.ClipboardEvent) => {
-    const dataUrl = await extractImageFromClipboard(e.clipboardData);
-    if (dataUrl) {
-      e.preventDefault();
-      e.stopPropagation();
-      setEditingProduct(prev => prev ? { ...prev, imageUrl: dataUrl } : null);
-    }
-  };
-
-  const handleDirectPasteToCatalog = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const dataUrl = await readImageFromSystemClipboard();
-    if (dataUrl) {
-      setEditingProduct(prev => prev ? { ...prev, imageUrl: dataUrl } : null);
-    } else {
-      alert('Nenhuma imagem encontrada na área de transferência. Tire um print (PrintScreen ou Win+Shift+S) ou copie uma imagem antes de colar.');
-    }
-  };
-
-  // Listener global de Ctrl+V quando o modal de edição do catálogo estiver aberto
-  React.useEffect(() => {
-    const handleGlobalPaste = async (e: ClipboardEvent) => {
-      if (!editingProduct) return;
-      const dataUrl = await extractImageFromClipboard(e.clipboardData);
-      if (dataUrl) {
-        e.preventDefault();
-        e.stopPropagation();
-        setEditingProduct(prev => prev ? { ...prev, imageUrl: dataUrl } : null);
-      }
-    };
-
-    window.addEventListener('paste', handleGlobalPaste, true);
-    return () => window.removeEventListener('paste', handleGlobalPaste, true);
-  }, [editingProduct]);
 
   const categoryCounts = React.useMemo(() => {
     const counts: Record<string, number> = { all: products.length };
@@ -673,13 +302,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     document.body.removeChild(link);
   };
 
-  const handleSaveNewProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newProd.name || !newProd.name.trim()) {
-      alert('Por favor, informe ao menos o nome do produto.');
-      return;
-    }
-
+  const handleSaveNewProductFromModal = (newProd: Product, shippingCost: number) => {
     const cleanName = newProd.name.trim();
     const cleanPn = (newProd.partNumber || '').trim().toLowerCase();
     const cleanSku = (newProd.sku || '').trim().toLowerCase();
@@ -713,16 +336,17 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       return;
     }
 
-    const cost = Number(newProd.costPrice) || 0;
-
+    const unifiedCode = (newProd.sku || newProd.partNumber || '').trim();
     const created: Product = {
+      ...newProd,
       id: `prod-${Date.now()}`,
-      sku: (newProd.sku || newProd.partNumber || `SKU-${Date.now().toString().slice(-4)}`).trim(),
-      partNumber: (newProd.sku || newProd.partNumber || '').trim(),
-      name: newProd.name.trim(),
+      sku: unifiedCode || `SKU-${Date.now().toString().slice(-4)}`,
+      partNumber: unifiedCode,
+      name: cleanName,
       description: newProd.description?.trim() || '',
       category: newProd.category || 'Geral',
-      costPrice: cost,
+      costPrice: Number(newProd.costPrice) || 0,
+      shippingCost: shippingCost || 0,
       unit: newProd.unit || 'Un.',
       lastUpdated: new Date().toISOString().split('T')[0]
     };
@@ -743,54 +367,47 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     });
     syncProductToSupabase(created);
 
-    if (cost === 0) {
-      setImportStatus('Produto cadastrado com custo R$ 0,00 (sob cotação). Você poderá definir o custo posteriormente.');
-      setTimeout(() => setImportStatus(null), 4000);
-    }
-
     setIsAddModalOpen(false);
-    setNewProd({ sku: '', name: '', description: '', category: 'Hardware', costPrice: 0, unit: 'Un.', stock: 1 });
-    setCostPriceInput('');
+    setImportStatus(`Produto "${created.name}" cadastrado com sucesso!`);
+    setTimeout(() => setImportStatus(null), 4000);
   };
 
   const handleOpenEditModal = (product: Product) => {
     setEditingProduct({ ...product });
-    setEditCostPriceInput(formatCurrencyPtBr(product.costPrice));
   };
 
-  const handleSaveEditedProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProduct || !editingProduct.name) return;
-
-    const unifiedCode = (editingProduct.sku || editingProduct.partNumber || '').trim();
-    const updated: Product = {
-      ...editingProduct,
-      sku: unifiedCode || editingProduct.sku || `SKU-${Date.now().toString().slice(-4)}`,
+  const handleSaveEditedProductFromModal = (updated: Product, shippingCost: number) => {
+    const unifiedCode = (updated.sku || updated.partNumber || '').trim();
+    const finalProd: Product = {
+      ...updated,
+      sku: unifiedCode || updated.sku || `SKU-${Date.now().toString().slice(-4)}`,
       partNumber: unifiedCode,
-      name: editingProduct.name.trim(),
-      description: editingProduct.description?.trim() || '',
-      costPrice: Number(editingProduct.costPrice) || 0,
+      name: updated.name.trim(),
+      description: updated.description?.trim() || '',
+      costPrice: Number(updated.costPrice) || 0,
+      shippingCost: shippingCost || 0,
       lastUpdated: new Date().toISOString().split('T')[0]
     };
 
-    if (updated.unit) {
-      saveRegisteredUnit(updated.unit);
+    if (finalProd.unit) {
+      saveRegisteredUnit(finalProd.unit);
       setRegisteredUnits(getRegisteredUnits());
     }
-    if (updated.category) {
-      saveRegisteredCategory(updated.category);
+    if (finalProd.category) {
+      saveRegisteredCategory(finalProd.category);
       setRegisteredCategories(getRegisteredCategories());
     }
 
     setProducts(prev => {
-      const next = prev.map(p => p.id === updated.id ? updated : p);
+      const next = prev.map(p => p.id === finalProd.id ? finalProd : p);
       saveProducts(next);
       return next;
     });
 
-    syncProductToSupabase(updated);
+    syncProductToSupabase(finalProd);
     setEditingProduct(null);
-    setEditCostPriceInput('');
+    setImportStatus(`Produto "${finalProd.name}" atualizado com sucesso!`);
+    setTimeout(() => setImportStatus(null), 4000);
   };
 
   const handleDeleteProduct = (id: string) => {
@@ -1250,604 +867,76 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
       </div>
 
+      {/* Modal Unificado de Cadastro de Produto */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg p-6 shadow-xl space-y-4 animate-scaleIn">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                <Plus className="w-5 h-5 text-sky-600" />
-                Cadastrar Novo Produto na Infodesk
-              </h3>
-              <button 
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-xs font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveNewProduct} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-600 font-medium mb-1">Nome do Produto *</label>
-                <input
-                  type="text"
-                  required
-                  value={newProd.name}
-                  onChange={(e) => setNewProd({ ...newProd, name: e.target.value })}
-                  placeholder="Ex: Monitor Dell 27 4K UHD"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-medium mb-1">Código / SKU / Part Number / Modelo</label>
-                <input
-                  type="text"
-                  value={newProd.sku}
-                  onChange={(e) => setNewProd({ ...newProd, sku: e.target.value, partNumber: e.target.value })}
-                  placeholder="Ex: DEL-27-4K ou S2722QC"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500 font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-medium mb-1">Especificações Técnicas</label>
-                <textarea
-                  rows={5}
-                  value={newProd.description}
-                  onChange={(e) => setNewProd({ ...newProd, description: e.target.value })}
-                  placeholder="Ex: 4K UHD IPS, USB-C 65W, Ajuste de Altura, HDMI"
-                  className="w-full min-h-[110px] bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:outline-none focus:border-sky-500 leading-relaxed resize-y"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-medium mb-1">Preço Custo (R$) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={costPriceInput}
-                    onFocus={() => {
-                      if ((newProd.costPrice || 0) <= 0) {
-                        setCostPriceInput('');
-                      }
-                    }}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCostPriceInput(val);
-                      const parsed = parsePtBrNumber(val);
-                      setNewProd(prev => ({ ...prev, costPrice: parsed }));
-                    }}
-                    onBlur={() => {
-                      const parsed = parsePtBrNumber(costPriceInput);
-                      setNewProd(prev => ({ ...prev, costPrice: parsed }));
-                      setCostPriceInput(formatCurrencyPtBr(parsed));
-                    }}
-                    placeholder="0,00"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-medium mb-1">Unidade</label>
-                  <CreatableCombobox
-                    value={newProd.unit || 'Un.'}
-                    onChange={(val) => {
-                      const finalVal = val.trim() || 'Un.';
-                      setNewProd(prev => ({ ...prev, unit: finalVal }));
-                      saveRegisteredUnit(finalVal);
-                      setRegisteredUnits(getRegisteredUnits());
-                    }}
-                    options={availableUnits}
-                    onAddOption={(newUnit) => {
-                      saveRegisteredUnit(newUnit);
-                      setRegisteredUnits(getRegisteredUnits());
-                    }}
-                    defaultValue="Un."
-                    textAlign="center"
-                    placeholder="Un."
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-medium mb-1">Categoria</label>
-                  <CreatableCombobox
-                    value={newProd.category || 'Geral'}
-                    onChange={(val) => {
-                      const finalVal = val.trim() || 'Geral';
-                      setNewProd(prev => ({ ...prev, category: finalVal }));
-                      saveRegisteredCategory(finalVal);
-                      setRegisteredCategories(getRegisteredCategories());
-                    }}
-                    options={availableCategories}
-                    onAddOption={(newCat) => {
-                      saveRegisteredCategory(newCat);
-                      setRegisteredCategories(getRegisteredCategories());
-                    }}
-                    defaultValue="Geral"
-                    textAlign="left"
-                    placeholder="Geral"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-600 hover:text-slate-900 rounded-xl font-semibold transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl font-bold shadow-sm transition"
-                >
-                  Salvar Produto
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ProductEditModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          product={{
+            sku: '',
+            name: '',
+            description: '',
+            category: 'Hardware',
+            costPrice: 0,
+            unit: 'Un.',
+            stock: 10,
+            ncm: '',
+            supplier: '',
+            sourceUrl: '',
+            imageUrl: '',
+            shippingCost: 0
+          }}
+          onSave={(finalProd, shippingCost) => {
+            handleSaveNewProductFromModal(finalProd, shippingCost);
+          }}
+          availableUnits={availableUnits}
+          onAddUnit={(unit) => {
+            saveRegisteredUnit(unit);
+            setRegisteredUnits(getRegisteredUnits());
+          }}
+          availableCategories={availableCategories}
+          onAddCategory={(cat) => {
+            saveRegisteredCategory(cat);
+            setRegisteredCategories(getRegisteredCategories());
+          }}
+          title="Cadastrar Novo Produto na Infodesk"
+          subtitle="Preencha os dados comerciais, foto e descrição. O produto será adicionado ao catálogo geral."
+          badgeText="Novo Produto"
+          saveButtonText="Cadastrar Produto"
+          saveButtonTitle="Cadastrar produto no catálogo da Infodesk"
+        />
       )}
 
-      {/* Modal de Edição de Produto (Mesmo layout e recursos do QuoteBuilder com Salvar único e Especificações Técnicas) */}
+      {/* Modal Unificado de Edição de Produto (Exatamente idêntico ao Catálogo/NCM da proposta) */}
       {editingProduct && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
-        >
-          <div
-            className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn"
-          >
-            {/* Header */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-sky-100 text-sky-700 rounded-xl">
-                  <Package className="w-5 h-5 text-sky-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    Verificação Geral do Produto
-                    <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-[10px] rounded-full font-bold">
-                      Base de Produtos
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Revise os dados comerciais, foto e especificações completas deste produto.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setEditingProduct(null)}
-                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Input oculto para upload de arquivo de imagem */}
-            <input
-              type="file"
-              ref={catalogFileInputRef}
-              onChange={handleCatalogImageFileChange}
-              accept="image/*"
-              className="hidden"
-            />
-
-            {/* Form com Footer Fixo/Flutuante */}
-            <form onSubmit={handleSaveEditedProduct} className="flex-1 flex flex-col min-h-0">
-              <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1 custom-scrollbar">
-              {/* Foto Preview & Nome */}
-              <div className="flex items-start gap-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div
-                    tabIndex={0}
-                    onClick={() => {
-                      if (editingProduct.imageUrl) {
-                        setZoomedImage({
-                          url: editingProduct.imageUrl,
-                          title: editingProduct.name || 'Produto'
-                        });
-                      } else {
-                        handleTriggerCatalogImageUpload();
-                      }
-                    }}
-                    onPaste={handlePasteImageToCatalog}
-                    title={editingProduct.imageUrl ? "Clique para ver a foto com ZOOM (ou aperte Ctrl+V para colar outra foto)" : "Clique para escolher foto do produto ou aperte Ctrl+V para colar foto copiada"}
-                    className={`w-16 h-16 rounded-xl overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-pointer transition relative group/cimg select-none focus:outline-none focus:ring-2 focus:ring-sky-400 ${
-                      editingProduct.imageUrl
-                        ? 'bg-white border border-slate-300 hover:border-sky-500 shadow-2xs'
-                        : 'border-2 border-dashed border-sky-300 bg-sky-50 hover:bg-sky-100 hover:border-sky-500'
-                    }`}
-                  >
-                    {editingProduct.imageUrl ? (
-                      <>
-                        <img
-                          src={editingProduct.imageUrl}
-                          alt={editingProduct.name || 'Produto'}
-                          className="w-full h-full object-contain group-hover/cimg:scale-105 transition duration-200"
-                          onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                        />
-                        <div className="absolute inset-0 bg-sky-950/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-[0.5px]">
-                          <ZoomIn className="w-5 h-5 text-white drop-shadow-sm" />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-center">
-                        <ImagePlus className="w-5 h-5 text-sky-500 group-hover/cimg:scale-110 transition" />
-                        <span className="text-[9px] font-bold text-sky-700 leading-tight mt-0.5">+ Foto</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (editingProduct) {
-                        setIsWebImagePickerOpen(true);
-                      }
-                    }}
-                    title="Pesquisar fotos para este produto e escolher qual usar"
-                    className="px-2 py-0.5 rounded text-[9.5px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                  >
-                    <Search className="w-3 h-3" />
-                    Buscar Foto
-                  </button>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-bold text-slate-700">
-                      Nome Padronizado Comercial *
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <div className="relative inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 hover:border-sky-300 shadow-2xs">
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleApplyCatalogNameCase()}
-                          className="inline-flex items-center gap-1 text-slate-700 hover:text-sky-700 hover:bg-sky-50 px-2 py-1 rounded-l-lg font-bold text-[10px] transition cursor-pointer active:scale-95 select-none"
-                          title="Alternar maiúsculas/minúsculas da palavra sob o cursor, das palavras selecionadas ou do nome todo"
-                        >
-                          <span className="font-serif font-bold text-[11px] leading-none text-sky-700">Aa</span>
-                          <span className="text-[10px] font-medium text-slate-700">Mudar Caso</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => setIsCatalogCaseMenuOpen(prev => !prev)}
-                          className="px-1.5 py-1 border-l border-slate-200 hover:bg-sky-50 text-slate-500 hover:text-sky-700 rounded-r-lg transition cursor-pointer active:scale-95"
-                          title="Escolher estilo de maiúsculas/minúsculas específico"
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-
-                        {isCatalogCaseMenuOpen && (
-                          <div
-                            ref={catalogCaseMenuRef}
-                            className="absolute right-0 top-full mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
-                          >
-                            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
-                              Formatar Trecho / Palavras
-                            </div>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyCatalogNameCase('sentence')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">Primeira da frase maiúscula</span>
-                              <span className="text-[10px] text-slate-400">Ex: Teclado sem fio logitech k380</span>
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyCatalogNameCase('lowercase')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">minúsculas</span>
-                              <span className="text-[10px] text-slate-400">Ex: teclado sem fio logitech k380</span>
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyCatalogNameCase('uppercase')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">MAIÚSCULAS</span>
-                              <span className="text-[10px] text-slate-400">Ex: TECLADO SEM FIO LOGITECH K380</span>
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyCatalogNameCase('title')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">Primeira de Cada Palavra Maiúscula</span>
-                              <span className="text-[10px] text-slate-400">Ex: Teclado Sem Fio Logitech K380</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="relative w-full">
-                    {/* Camada visual de destaque sincronizada para seleção com Ctrl (estilo Word) */}
-                    <div
-                      ref={catalogBackdropRef}
-                      aria-hidden="true"
-                      className="absolute inset-0 px-3 py-2 text-transparent font-semibold pointer-events-none overflow-hidden whitespace-pre font-sans text-sm select-none border border-transparent flex items-center"
-                    >
-                      {renderBackdropHighlights(editingProduct.name || '', catalogSelectedRanges)}
-                    </div>
-                    <input
-                      ref={catalogProductNameInputRef}
-                      type="text"
-                      required
-                      value={editingProduct.name || ''}
-                      onChange={(e) => {
-                        setEditingProduct({ ...editingProduct, name: e.target.value });
-                        if (catalogSelectedRanges.length > 0) setCatalogSelectedRanges([]);
-                      }}
-                      onMouseUp={handleCatalogInputMouseUp}
-                      onDoubleClick={handleCatalogInputDoubleClick}
-                      onScroll={(e) => {
-                        if (catalogBackdropRef.current) {
-                          catalogBackdropRef.current.scrollLeft = e.currentTarget.scrollLeft;
-                        }
-                      }}
-                      onPaste={handlePasteImageToCatalog}
-                      placeholder="Nome completo do produto sem traços ou vírgulas"
-                      className="w-full bg-transparent border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:outline-none focus:border-sky-500 relative z-10"
-                    />
-                  </div>
-
-                  {/* Badges de palavras selecionadas com Ctrl */}
-                  {catalogSelectedRanges.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap animate-in fade-in slide-in-from-top-1 duration-150">
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-bold">
-                        <Layers className="w-3 h-3 text-sky-600" />
-                        <span>{catalogSelectedRanges.length} {catalogSelectedRanges.length === 1 ? 'palavra selecionada com Ctrl' : 'palavras selecionadas com Ctrl'}:</span>
-                      </div>
-                      {catalogSelectedRanges.map((range, idx) => {
-                        const wordText = (editingProduct.name || '').substring(range.start, range.end);
-                        return (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100/90 border border-sky-300 text-sky-900 text-[11px] font-bold shadow-2xs"
-                          >
-                            <span>{wordText}</span>
-                            <button
-                              type="button"
-                              onClick={() => setCatalogSelectedRanges(prev => prev.filter((_, i) => i !== idx))}
-                              className="hover:text-red-600 ml-0.5 p-0.5 rounded transition cursor-pointer"
-                              title="Remover esta palavra da seleção"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </span>
-                        );
-                      })}
-                      <button
-                        type="button"
-                        onClick={() => setCatalogSelectedRanges([])}
-                        className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer transition"
-                      >
-                        Limpar seleção
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Especificações Técnicas */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Especificações Técnicas
-                </label>
-                <textarea
-                  rows={5}
-                  value={editingProduct.description || ''}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
-                  placeholder="Ex: 4K UHD IPS, USB-C 65W, Ajuste de Altura, HDMI (deixe em branco se não houver)"
-                  className="w-full min-h-[110px] bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 text-xs transition leading-relaxed resize-y"
-                />
-              </div>
-
-              {/* Código / Part Number / SKU e NCM */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Código / SKU / Part Number / Modelo
-                  </label>
-                  <input
-                    type="text"
-                    value={editingProduct.sku || editingProduct.partNumber || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, sku: e.target.value, partNumber: e.target.value })}
-                    placeholder="Ex: DEL-27-4K ou S2722QC"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    NCM Fiscal (8 dígitos)
-                  </label>
-                  <input
-                    type="text"
-                    value={editingProduct.ncm || ''}
-                    onChange={(e) => {
-                      const newNcm = e.target.value;
-                      const autoCategory = getCategoryFromNcm(newNcm);
-                      setEditingProduct(prev => prev ? {
-                        ...prev,
-                        ncm: newNcm,
-                        category: autoCategory !== 'Geral' ? autoCategory : prev.category
-                      } : null);
-                    }}
-                    placeholder="Ex: 8528.52.20"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-              </div>
-
-              {/* Preço de Custo e Unidade */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Preço de Custo (R$) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editCostPriceInput}
-                    onFocus={() => {
-                      if ((editingProduct.costPrice || 0) <= 0) {
-                        setEditCostPriceInput('');
-                      }
-                    }}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setEditCostPriceInput(val);
-                      const parsed = parsePtBrNumber(val);
-                      setEditingProduct(prev => prev ? ({ ...prev, costPrice: parsed }) : null);
-                    }}
-                    onBlur={() => {
-                      const parsed = parsePtBrNumber(editCostPriceInput);
-                      setEditingProduct(prev => prev ? ({ ...prev, costPrice: parsed }) : null);
-                      setEditCostPriceInput(formatCurrencyPtBr(parsed));
-                    }}
-                    placeholder="0,00"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Unidade
-                  </label>
-                  <CreatableCombobox
-                    value={editingProduct.unit || 'Un.'}
-                    onChange={(val) => {
-                      const finalVal = val.trim() || 'Un.';
-                      setEditingProduct(prev => prev ? { ...prev, unit: finalVal } : null);
-                      saveRegisteredUnit(finalVal);
-                      setRegisteredUnits(getRegisteredUnits());
-                    }}
-                    options={availableUnits}
-                    onAddOption={(newUnit) => {
-                      saveRegisteredUnit(newUnit);
-                      setRegisteredUnits(getRegisteredUnits());
-                    }}
-                    defaultValue="Un."
-                    textAlign="center"
-                    placeholder="Un."
-                  />
-                </div>
-              </div>
-
-              {/* Categoria e Fornecedor */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Categoria
-                  </label>
-                  <CreatableCombobox
-                    value={editingProduct.category || 'Geral'}
-                    onChange={(val) => {
-                      const finalVal = val.trim() || 'Geral';
-                      setEditingProduct(prev => prev ? { ...prev, category: finalVal } : null);
-                      saveRegisteredCategory(finalVal);
-                      setRegisteredCategories(getRegisteredCategories());
-                    }}
-                    options={availableCategories}
-                    onAddOption={(newCat) => {
-                      saveRegisteredCategory(newCat);
-                      setRegisteredCategories(getRegisteredCategories());
-                    }}
-                    defaultValue="Geral"
-                    textAlign="left"
-                    placeholder="Geral"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Fornecedor
-                  </label>
-                  <input
-                    type="text"
-                    value={editingProduct.supplier || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, supplier: e.target.value })}
-                    placeholder="Ex: Mercado Livre, Kalunga, Fabricante"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-              </div>
-
-              {/* Link de Compra / Referência */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Link Direto de Compra ou Referência
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="url"
-                    value={editingProduct.sourceUrl || ''}
-                    onChange={(e) => {
-                      const newUrl = e.target.value;
-                      const detectedStore = extractStoreNameFromUrl(newUrl);
-                      setEditingProduct(prev => prev ? {
-                        ...prev,
-                        sourceUrl: newUrl,
-                        supplier: detectedStore || prev.supplier
-                      } : null);
-                    }}
-                    placeholder="https://..."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-[11px] focus:outline-none focus:border-sky-500"
-                  />
-                  {editingProduct.sourceUrl && (
-                    <a
-                      href={editingProduct.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition cursor-pointer"
-                      title="Testar Link"
-                    >
-                      <ExternalLink className="w-4 h-4 text-sky-600" />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              </div>
-
-              {/* Footer de Ações Flutuante / Fixo na base */}
-              <div className="p-4 border-t border-slate-200 bg-white/95 backdrop-blur-xs flex items-center justify-between gap-2 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-10">
-                <button
-                  type="button"
-                  onClick={() => setEditingProduct(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold transition text-xs cursor-pointer"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer text-xs active:scale-95"
-                  title="Salva as alterações do produto na base de Produtos"
-                >
-                  <Check className="w-4 h-4 text-white" />
-                  <span>Salvar Produto</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ProductEditModal
+          isOpen={Boolean(editingProduct)}
+          onClose={() => setEditingProduct(null)}
+          product={editingProduct}
+          initialShippingCost={editingProduct.shippingCost || 0}
+          onSave={(finalProd, shippingCost) => {
+            handleSaveEditedProductFromModal(finalProd, shippingCost);
+          }}
+          availableUnits={availableUnits}
+          onAddUnit={(unit) => {
+            saveRegisteredUnit(unit);
+            setRegisteredUnits(getRegisteredUnits());
+          }}
+          availableCategories={availableCategories}
+          onAddCategory={(cat) => {
+            saveRegisteredCategory(cat);
+            setRegisteredCategories(getRegisteredCategories());
+          }}
+          title="Verificação Geral do Produto"
+          subtitle="Revise os dados comerciais, foto e descrição. Depois de salvar o produto já entrará na base de dados."
+          badgeText="Catálogo Oficial"
+          saveButtonText="Salvar Produto"
+          saveButtonTitle="Salva as alterações do produto na base de Produtos"
+        />
       )}
 
-      {/* Modal de Zoom da Foto no Meio da Tela */}
+
+      {/* Modal de Zoom da Foto na Tabela (Fiel à Referência Visual) */}
       {zoomedImage && (
         <div 
           className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
@@ -1892,17 +981,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal de Busca e Escolha de Foto Comercial na Web */}
-      {isWebImagePickerOpen && editingProduct && (
-        <WebImagePickerModal
-          isOpen={true}
-          onClose={() => setIsWebImagePickerOpen(false)}
-          productName={editingProduct.name}
-          currentImageUrl={editingProduct.imageUrl}
-          onSelectImage={handlePhotoSelectedForCatalog}
-        />
       )}
 
     </div>

@@ -13,6 +13,7 @@ export interface Product {
   lastUpdated: string;
   sourceUrl?: string;
   imageUrl?: string;
+  shippingCost?: number;
 }
 
 export interface SupplierOffer {

@@ -89,6 +89,7 @@ import { CreatableCombobox } from './CreatableCombobox';
 import { exportCostSheetToExcel } from '../utils/excelExport';
 import { UniversalListImportModal } from './UniversalListImportModal';
 import { WebImagePickerModal } from './WebImagePickerModal';
+import { ProductEditModal } from './ProductEditModal';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { PRICING_PROFILES, suggestMarkupForItem } from '../utils/pricingProfiles';
@@ -1307,27 +1308,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   };
 
   // Efetiva o salvamento unificado: salva no catálogo de produtos E na proposta corrente
-  const handleConfirmSaveCatalog = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!catalogReviewProduct || !catalogReviewProduct.name) return;
-
-    const unifiedCode = (catalogReviewProduct.sku || catalogReviewProduct.partNumber || '').trim();
-    const finalProd: Product = {
-      id: catalogReviewProduct.id || `prod-${Date.now()}`,
-      sku: unifiedCode || `INF-${Date.now().toString().slice(-4)}`,
-      partNumber: unifiedCode,
-      ncm: catalogReviewProduct.ncm?.trim() || '',
-      name: (catalogReviewProduct.name || '').trim(),
-      description: catalogReviewProduct.description || '',
-      category: catalogReviewProduct.category || 'Geral',
-      costPrice: Number(catalogReviewProduct.costPrice) || 0,
-      unit: catalogReviewProduct.unit || 'Un.',
-      supplier: catalogReviewProduct.supplier || 'Fornecedor Web / Mercado',
-      stock: Number(catalogReviewProduct.stock) || 10,
-      lastUpdated: new Date().toISOString().split('T')[0],
-      sourceUrl: catalogReviewProduct.sourceUrl || '',
-      imageUrl: catalogReviewProduct.imageUrl || ''
-    };
+  const handleSaveProductFromReviewModal = (finalProd: Product, shippingCost?: number) => {
+    if (!finalProd || !finalProd.name) return;
 
     // Registra unidade e categoria para ficarem permanentemente disponíveis
     if (finalProd.unit) {
@@ -1351,8 +1333,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         const updatedItems = [...currentQuote.items];
         const currentItem = updatedItems[itemIdx];
         const newCost = Number(finalProd.costPrice) || currentItem.costPrice;
-        const parsedShipping = parsePtBrNumber(catalogReviewShippingInput);
-        const newShipping = !isNaN(parsedShipping) ? parsedShipping : (currentItem.shippingCost ?? globalShipping);
+        const newShipping = shippingCost !== undefined && !isNaN(shippingCost) ? shippingCost : (currentItem.shippingCost ?? globalShipping);
         const newMarkup = currentItem.markupPercent ?? globalMarkup;
         const newTax = currentItem.taxPercent ?? globalTax;
         const newUnitPrice = calculateItemUnitPrice(newCost, newShipping, newMarkup, newTax);
@@ -1392,6 +1373,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     setIsCatalogModalOpen(false);
     setCatalogReviewProduct(null);
     setTargetQuoteItemId(null);
+  };
+
+  const handleConfirmSaveCatalog = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (catalogReviewProduct) {
+      handleSaveProductFromReviewModal(catalogReviewProduct as Product);
+    }
   };
 
   // Mantido por compatibilidade: executa o mesmo salvamento unificado
@@ -4007,524 +3995,41 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
 
 
-      {/* Modal de Verificação Geral antes de Salvar no Catálogo */}
+      {/* Modal Unificado de Verificação Geral e Edição do Produto (Catálogo / NCM) */}
       {isCatalogModalOpen && catalogReviewProduct && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
-        >
-          <div
-            className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn"
-          >
-            {/* Header */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-sky-100 text-sky-700 rounded-xl">
-                  <Package className="w-5 h-5 text-sky-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    Verificação Geral do Produto
-                    <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-[10px] rounded-full font-bold">
-                      Proposta & Produtos
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Revise os dados comerciais, foto e descrição. Depois de salvar o produto já entrará na base de dados.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsCatalogModalOpen(false)}
-                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Form com Footer Fixo/Flutuante */}
-            <form onSubmit={handleConfirmSaveCatalog} className="flex-1 flex flex-col min-h-0">
-              <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1 custom-scrollbar">
-              {/* Foto Preview & Nome */}
-              <div className="flex items-start gap-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div
-                    tabIndex={0}
-                    onClick={() => {
-                      if (catalogReviewProduct.imageUrl) {
-                        setZoomedImage({
-                          url: catalogReviewProduct.imageUrl,
-                          title: catalogReviewProduct.name || 'Produto'
-                        });
-                      } else {
-                        handleTriggerCatalogImageUpload();
-                      }
-                    }}
-                    onPaste={handlePasteImageToCatalog}
-                    title={catalogReviewProduct.imageUrl ? "Clique para ver a foto com ZOOM (ou aperte Ctrl+V para colar outra foto)" : "Clique para escolher foto do produto ou aperte Ctrl+V para colar foto copiada"}
-                    className={`w-16 h-16 rounded-xl overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-pointer transition relative group/cimg select-none focus:outline-none focus:ring-2 focus:ring-sky-400 ${
-                      catalogReviewProduct.imageUrl
-                        ? 'bg-white border border-slate-300 hover:border-sky-500 shadow-2xs'
-                        : 'border-2 border-dashed border-sky-300 bg-sky-50 hover:bg-sky-100 hover:border-sky-500'
-                    }`}
-                  >
-                    {catalogReviewProduct.imageUrl ? (
-                      <>
-                        <img
-                          src={catalogReviewProduct.imageUrl}
-                          alt={catalogReviewProduct.name || 'Produto'}
-                          className="w-full h-full object-contain group-hover/cimg:scale-105 transition duration-200"
-                          onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                        />
-                        <div className="absolute inset-0 bg-sky-950/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-[0.5px]">
-                          <ZoomIn className="w-5 h-5 text-white drop-shadow-sm" />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-center">
-                        <ImagePlus className="w-5 h-5 text-sky-500 group-hover/cimg:scale-110 transition" />
-                        <span className="text-[9px] font-bold text-sky-700 leading-tight mt-0.5">+ Foto</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (catalogReviewProduct) {
-                        setWebImagePickerItem({
-                          type: 'catalog_review',
-                          productName: catalogReviewProduct.name,
-                          currentImageUrl: catalogReviewProduct.imageUrl
-                        });
-                      }
-                    }}
-                    title="Pesquisar fotos para este produto e escolher qual usar"
-                    className="px-2 py-0.5 rounded text-[9.5px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                  >
-                    <Search className="w-3 h-3" />
-                    Buscar Foto
-                  </button>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-bold text-slate-700">
-                      Nome Padronizado Comercial *
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <div className="relative inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 hover:border-sky-300 shadow-2xs">
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleApplyCatalogNameCase()}
-                          className="inline-flex items-center gap-1 text-slate-700 hover:text-sky-700 hover:bg-sky-50 px-2 py-1 rounded-l-lg font-bold text-[10px] transition cursor-pointer active:scale-95 select-none"
-                          title="Alternar maiúsculas/minúsculas da palavra sob o cursor, das palavras selecionadas ou do nome todo"
-                        >
-                          <span className="font-serif font-bold text-[11px] leading-none text-sky-700">Aa</span>
-                          <span className="text-[10px] font-medium text-slate-700">Mudar Caso</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => setIsCatalogCaseMenuOpen(prev => !prev)}
-                          className="px-1.5 py-1 border-l border-slate-200 hover:bg-sky-50 text-slate-500 hover:text-sky-700 rounded-r-lg transition cursor-pointer active:scale-95"
-                          title="Escolher estilo de maiúsculas/minúsculas específico"
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-
-                        {isCatalogCaseMenuOpen && (
-                          <div
-                            ref={catalogCaseMenuRef}
-                            className="absolute right-0 top-full mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
-                          >
-                            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
-                              Formatar Trecho / Palavras
-                            </div>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyCatalogNameCase('sentence')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">Primeira da frase maiúscula</span>
-                              <span className="text-[10px] text-slate-400">Ex: Teclado sem fio logitech k380</span>
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyCatalogNameCase('lowercase')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">minúsculas</span>
-                              <span className="text-[10px] text-slate-400">Ex: teclado sem fio logitech k380</span>
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyCatalogNameCase('uppercase')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">MAIÚSCULAS</span>
-                              <span className="text-[10px] text-slate-400">Ex: TECLADO SEM FIO LOGITECH K380</span>
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyCatalogNameCase('title')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">Primeira de Cada Palavra Maiúscula</span>
-                              <span className="text-[10px] text-slate-400">Ex: Teclado Sem Fio Logitech K380</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="relative w-full">
-                    {/* Camada visual de destaque sincronizada para seleção com Ctrl (estilo Word) */}
-                    <div
-                      ref={catalogBackdropRef}
-                      aria-hidden="true"
-                      className="absolute inset-0 px-3 py-2 text-transparent font-semibold pointer-events-none overflow-hidden whitespace-pre font-sans text-sm select-none border border-transparent flex items-center"
-                    >
-                      {renderBackdropHighlights(catalogReviewProduct.name || '', catalogSelectedRanges)}
-                    </div>
-                    <input
-                      ref={catalogProductNameInputRef}
-                      type="text"
-                      required
-                      value={catalogReviewProduct.name || ''}
-                      onChange={(e) => {
-                        setCatalogReviewProduct({ ...catalogReviewProduct, name: e.target.value });
-                        if (catalogSelectedRanges.length > 0) setCatalogSelectedRanges([]);
-                      }}
-                      onMouseUp={handleCatalogInputMouseUp}
-                      onDoubleClick={handleCatalogInputDoubleClick}
-                      onScroll={(e) => {
-                        if (catalogBackdropRef.current) {
-                          catalogBackdropRef.current.scrollLeft = e.currentTarget.scrollLeft;
-                        }
-                      }}
-                      onPaste={handlePasteImageToCatalog}
-                      placeholder="Nome completo do produto sem traços ou vírgulas"
-                      className="w-full bg-transparent border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:outline-none focus:border-sky-500 relative z-10"
-                    />
-                  </div>
-
-                  {/* Badges de palavras selecionadas com Ctrl */}
-                  {catalogSelectedRanges.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap animate-in fade-in slide-in-from-top-1 duration-150">
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-bold">
-                        <Layers className="w-3 h-3 text-sky-600" />
-                        <span>{catalogSelectedRanges.length} {catalogSelectedRanges.length === 1 ? 'palavra selecionada com Ctrl' : 'palavras selecionadas com Ctrl'}:</span>
-                      </div>
-                      {catalogSelectedRanges.map((range, idx) => {
-                        const wordText = (catalogReviewProduct.name || '').substring(range.start, range.end);
-                        return (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100/90 border border-sky-300 text-sky-900 text-[11px] font-bold shadow-2xs"
-                          >
-                            <span>{wordText}</span>
-                            <button
-                              type="button"
-                              onClick={() => setCatalogSelectedRanges(prev => prev.filter((_, i) => i !== idx))}
-                              className="hover:text-red-600 ml-0.5 p-0.5 rounded transition cursor-pointer"
-                              title="Remover esta palavra da seleção"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </span>
-                        );
-                      })}
-                      <button
-                        type="button"
-                        onClick={() => setCatalogSelectedRanges([])}
-                        className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer transition"
-                      >
-                        Limpar seleção
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Especificações Técnicas */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Especificações Técnicas
-                </label>
-                <textarea
-                  rows={5}
-                  value={catalogReviewProduct.description || ''}
-                  onChange={(e) => setCatalogReviewProduct({ ...catalogReviewProduct, description: e.target.value })}
-                  placeholder="Ex: 4K UHD IPS, USB-C 65W, Ajuste de Altura, HDMI (deixe em branco se não houver)"
-                  className="w-full min-h-[110px] bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 text-xs transition leading-relaxed resize-y"
-                />
-              </div>
-
-              {/* SKU / Part Number e NCM */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Código / SKU / Part Number / Modelo
-                  </label>
-                  <input
-                    type="text"
-                    value={catalogReviewProduct.sku || catalogReviewProduct.partNumber || ''}
-                    onChange={(e) => setCatalogReviewProduct({ ...catalogReviewProduct, sku: e.target.value, partNumber: e.target.value })}
-                    placeholder="Ex: DEL-27-4K ou S2722QC"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-bold text-slate-700">
-                      NCM Fiscal
-                    </label>
-                    {catalogReviewProduct.ncm && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                        validateNcm(catalogReviewProduct.ncm).isKnown
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : validateNcm(catalogReviewProduct.ncm).isValid
-                          ? 'bg-sky-100 text-sky-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {validateNcm(catalogReviewProduct.ncm).isKnown
-                          ? 'Oficial TI'
-                          : validateNcm(catalogReviewProduct.ncm).isValid
-                          ? '8 Dígitos'
-                          : 'Incompleto'}
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    value={catalogReviewProduct.ncm || ''}
-                    onChange={(e) => {
-                      const formatted = formatNcm(e.target.value);
-                      const autoCategory = getCategoryFromNcm(formatted);
-                      setCatalogReviewProduct(prev => prev ? {
-                        ...prev,
-                        ncm: formatted,
-                        category: autoCategory !== 'Geral' ? autoCategory : prev.category
-                      } : null);
-                    }}
-                    placeholder="Ex: 8517.62.54"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500 text-xs"
-                  />
-                  {catalogReviewProduct.ncm && validateNcm(catalogReviewProduct.ncm).description && (
-                    <p className="text-[10px] text-emerald-700 font-medium mt-1 truncate" title={validateNcm(catalogReviewProduct.ncm).description}>
-                      ✓ {validateNcm(catalogReviewProduct.ncm).description}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Preço de Custo, Frete Unitário, Custo Total e Unidade */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Preço de Custo (R$) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={catalogReviewCostInput}
-                    onFocus={() => {
-                      if ((catalogReviewProduct.costPrice || 0) <= 0) {
-                        setCatalogReviewCostInput('');
-                      }
-                    }}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCatalogReviewCostInput(val);
-                      const parsed = parsePtBrNumber(val);
-                      setCatalogReviewProduct(prev => prev ? ({ ...prev, costPrice: parsed }) : null);
-                    }}
-                    onBlur={() => {
-                      const parsed = parsePtBrNumber(catalogReviewCostInput);
-                      setCatalogReviewProduct(prev => prev ? ({ ...prev, costPrice: parsed }) : null);
-                      setCatalogReviewCostInput(formatCurrencyPtBr(parsed));
-                    }}
-                    placeholder="0,00"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-center sm:justify-start gap-1">
-                    <Truck className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Frete Unitário (R$)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={catalogReviewShippingInput}
-                    onFocus={() => {
-                      const parsed = parsePtBrNumber(catalogReviewShippingInput);
-                      if (parsed <= 0) {
-                        setCatalogReviewShippingInput('');
-                      }
-                    }}
-                    onChange={(e) => {
-                      setCatalogReviewShippingInput(e.target.value);
-                    }}
-                    onBlur={() => {
-                      const parsed = parsePtBrNumber(catalogReviewShippingInput);
-                      setCatalogReviewShippingInput(parsed > 0 ? formatCurrencyPtBr(parsed) : '0,00');
-                    }}
-                    placeholder="0,00"
-                    title="Frete unitário a ser aplicado neste item no orçamento"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white text-xs text-center"
-                  />
-                </div>
-
-                {/* Custo Total = Preço de Custo + Frete Unitário */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-center sm:justify-start gap-1">
-                    <Calculator className="w-3.5 h-3.5 text-sky-600" />
-                    <span>Custo Total (R$)</span>
-                  </label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={formatCurrencyPtBr(
-                      (parsePtBrNumber(catalogReviewCostInput) || Number(catalogReviewProduct.costPrice) || 0) +
-                      (parsePtBrNumber(catalogReviewShippingInput) || 0)
-                    )}
-                    title="Custo total unitário: Preço de Custo + Frete Unitário"
-                    className="w-full bg-slate-100/90 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold text-xs text-center cursor-default select-all focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Unidade
-                  </label>
-                  <CreatableCombobox
-                    value={catalogReviewProduct.unit || 'Un.'}
-                    onChange={(val) => {
-                      const finalVal = val.trim() || 'Un.';
-                      setCatalogReviewProduct(prev => prev ? { ...prev, unit: finalVal } : null);
-                      saveRegisteredUnit(finalVal);
-                      setRegisteredUnits(getRegisteredUnits());
-                    }}
-                    options={availableUnits}
-                    onAddOption={(newUnit) => {
-                      saveRegisteredUnit(newUnit);
-                      setRegisteredUnits(getRegisteredUnits());
-                    }}
-                    defaultValue="Un."
-                    textAlign="center"
-                    placeholder="Un."
-                  />
-                </div>
-              </div>
-
-              {/* Categoria e Fornecedor */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Categoria
-                  </label>
-                  <CreatableCombobox
-                    value={catalogReviewProduct.category || 'Geral'}
-                    onChange={(val) => {
-                      const finalVal = val.trim() || 'Geral';
-                      setCatalogReviewProduct(prev => prev ? { ...prev, category: finalVal } : null);
-                      saveRegisteredCategory(finalVal);
-                      setRegisteredCategories(getRegisteredCategories());
-                    }}
-                    options={availableCategories}
-                    onAddOption={(newCat) => {
-                      saveRegisteredCategory(newCat);
-                      setRegisteredCategories(getRegisteredCategories());
-                    }}
-                    defaultValue="Geral"
-                    textAlign="left"
-                    placeholder="Geral"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Fornecedor
-                  </label>
-                  <input
-                    type="text"
-                    value={catalogReviewProduct.supplier || ''}
-                    onChange={(e) => setCatalogReviewProduct({ ...catalogReviewProduct, supplier: e.target.value })}
-                    placeholder="Ex: Mercado Livre, Kalunga, Fabricante"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-              </div>
-
-              {/* Link de Compra / Referência */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Link Direto de Compra
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="url"
-                    value={catalogReviewProduct.sourceUrl || ''}
-                    onChange={(e) => {
-                      const newUrl = e.target.value;
-                      const detectedStore = extractStoreNameFromUrl(newUrl);
-                      setCatalogReviewProduct(prev => prev ? {
-                        ...prev,
-                        sourceUrl: newUrl,
-                        supplier: detectedStore || prev.supplier
-                      } : null);
-                    }}
-                    placeholder="https://..."
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-[11px] focus:outline-none focus:border-sky-500"
-                  />
-                  {catalogReviewProduct.sourceUrl && (
-                    <a
-                      href={catalogReviewProduct.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
-                      title="Testar Link"
-                    >
-                      <ExternalLink className="w-4 h-4 text-sky-600" />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              </div>
-
-              {/* Footer de Ações Flutuante / Fixo na base */}
-              <div className="p-4 border-t border-slate-200 bg-white/95 backdrop-blur-xs flex items-center justify-between gap-2 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-10">
-                <button
-                  type="button"
-                  onClick={() => setIsCatalogModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold transition text-xs cursor-pointer"
-                >
-                  Cancelar
-                </button>
-
-                {/* Botão Unificado: Salvar na Proposta e nos Produtos ao mesmo tempo */}
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-xs hover:shadow-md transition flex items-center gap-2 cursor-pointer text-xs sm:text-sm active:scale-[0.98]"
-                  title="Salvar alterações no item da proposta e na base geral de produtos"
-                >
-                  <Save className="w-4 h-4 text-white" />
-                  <span>Salvar</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ProductEditModal
+          isOpen={isCatalogModalOpen}
+          onClose={() => {
+            setIsCatalogModalOpen(false);
+            setCatalogReviewProduct(null);
+            setTargetQuoteItemId(null);
+          }}
+          product={catalogReviewProduct}
+          initialShippingCost={
+            targetQuoteItemId
+              ? (currentQuote.items.find(it => it.id === targetQuoteItemId)?.shippingCost ?? globalShipping)
+              : 0
+          }
+          showShippingFields={true}
+          availableUnits={availableUnits}
+          onAddUnit={(newUnit) => {
+            saveRegisteredUnit(newUnit);
+            setRegisteredUnits(getRegisteredUnits());
+          }}
+          availableCategories={availableCategories}
+          onAddCategory={(newCat) => {
+            saveRegisteredCategory(newCat);
+            setRegisteredCategories(getRegisteredCategories());
+          }}
+          title="Verificação Geral do Produto"
+          subtitle="Revise os dados comerciais, foto e descrição. Depois de salvar o produto já entrará na base de dados."
+          badgeText="Proposta & Produtos"
+          saveButtonText="Salvar"
+          saveButtonTitle="Salvar alterações no item da proposta e na base geral de produtos"
+          onSave={(finalProd, shippingCost) => {
+            handleSaveProductFromReviewModal(finalProd, shippingCost);
+          }}
+        />
       )}
 
       {/* Modal de Zoom da Foto no Meio da Tela (Fiel à Referência Visual) */}
