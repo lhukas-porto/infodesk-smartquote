@@ -186,6 +186,7 @@ export interface ClientCompany {
   locations?: string[];
   lastUsed?: string;
   logoUrl?: string;
+  website?: string;
 }
 
 export interface DiscoveredProduct {

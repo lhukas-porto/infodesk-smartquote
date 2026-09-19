@@ -24,7 +24,9 @@ import {
   ArrowRight,
   PlusCircle,
   Clock,
-  Save
+  Save,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 import { ClientCompany, ClientContact } from '../types';
 import { maskPhone } from '../utils/aiEmailParser';
@@ -36,6 +38,14 @@ interface ClientManagementViewProps {
   onDeleteContact?: (contactId: string, companyId: string) => void;
   onSelectBuyerForQuote?: (companyName: string, contact: ClientContact, location?: string) => void;
 }
+
+const extractCleanDomain = (input: string): string => {
+  if (!input) return '';
+  let clean = input.trim().toLowerCase();
+  clean = clean.replace(/^(https?:\/\/)?(www\.)?/, '');
+  clean = clean.split('/')[0].split('?')[0].split('#')[0].trim();
+  return clean;
+};
 
 const getCompanyInitials = (name: string): string => {
   const clean = name.replace(/^(ao|à|a|para)\s+/i, '').trim();
@@ -119,18 +129,34 @@ const KNOWN_COMPANY_DOMAINS: Record<string, string> = {
 };
 
 const resolveCompanyLogo = (comp: ClientCompany): string | null => {
-  if (comp.logoUrl && comp.logoUrl.trim()) return comp.logoUrl.trim();
+  // 1. Se informou o site da empresa (ex: ubec.edu.br ou www.empresa.com.br)
+  if (comp.website && comp.website.trim()) {
+    const domain = extractCleanDomain(comp.website);
+    if (domain && domain.includes('.')) {
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+    }
+  }
+
+  // 2. Se informou uma URL de logo direta ou digitou domínio
+  if (comp.logoUrl && comp.logoUrl.trim()) {
+    const trimmed = comp.logoUrl.trim();
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && trimmed.includes('.')) {
+      const domain = extractCleanDomain(trimmed);
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+    }
+    return trimmed;
+  }
 
   const cleanName = comp.name.toLowerCase().trim().replace(/^(ao|à|a|para)\s+/i, '');
   
-  // 1. Dicionário de domínios conhecidos
+  // 3. Dicionário de domínios conhecidos
   for (const [key, domain] of Object.entries(KNOWN_COMPANY_DOMAINS)) {
     if (cleanName.includes(key)) {
       return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
     }
   }
 
-  // 2. Extração de domínio corporativo a partir dos e-mails dos contatos
+  // 4. Extração de domínio corporativo a partir dos e-mails dos contatos
   if (comp.contacts && comp.contacts.length > 0) {
     const publicDomains = new Set([
       'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'yahoo.com.br', 
@@ -146,7 +172,7 @@ const resolveCompanyLogo = (comp: ClientCompany): string | null => {
     }
   }
 
-  // 3. Fallback inteligente para termos únicos
+  // 5. Fallback inteligente para termos únicos
   const words = cleanName.split(/\s+/).filter(Boolean);
   if (words.length === 1 && words[0].length >= 3) {
     const slug = words[0].replace(/[^a-z0-9]/gi, '');
@@ -168,7 +194,7 @@ const CompanyLogoBadge: React.FC<{
 
   React.useEffect(() => {
     setLoadFailed(false);
-  }, [company.id, company.logoUrl]);
+  }, [company.id, company.website, company.logoUrl]);
 
   const sizeClasses = {
     sm: 'w-9 h-9 text-xs',
@@ -218,13 +244,13 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyPrefix, setNewCompanyPrefix] = useState<'À' | 'Ao'>('À');
   const [newCompanyLocation, setNewCompanyLocation] = useState('Brasília - DF');
-  const [newCompanyLogoUrl, setNewCompanyLogoUrl] = useState('');
+  const [newCompanyWebsite, setNewCompanyWebsite] = useState('');
 
   // Edit Company state
   const [editCompanyName, setEditCompanyName] = useState('');
   const [editCompanyPrefix, setEditCompanyPrefix] = useState<'À' | 'Ao'>('À');
   const [editCompanyLocation, setEditCompanyLocation] = useState('');
-  const [editCompanyLogoUrl, setEditCompanyLogoUrl] = useState('');
+  const [editCompanyWebsite, setEditCompanyWebsite] = useState('');
 
   // New Contact form state
   const [isAddingContact, setIsAddingContact] = useState(false);
@@ -326,7 +352,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       defaultDeliveryLocation: loc,
       locations: [loc],
       contacts: [],
-      logoUrl: newCompanyLogoUrl.trim() || undefined,
+      website: newCompanyWebsite.trim() ? extractCleanDomain(newCompanyWebsite) : undefined,
       lastUsed: new Date().toISOString()
     };
     const updated = [newCompany, ...companies];
@@ -335,7 +361,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     setCompanyPage(1);
     setNewCompanyName('');
     setNewCompanyLocation('Brasília - DF');
-    setNewCompanyLogoUrl('');
+    setNewCompanyWebsite('');
     setNewCompanyPrefix('À');
     setIsAddingCompany(false);
     showToast(`Empresa "${newCompany.prefix} ${newCompany.name}" cadastrada!`);
@@ -345,7 +371,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     setEditCompanyName(comp.name);
     setEditCompanyPrefix((comp.prefix as 'À' | 'Ao') || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À'));
     setEditCompanyLocation(comp.defaultDeliveryLocation || 'Brasília - DF');
-    setEditCompanyLogoUrl(comp.logoUrl || '');
+    setEditCompanyWebsite(comp.website || (comp.logoUrl && !comp.logoUrl.startsWith('http') ? comp.logoUrl : ''));
     setIsEditingCompany(true);
   };
 
@@ -362,7 +388,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
           prefix: editCompanyPrefix, 
           defaultDeliveryLocation: loc, 
           locations: nextLocs,
-          logoUrl: editCompanyLogoUrl.trim() || undefined
+          website: editCompanyWebsite.trim() ? extractCleanDomain(editCompanyWebsite) : undefined
         };
       }
       return c;
@@ -632,7 +658,28 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   />
                 </div>
                 <input type="text" placeholder="Local padrão (Ex: Brasília - DF)" value={newCompanyLocation} onChange={(e) => setNewCompanyLocation(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500" />
-                <input type="url" placeholder="URL do Logo / Imagem (opcional - detectado automaticamente)" value={newCompanyLogoUrl} onChange={(e) => setNewCompanyLogoUrl(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500" />
+                <div className="relative flex items-center">
+                  <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input 
+                    type="text" 
+                    placeholder="Site da empresa (ex: ubec.edu.br ou sabin.com.br)" 
+                    value={newCompanyWebsite} 
+                    onChange={(e) => setNewCompanyWebsite(e.target.value)} 
+                    className="w-full text-xs pl-8 pr-8 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" 
+                  />
+                  {extractCleanDomain(newCompanyWebsite).includes('.') && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 w-4.5 h-4.5 rounded-full border border-slate-200 bg-white p-0.5 shadow-2xs overflow-hidden" title="Prévia do logo da aba">
+                      <img
+                        src={`https://www.google.com/s2/favicons?domain=${extractCleanDomain(newCompanyWebsite)}&sz=128`}
+                        alt="Favicon"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+                <span className="text-[9.5px] text-slate-400 block -mt-1">
+                  💡 Basta o site principal — o sistema captura o ícone oficial da aba do navegador.
+                </span>
                 <div className="flex justify-end gap-1.5 pt-1">
                   <button type="button" onClick={() => setIsAddingCompany(false)} className="text-xs px-2.5 py-1 text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer">Cancelar</button>
                   <button type="submit" className="text-xs px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg cursor-pointer">Salvar</button>
@@ -801,14 +848,31 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         <input type="text" value={editCompanyLocation} onChange={(e) => setEditCompanyLocation(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" />
                       </div>
                       <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">URL da Logomarca (opcional - detectada automaticamente)</label>
-                        <input 
-                          type="url" 
-                          placeholder="https://exemplo.com/logo.png" 
-                          value={editCompanyLogoUrl} 
-                          onChange={(e) => setEditCompanyLogoUrl(e.target.value)} 
-                          className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" 
-                        />
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                          <Globe className="w-3.5 h-3.5 text-sky-600" />
+                          <span>Site da Empresa (captura a logo da aba automaticamente)</span>
+                        </label>
+                        <div className="relative flex items-center">
+                          <input 
+                            type="text" 
+                            placeholder="Ex: ubec.edu.br ou sabin.com.br" 
+                            value={editCompanyWebsite} 
+                            onChange={(e) => setEditCompanyWebsite(e.target.value)} 
+                            className="w-full text-xs px-3 pr-9 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900 font-medium" 
+                          />
+                          {extractCleanDomain(editCompanyWebsite).includes('.') && (
+                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border border-slate-200 bg-white p-0.5 shadow-2xs overflow-hidden" title="Prévia da logo da aba">
+                              <img
+                                src={`https://www.google.com/s2/favicons?domain=${extractCleanDomain(editCompanyWebsite)}&sz=128`}
+                                alt="Favicon"
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-1 block">
+                          Basta colocar o endereço do site principal (ex: <code>sabin.com.br</code>) que o sistema puxa o ícone oficial da aba do navegador.
+                        </span>
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-1">
@@ -830,6 +894,19 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                             <span className="text-xs text-slate-500 font-medium">
                               {selectedCompany.defaultDeliveryLocation}
                             </span>
+                          )}
+                          {selectedCompany.website && (
+                            <a
+                              href={`https://${extractCleanDomain(selectedCompany.website)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-sky-600 hover:text-sky-800 hover:underline flex items-center gap-1 font-medium ml-1"
+                              title="Abrir site oficial da empresa"
+                            >
+                              <Globe className="w-3 h-3" />
+                              <span>{extractCleanDomain(selectedCompany.website)}</span>
+                              <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                            </a>
                           )}
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
