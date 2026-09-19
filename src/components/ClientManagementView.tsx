@@ -125,34 +125,88 @@ const KNOWN_COMPANY_DOMAINS: Record<string, string> = {
   sesc: 'sesc.com.br',
   senac: 'senac.br',
   fiocruz: 'fiocruz.br',
-  embrapa: 'embrapa.br'
+  embrapa: 'embrapa.br',
+  bsb: 'bsb.aero',
+  'bsb.aero': 'bsb.aero',
+  inframerica: 'bsb.aero',
+  'inframérica': 'bsb.aero',
+  'aeroporto de brasilia': 'bsb.aero',
+  'aeroporto de brasília': 'bsb.aero'
 };
 
-const resolveCompanyLogo = (comp: ClientCompany): string | null => {
-  // 1. Se informou o site da empresa (ex: ubec.edu.br ou www.empresa.com.br)
+const KNOWN_COMPANY_DIRECT_LOGOS: Record<string, string> = {
+  'bsb.aero': 'https://www.bsb.aero/apple-touch-icon.png',
+  inframerica: 'https://www.bsb.aero/apple-touch-icon.png',
+  'inframérica': 'https://www.bsb.aero/apple-touch-icon.png',
+  'aeroporto de brasilia': 'https://www.bsb.aero/apple-touch-icon.png',
+  'aeroporto de brasília': 'https://www.bsb.aero/apple-touch-icon.png'
+};
+
+const getCandidateLogosForDomain = (domain: string): string[] => {
+  const clean = extractCleanDomain(domain);
+  if (!clean || !clean.includes('.')) return [];
+
+  const list: string[] = [];
+
+  // Se tem URL direta mapeada
+  if (KNOWN_COMPANY_DIRECT_LOGOS[clean]) {
+    list.push(KNOWN_COMPANY_DIRECT_LOGOS[clean]);
+  }
+
+  // 1. Ícones de alta resolução nativos da página (Apple Touch Icon / Favicons modernos)
+  list.push(`https://www.${clean}/apple-touch-icon.png`);
+  list.push(`https://${clean}/apple-touch-icon.png`);
+  list.push(`https://www.${clean}/favicon-32x32.png`);
+  list.push(`https://${clean}/favicon-32x32.png`);
+
+  // 2. Google Favicon v2 (scraper moderno que segue links de favicon no head)
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.${clean}&size=128`);
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${clean}&size=128`);
+
+  // 3. Google Favicon v1 (fallback clássico)
+  list.push(`https://www.google.com/s2/favicons?domain=www.${clean}&sz=128`);
+  list.push(`https://www.google.com/s2/favicons?domain=${clean}&sz=128`);
+
+  // 4. DuckDuckGo Favicon Service
+  list.push(`https://icons.duckduckgo.com/ip2/${clean}.ico`);
+
+  return Array.from(new Set(list));
+};
+
+const resolveCompanyCandidates = (comp: Partial<ClientCompany> & { name?: string; website?: string }): string[] => {
+  const candidates: string[] = [];
+
+  const cleanName = (comp.name || '').toLowerCase().trim().replace(/^(ao|à|a|para)\s+/i, '');
+
+  // 0. Mapeamento direto de logos por nome
+  for (const [key, logoUrl] of Object.entries(KNOWN_COMPANY_DIRECT_LOGOS)) {
+    if (cleanName.includes(key)) {
+      candidates.push(logoUrl);
+    }
+  }
+
+  // 1. Se informou o site da empresa (ex: bsb.aero, ubec.edu.br ou www.empresa.com.br)
   if (comp.website && comp.website.trim()) {
     const domain = extractCleanDomain(comp.website);
     if (domain && domain.includes('.')) {
-      return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+      candidates.push(...getCandidateLogosForDomain(domain));
     }
   }
 
   // 2. Se informou uma URL de logo direta ou digitou domínio
   if (comp.logoUrl && comp.logoUrl.trim()) {
     const trimmed = comp.logoUrl.trim();
-    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && trimmed.includes('.')) {
-      const domain = extractCleanDomain(trimmed);
-      return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      candidates.unshift(trimmed);
+    } else if (trimmed.includes('.')) {
+      candidates.push(...getCandidateLogosForDomain(trimmed));
     }
-    return trimmed;
   }
 
-  const cleanName = comp.name.toLowerCase().trim().replace(/^(ao|à|a|para)\s+/i, '');
-  
   // 3. Dicionário de domínios conhecidos
   for (const [key, domain] of Object.entries(KNOWN_COMPANY_DOMAINS)) {
     if (cleanName.includes(key)) {
-      return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+      candidates.push(...getCandidateLogosForDomain(domain));
     }
   }
 
@@ -166,7 +220,7 @@ const resolveCompanyLogo = (comp: ClientCompany): string | null => {
       if (ct.email && ct.email.includes('@')) {
         const domain = ct.email.split('@')[1]?.toLowerCase().trim();
         if (domain && !publicDomains.has(domain)) {
-          return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+          candidates.push(...getCandidateLogosForDomain(domain));
         }
       }
     }
@@ -176,10 +230,10 @@ const resolveCompanyLogo = (comp: ClientCompany): string | null => {
   const words = cleanName.split(/\s+/).filter(Boolean);
   if (words.length === 1 && words[0].length >= 3) {
     const slug = words[0].replace(/[^a-z0-9]/gi, '');
-    return `https://www.google.com/s2/favicons?domain=${slug}.com.br&sz=128`;
+    candidates.push(...getCandidateLogosForDomain(`${slug}.com.br`));
   }
 
-  return null;
+  return Array.from(new Set(candidates));
 };
 
 const CompanyLogoBadge: React.FC<{
@@ -187,14 +241,15 @@ const CompanyLogoBadge: React.FC<{
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }> = ({ company, size = 'sm', className = '' }) => {
-  const [loadFailed, setLoadFailed] = useState(false);
-  const logoUrl = resolveCompanyLogo(company);
-  const initials = getCompanyInitials(company.name);
-  const avatarColor = getAvatarColor(company.name);
+  const candidates = React.useMemo(() => resolveCompanyCandidates(company), [company.id, company.name, company.website, company.logoUrl, company.contacts]);
+  const [candidateIndex, setCandidateIndex] = useState(0);
 
   React.useEffect(() => {
-    setLoadFailed(false);
-  }, [company.id, company.website, company.logoUrl]);
+    setCandidateIndex(0);
+  }, [company.id, company.name, company.website, company.logoUrl]);
+
+  const initials = getCompanyInitials(company.name);
+  const avatarColor = getAvatarColor(company.name);
 
   const sizeClasses = {
     sm: 'w-9 h-9 text-xs',
@@ -202,14 +257,17 @@ const CompanyLogoBadge: React.FC<{
     lg: 'w-14 h-14 text-base'
   }[size];
 
-  if (logoUrl && !loadFailed) {
+  const currentSrc = candidates[candidateIndex];
+
+  if (currentSrc && candidateIndex < candidates.length) {
     return (
       <div className={`${sizeClasses} rounded-full border border-slate-200/90 bg-white p-1 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden ${className}`}>
         <img
-          src={logoUrl}
+          key={currentSrc}
+          src={currentSrc}
           alt={company.name}
           className="w-full h-full object-contain"
-          onError={() => setLoadFailed(true)}
+          onError={() => setCandidateIndex(prev => prev + 1)}
           loading="lazy"
         />
       </div>
@@ -219,6 +277,37 @@ const CompanyLogoBadge: React.FC<{
   return (
     <div className={`${sizeClasses} rounded-full border flex items-center justify-center font-bold font-mono shrink-0 shadow-2xs ${avatarColor} ${className}`}>
       {initials}
+    </div>
+  );
+};
+
+const WebsiteFaviconPreview: React.FC<{
+  website: string;
+  className?: string;
+}> = ({ website, className = 'w-5 h-5' }) => {
+  const domain = extractCleanDomain(website);
+  const candidates = React.useMemo(() => getCandidateLogosForDomain(domain), [domain]);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+
+  React.useEffect(() => {
+    setCandidateIndex(0);
+  }, [domain]);
+
+  const currentSrc = candidates[candidateIndex];
+
+  if (!domain || !domain.includes('.') || !currentSrc || candidateIndex >= candidates.length) {
+    return null;
+  }
+
+  return (
+    <div className={`${className} rounded-full border border-slate-200 bg-white p-0.5 shadow-2xs overflow-hidden flex items-center justify-center`} title="Prévia da logo da aba">
+      <img
+        key={currentSrc}
+        src={currentSrc}
+        alt="Favicon"
+        className="w-full h-full object-contain"
+        onError={() => setCandidateIndex(prev => prev + 1)}
+      />
     </div>
   );
 };
@@ -668,12 +757,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     className="w-full text-xs pl-8 pr-8 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" 
                   />
                   {extractCleanDomain(newCompanyWebsite).includes('.') && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 w-4.5 h-4.5 rounded-full border border-slate-200 bg-white p-0.5 shadow-2xs overflow-hidden" title="Prévia do logo da aba">
-                      <img
-                        src={`https://www.google.com/s2/favicons?domain=${extractCleanDomain(newCompanyWebsite)}&sz=128`}
-                        alt="Favicon"
-                        className="w-full h-full object-contain"
-                      />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <WebsiteFaviconPreview website={newCompanyWebsite} className="w-5 h-5" />
                     </div>
                   )}
                 </div>
@@ -861,12 +946,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                             className="w-full text-xs px-3 pr-9 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900 font-medium" 
                           />
                           {extractCleanDomain(editCompanyWebsite).includes('.') && (
-                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border border-slate-200 bg-white p-0.5 shadow-2xs overflow-hidden" title="Prévia da logo da aba">
-                              <img
-                                src={`https://www.google.com/s2/favicons?domain=${extractCleanDomain(editCompanyWebsite)}&sz=128`}
-                                alt="Favicon"
-                                className="w-full h-full object-contain"
-                              />
+                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                              <WebsiteFaviconPreview website={editCompanyWebsite} className="w-5 h-5" />
                             </div>
                           )}
                         </div>
