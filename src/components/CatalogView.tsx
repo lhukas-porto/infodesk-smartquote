@@ -807,52 +807,85 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
       </div>
 
-      {/* Barra de Busca em Tempo Real e Filtro de Categorias */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
-        <div className="relative w-full md:w-96">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar em tempo real por nome, SKU, modelo..."
-            className="w-full h-10 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl pl-10 pr-9 text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition outline-none font-sans"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-              title="Limpar pesquisa"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+      {/* Barra de Busca e Filtros de Categoria (Ampla e Sem Espremer) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+        {/* Linha 1: Campo de Busca Espaçoso com Botões de Ação e Contador */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Digite o nome do produto, SKU, modelo, part number ou especificações..."
+              className="w-full h-11 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl pl-11 pr-10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition outline-none font-sans shadow-2xs"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                title="Limpar texto da pesquisa"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="h-11 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="Limpar pesquisa e restaurar lista"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+                <span>Limpar</span>
+              </button>
+            )}
+
+            <div className="h-11 px-4 bg-sky-50 border border-sky-200 rounded-xl text-sky-800 text-xs font-bold flex items-center gap-2 shrink-0">
+              <Package className="w-4 h-4 text-sky-600" />
+              <span>
+                {sortedProducts.length} {sortedProducts.length === 1 ? 'encontrado' : 'encontrados'}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          <span className="text-xs text-slate-600 font-bold whitespace-nowrap">Categoria:</span>
-          {categories.map(cat => {
-            const count = cat === 'all' ? products.length : (categoryCounts[cat] || 0);
-            const isSelected = selectedCategory === cat;
-            return (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                  isSelected
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                }`}
-              >
-                <span>{cat === 'all' ? 'Todas' : cat}</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                  isSelected ? 'bg-sky-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                }`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+        {/* Linha 2: Chips de Categoria com Quebra Limpa e Espaçamento Confortável */}
+        <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2.5">
+          <span className="text-xs text-slate-500 font-bold uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-sky-600" />
+            <span>Categorias:</span>
+          </span>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {categories.map(cat => {
+              const count = cat === 'all' ? products.length : (categoryCounts[cat] || 0);
+              const isSelected = selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                    isSelected
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
+                  }`}
+                >
+                  <span>{cat === 'all' ? 'Todas' : cat}</span>
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                    isSelected ? 'bg-sky-700/90 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
