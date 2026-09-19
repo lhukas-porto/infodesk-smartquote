@@ -2592,14 +2592,16 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     {/* Resultados da busca incremental no catálogo */}
                     {(() => {
                       const query = productSearchQuery.trim().toLowerCase();
-                      const filtered = products.filter(p => {
-                        if (!query) return false; // Não abre todos os itens se não digitou nada!
-                        const nameMatch = (p.name || '').toLowerCase().includes(query);
-                        const skuMatch = (p.sku || '').toLowerCase().includes(query);
-                        const partMatch = (p.partNumber || '').toLowerCase().includes(query);
-                        const catMatch = (p.category || '').toLowerCase().includes(query);
-                        return nameMatch || skuMatch || partMatch || catMatch;
-                      });
+                      const filtered = products
+                        .filter(p => {
+                          if (!query) return false; // Não abre todos os itens se não digitou nada!
+                          const nameMatch = (p.name || '').toLowerCase().includes(query);
+                          const skuMatch = (p.sku || '').toLowerCase().includes(query);
+                          const partMatch = (p.partNumber || '').toLowerCase().includes(query);
+                          const catMatch = (p.category || '').toLowerCase().includes(query);
+                          return nameMatch || skuMatch || partMatch || catMatch;
+                        })
+                        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 
                       if (!query) {
                         return (

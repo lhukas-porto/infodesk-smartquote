@@ -72,10 +72,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
 
-  // Paginação e Ordenação
+  // Paginação e Ordenação (Padrão: Ordem Alfabética A-Z)
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortField, setSortField] = useState<'name' | 'costPrice' | 'sku' | 'category' | null>(null);
+  const [sortField, setSortField] = useState<'name' | 'costPrice' | 'sku' | 'category' | null>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Volta automaticamente para a página 1 ao buscar, filtrar por categoria ou alterar o tamanho da página
@@ -509,18 +509,19 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   }, [products, searchTerm, selectedCategory]);
 
   const sortedProducts = React.useMemo(() => {
-    if (!sortField) return filteredProducts;
+    const field = sortField || 'name';
+    const direction = sortDirection || 'asc';
     return [...filteredProducts].sort((a, b) => {
-      const aVal = a[sortField];
-      const bVal = b[sortField];
+      const aVal = a[field];
+      const bVal = b[field];
 
       if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+        return direction === 'asc' ? aVal - bVal : bVal - aVal;
       }
       const aStr = String(aVal ?? '');
       const bStr = String(bVal ?? '');
       const cmp = aStr.localeCompare(bStr, 'pt-BR', { sensitivity: 'base' });
-      return sortDirection === 'asc' ? cmp : -cmp;
+      return direction === 'asc' ? cmp : -cmp;
     });
   }, [filteredProducts, sortField, sortDirection]);
 
@@ -550,7 +551,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       if (sortDirection === 'asc') {
         setSortDirection('desc');
       } else {
-        setSortField(null);
+        // Ao desmarcar a ordenação inversa, retorna ao padrão alfabético (A-Z)
+        setSortField('name');
         setSortDirection('asc');
       }
     } else {
