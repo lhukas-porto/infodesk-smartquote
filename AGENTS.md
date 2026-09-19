@@ -34,3 +34,12 @@ Toda e qualquer interface criada no SmartQuote DEVE seguir estritamente o padrã
    - Campos de entrada: `w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900` (`.sq-input`).
 
 Consulte `.agents/rules/UI_DESIGN_SYSTEM.md` e `src/index.css` para todas as classes e especificações.
+
+---
+
+## 🛑 CONTROLE DE TESTES VISUAIS E DE BROWSER (REGRA DO LUCAS)
+
+- O teste de browser/DOM (subagente de navegação, captura visual ou inspeção DOM) **NUNCA deve ser executado de forma automática**.
+- Execute testes via browser/DOM **EXCLUSIVAMENTE** quando o Lucas pedir explicitamente (ex: *"faça o teste no browser"*, *"teste o DOM"*, *"teste a tela"*).
+- Para verificações rotineiras e seguras de entrega de código, utilize validação estática (`npm run build` / `tsc`) e testes unitários sem abrir ou inspecionar o navegador sem permissão.
+
