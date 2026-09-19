@@ -378,7 +378,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   // New Contact form state
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [contactName, setContactName] = useState('');
-  const [contactRole, setContactRole] = useState('');
   const [contactTitle, setContactTitle] = useState<'Sr.' | 'Srta.' | 'Sra.' | 'Dr.' | 'Dra.'>('Sr.');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -388,7 +387,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   const [editingContact, setEditingContact] = useState<ClientContact | null>(null);
   const [editingContactCompanyId, setEditingContactCompanyId] = useState<string>('');
   const [editContactName, setEditContactName] = useState('');
-  const [editContactRole, setEditContactRole] = useState('');
   const [editContactTitle, setEditContactTitle] = useState<'Sr.' | 'Srta.' | 'Sra.' | 'Dr.' | 'Dra.'>('Sr.');
   const [editContactEmail, setEditContactEmail] = useState('');
   const [editContactPhone, setEditContactPhone] = useState('');
@@ -573,7 +571,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   // --- Handlers: Contacts ---
   const handleOpenAddContact = (targetCompanyId?: string) => {
     setContactName('');
-    setContactRole('');
     setContactEmail('');
     setContactPhone('');
     setContactTitle('Sr.');
@@ -587,7 +584,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     const newContact: ClientContact = {
       id: `cont-${Date.now()}`,
       name: contactName.trim(),
-      role: contactRole.trim() || undefined,
       title: contactTitle,
       email: contactEmail.toLowerCase().trim(),
       phone: maskPhone(contactPhone.trim()),
@@ -602,7 +598,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     setEditingContact(contact);
     setEditingContactCompanyId(compId);
     setEditContactName(contact.name);
-    setEditContactRole(contact.role || '');
     setEditContactTitle((contact.title as any) || 'Sr.');
     setEditContactEmail(contact.email || '');
     setEditContactPhone(contact.phone || '');
@@ -616,7 +611,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     const updatedContact: ClientContact = {
       ...editingContact,
       name: editContactName.trim(),
-      role: editContactRole.trim() || undefined,
       title: editContactTitle,
       email: editContactEmail.toLowerCase().trim(),
       phone: maskPhone(editContactPhone.trim())
@@ -721,7 +715,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Buscar empresa, comprador, cargo, e-mail ou cidade..."
+            placeholder="Buscar empresa, comprador, e-mail ou cidade..."
             className="sq-input pl-10"
           />
           {searchFilter && (
@@ -1135,10 +1129,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Cargo / Função</label>
-                      <input type="text" placeholder="Ex: Gerente de Compras, Analista" value={editContactRole} onChange={(e) => setEditContactRole(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-amber-500 text-slate-900 font-medium" />
-                    </div>
-                    <div>
                       <label className="block text-[11px] font-bold text-sky-800 mb-1 flex items-center gap-1"><Building className="w-3.5 h-3.5 text-sky-600" /><span>Empresa Vinculada</span></label>
                       <select value={editContactTargetCompanyId} onChange={(e) => setEditContactTargetCompanyId(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border-2 border-sky-300 rounded-lg font-bold text-sky-900 focus:outline-none focus:border-sky-600 shadow-sm cursor-pointer">
                         {companies.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })).map(c => <option key={c.id} value={c.id}>{c.name}{c.id === editingContactCompanyId ? ' (Atual)' : ''}</option>)}
@@ -1180,10 +1170,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Cargo / Função</label>
-                      <input type="text" placeholder="Ex: Gerente de Compras, Analista" value={contactRole} onChange={(e) => setContactRole(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900 font-medium" />
-                    </div>
-                    <div>
                       <label className="block text-[11px] font-bold text-sky-800 mb-1 flex items-center gap-1"><Building className="w-3.5 h-3.5 text-sky-600" /><span>Pertence à Empresa</span></label>
                       <select value={contactCompanyId} onChange={(e) => setContactCompanyId(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 focus:outline-none focus:border-sky-500 cursor-pointer">
                         {companies.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1216,9 +1202,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
 
                 {/* Cabeçalho da Tabela / Lista */}
                 <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-2.5 bg-slate-100/90 rounded-xl text-xs font-bold text-slate-600 uppercase tracking-wider">
-                  <div className="col-span-3">Comprador</div>
-                  <div className="col-span-2">Cargo</div>
-                  <div className="col-span-3">E-mail</div>
+                  <div className="col-span-4">Comprador</div>
+                  <div className="col-span-4">E-mail</div>
                   <div className="col-span-2">Telefone</div>
                   <div className="col-span-2 text-right pr-2">Ações</div>
                 </div>
@@ -1234,20 +1219,15 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       className="p-4 bg-white hover:bg-slate-50/70 border border-slate-200/90 rounded-2xl shadow-2xs hover:border-sky-300 transition-all flex flex-col md:grid md:grid-cols-12 md:items-center gap-3"
                     >
                       {/* Col 1: Comprador */}
-                      <div className="md:col-span-3">
+                      <div className="md:col-span-4">
                         <h4 className="text-sm font-bold text-slate-900 leading-snug">
                           {contact.title ? `${contact.title} ` : ''}{contact.name}
                         </h4>
                         <span className="text-[10px] text-slate-400 font-mono">ID: {contact.id.slice(-6)}</span>
                       </div>
 
-                      {/* Col 2: Cargo */}
-                      <div className="md:col-span-2 text-xs text-slate-600 font-medium">
-                        {contact.role || contact.title || 'Comprador'}
-                      </div>
-
-                      {/* Col 3: E-mail */}
-                      <div className="md:col-span-3 text-xs text-slate-700 truncate">
+                      {/* Col 2: E-mail */}
+                      <div className="md:col-span-4 text-xs text-slate-700 truncate">
                         {contact.email ? (
                           <a href={`mailto:${contact.email}`} className="hover:text-sky-700 truncate flex items-center gap-1.5 text-slate-600">
                             <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -1258,7 +1238,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         )}
                       </div>
 
-                      {/* Col 4: Telefone */}
+                      {/* Col 3: Telefone */}
                       <div className="md:col-span-2 text-xs text-slate-700 font-mono">
                         {contact.phone ? (
                           <span className="flex items-center gap-1.5">
