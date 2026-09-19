@@ -5,7 +5,6 @@ import {
   Search,
   Sparkles,
   Save,
-  Send,
   Eye,
   Calculator,
   Percent,
@@ -3955,21 +3954,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             <button
               type="button"
               onClick={() => persistAndProceed(onPreview, true)}
-              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-sky-600/25 cursor-pointer active:scale-95"
-              title="Visualizar documento pronto para impressão ou download em PDF"
+              className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-sky-600/25 cursor-pointer active:scale-95"
+              title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
             >
               <Eye className="w-4 h-4" />
-              <span>Visualizar proposta</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => persistAndProceed(onSendEmail, true)}
-              className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-emerald-600/25 cursor-pointer active:scale-95"
-              title="Disparar proposta comercial formal por e-mail para o cliente"
-            >
-              <Send className="w-4 h-4" />
-              <span>Enviar e-mail</span>
+              <span>Visualizar & Emitir Proposta</span>
             </button>
           </div>
         </div>
@@ -3988,12 +3977,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-slate-100">
+          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
             {/* Salvar Rascunho */}
             <button
               type="button"
               onClick={() => persistAndProceed(onSave)}
-              className="flex flex-col items-center justify-center py-2 px-1 bg-slate-100 active:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold transition shadow-2xs cursor-pointer active:scale-95"
+              className="flex flex-col items-center justify-center py-2.5 px-1 bg-slate-100 active:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold transition shadow-2xs cursor-pointer active:scale-95"
               title="Salvar rascunho"
             >
               <Save className="w-4 h-4 text-slate-600 mb-0.5" />
@@ -4004,22 +3993,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             <button
               type="button"
               onClick={() => persistAndProceed(onPreview, true)}
-              className="flex flex-col items-center justify-center py-2 px-1 bg-sky-600 active:bg-sky-700 text-white rounded-xl text-[10.5px] font-bold transition shadow-xs cursor-pointer active:scale-95"
-              title="Visualizar proposta"
+              className="flex flex-col items-center justify-center py-2.5 px-1 bg-sky-600 active:bg-sky-700 text-white rounded-xl text-[10.5px] font-bold transition shadow-xs cursor-pointer active:scale-95"
+              title="Visualizar proposta oficial"
             >
               <Eye className="w-4 h-4 mb-0.5" />
-              <span>Ver</span>
-            </button>
-
-            {/* Enviar E-mail */}
-            <button
-              type="button"
-              onClick={() => persistAndProceed(onSendEmail, true)}
-              className="flex flex-col items-center justify-center py-2 px-1 bg-emerald-600 active:bg-emerald-700 text-white rounded-xl text-[10.5px] font-bold transition shadow-xs cursor-pointer active:scale-95"
-              title="Enviar e-mail para cliente"
-            >
-              <Send className="w-4 h-4 mb-0.5" />
-              <span>Enviar</span>
+              <span>Visualizar</span>
             </button>
 
             {/* Mais Ações (Excel, Novo Orçamento) */}
@@ -4027,7 +4005,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               <button
                 type="button"
                 onClick={() => setIsMobileMoreActionsOpen(prev => !prev)}
-                className={`w-full h-full flex flex-col items-center justify-center py-2 px-1 rounded-xl text-[10.5px] font-bold transition shadow-2xs cursor-pointer active:scale-95 border ${
+                className={`w-full h-full flex flex-col items-center justify-center py-2.5 px-1 rounded-xl text-[10.5px] font-bold transition shadow-2xs cursor-pointer active:scale-95 border ${
                   isMobileMoreActionsOpen 
                     ? 'bg-sky-50 text-sky-700 border-sky-300' 
                     : 'bg-slate-100 active:bg-slate-200 text-slate-700 border-slate-200'
