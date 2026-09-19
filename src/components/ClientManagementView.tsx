@@ -16,7 +16,6 @@ import {
   ArrowRightLeft, 
   Sparkles,
   FileText,
-  Building2,
   CheckCircle2,
   ChevronRight,
   ArrowRight,
@@ -319,16 +318,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
             <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold rounded-lg">CRM Comercial</span>
           </div>
           <p className="sq-page-subtitle">Gestão centralizada de clientes, compradores e locais de entrega.</p>
-        </div>
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <button type="button" onClick={() => setIsAddingCompany(true)} className="sq-btn-primary flex items-center gap-1.5">
-            <Building2 className="w-4 h-4" />
-            <span>+ Nova Empresa</span>
-          </button>
-          <button type="button" onClick={() => handleOpenAddContact()} disabled={companies.length === 0} className="sq-btn-emerald flex items-center gap-1.5">
-            <User className="w-4 h-4" />
-            <span>+ Novo Comprador</span>
-          </button>
         </div>
       </div>
 
