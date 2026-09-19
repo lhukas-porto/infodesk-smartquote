@@ -25,8 +25,6 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
   items,
   onApplyOptimizedBasket
 }) => {
-  if (!isOpen) return null;
-
   // Estado local para manipulação das ofertas dos itens
   const [localItems, setLocalItems] = useState<QuoteItem[]>(() => {
     return items.map(item => {
@@ -118,6 +116,8 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
     onApplyOptimizedBasket(localItems);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">

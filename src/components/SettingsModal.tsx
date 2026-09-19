@@ -79,6 +79,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }, 2800);
   };
 
+  const sortedCategories = React.useMemo(() => {
+    return [...categories].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [categories]);
+
+  const sortedUnits = React.useMemo(() => {
+    return [...units].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [units]);
+
+  const filteredCategories = sortedCategories.filter(c => 
+    c.toLowerCase().includes(searchCategory.toLowerCase())
+  );
+
+  const filteredUnits = sortedUnits.filter(u => 
+    u.toLowerCase().includes(searchUnit.toLowerCase())
+  );
+
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
       setForm(settings);
@@ -111,8 +127,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       window.removeEventListener('infodesk_metadata_changed', handleMetaChanged);
     };
   }, [isOpen, settings, onClose]);
-
-  if (!isOpen) return null;
 
   // Handlers de Categorias
   const handleAddCategory = (e?: React.FormEvent) => {
@@ -208,22 +222,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  const sortedCategories = React.useMemo(() => {
-    return [...categories].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [categories]);
-
-  const sortedUnits = React.useMemo(() => {
-    return [...units].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [units]);
-
-  const filteredCategories = sortedCategories.filter(c => 
-    c.toLowerCase().includes(searchCategory.toLowerCase())
-  );
-
-  const filteredUnits = sortedUnits.filter(u => 
-    u.toLowerCase().includes(searchUnit.toLowerCase())
-  );
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -262,6 +260,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setIsSaving(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
