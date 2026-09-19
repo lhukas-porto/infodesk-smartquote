@@ -1,5 +1,27 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import googleShoppingHandler from './api/google-shopping';
+
+function googleShoppingPlugin(): Plugin {
+  return {
+    name: 'google-shopping-plugin',
+    configureServer(server) {
+      server.middlewares.use('/api/google-shopping', async (req, res) => {
+        try {
+          const parsedUrl = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+          const q = parsedUrl.searchParams.get('q') || '';
+          const apiKey = parsedUrl.searchParams.get('apiKey') || '';
+          (req as any).query = { q, apiKey };
+          await googleShoppingHandler(req, res);
+        } catch (err: any) {
+          console.error('[Google Shopping Middleware Error]:', err?.message);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, offers: [], error: err?.message }));
+        }
+      });
+    }
+  };
+}
 
 function imageSearchPlugin(): Plugin {
   return {
@@ -58,7 +80,7 @@ function imageSearchPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), imageSearchPlugin()],
+  plugins: [react(), imageSearchPlugin(), googleShoppingPlugin()],
   server: {
     port: 5173,
     host: true

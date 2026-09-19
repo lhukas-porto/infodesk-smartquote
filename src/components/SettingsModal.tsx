@@ -33,7 +33,7 @@ import {
   saveRegisteredCategoriesList,
   saveRegisteredUnitsList
 } from '../utils/storage';
-import { getStoredGeminiKey, saveStoredGeminiKey } from '../services/priceScannerService';
+import { getStoredGeminiKey, saveStoredGeminiKey, getStoredSerpApiKey, saveStoredSerpApiKey } from '../services/priceScannerService';
 import { maskPhone } from '../utils/aiEmailParser';
 
 interface SettingsModalProps {
@@ -55,6 +55,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [taxInput, setTaxInput] = useState<string>('');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [geminiKey, setGeminiKey] = useState(getStoredGeminiKey());
+  const [serpApiKey, setSerpApiKey] = useState(getStoredSerpApiKey());
   const [isSaving, setIsSaving] = useState(false);
   const prevIsOpenRef = React.useRef(false);
 
@@ -84,6 +85,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setMarkupInput(settings.defaultMarkupPercent !== undefined ? String(settings.defaultMarkupPercent).replace('.', ',') : '23,5');
       setTaxInput(settings.defaultTaxPercent !== undefined ? String(settings.defaultTaxPercent).replace('.', ',') : '9,1');
       setGeminiKey(getStoredGeminiKey());
+      setSerpApiKey(getStoredSerpApiKey());
       setCategories(getRegisteredCategories());
       setUnits(getRegisteredUnits());
       setEditingCategory(null);
@@ -234,6 +236,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     saveSettings(updatedForm);
     saveStoredGeminiKey(geminiKey);
+    saveStoredSerpApiKey(serpApiKey);
     saveRegisteredCategoriesList(categories);
     saveRegisteredUnitsList(units);
     try {
@@ -519,6 +522,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <p className="text-[10px] text-slate-500 leading-relaxed">
                 💡 <strong>Pesquisas Ilimitadas:</strong> Permite ao Scanner de Preços pesquisar a web ao vivo com Google Search Grounding em tempo real. Se deixar em branco, o scanner utilizará a base inteligente e agregadores locais.
               </p>
+
+              {/* Chave Google Shopping / SerpApi / ValueSerp */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                  <span>Chave Google Shopping API (SerpApi / ValueSerp)</span>
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href="https://serpapi.com/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sky-600 hover:text-sky-700 underline text-[10px] font-normal"
+                    >
+                      SerpApi (100 grátis) ↗
+                    </a>
+                    <span className="text-slate-300">|</span>
+                    <a 
+                      href="https://www.valueserp.com/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sky-600 hover:text-sky-700 underline text-[10px] font-normal"
+                    >
+                      ValueSerp (1.000 grátis) ↗
+                    </a>
+                  </div>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Insira sua chave SerpApi ou ValueSerp..."
+                  value={serpApiKey}
+                  onChange={(e) => setSerpApiKey(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500"
+                />
+                <p className="text-[10px] text-slate-500 leading-relaxed mt-1">
+                  🛍️ <strong>Preços Reais & Patrocinados do Google Shopping:</strong> Extrai automaticamente o menor preço de custo real do carrossel do Google Shopping Brasil, vinculando a loja e o link direto do produto para comprar.
+                </p>
+              </div>
             </div>
 
             <div className="pt-4 flex justify-end gap-2 border-t border-slate-200">

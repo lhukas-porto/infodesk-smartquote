@@ -1436,6 +1436,34 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                           </div>
                         );
                       })()}
+
+                      {/* Carrossel de Ofertas Concorrentes do Google Shopping */}
+                      {item.allOffers && item.allOffers.length > 1 && (
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-sky-600" />
+                            <span>Google Shopping:</span>
+                          </span>
+                          {item.allOffers.slice(0, 4).map((off, oIdx) => (
+                            <a
+                              key={oIdx}
+                              href={off.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`px-2 py-0.5 rounded-lg text-[10.5px] font-medium border flex items-center gap-1 transition ${
+                                oIdx === 0
+                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold hover:bg-emerald-100'
+                                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                              }`}
+                              title={`Abrir oferta na loja ${off.store}: ${off.priceFormatted}`}
+                            >
+                              <span>{off.store}:</span>
+                              <strong className={oIdx === 0 ? 'text-emerald-700' : 'text-slate-900'}>{off.priceFormatted}</strong>
+                              {oIdx === 0 && <span className="text-[9px] bg-emerald-600 text-white px-1 rounded-sm font-bold ml-0.5">Menor</span>}
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1448,8 +1476,9 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                           <span className="text-slate-400 font-normal">Sob consulta</span>
                         )}
                       </div>
-                      <div className="text-xs text-slate-500 font-medium">
-                        {item.store}
+                      <div className="text-xs text-slate-600 font-semibold flex items-center justify-end gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        <span>{item.store}</span>
                       </div>
                     </div>
 
@@ -1469,9 +1498,10 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                           href={item.buyUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition shadow-2xs flex items-center gap-1 shrink-0"
+                          className="px-3 py-1.5 bg-white hover:bg-sky-50 text-sky-800 border border-sky-200 hover:border-sky-300 rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 shrink-0"
+                          title={`Abrir página do produto na loja ${item.store}`}
                         >
-                          <span>Comprar</span>
+                          <span>Comprar na {item.store || 'Loja'}</span>
                           <ExternalLink className="w-3 h-3 text-sky-600" />
                         </a>
                       )}

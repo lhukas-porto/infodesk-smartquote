@@ -12,6 +12,18 @@ import { searchProductImages } from './imageSearchService';
 export type { DiscoveredProduct };
 export { searchProductImages };
 
+export interface ShoppingOffer {
+  title: string;
+  price: number;
+  priceFormatted: string;
+  store: string;
+  link: string;
+  thumbnail?: string;
+  delivery?: string;
+  rating?: number;
+  reviews?: number;
+}
+
 export interface ScannedPriceResult {
   id: string;
   originalQuery: string;
@@ -43,6 +55,7 @@ export interface ScannedPriceResult {
   costPrice?: number;
   ean?: string;
   manufacturer?: string;
+  allOffers?: ShoppingOffer[];
 }
 
 export interface BatchScanProgress {
@@ -226,6 +239,73 @@ export function saveStoredGeminiKey(key: string): void {
     }
   } catch {
     // ignore
+  }
+}
+
+const STORAGE_SERPAPI_KEY = 'infodesk_serpapi_key';
+
+export function getStoredSerpApiKey(): string {
+  try {
+    const envKey = import.meta.env.VITE_SERPAPI_API_KEY;
+    if (envKey && typeof envKey === 'string' && envKey.trim()) {
+      return envKey.trim();
+    }
+    const localKey = localStorage.getItem(STORAGE_SERPAPI_KEY);
+    if (localKey && typeof localKey === 'string' && localKey.trim()) {
+      return localKey.trim();
+    }
+    const altKey = localStorage.getItem('serpapi_api_key');
+    if (altKey && typeof altKey === 'string' && altKey.trim()) {
+      return altKey.trim();
+    }
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+export function saveStoredSerpApiKey(key: string): void {
+  try {
+    if (key.trim()) {
+      localStorage.setItem(STORAGE_SERPAPI_KEY, key.trim());
+    } else {
+      localStorage.removeItem(STORAGE_SERPAPI_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Busca ofertas de produtos e carrossel de patrocinados em tempo real no Google Shopping Brasil
+ * Extrai o menor preço real de loja, vendedor e link direto de compra
+ */
+export async function fetchGoogleShoppingOffers(
+  query: string,
+  apiKey?: string
+): Promise<{ bestOffer: ShoppingOffer | null; offers: ShoppingOffer[] }> {
+  try {
+    const activeKey = apiKey || getStoredSerpApiKey();
+    const cleanQ = normalizeSearchTerm(query);
+    if (!cleanQ) return { bestOffer: null, offers: [] };
+
+    const params = new URLSearchParams({ q: cleanQ });
+    if (activeKey) {
+      params.append('apiKey', activeKey);
+    }
+
+    const res = await fetch(`/api/google-shopping?${params.toString()}`);
+    if (!res.ok) {
+      return { bestOffer: null, offers: [] };
+    }
+    const data = await res.json();
+    return {
+      bestOffer: data.bestOffer || null,
+      offers: Array.isArray(data.offers) ? data.offers : []
+    };
+  } catch (err) {
+    console.warn('[Google Shopping API error]:', err);
+    return { bestOffer: null, offers: [] };
   }
 }
 
@@ -790,6 +870,39 @@ export async function scanSingleProductPrice(query: string, geminiApiKey?: strin
     } catch (err) {
       console.warn('Gemini Search Grounding error, falling back to heuristic engine:', err);
     }
+  }
+
+  // 1.1 Tenta Google Shopping Real-Time Search (menor preço de varejo e carrossel de patrocinados)
+  try {
+    const shopping = await fetchGoogleShoppingOffers(cleanQ);
+    if (shopping.bestOffer) {
+      const best = shopping.bestOffer;
+      const details = resolveProductDetails(cleanQ);
+      const res: ScannedPriceResult = {
+        id: `scan-shop-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        originalQuery: query,
+        standardizedName: formatProductSentenceCase(best.title || details.standardizedName || cleanQ),
+        partNumber: cleanAlphanumericCode(details.partNumber),
+        ncm: cleanNcmCode(details.ncm),
+        bestPrice: best.price,
+        priceFormatted: best.priceFormatted,
+        isPixPrice: false,
+        store: best.store,
+        observation: `Menor preço apurado no Google Shopping (${best.store})`,
+        status: 'exact',
+        buyUrl: best.link,
+        imageUrl: best.thumbnail || resolveImageForDescription(details.standardizedName) || details.imageUrl,
+        category: getCategoryFromNcm(details.ncm, details.category),
+        costPrice: best.price,
+        suggestedPrice: Number((best.price * 1.35).toFixed(2)),
+        allOffers: shopping.offers,
+        rating: best.rating || 4.8
+      };
+      saveScanResultToCache(cleanQ, res);
+      return res;
+    }
+  } catch (shopErr) {
+    console.warn('[scanSingleProductPrice] Google Shopping fetch failed:', shopErr);
   }
 
   // 2. Check Curated High-Fidelity Knowledge Base
@@ -1553,6 +1666,16 @@ export async function phase2EnrichAndScanPrice(
 ): Promise<ScannedPriceResult | null> {
   const models = MODERN_GEMINI_MODELS;
 
+  // 0. Busca em tempo real no Google Shopping Brasil (Produtos Patrocinados e Carrossel de Menor Preço)
+  const shoppingSearchTerm = (discovered as any).visualSearchQuery || [discovered.brand, (discovered as any).model, (discovered as any).partNumber, discovered.standardizedName].filter(Boolean).join(' ') || discovered.standardizedName;
+  let googleShoppingResult: { bestOffer: ShoppingOffer | null; offers: ShoppingOffer[] } = { bestOffer: null, offers: [] };
+  try {
+    googleShoppingResult = await fetchGoogleShoppingOffers(shoppingSearchTerm);
+  } catch (shopErr) {
+    console.warn('[phase2] Falha ao consultar Google Shopping:', shopErr);
+  }
+  const shoppingBestOffer = googleShoppingResult.bestOffer;
+
   const visualSearch = (discovered as any).visualSearchQuery;
   const visualInspection = (discovered as any).visualInspection;
 
@@ -1562,6 +1685,10 @@ ATENÇÃO - PRODUTO IDENTIFICADO COM PRIORIDADE VISUAL (FOTO DO PRODUTO REAL):
 - Detalhes Físicos Visíveis da Foto: "${visualInspection || discovered.standardizedName}"
 - TERMO PRIORITÁRIO PARA BUSCA DE PREÇOS NO BRASIL: "${visualSearch || discovered.standardizedName}"
 Na ferramenta de busca web, utilize prioritariamente o termo acima para encontrar preços reais deste modelo exato.` : '';
+
+  const shoppingPromptHint = shoppingBestOffer
+    ? `\nMENOR PREÇO REAL ENCONTRADO NO GOOGLE SHOPPING: ${shoppingBestOffer.store} por ${shoppingBestOffer.priceFormatted}. Incorpore esta apuração como preço de custo e loja de referência.`
+    : '';
 
   const prompt = `Você é o Especialista em Catalogação Técnica e Menor Preço da Infodesk Store e SmartQuote Brasil.
 Com base no produto EXATO já identificado na FASE 1:
@@ -1675,17 +1802,19 @@ Retorne ESTRITAMENTE um objeto JSON válido:
 
       const parsed = JSON.parse(jsonMatch[0]);
       
-      let bestPrice = typeof parsed.bestPrice === 'number' && parsed.bestPrice > 0
+      let bestPrice = shoppingBestOffer ? shoppingBestOffer.price : (typeof parsed.bestPrice === 'number' && parsed.bestPrice > 0
         ? parsed.bestPrice
-        : (typeof parsed.costPrice === 'number' && parsed.costPrice > 0 ? parsed.costPrice : ((discovered as any).costPrice || 0));
+        : (typeof parsed.costPrice === 'number' && parsed.costPrice > 0 ? parsed.costPrice : ((discovered as any).costPrice || 0)));
 
-      let status = parsed.status || (bestPrice > 0 ? 'exact' : 'on_demand');
-      let observation = parsed.observation || (bestPrice > 0 ? 'Menor preço apurado no mercado nacional' : '');
+      let status = shoppingBestOffer ? 'exact' : (parsed.status || (bestPrice > 0 ? 'exact' : 'on_demand'));
+      let observation = shoppingBestOffer
+        ? `Menor preço apurado no Google Shopping (${shoppingBestOffer.store})`
+        : (parsed.observation || (bestPrice > 0 ? 'Menor preço apurado no mercado nacional' : ''));
 
-      if (!usedGoogleSearch && bestPrice > 0) {
+      if (!shoppingBestOffer && !usedGoogleSearch && bestPrice > 0) {
         status = 'equivalent';
         observation = observation || 'Preço estimado de referência (mercado nacional)';
-      } else if (!usedGoogleSearch && bestPrice === 0) {
+      } else if (!shoppingBestOffer && !usedGoogleSearch && bestPrice === 0) {
         status = 'on_demand';
         observation = 'Item cadastrado com especificações completas (cotação sob consulta).';
       }
@@ -1696,7 +1825,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
         .trim();
 
       const preservedPhoto = (discovered as any).customerPhotoUrl || (discovered as any).imageUrl || (discovered as any).images?.[0] || '';
-      let finalImg = preservedPhoto || parsed.imageUrl;
+      let finalImg = preservedPhoto || shoppingBestOffer?.thumbnail || parsed.imageUrl;
       if (!finalImg && parsed.buyUrl) {
         finalImg = extractDirectImageFromUrlPatterns(parsed.buyUrl) || '';
       }
@@ -1704,26 +1833,30 @@ Retorne ESTRITAMENTE um objeto JSON válido:
         finalImg = resolveImageForDescription(stdName);
       }
 
-      let finalBuyUrl = (parsed.buyUrl || '').trim();
+      let finalBuyUrl = shoppingBestOffer ? shoppingBestOffer.link : (parsed.buyUrl || '').trim();
 
-      // 1. Tenta extrair URL real da loja nos chunks do Google Search Grounding
-      const groundingChunks = data?.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (Array.isArray(groundingChunks) && (!finalBuyUrl || finalBuyUrl.includes('google.com/search') || finalBuyUrl.includes('exemplo.com'))) {
-        for (const chunk of groundingChunks) {
-          const uri = chunk?.web?.uri;
-          if (uri && typeof uri === 'string' && uri.startsWith('http') && !uri.includes('google.com/search')) {
-            finalBuyUrl = uri;
-            break;
+      // 1. Se não veio do Google Shopping, tenta extrair URL real da loja nos chunks do Google Search Grounding
+      if (!shoppingBestOffer) {
+        const groundingChunks = data?.candidates?.[0]?.groundingMetadata?.groundingChunks;
+        if (Array.isArray(groundingChunks) && (!finalBuyUrl || finalBuyUrl.includes('google.com/search') || finalBuyUrl.includes('exemplo.com'))) {
+          for (const chunk of groundingChunks) {
+            const uri = chunk?.web?.uri;
+            if (uri && typeof uri === 'string' && uri.startsWith('http') && !uri.includes('google.com/search')) {
+              finalBuyUrl = uri;
+              break;
+            }
           }
         }
       }
 
       // 2. Se não encontrou link direto de loja, constrói URL direta de compra no Mercado Livre (evita busca genérica do Google)
       const directPurchase = buildDirectPurchaseUrl(stdName, finalBuyUrl || (discovered as any).sourceUrl);
-      finalBuyUrl = directPurchase.url;
-      const finalStore = (parsed.store && parsed.store !== 'Nome da Loja' && parsed.store !== 'E-commerce Nacional')
-        ? parsed.store
-        : directPurchase.store;
+      finalBuyUrl = shoppingBestOffer ? shoppingBestOffer.link : directPurchase.url;
+      const finalStore = shoppingBestOffer
+        ? shoppingBestOffer.store
+        : ((parsed.store && parsed.store !== 'Nome da Loja' && parsed.store !== 'E-commerce Nacional')
+          ? parsed.store
+          : directPurchase.store);
 
       const scannedNcm = cleanNcmCode(parsed.ncm || (discovered as any).ncm);
       const scannedCategory = getCategoryFromNcm(scannedNcm, discovered.category);
@@ -1764,11 +1897,52 @@ Retorne ESTRITAMENTE um objeto JSON válido:
         ean: finalEan,
         manufacturer: finalManufacturer,
         quantity: discovered.quantity || 1,
-        unit: discovered.unit || 'Un.'
+        unit: discovered.unit || 'Un.',
+        allOffers: googleShoppingResult.offers
       };
     } catch (errLoop) {
       console.warn(`[phase2] Tentativa no modelo ${model} falhou:`, errLoop);
     }
+  }
+
+  // Se os modelos de IA falharam (ex: cota esgotada 429), mas o Google Shopping apurou oferta real:
+  if (shoppingBestOffer) {
+    const stdName = discovered.standardizedName.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    const preservedPhoto = (discovered as any).customerPhotoUrl || (discovered as any).imageUrl || (discovered as any).images?.[0] || '';
+    const finalImg = preservedPhoto || shoppingBestOffer.thumbnail || resolveImageForDescription(stdName);
+    const scannedNcm = cleanNcmCode((discovered as any).ncm);
+    const scannedCategory = getCategoryFromNcm(scannedNcm, discovered.category);
+
+    return {
+      id: `scan-shop-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      originalQuery,
+      standardizedName: stdName,
+      brand: discovered.brand,
+      modelOrCode: (discovered as any).model,
+      partNumber: cleanAlphanumericCode(discovered.partNumber),
+      ncm: scannedNcm,
+      category: scannedCategory,
+      bestPrice: shoppingBestOffer.price,
+      priceFormatted: shoppingBestOffer.priceFormatted,
+      isPixPrice: false,
+      store: shoppingBestOffer.store,
+      observation: `Menor preço apurado no Google Shopping (${shoppingBestOffer.store})`,
+      status: 'exact',
+      buyUrl: shoppingBestOffer.link,
+      imageUrl: finalImg,
+      rating: 4.8,
+      description: (discovered as any).description || '',
+      specifications: normalizeSpecifications((discovered as any).specifications),
+      weight: normalizeWeight((discovered as any).weight),
+      dimensions: normalizeDimensions((discovered as any).dimensions),
+      suggestedPrice: (discovered as any).suggestedPrice || Number((shoppingBestOffer.price * 1.35).toFixed(2)),
+      costPrice: shoppingBestOffer.price,
+      ean: (discovered as any).ean || '',
+      manufacturer: (discovered as any).manufacturer || discovered.brand || 'Fabricante Nacional / Importado',
+      quantity: discovered.quantity || 1,
+      unit: discovered.unit || 'Un.',
+      allOffers: googleShoppingResult.offers
+    };
   }
 
   return null;

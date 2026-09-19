@@ -1952,8 +1952,8 @@ export function isExactProductUrl(url?: string): boolean {
 
   const lower = clean.toLowerCase();
 
-  // 1. Rejeita mecanismos de busca e páginas de listagem/categoria
-  if (lower.includes('google.com') || lower.includes('google.com.br')) return false;
+  // 1. Rejeita mecanismos de busca e páginas de listagem/categoria (preserva links de produtos do Google Shopping / aclk)
+  if ((lower.includes('google.com') || lower.includes('google.com.br')) && !lower.includes('/aclk') && !lower.includes('/shopping/product/')) return false;
   if (lower.includes('bing.com') || lower.includes('yahoo.com')) return false;
   if (lower.includes('/busca') || lower.includes('/search') || lower.includes('search?') || lower.includes('query=') || lower.includes('#d[a:')) return false;
   if (lower.includes('amazon.com.br/s') || lower.includes('amazon.com/s')) return false;
