@@ -286,7 +286,7 @@ export const App: React.FC = () => {
         if (remoteQuotes && remoteQuotes.length > 0) {
           // Merge seguro: se o banco retornar a cotação sem itens, preserva os itens salvos localmente ou do backup
           setQuotes(prevQuotes => {
-            const merged = remoteQuotes.map(rq => {
+            const mergedRemote = remoteQuotes.map(rq => {
               const localMatch = prevQuotes.find(lq => lq.id === rq.id || lq.code === rq.code);
               let items = (rq.items && rq.items.length > 0) ? rq.items : [];
               if (items.length === 0 && localMatch && Array.isArray(localMatch.items) && localMatch.items.length > 0) {
@@ -328,7 +328,13 @@ export const App: React.FC = () => {
               }
               return rq;
             });
-            const { updatedQuotes: normalizedMerged } = updateDraftQuotesToToday(merged);
+
+            // Preserva propostas que existem apenas localmente (evita perda de dados locais)
+            const localOnlyQuotes = prevQuotes.filter(lq => 
+              !mergedRemote.some(rq => rq.id === lq.id || (rq.code && lq.code && rq.code.trim().toUpperCase() === lq.code.trim().toUpperCase()))
+            );
+            const combined = [...mergedRemote, ...localOnlyQuotes];
+            const { updatedQuotes: normalizedMerged } = updateDraftQuotesToToday(combined);
             saveQuotes(normalizedMerged);
             return normalizedMerged;
           });
@@ -820,8 +826,8 @@ export const App: React.FC = () => {
     const defaultShipping = settings.defaultShippingCost ?? 0;
 
     const blank: Quote = {
-      id: `quote-${Date.now()}`,
-      code: generateQuoteCode('COTACAO'),
+      id: `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      code: generateQuoteCode('COTACAO', new Date(), quotes),
       clientCompany: '',
       contactPerson: '',
       clientEmail: '',
@@ -846,6 +852,7 @@ export const App: React.FC = () => {
       createdAt: new Date().toISOString()
     };
     setCurrentQuote(blank);
+    saveCurrentDraftQuote(blank);
     setActiveTab('builder');
   };
 
@@ -884,37 +891,56 @@ export const App: React.FC = () => {
       currentQuote.deliveryLocation
     );
 
-    // Salva backup de itens imediatamente
-    if (currentQuote.items && currentQuote.items.length > 0) {
-      if (currentQuote.code) saveQuoteItemsBackup(currentQuote.code, currentQuote.items);
-      if (currentQuote.id) saveQuoteItemsBackup(currentQuote.id, currentQuote.items);
+    let quoteToSave: Quote = { ...currentQuote };
+    if (!quoteToSave.id) {
+      quoteToSave.id = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     }
 
+    // Se o código colidir com outro orçamento já existente com ID diferente, gera código incremental
+    const codeCollision = quotes.find(q => 
+      q.id !== quoteToSave.id && 
+      q.code && quoteToSave.code && 
+      q.code.trim().toUpperCase() === quoteToSave.code.trim().toUpperCase()
+    );
+    if (codeCollision) {
+      quoteToSave.code = generateQuoteCode(quoteToSave.clientCompany, new Date(), quotes);
+    }
+
+    // Salva backup de itens imediatamente
+    if (quoteToSave.items && quoteToSave.items.length > 0) {
+      if (quoteToSave.code) saveQuoteItemsBackup(quoteToSave.code, quoteToSave.items);
+      if (quoteToSave.id) saveQuoteItemsBackup(quoteToSave.id, quoteToSave.items);
+    }
+
+    saveCurrentDraftQuote(quoteToSave);
+    setCurrentQuote(quoteToSave);
+
     setQuotes(prev => {
-      const idx = prev.findIndex(q => q.id === currentQuote.id || q.code === currentQuote.code);
+      // Atualiza apenas a proposta de mesmo ID exclusivo; se for nova, adiciona ao início
+      const idx = prev.findIndex(q => q.id === quoteToSave.id);
       let next: Quote[];
       if (idx >= 0) {
         next = [...prev];
-        next[idx] = currentQuote;
+        next[idx] = quoteToSave;
       } else {
-        next = [currentQuote, ...prev];
+        next = [quoteToSave, ...prev];
       }
       saveQuotes(next);
       return next;
     });
 
     try {
-      await syncQuoteToSupabase(currentQuote);
+      await syncQuoteToSupabase(quoteToSave);
       alert('Orçamento salvo com sucesso!');
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Aviso: erro na sincronização com Supabase:', err);
-      alert('Orçamento salvo com sucesso!');
+      alert(`Orçamento salvo localmente com segurança!\n(Aviso de nuvem: ${err?.message || 'sincronização remota pendente'})`);
     }
   };
 
   const handleDeleteQuote = async (quoteToDelete: Quote) => {
     setQuotes(prev => {
-      const next = prev.filter(q => q.id !== quoteToDelete.id && q.code !== quoteToDelete.code);
+      const next = prev.filter(q => q.id !== quoteToDelete.id);
       saveQuotes(next);
       return next;
     });
@@ -1001,10 +1027,24 @@ export const App: React.FC = () => {
     }
 
     const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`;
-    const quoteToSave: Quote = {
+    let quoteToSave: Quote = {
       ...sentQuote,
       subject: finalSubject
     };
+
+    if (!quoteToSave.id) {
+      quoteToSave.id = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    }
+
+    // Se o código colidir com outro orçamento com ID diferente, garante sufixo incremental
+    const codeCollision = quotes.find(q => 
+      q.id !== quoteToSave.id && 
+      q.code && quoteToSave.code && 
+      q.code.trim().toUpperCase() === quoteToSave.code.trim().toUpperCase()
+    );
+    if (codeCollision) {
+      quoteToSave.code = generateQuoteCode(quoteToSave.clientCompany, new Date(), quotes);
+    }
 
     if (quoteToSave.items && quoteToSave.items.length > 0) {
       if (quoteToSave.code) saveQuoteItemsBackup(quoteToSave.code, quoteToSave.items);
@@ -1014,13 +1054,17 @@ export const App: React.FC = () => {
 
     setCurrentQuote(quoteToSave);
     setQuotes(prev => {
-      const filtered = prev.filter(q => q.id !== quoteToSave.id && q.code !== quoteToSave.code);
+      const filtered = prev.filter(q => q.id !== quoteToSave.id);
       const next = [quoteToSave, ...filtered];
       saveQuotes(next);
       return next;
     });
 
-    syncQuoteToSupabase(quoteToSave);
+    try {
+      await syncQuoteToSupabase(quoteToSave);
+    } catch (err) {
+      console.warn('Aviso: falha na sincronização do envio ao Supabase:', err);
+    }
     setActiveTab('history');
   };
 
@@ -1451,6 +1495,7 @@ export const App: React.FC = () => {
             setCurrentQuote={setCurrentQuote}
             products={products}
             settings={settings}
+            quotes={quotes}
             clientCompanies={clientCompanies}
             onSaveCompanies={handleSaveCompanies}
             onDeleteCompany={handleDeleteCompany}

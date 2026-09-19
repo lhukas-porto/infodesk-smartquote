@@ -311,7 +311,6 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     markup_percent: item.markupPercent,
     unit_price: item.unitPrice,
     total_price: item.totalPrice,
-    supplier: item.supplier || null,
     source_url: item.sourceUrl || null
   }));
 
@@ -341,12 +340,9 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         total_profit: quote.totalProfit,
         total_amount: quote.totalAmount,
         average_margin: quote.averageMargin,
-        global_markup_percent: quote.globalMarkupPercent ?? 35,
         global_tax_percent: quote.globalTaxPercent ?? 6,
         global_shipping: quote.globalShipping ?? 0,
         status: quote.status,
-        recipient_emails: quote.recipientEmails || [],
-        cc_emails: quote.ccEmails || [],
         sent_at: quote.sentAt || null
       },
       p_items: itemsPayload
@@ -356,83 +352,76 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       return;
     }
   } catch (rpcErr) {
-    // Fallback silencioso caso a função RPC ainda não tenha sido executada no banco
+    // Fallback caso a função RPC ainda não tenha sido executada no banco
   }
 
-  // 2. Fallback direto caso a RPC não esteja disponível
-  try {
-    const { data: savedQuote, error: quoteError } = await supabase.from('quotes').upsert({
-      code: quote.code,
-      client_company: quote.clientCompany,
-      contact_person: quote.contactPerson,
-      client_email: quote.clientEmail,
-      client_phone: quote.clientPhone,
-      subject: quote.subject,
-      city: quote.city,
-      date: quote.date,
-      validity_days: quote.validityDays,
-      payment_terms: quote.paymentTerms,
-      delivery_days: quote.deliveryDays,
-      warranty_terms: quote.warrantyTerms,
-      delivery_location: quote.deliveryLocation,
-      shipping_terms: quote.shippingTerms,
-      opening_text: quote.openingText,
-      show_product_images: quote.showProductImages ?? false,
-      total_cost: quote.totalCost,
-      total_shipping: quote.totalShipping ?? 0,
-      total_taxes: quote.totalTaxes ?? 0,
-      total_profit: quote.totalProfit,
-      total_amount: quote.totalAmount,
-      average_margin: quote.averageMargin,
-      global_markup_percent: quote.globalMarkupPercent ?? 35,
-      global_tax_percent: quote.globalTaxPercent ?? 6,
-      global_shipping: quote.globalShipping ?? 0,
-      status: quote.status,
-      recipient_emails: quote.recipientEmails || [],
-      cc_emails: quote.ccEmails || [],
-      sent_at: quote.sentAt || null,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'code' }).select().single();
+  // 2. Fallback direto (upsert na tabela quotes + recriação de quote_items)
+  const { data: savedQuote, error: quoteError } = await supabase.from('quotes').upsert({
+    code: quote.code,
+    client_company: quote.clientCompany,
+    contact_person: quote.contactPerson,
+    client_email: quote.clientEmail,
+    client_phone: quote.clientPhone,
+    subject: quote.subject,
+    city: quote.city,
+    date: quote.date,
+    validity_days: quote.validityDays,
+    payment_terms: quote.paymentTerms,
+    delivery_days: quote.deliveryDays,
+    warranty_terms: quote.warrantyTerms,
+    delivery_location: quote.deliveryLocation,
+    shipping_terms: quote.shippingTerms,
+    opening_text: quote.openingText,
+    show_product_images: quote.showProductImages ?? false,
+    total_cost: quote.totalCost,
+    total_shipping: quote.totalShipping ?? 0,
+    total_taxes: quote.totalTaxes ?? 0,
+    total_profit: quote.totalProfit,
+    total_amount: quote.totalAmount,
+    average_margin: quote.averageMargin,
+    global_tax_percent: quote.globalTaxPercent ?? 6,
+    global_shipping: quote.globalShipping ?? 0,
+    status: quote.status,
+    sent_at: quote.sentAt || null,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'code' }).select().single();
 
-    if (quoteError || !savedQuote) {
-      console.warn('Erro ao salvar quote no Supabase:', quoteError);
-      return;
+  if (quoteError || !savedQuote) {
+    console.error('Erro ao salvar quote no Supabase:', quoteError);
+    throw new Error(`Falha no banco Supabase: ${quoteError?.message || 'registro não retornado'}`);
+  }
+
+  // Limpar itens anteriores e recriar para manter consistência absoluta
+  await supabase.from('quote_items').delete().eq('quote_id', savedQuote.id);
+
+  if (quote.items && quote.items.length > 0) {
+    const itemsToInsert = quote.items.map(item => ({
+      quote_id: savedQuote.id,
+      item_number: item.itemNumber,
+      product_id: isValidUuid(item.productId) ? item.productId : null,
+      name: item.name,
+      description: item.description || '',
+      raw_search_query: item.rawSearchQuery || item.name,
+      part_number: item.partNumber || null,
+      ncm: item.ncm || null,
+      image_url: item.imageUrl || null,
+      show_image: item.showImage ?? false,
+      quantity: item.quantity,
+      unit: item.unit || 'Un.',
+      cost_price: item.costPrice,
+      shipping_cost: item.shippingCost ?? 0,
+      tax_percent: item.taxPercent ?? 6,
+      markup_percent: item.markupPercent,
+      unit_price: item.unitPrice,
+      total_price: item.totalPrice,
+      source_url: item.sourceUrl || null
+    }));
+
+    const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
+    if (itemsInsertError) {
+      console.error('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
+      throw new Error(`Falha ao gravar itens no banco: ${itemsInsertError.message}`);
     }
-
-    // Limpar itens anteriores e recriar para manter consistência absoluta
-    await supabase.from('quote_items').delete().eq('quote_id', savedQuote.id);
-
-    if (quote.items && quote.items.length > 0) {
-      const itemsPayload = quote.items.map(item => ({
-        quote_id: savedQuote.id,
-        item_number: item.itemNumber,
-        product_id: isValidUuid(item.productId) ? item.productId : null,
-        name: item.name,
-        description: item.description || '',
-        raw_search_query: item.rawSearchQuery || item.name,
-        part_number: item.partNumber || null,
-        ncm: item.ncm || null,
-        image_url: item.imageUrl || null,
-        show_image: item.showImage ?? false,
-        quantity: item.quantity,
-        unit: item.unit || 'Un.',
-        cost_price: item.costPrice,
-        shipping_cost: item.shippingCost ?? 0,
-        tax_percent: item.taxPercent ?? 6,
-        markup_percent: item.markupPercent,
-        unit_price: item.unitPrice,
-        total_price: item.totalPrice,
-        supplier: item.supplier || null,
-        source_url: item.sourceUrl || null
-      }));
-
-      const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsPayload);
-      if (itemsInsertError) {
-        console.error('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
-      }
-    }
-  } catch (err) {
-    console.warn('Erro ao sincronizar orçamento no Supabase:', err);
   }
 }
 

@@ -103,6 +103,7 @@ interface QuoteBuilderProps {
   setCurrentQuote: React.Dispatch<React.SetStateAction<Quote>>;
   products: Product[];
   settings: CompanySettings;
+  quotes?: Quote[];
   onPreview: () => void;
   onSave: () => void;
   onSendEmail: () => void;
@@ -122,6 +123,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   setCurrentQuote,
   products,
   settings,
+  quotes: propsQuotes,
   onPreview,
   onSave,
   onSendEmail,
@@ -1941,12 +1943,20 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   value={currentQuote.clientCompany}
                   onChange={(e) => {
                     const val = e.target.value;
-                    const newCode = generateQuoteCode(val);
-                    setCurrentQuote(prev => ({ 
-                      ...prev, 
-                      clientCompany: val,
-                      code: val.trim().length >= 2 ? newCode : prev.code
-                    }));
+                    const newCode = generateQuoteCode(val, new Date(), propsQuotes);
+                    setCurrentQuote(prev => {
+                      const isSavedForAnother = (propsQuotes || []).some(q => 
+                        q.id === prev.id && 
+                        q.clientCompany && 
+                        q.clientCompany.trim().toLowerCase() !== val.trim().toLowerCase()
+                      );
+                      return { 
+                        ...prev, 
+                        id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
+                        clientCompany: val,
+                        code: val.trim().length >= 2 ? newCode : prev.code
+                      };
+                    });
                     setIsCompanySearchOpen(true);
 
                     const typedPrefixMatch = val.trim().match(/^(ao|à)\s+/i);
@@ -2039,13 +2049,22 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                               type="button"
                               onClick={() => {
                                 const formatted = formatCompanyPrefix(c.name, c.prefix);
-                                setCurrentQuote(prev => ({
-                                  ...prev,
-                                  clientCompany: formatted,
-                                  deliveryLocation: c.defaultDeliveryLocation || prev.deliveryLocation,
-                                  shippingTerms: c.defaultDeliveryLocation ? `Frete incluso p/ ${c.defaultDeliveryLocation}.` : prev.shippingTerms,
-                                  code: generateQuoteCode(c.name)
-                                }));
+                                const newCode = generateQuoteCode(c.name, new Date(), propsQuotes);
+                                setCurrentQuote(prev => {
+                                  const isSavedForAnother = (propsQuotes || []).some(q => 
+                                    q.id === prev.id && 
+                                    q.clientCompany && 
+                                    q.clientCompany.trim().toLowerCase() !== formatted.trim().toLowerCase()
+                                  );
+                                  return {
+                                    ...prev,
+                                    id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
+                                    clientCompany: formatted,
+                                    deliveryLocation: c.defaultDeliveryLocation || prev.deliveryLocation,
+                                    shippingTerms: c.defaultDeliveryLocation ? `Frete incluso p/ ${c.defaultDeliveryLocation}.` : prev.shippingTerms,
+                                    code: newCode
+                                  };
+                                });
                                 setIsCompanySearchOpen(false);
                               }}
                               className="w-full text-left p-2.5 hover:bg-sky-50/80 rounded-xl transition flex items-center justify-between gap-3 border border-transparent hover:border-sky-200 cursor-pointer group"
