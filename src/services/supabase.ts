@@ -607,15 +607,53 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
       });
     });
 
-    return companiesData.map((c: any) => ({
-      id: c.id,
-      name: c.name,
-      prefix: c.prefix || undefined,
-      defaultDeliveryLocation: c.default_delivery_location || 'Brasília',
-      locations: Array.isArray(c.locations) && c.locations.length > 0 ? c.locations : ['Brasília'],
-      lastUsed: c.last_used,
-      contacts: contactsByCompanyId[c.id] || []
-    }));
+    return companiesData.map((c: any) => {
+      const rawLocations: string[] = Array.isArray(c.locations) && c.locations.length > 0 
+        ? c.locations 
+        : [c.default_delivery_location || 'Brasília'];
+      
+      let extractedWebsite: string | undefined = c.website ? String(c.website).trim() : undefined;
+      let extractedLogoUrl: string | undefined = c.logo_url ? String(c.logo_url).trim() : undefined;
+      const cleanLocations: string[] = [];
+
+      for (const loc of rawLocations) {
+        const item = String(loc || '').trim();
+        if (!item) continue;
+        if (item.toLowerCase().startsWith('website:') || item.toLowerCase().startsWith('site:')) {
+          const domain = item.replace(/^(website:|site:)/i, '').trim();
+          if (!extractedWebsite && domain) extractedWebsite = domain;
+        } else if (item.toLowerCase().startsWith('logo:')) {
+          const logo = item.replace(/^logo:/i, '').trim();
+          if (!extractedLogoUrl && logo) extractedLogoUrl = logo;
+        } else if (item.startsWith('http://') || item.startsWith('https://')) {
+          try {
+            const parsed = new URL(item);
+            if (!extractedWebsite) extractedWebsite = parsed.hostname.replace(/^www\./, '');
+          } catch {
+            const domain = item.replace(/^https?:\/\//, '').split('/')[0].replace(/^www\./, '');
+            if (!extractedWebsite) extractedWebsite = domain;
+          }
+        } else {
+          cleanLocations.push(item);
+        }
+      }
+
+      if (cleanLocations.length === 0) {
+        cleanLocations.push(c.default_delivery_location || 'Brasília');
+      }
+
+      return {
+        id: c.id,
+        name: c.name,
+        prefix: c.prefix || undefined,
+        defaultDeliveryLocation: c.default_delivery_location || cleanLocations[0] || 'Brasília',
+        locations: cleanLocations,
+        website: extractedWebsite,
+        logoUrl: extractedLogoUrl,
+        lastUsed: c.last_used,
+        contacts: contactsByCompanyId[c.id] || []
+      };
+    });
   } catch (err) {
     console.warn('Erro ao carregar empresas do Supabase:', err);
     return null;
@@ -625,29 +663,37 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
 export async function syncClientCompaniesToSupabase(companies: ClientCompany[]): Promise<void> {
   if (!supabase || !companies || companies.length === 0) return;
   try {
-    // 1. Batch upsert de todas as empresas (tentativa com prefix)
-    const companiesPayload = companies.map(comp => ({
-      id: comp.id,
-      name: comp.name,
-      prefix: comp.prefix || null,
-      default_delivery_location: comp.defaultDeliveryLocation || 'Brasília',
-      locations: comp.locations || ['Brasília'],
-      last_used: comp.lastUsed || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }));
+    // 1. Batch upsert de todas as empresas (com website e logo serializados de forma compatível)
+    const companiesPayload = companies.map(comp => {
+      const cleanLocs = (comp.locations || [comp.defaultDeliveryLocation || 'Brasília'])
+        .map(l => String(l || '').trim())
+        .filter(l => Boolean(l) && !l.toLowerCase().startsWith('website:') && !l.toLowerCase().startsWith('site:') && !l.toLowerCase().startsWith('logo:') && !l.startsWith('http://') && !l.startsWith('https://'));
+
+      if (cleanLocs.length === 0) cleanLocs.push(comp.defaultDeliveryLocation || 'Brasília');
+
+      const persistedLocations = [...cleanLocs];
+      if (comp.website && comp.website.trim()) {
+        persistedLocations.push(`website:${comp.website.trim()}`);
+      }
+      if (comp.logoUrl && comp.logoUrl.trim() && comp.logoUrl.startsWith('http')) {
+        persistedLocations.push(`logo:${comp.logoUrl.trim()}`);
+      }
+
+      return {
+        id: comp.id,
+        name: comp.name,
+        prefix: comp.prefix || null,
+        default_delivery_location: comp.defaultDeliveryLocation || cleanLocs[0] || 'Brasília',
+        locations: persistedLocations,
+        last_used: comp.lastUsed || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    });
     
     const { error: upsertErr } = await supabase.from('client_companies').upsert(companiesPayload);
     if (upsertErr) {
-      // Fallback sem prefix caso a coluna ainda não tenha sido criada no Supabase
-      console.warn('Tentativa com prefix falhou no Supabase, tentando payload padrão:', upsertErr.message);
-      const fallbackPayload = companies.map(comp => ({
-        id: comp.id,
-        name: comp.name,
-        default_delivery_location: comp.defaultDeliveryLocation || 'Brasília',
-        locations: comp.locations || ['Brasília'],
-        last_used: comp.lastUsed || new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
+      console.warn('Tentativa com prefix falhou no Supabase, tentando fallback sem prefix:', upsertErr.message);
+      const fallbackPayload = companiesPayload.map(({ prefix, ...rest }) => rest);
       await supabase.from('client_companies').upsert(fallbackPayload);
     }
 
@@ -662,6 +708,7 @@ export async function syncClientCompaniesToSupabase(companies: ClientCompany[]):
           title: ct.title || 'Sr.',
           email: ct.email || '',
           phone: ct.phone || '',
+          role: ct.role || 'Comprador',
           location: ct.location || '',
           last_used: ct.lastUsed || new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -670,20 +717,30 @@ export async function syncClientCompaniesToSupabase(companies: ClientCompany[]):
     });
 
     if (allContactsPayload.length > 0) {
-      await supabase.from('client_contacts').upsert(allContactsPayload);
+      const { error: ctErr } = await supabase.from('client_contacts').upsert(allContactsPayload);
+      if (ctErr) {
+        console.warn('Upsert de contatos falhou, tentando fallback sem coluna role:', ctErr.message);
+        const fallbackContacts = allContactsPayload.map(({ role, ...rest }) => rest);
+        await supabase.from('client_contacts').upsert(fallbackContacts);
+      }
     }
 
     // 3. Sincronização e exclusão de contatos removidos por empresa
     for (const comp of companies) {
       const activeContactIds = (comp.contacts || []).map(c => c.id).filter(Boolean);
-      if (activeContactIds.length > 0) {
-        await supabase
-          .from('client_contacts')
-          .delete()
-          .eq('company_id', comp.id)
-          .not('id', 'in', `(${activeContactIds.map(id => `"${id}"`).join(',')})`);
-      } else {
-        await supabase.from('client_contacts').delete().eq('company_id', comp.id);
+      const { data: existingContacts } = await supabase
+        .from('client_contacts')
+        .select('id')
+        .eq('company_id', comp.id);
+
+      if (existingContacts && existingContacts.length > 0) {
+        const toDelete = existingContacts
+          .map(c => c.id)
+          .filter(id => !activeContactIds.includes(id));
+
+        if (toDelete.length > 0) {
+          await supabase.from('client_contacts').delete().in('id', toDelete);
+        }
       }
     }
   } catch (err) {

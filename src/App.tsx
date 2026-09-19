@@ -160,10 +160,14 @@ export const App: React.FC = () => {
   const [clientCompanies, setClientCompanies] = useState<ClientCompany[]>(() => getClientCompanies());
   const [manualAnalyses, setManualAnalyses] = useState<IncomingEmail[]>(() => getManualAnalyses());
 
-  const handleSaveCompanies = (updated: ClientCompany[]) => {
+  const handleSaveCompanies = async (updated: ClientCompany[]) => {
     setClientCompanies(updated);
     saveClientCompanies(updated);
-    syncClientCompaniesToSupabase(updated);
+    try {
+      await syncClientCompaniesToSupabase(updated);
+    } catch (err) {
+      console.warn('Erro ao sincronizar empresas:', err);
+    }
   };
 
   const handleAddManualAnalysis = (email: IncomingEmail) => {
@@ -371,27 +375,46 @@ export const App: React.FC = () => {
         const remoteCompanies = await fetchClientCompaniesFromSupabase();
         if (remoteCompanies && remoteCompanies.length > 0) {
           const localCompanies = getClientCompanies();
-          const localPrefixById = new Map<string, string>();
-          const localPrefixByName = new Map<string, string>();
+          const localById = new Map<string, ClientCompany>();
+          const localByName = new Map<string, ClientCompany>();
           localCompanies.forEach(c => {
-            if (c.prefix) {
-              localPrefixById.set(c.id, c.prefix);
-              const clean = c.name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
-              localPrefixByName.set(clean, c.prefix);
-            }
+            localById.set(c.id, c);
+            const clean = c.name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+            localByName.set(clean, c);
           });
 
           const mergedCompanies = remoteCompanies.map(rc => {
             const clean = rc.name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
-            const preservedPrefix = rc.prefix || localPrefixById.get(rc.id) || localPrefixByName.get(clean);
+            const local = localById.get(rc.id) || localByName.get(clean);
+
+            // Preservar contatos locais não sincronizados
+            const remoteContactIds = new Set((rc.contacts || []).map(ct => ct.id));
+            const localOnlyContacts = (local?.contacts || []).filter(ct => !remoteContactIds.has(ct.id));
+            const mergedContacts = [...(rc.contacts || []), ...localOnlyContacts];
+
+            const preservedPrefix = rc.prefix || local?.prefix;
+
             return {
               ...rc,
-              prefix: (preservedPrefix as 'À' | 'Ao') || (rc.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À')
+              prefix: (preservedPrefix as 'À' | 'Ao') || (rc.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À'),
+              website: rc.website || local?.website,
+              logoUrl: rc.logoUrl || local?.logoUrl,
+              contacts: mergedContacts
             };
           });
 
-          setClientCompanies(mergedCompanies);
-          saveClientCompanies(mergedCompanies);
+          // Preservar novas empresas criadas localmente que ainda não estão no banco
+          const remoteIds = new Set(remoteCompanies.map(r => r.id));
+          const localOnlyCompanies = localCompanies.filter(lc => !remoteIds.has(lc.id));
+          const finalCompanies = [...mergedCompanies, ...localOnlyCompanies];
+
+          setClientCompanies(finalCompanies);
+          saveClientCompanies(finalCompanies);
+
+          // Sincroniza de volta para o Supabase caso houvesse dados locais preservados
+          if (localOnlyCompanies.length > 0 || finalCompanies.some(c => c.website && !remoteCompanies.find(rc => rc.id === c.id)?.website)) {
+            syncClientCompaniesToSupabase(finalCompanies).catch(() => {});
+          }
         }
 
         // 5. E-mails e Cotações Capturadas
