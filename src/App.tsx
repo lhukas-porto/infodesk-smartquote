@@ -896,6 +896,11 @@ export const App: React.FC = () => {
       quoteToSave.id = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     }
 
+    const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    if (!quoteToSave.date || quoteToSave.status === 'draft') {
+      quoteToSave.date = todayFormatted;
+    }
+
     // Se o código colidir com outro orçamento já existente com ID diferente, gera código incremental
     const codeCollision = quotes.find(q => 
       q.id !== quoteToSave.id && 

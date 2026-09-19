@@ -40,68 +40,71 @@ const PT_MONTHS = [
  * suportando datas em formato ISO, DD/MM/YYYY e extensas em português ('17 de setembro de 2026')
  */
 export function parseQuoteTimestamp(q: Quote): number {
-  // 1. Tenta formato ISO em sentAt ou createdAt
+  // 1. Se foi enviado oficialmente, a data de envio tem precedência
   if (q.sentAt) {
     const t = new Date(q.sentAt).getTime();
     if (!isNaN(t) && t > 0) return t;
   }
+
+  // 2. Data textual ou formatada no documento comercial (ex: "19 de setembro de 2026", "Hoje", "DD/MM/YYYY")
+  const str = q.date?.trim();
+  if (str) {
+    const lower = str.toLowerCase();
+
+    // "Hoje às 14:20" ou "Hoje"
+    if (lower.includes('hoje')) {
+      const timeMatch = lower.match(/(\d{1,2}):(\d{2})/);
+      const d = new Date();
+      if (timeMatch) {
+        d.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
+      }
+      return d.getTime();
+    }
+
+    // "Ontem às 16:10" ou "Ontem"
+    if (lower.includes('ontem')) {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      const timeMatch = lower.match(/(\d{1,2}):(\d{2})/);
+      if (timeMatch) {
+        d.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
+      }
+      return d.getTime();
+    }
+
+    // "17 de setembro de 2026"
+    const matchPt = lower.match(/(\d{1,2})\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);
+    if (matchPt) {
+      const day = parseInt(matchPt[1], 10);
+      const cleanMonth = matchPt[2].normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const mIdx = PT_MONTHS.indexOf(cleanMonth);
+      const year = parseInt(matchPt[3], 10);
+      if (mIdx !== -1) {
+        return new Date(year, mIdx, day, 12, 0, 0).getTime();
+      }
+    }
+
+    // "17/09/2026" ou "17/09/2026 14:20"
+    if (str.includes('/')) {
+      const parts = str.split(' ')[0].split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day, 12, 0, 0).getTime();
+      }
+    }
+
+    // Fallback para parser nativo de datas (ISO ou padrão)
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+
+  // 3. Fallback para createdAt ISO
   if (q.createdAt) {
     const t = new Date(q.createdAt).getTime();
     if (!isNaN(t) && t > 0) return t;
   }
-
-  const str = q.date?.trim();
-  if (!str) return Date.now();
-
-  const lower = str.toLowerCase();
-
-  // "Hoje às 14:20" ou "Hoje"
-  if (lower.includes('hoje')) {
-    const timeMatch = lower.match(/(\d{1,2}):(\d{2})/);
-    const d = new Date();
-    if (timeMatch) {
-      d.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
-    }
-    return d.getTime();
-  }
-
-  // "Ontem às 16:10" ou "Ontem"
-  if (lower.includes('ontem')) {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const timeMatch = lower.match(/(\d{1,2}):(\d{2})/);
-    if (timeMatch) {
-      d.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
-    }
-    return d.getTime();
-  }
-
-  // "17 de setembro de 2026"
-  const matchPt = lower.match(/(\d{1,2})\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);
-  if (matchPt) {
-    const day = parseInt(matchPt[1], 10);
-    const cleanMonth = matchPt[2].normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const mIdx = PT_MONTHS.indexOf(cleanMonth);
-    const year = parseInt(matchPt[3], 10);
-    if (mIdx !== -1) {
-      return new Date(year, mIdx, day, 12, 0, 0).getTime();
-    }
-  }
-
-  // "17/09/2026" ou "17/09/2026 14:20"
-  if (str.includes('/')) {
-    const parts = str.split(' ')[0].split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const year = parseInt(parts[2], 10);
-      return new Date(year, month, day, 12, 0, 0).getTime();
-    }
-  }
-
-  // Fallback para parser nativo
-  const d = new Date(str);
-  if (!isNaN(d.getTime())) return d.getTime();
 
   return Date.now();
 }

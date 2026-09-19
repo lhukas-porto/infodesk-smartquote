@@ -108,7 +108,13 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   initialStageFilter = 'all',
   onStageFilterChange
 }) => {
-  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('today');
+  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>(() => {
+    const now = new Date();
+    const hasTodayOrDraft = (quotes || []).some(q => 
+      isSameDay(parseQuoteTimestamp(q), now.getTime()) || normalizeStatus(q) === 'draft'
+    );
+    return hasTodayOrDraft ? 'today' : 'all';
+  });
   const [specificDate, setSpecificDate] = useState<string>(() => {
     const d = new Date();
     const year = d.getFullYear();

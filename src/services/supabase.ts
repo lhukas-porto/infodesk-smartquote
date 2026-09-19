@@ -2,9 +2,16 @@ import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { extractStoreNameFromUrl } from '../utils/aiEmailParser';
 
-const supabaseUrl = (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_URL) || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : '') || '';
-const supabaseAnonKey = (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY) || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : '') || '';
+const FALLBACK_SUPABASE_URL = 'https://dxhbjygtbcxpabflsijv.supabase.co';
+const FALLBACK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4aGJqeWd0YmN4cGFiZmxzaWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMTQ3MTIsImV4cCI6MjEwMzg5MDcxMn0.Bt9yCZDtPYCk8Cqa223MgReN2EmGfCl-41fR22GAucU';
 
+const supabaseUrl = (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_URL) 
+  || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : '') 
+  || FALLBACK_SUPABASE_URL;
+
+const supabaseAnonKey = (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY) 
+  || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : '') 
+  || FALLBACK_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
@@ -293,58 +300,76 @@ export async function fetchQuoteItemsByQuoteId(quoteId: string): Promise<QuoteIt
 export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
   if (!supabase) return;
 
-  const itemsPayload = (quote.items || []).map(item => ({
-    item_number: item.itemNumber,
+  const cleanCompany = (quote.clientCompany || '').trim() || 'Cliente';
+  const cleanContact = (quote.contactPerson || '').trim() || 'A/C Compras';
+  const cleanEmail = (quote.clientEmail || '').trim() || 'contato@cliente.com.br';
+  const cleanPhone = (quote.clientPhone || '').trim() || null;
+  const cleanSubject = (quote.subject || '').trim() || `Fornecimento de produtos para informática — ${cleanCompany}`;
+  const cleanCity = (quote.city || '').trim() || 'Brasília';
+  const cleanDate = (quote.date || '').trim() || new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const cleanValidity = (quote.validityDays || '').trim() || '03 (três) dias';
+  const cleanPayment = (quote.paymentTerms || '').trim() || 'Faturado.';
+  const cleanDelivery = (quote.deliveryDays || '').trim() || 'em até 10 dias úteis';
+  const cleanWarranty = (quote.warrantyTerms || '').trim() || '06 meses';
+  const cleanDeliveryLocation = (quote.deliveryLocation || '').trim() || 'Brasília';
+  const cleanShippingTerms = (quote.shippingTerms || '').trim() || `Frete incluso p/ ${cleanDeliveryLocation}.`;
+  const cleanOpeningText = (quote.openingText || '').trim() || 'Em atenção à solicitação de Vossa Senhoria, formulamos a seguinte proposta comercial:';
+
+  const sanitizedQuotePayload = {
+    code: quote.code,
+    client_company: cleanCompany,
+    contact_person: cleanContact,
+    client_email: cleanEmail,
+    client_phone: cleanPhone,
+    subject: cleanSubject,
+    city: cleanCity,
+    date: cleanDate,
+    validity_days: cleanValidity,
+    payment_terms: cleanPayment,
+    delivery_days: cleanDelivery,
+    warranty_terms: cleanWarranty,
+    delivery_location: cleanDeliveryLocation,
+    shipping_terms: cleanShippingTerms,
+    opening_text: cleanOpeningText,
+    show_product_images: Boolean(quote.showProductImages),
+    total_cost: Number(quote.totalCost || 0),
+    total_shipping: Number(quote.totalShipping || 0),
+    total_taxes: Number(quote.totalTaxes || 0),
+    total_profit: Number(quote.totalProfit || 0),
+    total_amount: Number(quote.totalAmount || 0),
+    average_margin: Number(quote.averageMargin || 35),
+    global_tax_percent: Number(quote.globalTaxPercent ?? 6),
+    global_shipping: Number(quote.globalShipping ?? 0),
+    status: quote.status || 'draft',
+    sent_at: quote.sentAt || null,
+    updated_at: new Date().toISOString()
+  };
+
+  const itemsPayload = (quote.items || []).map((item, idx) => ({
+    item_number: item.itemNumber || idx + 1,
     product_id: isValidUuid(item.productId) ? item.productId : null,
-    name: item.name,
+    name: (item.name || '').trim() || `Item ${idx + 1}`,
     description: item.description || '',
-    raw_search_query: item.rawSearchQuery || item.name,
+    raw_search_query: item.rawSearchQuery || item.name || '',
     part_number: item.partNumber || null,
     ncm: item.ncm || null,
     image_url: item.imageUrl || null,
-    show_image: item.showImage ?? false,
-    quantity: item.quantity,
+    show_image: Boolean(item.showImage),
+    quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
     unit: item.unit || 'Un.',
-    cost_price: item.costPrice,
-    shipping_cost: item.shippingCost ?? 0,
-    tax_percent: item.taxPercent ?? 6,
-    markup_percent: item.markupPercent,
-    unit_price: item.unitPrice,
-    total_price: item.totalPrice,
+    cost_price: Number(item.costPrice || 0),
+    shipping_cost: Number(item.shippingCost || 0),
+    tax_percent: Number(item.taxPercent ?? 6),
+    markup_percent: Number(item.markupPercent || 35),
+    unit_price: Number(item.unitPrice || 0),
+    total_price: Number(item.totalPrice || 0),
     source_url: item.sourceUrl || null
   }));
 
-  // 1. Tentar salvar atomicamente via RPC PostgreSQL no Supabase (transação segura)
+  // 1. Tentar salvar atomicamente via RPC PostgreSQL no Supabase se existir
   try {
     const { error: rpcError } = await supabase.rpc('save_quote_atomic', {
-      p_quote: {
-        code: quote.code,
-        client_company: quote.clientCompany,
-        contact_person: quote.contactPerson,
-        client_email: quote.clientEmail,
-        client_phone: quote.clientPhone,
-        subject: quote.subject,
-        city: quote.city,
-        date: quote.date,
-        validity_days: quote.validityDays,
-        payment_terms: quote.paymentTerms,
-        delivery_days: quote.deliveryDays,
-        warranty_terms: quote.warrantyTerms,
-        delivery_location: quote.deliveryLocation,
-        shipping_terms: quote.shippingTerms,
-        opening_text: quote.openingText,
-        show_product_images: quote.showProductImages ?? false,
-        total_cost: quote.totalCost,
-        total_shipping: quote.totalShipping ?? 0,
-        total_taxes: quote.totalTaxes ?? 0,
-        total_profit: quote.totalProfit,
-        total_amount: quote.totalAmount,
-        average_margin: quote.averageMargin,
-        global_tax_percent: quote.globalTaxPercent ?? 6,
-        global_shipping: quote.globalShipping ?? 0,
-        status: quote.status,
-        sent_at: quote.sentAt || null
-      },
+      p_quote: sanitizedQuotePayload,
       p_items: itemsPayload
     });
 
@@ -352,39 +377,15 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       return;
     }
   } catch (rpcErr) {
-    // Fallback caso a função RPC ainda não tenha sido executada no banco
+    // Fallback caso a função RPC não exista no schema cache
   }
 
-  // 2. Fallback direto (upsert na tabela quotes + recriação de quote_items)
-  const { data: savedQuote, error: quoteError } = await supabase.from('quotes').upsert({
-    code: quote.code,
-    client_company: quote.clientCompany,
-    contact_person: quote.contactPerson,
-    client_email: quote.clientEmail,
-    client_phone: quote.clientPhone,
-    subject: quote.subject,
-    city: quote.city,
-    date: quote.date,
-    validity_days: quote.validityDays,
-    payment_terms: quote.paymentTerms,
-    delivery_days: quote.deliveryDays,
-    warranty_terms: quote.warrantyTerms,
-    delivery_location: quote.deliveryLocation,
-    shipping_terms: quote.shippingTerms,
-    opening_text: quote.openingText,
-    show_product_images: quote.showProductImages ?? false,
-    total_cost: quote.totalCost,
-    total_shipping: quote.totalShipping ?? 0,
-    total_taxes: quote.totalTaxes ?? 0,
-    total_profit: quote.totalProfit,
-    total_amount: quote.totalAmount,
-    average_margin: quote.averageMargin,
-    global_tax_percent: quote.globalTaxPercent ?? 6,
-    global_shipping: quote.globalShipping ?? 0,
-    status: quote.status,
-    sent_at: quote.sentAt || null,
-    updated_at: new Date().toISOString()
-  }, { onConflict: 'code' }).select().single();
+  // 2. Upsert direto protegido na tabela quotes
+  const { data: savedQuote, error: quoteError } = await supabase
+    .from('quotes')
+    .upsert(sanitizedQuotePayload, { onConflict: 'code' })
+    .select()
+    .single();
 
   if (quoteError || !savedQuote) {
     console.error('Erro ao salvar quote no Supabase:', quoteError);
@@ -394,27 +395,10 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
   // Limpar itens anteriores e recriar para manter consistência absoluta
   await supabase.from('quote_items').delete().eq('quote_id', savedQuote.id);
 
-  if (quote.items && quote.items.length > 0) {
-    const itemsToInsert = quote.items.map(item => ({
-      quote_id: savedQuote.id,
-      item_number: item.itemNumber,
-      product_id: isValidUuid(item.productId) ? item.productId : null,
-      name: item.name,
-      description: item.description || '',
-      raw_search_query: item.rawSearchQuery || item.name,
-      part_number: item.partNumber || null,
-      ncm: item.ncm || null,
-      image_url: item.imageUrl || null,
-      show_image: item.showImage ?? false,
-      quantity: item.quantity,
-      unit: item.unit || 'Un.',
-      cost_price: item.costPrice,
-      shipping_cost: item.shippingCost ?? 0,
-      tax_percent: item.taxPercent ?? 6,
-      markup_percent: item.markupPercent,
-      unit_price: item.unitPrice,
-      total_price: item.totalPrice,
-      source_url: item.sourceUrl || null
+  if (itemsPayload.length > 0) {
+    const itemsToInsert = itemsPayload.map(it => ({
+      ...it,
+      quote_id: savedQuote.id
     }));
 
     const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
