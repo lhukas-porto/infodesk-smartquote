@@ -333,6 +333,16 @@ export const App: React.FC = () => {
             const localOnlyQuotes = prevQuotes.filter(lq => 
               !mergedRemote.some(rq => rq.id === lq.id || (rq.code && lq.code && rq.code.trim().toUpperCase() === lq.code.trim().toUpperCase()))
             );
+
+            // Sincroniza automaticamente para o Supabase qualquer proposta que estava presa no navegador local
+            if (localOnlyQuotes.length > 0) {
+              localOnlyQuotes.forEach(lq => {
+                syncQuoteToSupabase(lq).catch(err => {
+                  console.warn('Aviso ao sincronizar proposta pendente para Supabase:', err);
+                });
+              });
+            }
+
             const combined = [...mergedRemote, ...localOnlyQuotes];
             const { updatedQuotes: normalizedMerged } = updateDraftQuotesToToday(combined);
             saveQuotes(normalizedMerged);
