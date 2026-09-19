@@ -1202,10 +1202,10 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
 
                 {/* Cabeçalho da Tabela / Lista */}
                 <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-2.5 bg-slate-100/90 rounded-xl text-xs font-bold text-slate-600 uppercase tracking-wider">
-                  <div className="col-span-4">Comprador</div>
-                  <div className="col-span-4">E-mail</div>
-                  <div className="col-span-2">Telefone</div>
-                  <div className="col-span-2 text-right pr-2">Ações</div>
+                  <div className="col-span-3">Comprador</div>
+                  <div className="col-span-3">E-mail</div>
+                  <div className="col-span-3">Telefone</div>
+                  <div className="col-span-3 text-right pr-2">Ações</div>
                 </div>
 
                 {/* Cards de Compradores */}
@@ -1219,15 +1219,15 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       className="p-4 bg-white hover:bg-slate-50/70 border border-slate-200/90 rounded-2xl shadow-2xs hover:border-sky-300 transition-all flex flex-col md:grid md:grid-cols-12 md:items-center gap-3"
                     >
                       {/* Col 1: Comprador */}
-                      <div className="md:col-span-4">
-                        <h4 className="text-sm font-bold text-slate-900 leading-snug">
+                      <div className="md:col-span-3 min-w-0">
+                        <h4 className="text-sm font-bold text-slate-900 leading-snug truncate">
                           {contact.title ? `${contact.title} ` : ''}{contact.name}
                         </h4>
                         <span className="text-[10px] text-slate-400 font-mono">ID: {contact.id.slice(-6)}</span>
                       </div>
 
                       {/* Col 2: E-mail */}
-                      <div className="md:col-span-4 text-xs text-slate-700 truncate">
+                      <div className="md:col-span-3 text-xs text-slate-700 truncate min-w-0">
                         {contact.email ? (
                           <a href={`mailto:${contact.email}`} className="hover:text-sky-700 truncate flex items-center gap-1.5 text-slate-600">
                             <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -1239,19 +1239,19 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       </div>
 
                       {/* Col 3: Telefone */}
-                      <div className="md:col-span-2 text-xs text-slate-700 font-mono">
+                      <div className="md:col-span-3 text-xs text-slate-700 font-mono whitespace-nowrap">
                         {contact.phone ? (
-                          <span className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                             <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>{contact.phone}</span>
+                            <span className="whitespace-nowrap">{contact.phone}</span>
                           </span>
                         ) : (
                           <span className="text-slate-400 italic">--</span>
                         )}
                       </div>
 
-                      {/* Col 5: Ações */}
-                      <div className="md:col-span-2 flex items-center justify-end gap-1.5">
+                      {/* Col 4: Ações */}
+                      <div className="md:col-span-3 flex items-center justify-end gap-1.5 shrink-0 whitespace-nowrap">
                         {onSelectBuyerForQuote && (
                           <button
                             type="button"
