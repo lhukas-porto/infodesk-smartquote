@@ -647,37 +647,36 @@ export const registerOrUpdateClient = (
 // ─── Unidades e Categorias Dinâmicas Registradas ─────────────────────────────
 
 export const DEFAULT_REGISTERED_UNITS = [
-  'Un.',
-  'Pct.',
   'Cx.',
-  'Pote',
-  'Par',
-  'Kit',
-  'Fardo',
-  'Rolo',
-  'Metro',
-  'Litro',
   'Kg',
-  'Frasco',
-  'Galão',
-  'Tubo',
-  'Lata',
-  'Peça'
-];
+  'Kit',
+  'Metro',
+  'm²',
+  'Par',
+  'Pct.',
+  'Pote',
+  'Rolo',
+  'Un.'
+].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 
 export const DEFAULT_REGISTERED_CATEGORIES = [
-  'Geral',
   'Acessórios & Escritório',
-  'Informática & TI',
+  'Automação & Energia',
+  'Elétrica',
+  'Equipamentos & Insumos Industriais',
+  'Ferramentas',
+  'Geral',
   'Hardware & Peças',
+  'Informática & Tecnologia',
+  'Limpeza & Higiene',
+  'Papelaria e Materiais Escolares',
   'Periféricos & Cabos',
   'Redes & Conectividade',
-  'Suprimentos & Copa',
-  'Automação & Energia',
+  'Segurança & CFTV',
   'Segurança Eletrônica',
   'Serviços & Instalação',
-  'Limpeza & Higiene'
-];
+  'Suprimentos & Copa'
+].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 
 const notifyMetadataChanged = () => {
   if (typeof window !== 'undefined') {
@@ -691,7 +690,11 @@ export const getRegisteredUnits = (): string[] => {
     if (saved !== null) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter(Boolean);
+        return parsed
+          .filter(Boolean)
+          .map((u: string) => u.trim())
+          .filter((u: string) => !['Frasco', 'Galão', 'Tubo', 'Lata', 'Peça'].includes(u))
+          .sort((a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
       }
     }
   } catch (e) {
@@ -701,7 +704,9 @@ export const getRegisteredUnits = (): string[] => {
 };
 
 export const saveRegisteredUnitsList = (units: string[]): string[] => {
-  const cleanList = Array.from(new Set(units.map(u => u.trim()).filter(Boolean)));
+  const cleanList = Array.from(new Set(units.map(u => u.trim()).filter(Boolean)))
+    .filter(u => !['Frasco', 'Galão', 'Tubo', 'Lata', 'Peça'].includes(u))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   try {
     localStorage.setItem('infodesk_registered_units', JSON.stringify(cleanList));
   } catch (e) {
@@ -752,7 +757,10 @@ export const getRegisteredCategories = (): string[] => {
     if (saved !== null) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter(Boolean);
+        return parsed
+          .filter(Boolean)
+          .map((c: string) => c.trim())
+          .sort((a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
       }
     }
   } catch (e) {
@@ -762,7 +770,8 @@ export const getRegisteredCategories = (): string[] => {
 };
 
 export const saveRegisteredCategoriesList = (categories: string[]): string[] => {
-  const cleanList = Array.from(new Set(categories.map(c => c.trim()).filter(Boolean)));
+  const cleanList = Array.from(new Set(categories.map(c => c.trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   try {
     localStorage.setItem('infodesk_registered_categories', JSON.stringify(cleanList));
   } catch (e) {

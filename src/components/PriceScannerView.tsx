@@ -20,7 +20,9 @@ import {
   Square,
   DollarSign,
   ArrowRight,
-  Receipt
+  Receipt,
+  Database,
+  RefreshCw
 } from 'lucide-react';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
 import { Product, QuoteItem } from '../types';
@@ -30,7 +32,8 @@ import {
   applyTextCase,
   WordCaseStyle,
   buildCompleteProductDescription,
-  buildDirectPurchaseUrl
+  buildDirectPurchaseUrl,
+  normalizeSearchText
 } from '../utils/aiEmailParser';
 import {
   DiscoveredProduct,
@@ -48,7 +51,59 @@ import {
 } from '../services/priceCacheService';
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
 
+export function findExistingCatalogProduct(
+  prod: { partNumber?: string; sku?: string; standardizedName?: string; name?: string; ncm?: string },
+  catalog: Product[] = []
+): Product | null {
+  if (!catalog || catalog.length === 0) return null;
+
+  const targetPn = cleanAlphanumericCode(prod.partNumber || '');
+  const targetSku = cleanAlphanumericCode(prod.sku || '');
+  const targetName = normalizeSearchText(prod.standardizedName || prod.name || '');
+
+  // 1. Part Number do Fabricante
+  if (targetPn && targetPn.length >= 3) {
+    const byPn = catalog.find(p => {
+      const pPn = cleanAlphanumericCode(p.partNumber || '');
+      const pSku = cleanAlphanumericCode(p.sku || '');
+      return (pPn && pPn === targetPn) || (pSku && pSku === targetPn);
+    });
+    if (byPn) return byPn;
+  }
+
+  // 2. SKU do Catálogo
+  if (targetSku && targetSku.length >= 3) {
+    const bySku = catalog.find(p => {
+      const pSku = cleanAlphanumericCode(p.sku || '');
+      const pPn = cleanAlphanumericCode(p.partNumber || '');
+      return (pSku && pSku === targetSku) || (pPn && pPn === targetSku);
+    });
+    if (bySku) return bySku;
+  }
+
+  // 3. Nome completo normalizado exato
+  if (targetName && targetName.length > 5) {
+    const byName = catalog.find(p => {
+      const pName = normalizeSearchText(p.name);
+      return pName && pName === targetName;
+    });
+    if (byName) return byName;
+  }
+
+  // 4. Se o nome contiver o Part Number
+  if (targetPn && targetPn.length >= 4) {
+    const byNameWithPn = catalog.find(p => {
+      const pName = normalizeSearchText(p.name);
+      return pName && pName.includes(targetPn.toLowerCase());
+    });
+    if (byNameWithPn) return byNameWithPn;
+  }
+
+  return null;
+}
+
 interface PriceScannerViewProps {
+  products?: Product[];
   onAddToQuote: (item: Partial<QuoteItem>) => void;
   onStartNewQuoteWithItems?: (items: Partial<QuoteItem>[]) => void;
   onSaveToCatalog: (prod: Product) => void;
@@ -61,6 +116,7 @@ interface PriceScannerViewProps {
 }
 
 export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
+  products = [],
   onAddToQuote,
   onStartNewQuoteWithItems,
   onSaveToCatalog,
@@ -97,6 +153,12 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
 
   // Success Feedback Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Modal de Conflito/Confirmação de Atualização no Catálogo
+  const [catalogConflictItem, setCatalogConflictItem] = useState<{
+    discovered: DiscoveredProduct;
+    existing: Product;
+  } | null>(null);
 
   // Margem e Filtros
   const [targetMarginPercent, setTargetMarginPercent] = useState<number | null>(null);
@@ -379,33 +441,72 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
     }
   };
 
-  // Salvar produto no catálogo
-  const handleSaveDiscoveredToCatalog = (prod: DiscoveredProduct) => {
+  // Salvar ou atualizar produto no catálogo com confirmação se já existe
+  const handleRequestSaveOrUpdate = (prod: DiscoveredProduct, existing: Product | null) => {
+    if (existing) {
+      setCatalogConflictItem({ discovered: prod, existing });
+    } else {
+      executeSaveProductToCatalog(prod, null, 'create_new');
+    }
+  };
+
+  const executeSaveProductToCatalog = (
+    prod: DiscoveredProduct,
+    existing: Product | null,
+    mode: 'update' | 'create_new'
+  ) => {
     const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
     const price = prod.suggestedPrice || (prod.costPrice ? prod.costPrice * 1.35 : 0);
     const cost = prod.costPrice || (prod.suggestedPrice ? prod.suggestedPrice / 1.35 : 0);
     const fullDesc = buildCompleteProductDescription(prod);
     const directInfo = buildDirectPurchaseUrl(prod.standardizedName, prod.sourceUrl);
 
-    const newProd: Product = {
-      id: `prod-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      sku: cleanAlphanumericCode(prod.partNumber || '') || `INF-${Date.now().toString().slice(-4)}`,
-      partNumber: cleanAlphanumericCode(prod.partNumber || ''),
-      ncm: cleanNcmCode(prod.ncm || ''),
-      name: prod.standardizedName,
-      description: fullDesc || prod.description || `Part Number: ${cleanAlphanumericCode(prod.partNumber || '')} | NCM: ${cleanNcmCode(prod.ncm || '')}`,
-      category: prod.category || 'Informática & Tecnologia',
-      costPrice: cost > 0 ? Number(cost.toFixed(2)) : Number(price.toFixed(2)),
-      unit: prod.unit || 'Un.',
-      supplier: prod.supplier || prod.brand || directInfo.store,
-      stock: 10,
-      lastUpdated: new Date().toISOString().split('T')[0],
-      sourceUrl: prod.sourceUrl || directInfo.url,
-      imageUrl: chosenImage
-    };
+    if (mode === 'update' && existing) {
+      const updatedProd: Product = {
+        ...existing,
+        name: prod.standardizedName || existing.name,
+        description: fullDesc || prod.description || existing.description,
+        costPrice: cost > 0 ? Number(cost.toFixed(2)) : existing.costPrice,
+        partNumber: cleanAlphanumericCode(prod.partNumber || '') || existing.partNumber,
+        ncm: cleanNcmCode(prod.ncm || '') || existing.ncm,
+        category: prod.category || existing.category,
+        unit: prod.unit || existing.unit || 'Un.',
+        supplier: prod.supplier || prod.brand || directInfo.store || existing.supplier,
+        imageUrl: chosenImage || existing.imageUrl,
+        sourceUrl: prod.sourceUrl || directInfo.url || existing.sourceUrl,
+        lastUpdated: new Date().toISOString().split('T')[0]
+      };
+      onSaveToCatalog(updatedProd);
+      setCatalogConflictItem(null);
+      showToast(`Ficha técnica do produto "${existing.name}" atualizada com sucesso no catálogo!`);
+    } else {
+      const isDuplicate = Boolean(existing);
+      const newSku = isDuplicate
+        ? `INF-${Date.now().toString().slice(-6)}`
+        : cleanAlphanumericCode(prod.partNumber || '') || `INF-${Date.now().toString().slice(-4)}`;
 
-    onSaveToCatalog(newProd);
-    showToast('Produto salvo no catálogo com ficha técnica completa!');
+      const newProd: Product = {
+        id: `prod-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        sku: newSku,
+        partNumber: cleanAlphanumericCode(prod.partNumber || ''),
+        ncm: cleanNcmCode(prod.ncm || ''),
+        name: prod.standardizedName,
+        description: fullDesc || prod.description || `Part Number: ${cleanAlphanumericCode(prod.partNumber || '')} | NCM: ${cleanNcmCode(prod.ncm || '')}`,
+        category: prod.category || 'Informática & Tecnologia',
+        costPrice: cost > 0 ? Number(cost.toFixed(2)) : Number(price.toFixed(2)),
+        unit: prod.unit || 'Un.',
+        supplier: prod.supplier || prod.brand || directInfo.store,
+        stock: 10,
+        lastUpdated: new Date().toISOString().split('T')[0],
+        sourceUrl: prod.sourceUrl || directInfo.url,
+        imageUrl: chosenImage
+      };
+      onSaveToCatalog(newProd);
+      setCatalogConflictItem(null);
+      showToast(isDuplicate 
+        ? `Novo registro cadastrado no catálogo com código ${newSku}!` 
+        : 'Produto salvo no catálogo com ficha técnica completa!');
+    }
   };
 
   // Inserir todos os identificados na cotação
@@ -1010,6 +1111,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               const images = prod.images && prod.images.length > 0 ? prod.images : [prod.imageUrl || ''];
               const activeImgIndex = prod.selectedImageIndex ?? 0;
               const currentImg = images[activeImgIndex] || images[0] || '';
+              const existingInCatalog = findExistingCatalogProduct(prod, products);
 
               return (
                 <div
@@ -1029,9 +1131,16 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center px-3.5 py-1 bg-[#fef3c7] text-[#b45309] border border-amber-200/80 rounded-full text-xs font-bold">
-                        Novo Produto / Pronto para Cadastrar
-                      </span>
+                      {existingInCatalog ? (
+                        <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-sky-100 text-sky-900 border border-sky-300 rounded-full text-xs font-bold shadow-2xs">
+                          <Database className="w-3.5 h-3.5 text-sky-700" />
+                          <span>Produto já Cadastrado no Catálogo (Código: {existingInCatalog.sku || existingInCatalog.partNumber})</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-3.5 py-1 bg-[#fef3c7] text-[#b45309] border border-amber-200/80 rounded-full text-xs font-bold">
+                          Novo Produto / Pronto para Cadastrar
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleRemoveDiscoveredProduct(prod.id)}
@@ -1163,6 +1272,21 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                           )}
                         </div>
 
+                        {/* Comparativo de Catálogo quando já existe */}
+                        {existingInCatalog && (
+                          <div className="mb-2.5 px-3.5 py-2 bg-sky-50/90 border border-sky-200/90 rounded-xl flex items-center justify-between text-xs text-sky-900 shadow-2xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+                              <span className="truncate">
+                                <strong>Comparativo:</strong> Item encontrado no catálogo como <em>"{existingInCatalog.name}"</em> · Custo atual: <strong>R$ {(existingInCatalog.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                              </span>
+                            </div>
+                            <span className="shrink-0 ml-2 text-[10.5px] font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2 py-0.5 rounded-md font-mono">
+                              SKU: {existingInCatalog.sku || existingInCatalog.partNumber}
+                            </span>
+                          </div>
+                        )}
+
                         {/* Title */}
                         <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug mt-1 mb-2">
                           {prod.standardizedName}
@@ -1243,12 +1367,25 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
 
                           <button
                             type="button"
-                            onClick={() => handleSaveDiscoveredToCatalog(prod)}
-                            className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 cursor-pointer shadow-2xs"
-                            title="Salvar produto no catálogo para reutilizar"
+                            onClick={() => handleRequestSaveOrUpdate(prod, existingInCatalog)}
+                            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs ${
+                              existingInCatalog
+                                ? 'bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800'
+                                : 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700'
+                            }`}
+                            title={existingInCatalog ? 'Produto já cadastrado no catálogo. Clique para atualizar a ficha técnica existente ou duplicar.' : 'Salvar produto no catálogo para reutilizar'}
                           >
-                            <Printer className="w-4 h-4 text-slate-500" />
-                            <span>Salvar no Catálogo</span>
+                            {existingInCatalog ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 text-sky-600" />
+                                <span>Atualizar no Catálogo</span>
+                              </>
+                            ) : (
+                              <>
+                                <Printer className="w-4 h-4 text-slate-500" />
+                                <span>Salvar no Catálogo</span>
+                              </>
+                            )}
                           </button>
                         </div>
                       </div>
@@ -1562,6 +1699,150 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               >
                 Inserir no Scanner
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFLITO / PRODUTO JÁ EXISTENTE NO CATÁLOGO */}
+      {catalogConflictItem && (
+        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn">
+            <div className="p-5 border-b border-slate-200 bg-sky-50/60 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-sky-100 border border-sky-300 flex items-center justify-center text-sky-700 shadow-2xs">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    Produto já Cadastrado no Catálogo
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Este item já possui registro na sua base de produtos (Código: <strong>{catalogConflictItem.existing.sku || catalogConflictItem.existing.partNumber}</strong>).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCatalogConflictItem(null)}
+                className="w-8 h-8 rounded-xl bg-white hover:bg-slate-100 text-slate-500 border border-slate-200 flex items-center justify-center text-xs font-bold transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 flex-1 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Registro Atual no Catálogo */}
+                <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Database className="w-3.5 h-3.5 text-slate-500" />
+                      Ficha Atual no Catálogo
+                    </span>
+                    <span className="text-[10.5px] font-mono font-bold bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-700">
+                      {catalogConflictItem.existing.sku || catalogConflictItem.existing.partNumber}
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">
+                    {catalogConflictItem.existing.name}
+                  </h4>
+                  <div className="text-[11px] text-slate-600 space-y-1 pt-1 border-t border-slate-200/60 font-medium">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Preço de Custo:</span>
+                      <strong className="text-slate-900 font-mono">
+                        R$ {(catalogConflictItem.existing.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </strong>
+                    </div>
+                    {catalogConflictItem.existing.partNumber && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Part Number:</span>
+                        <strong className="text-slate-800 font-mono">{catalogConflictItem.existing.partNumber}</strong>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Categoria:</span>
+                      <span className="text-slate-700">{catalogConflictItem.existing.category || 'Geral'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Nova Informação Escaneada pela IA */}
+                <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      Nova Ficha Escaneada (IA)
+                    </span>
+                    <span className="text-[10.5px] font-mono font-bold bg-white border border-emerald-200 px-2 py-0.5 rounded-md text-emerald-800">
+                      Ref: {catalogConflictItem.discovered.partNumber || 'Nova'}
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-emerald-950 leading-snug line-clamp-2">
+                    {catalogConflictItem.discovered.standardizedName}
+                  </h4>
+                  <div className="text-[11px] text-emerald-800 space-y-1 pt-1 border-t border-emerald-200/60 font-medium">
+                    <div className="flex justify-between">
+                      <span className="text-emerald-600">Preço Escaneado:</span>
+                      <strong className="text-emerald-950 font-mono">
+                        {catalogConflictItem.discovered.suggestedPrice
+                          ? `R$ ${catalogConflictItem.discovered.suggestedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                          : (catalogConflictItem.discovered.costPrice
+                            ? `R$ ${catalogConflictItem.discovered.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                            : 'Sob Consulta')}
+                      </strong>
+                    </div>
+                    {catalogConflictItem.discovered.partNumber && (
+                      <div className="flex justify-between">
+                        <span className="text-emerald-600">Part Number:</span>
+                        <strong className="text-emerald-900 font-mono">{catalogConflictItem.discovered.partNumber}</strong>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-emerald-600">Fotos Encontradas:</span>
+                      <span>{catalogConflictItem.discovered.images?.length || 1} imagem(ns)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+                <p>
+                  <strong>Como deseja proceder?</strong> Você pode atualizar o registro existente para enriquecer a descrição, fotos e preços de mercado, ou criar um registro duplicado com código independente.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 px-6">
+              <button
+                type="button"
+                onClick={() => setCatalogConflictItem(null)}
+                className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => executeSaveProductToCatalog(catalogConflictItem.discovered, catalogConflictItem.existing, 'create_new')}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs"
+                  title="Salvar como um novo registro separado no catálogo com novo código"
+                >
+                  <Plus className="w-4 h-4 text-slate-500" />
+                  <span>Salvar como Novo (Duplicar)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => executeSaveProductToCatalog(catalogConflictItem.discovered, catalogConflictItem.existing, 'update')}
+                  className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-98"
+                  title="Substituir e enriquecer os dados técnicos do item existente no catálogo"
+                >
+                  <RefreshCw className="w-4 h-4 text-white" />
+                  <span>Atualizar Ficha Existente</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

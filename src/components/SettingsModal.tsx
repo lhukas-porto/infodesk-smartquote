@@ -208,11 +208,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  const filteredCategories = categories.filter(c => 
+  const sortedCategories = React.useMemo(() => {
+    return [...categories].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [categories]);
+
+  const sortedUnits = React.useMemo(() => {
+    return [...units].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [units]);
+
+  const filteredCategories = sortedCategories.filter(c => 
     c.toLowerCase().includes(searchCategory.toLowerCase())
   );
 
-  const filteredUnits = units.filter(u => 
+  const filteredUnits = sortedUnits.filter(u => 
     u.toLowerCase().includes(searchUnit.toLowerCase())
   );
 

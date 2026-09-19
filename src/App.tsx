@@ -857,6 +857,7 @@ export const App: React.FC = () => {
   };
 
   const handleSaveProductToCatalog = (p: Product) => {
+    let savedProduct = p;
     setProducts(prev => {
       const normName = normalizeSearchText(p.name);
       const normPn = (p.partNumber || '').trim().toLowerCase();
@@ -877,15 +878,21 @@ export const App: React.FC = () => {
 
       let next: Product[];
       if (existingIdx >= 0) {
+        savedProduct = { 
+          ...prev[existingIdx], 
+          ...p, 
+          id: prev[existingIdx].id,
+          sku: prev[existingIdx].sku || p.sku 
+        };
         next = [...prev];
-        next[existingIdx] = { ...prev[existingIdx], ...p, id: prev[existingIdx].id };
+        next[existingIdx] = savedProduct;
       } else {
         next = [p, ...prev];
       }
       saveProducts(next);
       return next;
     });
-    syncProductToSupabase(p);
+    syncProductToSupabase(savedProduct);
   };
 
   const handleSaveQuote = async () => {
@@ -1533,6 +1540,7 @@ export const App: React.FC = () => {
 
         {activeTab === 'websearch' && (
           <PriceScannerView
+            products={products}
             initialQuery={webSearchQuery}
             targetItemIndex={webSearchTargetIndex}
             existingItem={webSearchExistingItem}

@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Check } from 'lucide-react';
+import { normalizeSearchText } from '../utils/aiEmailParser';
 
 interface CreatableComboboxProps {
   value: string;
@@ -28,6 +29,7 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [filterText, setFilterText] = useState('');
+  const [openUpwards, setOpenUpwards] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -42,21 +44,43 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Normalização de opções únicas sem vazios
-  const uniqueOptions = Array.from(
-    new Set(options.map(o => (o || '').trim()).filter(Boolean))
-  );
+  // Detecta se deve abrir para cima ou para baixo para nunca ser cortado pelo rodapé
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 230 && rect.top > 230) {
+        setOpenUpwards(true);
+      } else {
+        setOpenUpwards(false);
+      }
+    }
+  }, [isOpen]);
 
-  // Filtragem
-  const currentVal = value || defaultValue || '';
-  const search = isOpen ? filterText.toLowerCase().trim() : '';
-  const filteredOptions = uniqueOptions.filter(opt =>
-    opt.toLowerCase().includes(search)
-  );
+  // Normalização de opções únicas sem vazios, SEMPRE em ordem alfabética
+  const uniqueOptions = useMemo(() => {
+    return Array.from(
+      new Set(options.map(o => (o || '').trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [options]);
 
-  const isExactMatch = uniqueOptions.some(
-    opt => opt.toLowerCase() === (isOpen ? filterText.toLowerCase().trim() : currentVal.toLowerCase().trim())
-  );
+  // Filtragem inteligente (insensível a acentos e maiúsculas)
+  // Se filterText estiver vazio (ex: ao clicar na seta), exibe TODAS as opções cadastradas
+  const filteredOptions = useMemo(() => {
+    const term = normalizeSearchText(filterText);
+    if (!term) return uniqueOptions;
+    return uniqueOptions.filter(opt =>
+      normalizeSearchText(opt).includes(term)
+    );
+  }, [uniqueOptions, filterText]);
+
+  const isExactMatch = useMemo(() => {
+    const term = normalizeSearchText(filterText);
+    if (!term) return false;
+    return uniqueOptions.some(
+      opt => normalizeSearchText(opt) === term
+    );
+  }, [uniqueOptions, filterText]);
 
   const canAddNew = Boolean(
     filterText.trim() &&
@@ -88,7 +112,7 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
   };
 
   const handleInputFocus = () => {
-    setFilterText(value || '');
+    setFilterText(''); // Abre mostrando todas as opções
     setIsOpen(true);
   };
 
@@ -105,7 +129,7 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (canAddNew) {
+      if (canAddNew && filteredOptions.length === 0) {
         handleAddNew();
       } else if (filteredOptions.length > 0) {
         handleSelectOption(filteredOptions[0]);
@@ -140,31 +164,44 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
         <button
           type="button"
           tabIndex={-1}
-          onClick={() => {
-            setIsOpen(prev => !prev);
-            if (!isOpen) {
-              setFilterText(value || '');
-              inputRef.current?.focus();
-            }
+          onMouseDown={(e) => {
+            e.preventDefault(); // Evita perder o foco acidentalmente
           }}
-          className="absolute right-2 p-1 text-slate-400 hover:text-slate-600 rounded-md transition"
-          title="Ver opções cadastradas"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen(prev => {
+              const next = !prev;
+              if (next) {
+                setFilterText(''); // Garante que abre com todas as opções visíveis
+                inputRef.current?.focus();
+                inputRef.current?.select();
+              }
+              return next;
+            });
+          }}
+          className="absolute right-2 p-1.5 text-slate-400 hover:text-slate-600 rounded-md transition cursor-pointer"
+          title="Ver todas as opções cadastradas"
         >
           <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180 text-sky-600' : ''}`} />
         </button>
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+        <div
+          className={`absolute z-50 left-0 right-0 ${
+            openUpwards ? 'bottom-full mb-1' : 'top-full mt-1'
+          } bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100`}
+        >
           {/* Opção de Adicionar Novo se digitou algo que não existe */}
           {canAddNew && (
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleAddNew}
               className="w-full text-left px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer border border-sky-200 mb-1"
             >
               <Plus className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-              <span className="truncate">Adicionar "<strong>{filterText.trim()}</strong>"</span>
+              <span className="truncate">Cadastrar nova: "<strong>{filterText.trim()}</strong>"</span>
             </button>
           )}
 
@@ -176,6 +213,7 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
                 <button
                   key={opt}
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleSelectOption(opt)}
                   className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition cursor-pointer ${
                     isSelected
