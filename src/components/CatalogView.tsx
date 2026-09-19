@@ -37,6 +37,7 @@ import {
   saveRegisteredCategory 
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
+import { WebImagePickerModal } from './WebImagePickerModal';
 import { 
   syncProductToSupabase, 
   syncBatchProductsToSupabase, 
@@ -71,6 +72,14 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
+  const [isWebImagePickerOpen, setIsWebImagePickerOpen] = useState(false);
+
+  const handlePhotoSelectedForCatalog = (imageUrl: string) => {
+    if (editingProduct) {
+      setEditingProduct(prev => prev ? { ...prev, imageUrl } : null);
+    }
+    setIsWebImagePickerOpen(false);
+  };
 
   // Paginação e Ordenação (Padrão: Ordem Alfabética A-Z)
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,13 +95,17 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (isWebImagePickerOpen) {
+          setIsWebImagePickerOpen(false);
+          return;
+        }
         if (isAddModalOpen) setIsAddModalOpen(false);
         if (editingProduct) setEditingProduct(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAddModalOpen, editingProduct]);
+  }, [isAddModalOpen, editingProduct, isWebImagePickerOpen]);
 
   // Intercepta o ESC na fase de captura para fechar o Zoom primeiro, sem fechar o modal de edição por baixo
   React.useEffect(() => {
@@ -1469,6 +1482,20 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       </div>
                     )}
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (editingProduct) {
+                        setIsWebImagePickerOpen(true);
+                      }
+                    }}
+                    title="Pesquisar fotos para este produto e escolher qual usar"
+                    className="px-2 py-0.5 rounded text-[9.5px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <Search className="w-3 h-3" />
+                    Buscar Foto
+                  </button>
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -1867,6 +1894,17 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Busca e Escolha de Foto Comercial na Web */}
+      {isWebImagePickerOpen && editingProduct && (
+        <WebImagePickerModal
+          isOpen={true}
+          onClose={() => setIsWebImagePickerOpen(false)}
+          productName={editingProduct.name}
+          currentImageUrl={editingProduct.imageUrl}
+          onSelectImage={handlePhotoSelectedForCatalog}
+        />
       )}
 
     </div>
