@@ -493,7 +493,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     return sum / products.length;
   }, [products]);
 
-  const categories = ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
+  const categories = ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))];
 
   const filteredProducts = React.useMemo(() => {
     const term = normalizeSearchText(searchTerm);
@@ -809,10 +809,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
       </div>
 
-      {/* Barra de Busca e Filtros de Categoria (Ampla e Sem Espremer) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-        {/* Linha 1: Campo de Busca Espaçoso com Botões de Ação e Contador */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      {/* Barra de Busca e Filtro de Categoria em Dropdown */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          {/* 1. Campo de Busca Amplo */}
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -834,20 +834,51 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             )}
           </div>
 
+          {/* 2. Filtro de Categoria Elegante em Dropdown */}
+          <div className="relative min-w-[240px] sm:min-w-[280px]">
+            <Layers className="w-4 h-4 text-sky-600 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                setCurrentPage(1);
+              }}
+              className={`w-full h-11 pl-10 pr-9 border rounded-xl text-xs sm:text-sm font-semibold transition outline-none cursor-pointer shadow-2xs appearance-none ${
+                selectedCategory !== 'all'
+                  ? 'bg-sky-50/70 border-sky-300 text-sky-900 focus:border-sky-500 focus:ring-2 focus:ring-sky-100'
+                  : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700 focus:border-sky-500 focus:ring-2 focus:ring-sky-100'
+              }`}
+              title="Filtrar produtos por categoria"
+            >
+              <option value="all">Todas as Categorias ({products.length})</option>
+              {categories.filter(c => c !== 'all').map(cat => (
+                <option key={cat} value={cat}>
+                  {cat} ({categoryCounts[cat] || 0})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* 3. Ações: Limpar Filtros e Contador de Resultados */}
           <div className="flex items-center gap-2 shrink-0">
-            {searchTerm && (
+            {(searchTerm || selectedCategory !== 'all') && (
               <button
                 type="button"
-                onClick={() => setSearchTerm('')}
-                className="h-11 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                title="Limpar pesquisa e restaurar lista"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedCategory('all');
+                  setCurrentPage(1);
+                }}
+                className="h-11 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="Limpar pesquisa e categoria"
               >
                 <X className="w-4 h-4 text-slate-500" />
                 <span>Limpar</span>
               </button>
             )}
 
-            <div className="h-11 px-4 bg-sky-50 border border-sky-200 rounded-xl text-sky-800 text-xs font-bold flex items-center gap-2 shrink-0">
+            <div className="h-11 px-4 bg-sky-50 border border-sky-200 rounded-xl text-sky-800 text-xs font-bold flex items-center gap-2 shrink-0 shadow-2xs">
               <Package className="w-4 h-4 text-sky-600" />
               <span>
                 {sortedProducts.length} {sortedProducts.length === 1 ? 'encontrado' : 'encontrados'}
@@ -856,39 +887,27 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           </div>
         </div>
 
-        {/* Linha 2: Chips de Categoria com Quebra Limpa e Espaçamento Confortável */}
-        <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2.5">
-          <span className="text-xs text-slate-500 font-bold uppercase tracking-wider shrink-0 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-sky-600" />
-            <span>Categorias:</span>
-          </span>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {categories.map(cat => {
-              const count = cat === 'all' ? products.length : (categoryCounts[cat] || 0);
-              const isSelected = selectedCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                    isSelected
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
-                  }`}
-                >
-                  <span>{cat === 'all' ? 'Todas' : cat}</span>
-                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold ${
-                    isSelected ? 'bg-sky-700/90 text-white' : 'bg-slate-200 text-slate-600'
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+        {/* Tag visual da categoria ativa (se diferente de 'Todas') com botão de remoção rápida */}
+        {selectedCategory !== 'all' && (
+          <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-slate-400 font-medium">Filtrando por categoria:</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-100 text-sky-800 border border-sky-200 font-bold rounded-lg text-xs shadow-2xs">
+              <Layers className="w-3.5 h-3.5 text-sky-600" />
+              <span>{selectedCategory}</span>
+              <span className="text-[10px] px-1.5 py-0.2 bg-sky-200 text-sky-900 rounded-full font-mono">
+                {categoryCounts[selectedCategory] || 0}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('all')}
+                className="p-0.5 hover:bg-sky-200 rounded text-sky-700 hover:text-sky-900 cursor-pointer ml-1"
+                title="Remover filtro de categoria"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Tabela de Produtos com Ordenação e Paginação */}
