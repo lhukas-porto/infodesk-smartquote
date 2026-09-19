@@ -15,7 +15,17 @@ import {
   ClipboardPaste,
   ChevronDown,
   Layers,
-  ZoomIn
+  ZoomIn,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  DollarSign,
+  SlidersHorizontal,
+  Tag
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Product } from '../types';
@@ -61,6 +71,17 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
+
+  // Paginação e Ordenação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [sortField, setSortField] = useState<'name' | 'costPrice' | 'sku' | 'category' | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Volta automaticamente para a página 1 ao buscar, filtrar por categoria ou alterar o tamanho da página
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, pageSize]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -452,18 +473,91 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     return () => window.removeEventListener('paste', handleGlobalPaste, true);
   }, [editingProduct]);
 
+  const categoryCounts = React.useMemo(() => {
+    const counts: Record<string, number> = { all: products.length };
+    products.forEach(p => {
+      const cat = p.category || 'Geral';
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return counts;
+  }, [products]);
+
+  const activeCategoriesCount = React.useMemo(() => {
+    const set = new Set(products.map(p => p.category).filter(Boolean));
+    return set.size;
+  }, [products]);
+
+  const avgCostPrice = React.useMemo(() => {
+    if (products.length === 0) return 0;
+    const sum = products.reduce((acc, p) => acc + (p.costPrice || 0), 0);
+    return sum / products.length;
+  }, [products]);
+
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
 
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = React.useMemo(() => {
     const term = normalizeSearchText(searchTerm);
-    const matchesSearch = !term ||
-                          normalizeSearchText(p.name).includes(term) ||
-                          normalizeSearchText(p.sku).includes(term) ||
-                          normalizeSearchText(p.partNumber).includes(term) ||
-                          normalizeSearchText(p.description).includes(term);
-    const matchesCat = selectedCategory === 'all' || p.category === selectedCategory;
-    return matchesSearch && matchesCat;
-  });
+    return products.filter(p => {
+      const matchesSearch = !term ||
+                            normalizeSearchText(p.name).includes(term) ||
+                            normalizeSearchText(p.sku).includes(term) ||
+                            normalizeSearchText(p.partNumber).includes(term) ||
+                            normalizeSearchText(p.description).includes(term);
+      const matchesCat = selectedCategory === 'all' || p.category === selectedCategory;
+      return matchesSearch && matchesCat;
+    });
+  }, [products, searchTerm, selectedCategory]);
+
+  const sortedProducts = React.useMemo(() => {
+    if (!sortField) return filteredProducts;
+    return [...filteredProducts].sort((a, b) => {
+      const aVal = a[sortField];
+      const bVal = b[sortField];
+
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      const aStr = String(aVal ?? '');
+      const bStr = String(bVal ?? '');
+      const cmp = aStr.localeCompare(bStr, 'pt-BR', { sensitivity: 'base' });
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredProducts, sortField, sortDirection]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
+  const currentPageSafe = Math.min(currentPage, totalPages);
+  const startIndex = (currentPageSafe - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, sortedProducts.length);
+  const paginatedProducts = sortedProducts.slice(startIndex, endIndex);
+
+  const generatePageNumbers = (current: number, total: number) => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const pages: (number | string)[] = [];
+    if (current <= 4) {
+      pages.push(1, 2, 3, 4, 5, '...', total);
+    } else if (current >= total - 3) {
+      pages.push(1, '...', total - 4, total - 3, total - 2, total - 1, total);
+    } else {
+      pages.push(1, '...', current - 1, current, current + 1, '...', total);
+    }
+    return pages;
+  };
+
+  const handleSort = (field: 'name' | 'costPrice' | 'sku' | 'category') => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        setSortField(null);
+        setSortDirection('asc');
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -682,131 +776,350 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-        <div className="relative w-full sm:w-80">
+      {/* Cards de Métricas do Catálogo */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total de Produtos</span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-xl font-bold text-slate-900 font-mono">{products.length}</span>
+            <span className="text-xs text-slate-500 font-medium">itens cadastrados</span>
+          </div>
+          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">Base ativa disponível para propostas</span>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Categorias Ativas</span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-xl font-bold text-slate-900 font-mono">{activeCategoriesCount}</span>
+            <span className="text-xs text-slate-500 font-medium">segmentos</span>
+          </div>
+          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">Hardware, Periféricos, Redes e Suprimentos</span>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Custo Médio dos Itens</span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-xl font-bold text-slate-900 font-mono">
+              R$ {avgCostPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">Valor médio ponderado de custo de aquisição</span>
+        </div>
+      </div>
+
+      {/* Barra de Busca em Tempo Real e Filtro de Categorias */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
+        <div className="relative w-full md:w-96">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nome, SKU ou descrição..."
-            className="w-full h-10 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl pl-10 pr-4 text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition outline-none font-sans"
+            placeholder="Buscar em tempo real por nome, SKU, modelo..."
+            className="w-full h-10 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl pl-10 pr-9 text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition outline-none font-sans"
           />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              title="Limpar pesquisa"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
           <span className="text-xs text-slate-600 font-bold whitespace-nowrap">Categoria:</span>
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
-                selectedCategory === cat
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-              }`}
-            >
-              {cat === 'all' ? 'Todas' : cat}
-            </button>
-          ))}
+          {categories.map(cat => {
+            const count = cat === 'all' ? products.length : (categoryCounts[cat] || 0);
+            const isSelected = selectedCategory === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                  isSelected
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                }`}
+              >
+                <span>{cat === 'all' ? 'Todas' : cat}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                  isSelected ? 'bg-sky-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
+      {/* Tabela de Produtos com Ordenação e Paginação */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-800">
-            <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
+            <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 select-none">
               <tr>
-                <th className="p-3 w-32">Código / SKU / Modelo</th>
-                <th className="p-3 min-w-[280px]">Produto & Especificações</th>
-                <th className="p-3 w-32">Categoria</th>
+                <th 
+                  onClick={() => handleSort('sku')} 
+                  className="p-3 w-32 cursor-pointer hover:bg-slate-200/60 transition group"
+                  title="Clique para ordenar por Código / SKU"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Código / SKU</span>
+                    {sortField === 'sku' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600" /> : <ArrowDown className="w-3 h-3 text-sky-600" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                    )}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('name')} 
+                  className="p-3 min-w-[280px] cursor-pointer hover:bg-slate-200/60 transition group"
+                  title="Clique para ordenar por Nome do Produto"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Produto & Especificações</span>
+                    {sortField === 'name' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600" /> : <ArrowDown className="w-3 h-3 text-sky-600" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                    )}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('category')} 
+                  className="p-3 w-36 cursor-pointer hover:bg-slate-200/60 transition group"
+                  title="Clique para ordenar por Categoria"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Categoria</span>
+                    {sortField === 'category' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600" /> : <ArrowDown className="w-3 h-3 text-sky-600" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                    )}
+                  </div>
+                </th>
                 <th className="p-3 w-24 text-center">Unidade</th>
-                <th className="p-3 w-28 text-right">Preço Custo (R$)</th>
+                <th 
+                  onClick={() => handleSort('costPrice')} 
+                  className="p-3 w-32 text-right cursor-pointer hover:bg-slate-200/60 transition group"
+                  title="Clique para ordenar por Preço de Custo"
+                >
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span>Preço Custo (R$)</span>
+                    {sortField === 'costPrice' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600" /> : <ArrowDown className="w-3 h-3 text-sky-600" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                    )}
+                  </div>
+                </th>
                 <th className="p-3 w-36 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredProducts.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50 transition">
-                  <td className="p-3 font-mono font-semibold text-sky-700 text-xs">
-                    {p.sku}
-                  </td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-3">
-                      {p.imageUrl && (
-                        <div
-                          onClick={() => setZoomedImage({ url: p.imageUrl!, title: p.name })}
-                          title="Clique para ver a foto com ZOOM"
-                          className="w-10 h-10 min-w-[40px] max-w-[40px] min-h-[40px] max-h-[40px] rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs hover:border-sky-500 hover:shadow-md shrink-0 overflow-hidden cursor-pointer transition relative group/cimg select-none"
-                        >
-                          <img
-                            src={p.imageUrl}
-                            alt={p.name}
-                            className="w-full h-full max-w-full max-h-full object-contain group-hover/cimg:scale-105 transition duration-200"
-                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                          />
-                          <div className="absolute inset-0 bg-sky-950/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-[0.5px]">
-                            <ZoomIn className="w-3.5 h-3.5 text-white drop-shadow-sm" />
-                          </div>
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-bold text-slate-900 text-xs">{p.name}</p>
-                          <a
-                            href={p.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(p.name + ' ' + (p.description || ''))}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-slate-400 hover:text-sky-600 transition shrink-0"
-                            title="Abrir pesquisa / link do produto na web"
+              {paginatedProducts.length > 0 ? (
+                paginatedProducts.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50 transition">
+                    <td className="p-3 font-mono font-semibold text-sky-700 text-xs">
+                      {p.sku}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-3">
+                        {p.imageUrl && (
+                          <div
+                            onClick={() => setZoomedImage({ url: p.imageUrl!, title: p.name })}
+                            title="Clique para ver a foto com ZOOM"
+                            className="w-10 h-10 min-w-[40px] max-w-[40px] min-h-[40px] max-h-[40px] rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs hover:border-sky-500 hover:shadow-md shrink-0 overflow-hidden cursor-pointer transition relative group/cimg select-none"
                           >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                            <img
+                              src={p.imageUrl}
+                              alt={p.name}
+                              className="w-full h-full max-w-full max-h-full object-contain group-hover/cimg:scale-105 transition duration-200"
+                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                            />
+                            <div className="absolute inset-0 bg-sky-950/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-[0.5px]">
+                              <ZoomIn className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+                            </div>
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-bold text-slate-900 text-xs">{p.name}</p>
+                            <a
+                              href={p.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(p.name + ' ' + (p.description || ''))}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-slate-400 hover:text-sky-600 transition shrink-0"
+                              title="Abrir pesquisa / link do produto na web"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                          <p className="text-[11px] text-slate-500 line-clamp-1">{p.description}</p>
                         </div>
-                        <p className="text-[11px] text-slate-500 line-clamp-1">{p.description}</p>
                       </div>
-                    </div>
-                  </td>
-                  <td className="p-3 text-slate-700">
-                    <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] border border-slate-200">
-                      {p.category}
-                    </span>
-                  </td>
-                  <td className="p-3 text-center font-medium text-slate-500">
-                    {p.unit}
-                  </td>
-                  <td className="p-3 text-right font-mono font-bold text-slate-900">
-                    R$ {p.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="p-3 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <button
-                        onClick={() => onAddToQuote(p)}
-                        className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-[11px] font-semibold transition cursor-pointer active:scale-95"
-                        title="Adicionar ao Orçamento Atual"
-                      >
-                        + Orçar
-                      </button>
-                      <button
-                        onClick={() => handleOpenEditModal(p)}
-                        className="p-1 text-slate-500 hover:text-sky-600 hover:bg-sky-50 border border-transparent hover:border-sky-200 rounded-lg transition cursor-pointer active:scale-95"
-                        title="Editar Informações do Produto"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProduct(p.id)}
-                        className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer active:scale-95"
-                        title="Excluir Produto"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    </td>
+                    <td className="p-3 text-slate-700">
+                      <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] border border-slate-200">
+                        {p.category}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center font-medium text-slate-500">
+                      {p.unit}
+                    </td>
+                    <td className="p-3 text-right font-mono font-bold text-slate-900">
+                      R$ {p.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => onAddToQuote(p)}
+                          className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-[11px] font-semibold transition cursor-pointer active:scale-95"
+                          title="Adicionar ao Orçamento Atual"
+                        >
+                          + Orçar
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditModal(p)}
+                          className="p-1 text-slate-500 hover:text-sky-600 hover:bg-sky-50 border border-transparent hover:border-sky-200 rounded-lg transition cursor-pointer active:scale-95"
+                          title="Editar Informações do Produto"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProduct(p.id)}
+                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer active:scale-95"
+                          title="Excluir Produto"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="p-10 text-center text-slate-500">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <Package className="w-8 h-8 text-slate-300" />
+                      <p className="text-sm font-bold text-slate-700">Nenhum produto encontrado</p>
+                      <p className="text-xs text-slate-400">
+                        {searchTerm ? `Nenhum resultado corresponde à busca "${searchTerm}"` : 'Nenhum produto cadastrado nesta categoria'}
+                      </p>
+                      {(searchTerm || selectedCategory !== 'all') && (
+                        <button
+                          onClick={() => { setSearchTerm(''); setSelectedCategory('all'); }}
+                          className="mt-2 px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-semibold transition cursor-pointer"
+                        >
+                          Limpar Filtros
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
+        </div>
+
+        {/* Rodapé com Paginação de 10 em 10 itens */}
+        <div className="border-t border-slate-200 bg-slate-50/70 p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+          <div className="flex items-center gap-2">
+            <span>
+              Exibindo <span className="font-bold text-slate-900">{sortedProducts.length > 0 ? startIndex + 1 : 0}</span> a{' '}
+              <span className="font-bold text-slate-900">{endIndex}</span> de{' '}
+              <span className="font-bold text-slate-900">{sortedProducts.length}</span> produtos
+            </span>
+            {sortedProducts.length !== products.length && (
+              <span className="text-[11px] text-slate-400">({products.length} no total)</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-500 text-xs">Exibir:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="h-8 px-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 outline-none focus:border-sky-500 cursor-pointer"
+              >
+                <option value={10}>10 por pág.</option>
+                <option value={25}>25 por pág.</option>
+                <option value={50}>50 por pág.</option>
+                <option value={100}>100 por pág.</option>
+              </select>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPageSafe === 1}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+                  title="Primeira Página"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPageSafe === 1}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+                  title="Página Anterior"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="flex items-center gap-1 px-1">
+                  {generatePageNumbers(currentPageSafe, totalPages).map((pNum, i) => {
+                    if (typeof pNum === 'string') {
+                      return (
+                        <span key={`dots-${i}`} className="px-1 text-slate-400 text-xs">
+                          ...
+                        </span>
+                      );
+                    }
+                    const isActive = pNum === currentPageSafe;
+                    return (
+                      <button
+                        key={pNum}
+                        onClick={() => setCurrentPage(pNum)}
+                        className={`min-w-[28px] h-7 px-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          isActive
+                            ? 'bg-sky-600 text-white shadow-xs'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {pNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPageSafe === totalPages}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+                  title="Próxima Página"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPageSafe === totalPages}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+                  title="Última Página"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
