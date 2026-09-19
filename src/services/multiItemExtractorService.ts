@@ -57,17 +57,18 @@ Você é um especialista em suprimentos corporativos e compras de TI no Brasil.
 Sua missão é ler a solicitação de cotação ou e-mail corporativo fornecido e extrair TODOS os produtos/itens comerciais solicitados.
 
 Para cada item identificado, retorne estritamente um objeto JSON com:
-- name: Nome comercial claro e objetivo do produto (ex: "Switch Aruba Instant On 1930 24G 4SFP+")
-- description: Especificações técnicas solicitadas no texto
+- name: Nome comercial claro e objetivo do produto com ortografia e acentuação da língua portuguesa estritamente preservadas (ex: "Lápis Preto HB", "Memória RAM 16GB", "Válvula Redutora", "Switch Aruba Instant On 1930 24G 4SFP+"). NUNCA remova acentos ou cedilhas dos nomes!
+- description: Especificações técnicas solicitadas no texto, com acentuação correta da língua portuguesa
 - partNumber: Código de fabricante / Part Number / Modelo exato se houver (ex: "JL682A", "SMC1500C", "01-SSC-0218")
 - quantity: Quantidade numérica inteira ou decimal (ex: 2)
 - unit: Unidade de medida (ex: "UN", "PC", "CX", "MT", "KIT")
 - estimatedCost: Custo unitário em Reais caso mencionado, senão 0
 
 Regras:
-1. Ignore assinaturas, saudações formais, dados bancários, CNPJ e endereços que não sejam produtos.
-2. Se houver 10 itens em formato de lista ou tabela, extraia todos os 10 itens como elementos da lista.
-3. Retorne APENAS um array JSON de itens, sem texto antes ou depois.
+1. PRESERVE SEMPRE A ACENTUAÇÃO E CEDILHAS (ex: Lápis, Memória, Elétrico, Válvula, Conexão). NUNCA desacentue termos em português.
+2. Ignore assinaturas, saudações formais, dados bancários, CNPJ e endereços que não sejam produtos.
+3. Se houver 10 itens em formato de lista ou tabela, extraia todos os 10 itens como elementos da lista.
+4. Retorne APENAS um array JSON de itens, sem texto antes ou depois.
 `;
 
   const prompt = `Texto da solicitação de cotação:\n"""\n${rawText.slice(0, 12000)}\n"""`;

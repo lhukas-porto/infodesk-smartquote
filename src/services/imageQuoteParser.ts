@@ -374,8 +374,8 @@ async function extractWithGeminiVision(
       '  "subject": "Cotação de Materiais",\n' +
       '  "items": [\n' +
       '    {\n' +
-      '      "name": "Nome padronizado canônico do fabricante",\n' +
-      '      "description": "Especificação técnica detalhada",\n' +
+      '      "name": "Nome canônico do produto com ortografia e acentuação da língua portuguesa estritamente preservadas (ex: Lápis, Memória, Válvula, Café)",\n' +
+      '      "description": "Especificação técnica detalhada com acentuação correta",\n' +
       '      "quantity": 500,\n' +
       '      "unit": "Pct",\n' +
       '      "partNumber": "código ou SKU do fabricante se houver",\n' +
