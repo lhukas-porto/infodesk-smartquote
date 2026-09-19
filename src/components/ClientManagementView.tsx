@@ -17,7 +17,10 @@ import {
   Sparkles,
   FileText,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   ArrowRight,
   PlusCircle,
   Clock,
@@ -114,6 +117,30 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     return base.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
   }, [companies, searchFilter]);
 
+  // Paginação das Empresas (Opção 3: Master-Detail com Barra Lateral Paginada)
+  const [companyPage, setCompanyPage] = useState(1);
+  const [companyPageSize, setCompanyPageSize] = useState(6);
+
+  // Reseta para página 1 ao pesquisar ou alterar a quantidade por página
+  React.useEffect(() => {
+    setCompanyPage(1);
+  }, [searchFilter, companyPageSize]);
+
+  const totalCompanyPages = Math.max(1, Math.ceil(filteredCompanies.length / companyPageSize));
+  const companyPageSafe = Math.min(Math.max(1, companyPage), totalCompanyPages);
+
+  const paginatedCompanies = useMemo(() => {
+    const start = (companyPageSafe - 1) * companyPageSize;
+    return filteredCompanies.slice(start, start + companyPageSize);
+  }, [filteredCompanies, companyPageSafe, companyPageSize]);
+
+  const selectedCompanyPageIndex = useMemo(() => {
+    if (!selectedCompanyId) return 1;
+    const idx = filteredCompanies.findIndex(c => c.id === selectedCompanyId);
+    if (idx === -1) return 1;
+    return Math.floor(idx / companyPageSize) + 1;
+  }, [filteredCompanies, selectedCompanyId, companyPageSize]);
+
   // All buyers
   const allBuyers = useMemo(() => {
     const list: Array<{ company: ClientCompany; contact: ClientContact }> = [];
@@ -140,6 +167,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     const updated = [newCompany, ...companies];
     onSaveCompanies(updated);
     setSelectedCompanyId(newCompany.id);
+    setCompanyPage(1);
     setNewCompanyName('');
     setNewCompanyPrefix('À');
     setIsAddingCompany(false);
@@ -380,97 +408,181 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       {/* Master-Detail Layout */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col md:grid md:grid-cols-12 min-h-[600px]">
 
-        {/* Left: Companies List */}
-        <div className="md:col-span-4 border-r border-slate-200 flex flex-col bg-slate-50/40 p-4 space-y-3 overflow-y-auto max-h-[75vh]">
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-              Empresas ({filteredCompanies.length})
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsAddingCompany(!isAddingCompany)}
-              className="text-[11px] font-semibold text-sky-700 hover:text-sky-800 flex items-center gap-1 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200 transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Nova Empresa</span>
-            </button>
-          </div>
+        {/* Left: Companies List (Paginada - Opção 3) */}
+        <div className="md:col-span-4 border-r border-slate-200 flex flex-col justify-between bg-slate-50/40 p-4 space-y-3 min-h-[640px] max-h-[82vh]">
+          <div className="flex-1 flex flex-col min-h-0 space-y-3">
+            <div className="flex items-center justify-between pt-1 shrink-0">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                Empresas ({filteredCompanies.length})
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsAddingCompany(!isAddingCompany)}
+                className="text-[11px] font-semibold text-sky-700 hover:text-sky-800 flex items-center gap-1 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nova Empresa</span>
+              </button>
+            </div>
 
-          {isAddingCompany && (
-            <form onSubmit={handleCreateCompany} className="bg-white p-3 rounded-xl border border-sky-300 shadow-sm space-y-2 animate-in fade-in">
-              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                <span className="text-xs font-bold text-slate-800">Cadastrar Empresa</span>
-                <button type="button" onClick={() => setIsAddingCompany(false)} className="text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
-              </div>
-              <div className="flex gap-1.5">
-                <select
-                  value={newCompanyPrefix}
-                  onChange={(e) => setNewCompanyPrefix(e.target.value as 'À' | 'Ao')}
-                  className="text-xs px-2 py-1.5 bg-sky-50 border border-sky-300 rounded-lg font-bold text-sky-900 focus:outline-none focus:border-sky-500 cursor-pointer shadow-2xs"
-                  title="Escolha o prefixo de tratamento da empresa (À ou Ao)"
-                >
-                  <option value="À">À</option>
-                  <option value="Ao">Ao</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="Nome da empresa..."
-                  value={newCompanyName}
-                  onChange={(e) => setNewCompanyName(e.target.value)}
-                  className="flex-1 text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-medium"
-                  autoFocus
-                  required
-                />
-              </div>
-              <input type="text" placeholder="Local padrão (Ex: Brasília - DF)" value={newCompanyLocation} onChange={(e) => setNewCompanyLocation(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500" />
-              <div className="flex justify-end gap-1.5 pt-1">
-                <button type="button" onClick={() => setIsAddingCompany(false)} className="text-xs px-2.5 py-1 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
-                <button type="submit" className="text-xs px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg">Salvar</button>
-              </div>
-            </form>
-          )}
-
-          <div className="space-y-1.5 flex-1 overflow-y-auto pr-0.5">
-            {filteredCompanies.map(comp => {
-              const isSelected = selectedCompany?.id === comp.id;
-              const displayPrefix = comp.prefix || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
-              return (
-                <div
-                  key={comp.id}
-                  onClick={() => { setSelectedCompanyId(comp.id); setIsEditingCompany(false); setEditingContact(null); }}
-                  className={`p-3 rounded-xl cursor-pointer border transition space-y-1 ${isSelected ? 'bg-sky-50/90 border-sky-400 shadow-sm' : 'bg-white hover:bg-slate-100 border-slate-200/80'}`}
-                >
-                  <div className="flex items-start justify-between gap-1.5">
-                    <p className={`text-xs font-bold leading-snug line-clamp-2 ${isSelected ? 'text-sky-900' : 'text-slate-800'}`}>
-                      <span className="inline-block text-[10px] font-mono font-bold text-sky-700 bg-sky-100/80 border border-sky-200 px-1 py-0.2 rounded mr-1">
-                        {displayPrefix}
-                      </span>
-                      {comp.name}
-                    </p>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{comp.contacts.length} comp.</span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setSelectedCompanyId(comp.id); setCompanyIdToDelete(comp.id); }}
-                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                  {comp.defaultDeliveryLocation && (
-                    <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                      <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span className="truncate">{comp.defaultDeliveryLocation}</span>
-                    </p>
-                  )}
+            {isAddingCompany && (
+              <form onSubmit={handleCreateCompany} className="bg-white p-3 rounded-xl border border-sky-300 shadow-sm space-y-2 animate-in fade-in shrink-0">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                  <span className="text-xs font-bold text-slate-800">Cadastrar Empresa</span>
+                  <button type="button" onClick={() => setIsAddingCompany(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                 </div>
-              );
-            })}
-            {filteredCompanies.length === 0 && (
-              <div className="text-center py-8 text-slate-400 text-xs">Nenhuma empresa encontrada.</div>
+                <div className="flex gap-1.5">
+                  <select
+                    value={newCompanyPrefix}
+                    onChange={(e) => setNewCompanyPrefix(e.target.value as 'À' | 'Ao')}
+                    className="text-xs px-2 py-1.5 bg-sky-50 border border-sky-300 rounded-lg font-bold text-sky-900 focus:outline-none focus:border-sky-500 cursor-pointer shadow-2xs"
+                    title="Escolha o prefixo de tratamento da empresa (À ou Ao)"
+                  >
+                    <option value="À">À</option>
+                    <option value="Ao">Ao</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Nome da empresa..."
+                    value={newCompanyName}
+                    onChange={(e) => setNewCompanyName(e.target.value)}
+                    className="flex-1 text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-medium"
+                    autoFocus
+                    required
+                  />
+                </div>
+                <input type="text" placeholder="Local padrão (Ex: Brasília - DF)" value={newCompanyLocation} onChange={(e) => setNewCompanyLocation(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500" />
+                <div className="flex justify-end gap-1.5 pt-1">
+                  <button type="button" onClick={() => setIsAddingCompany(false)} className="text-xs px-2.5 py-1 text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer">Cancelar</button>
+                  <button type="submit" className="text-xs px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg cursor-pointer">Salvar</button>
+                </div>
+              </form>
             )}
+
+            <div className="space-y-1.5 flex-1 overflow-y-auto pr-0.5 custom-scrollbar">
+              {paginatedCompanies.map(comp => {
+                const isSelected = selectedCompany?.id === comp.id;
+                const displayPrefix = comp.prefix || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
+                return (
+                  <div
+                    key={comp.id}
+                    onClick={() => { setSelectedCompanyId(comp.id); setIsEditingCompany(false); setEditingContact(null); }}
+                    className={`p-3 rounded-xl cursor-pointer border transition space-y-1 ${isSelected ? 'bg-sky-50/90 border-sky-400 shadow-sm ring-1 ring-sky-300/40' : 'bg-white hover:bg-slate-100 border-slate-200/80'}`}
+                  >
+                    <div className="flex items-start justify-between gap-1.5">
+                      <p className={`text-xs font-bold leading-snug line-clamp-2 ${isSelected ? 'text-sky-900' : 'text-slate-800'}`}>
+                        <span className="inline-block text-[10px] font-mono font-bold text-sky-700 bg-sky-100/80 border border-sky-200 px-1 py-0.2 rounded mr-1">
+                          {displayPrefix}
+                        </span>
+                        {comp.name}
+                      </p>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{comp.contacts.length} comp.</span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelectedCompanyId(comp.id); setCompanyIdToDelete(comp.id); }}
+                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
+                          title="Excluir empresa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {comp.defaultDeliveryLocation && (
+                      <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{comp.defaultDeliveryLocation}</span>
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+              {filteredCompanies.length === 0 && (
+                <div className="text-center py-8 text-slate-400 text-xs">Nenhuma empresa encontrada.</div>
+              )}
+            </div>
           </div>
+
+          {/* Rodapé de Paginação Compacto e Moderno (Opção 3) */}
+          {filteredCompanies.length > 0 && (
+            <div className="pt-3 border-t border-slate-200/90 flex flex-col gap-2 shrink-0 bg-slate-50/60 rounded-b-xl">
+              <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <span>
+                  {(companyPageSafe - 1) * companyPageSize + 1}–{Math.min(filteredCompanies.length, companyPageSafe * companyPageSize)} de {filteredCompanies.length}
+                </span>
+                <select
+                  value={companyPageSize}
+                  onChange={(e) => setCompanyPageSize(Number(e.target.value))}
+                  className="bg-white border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg px-2 py-0.5 text-[11px] font-semibold focus:outline-none focus:border-sky-500 cursor-pointer shadow-2xs"
+                  title="Quantidade de empresas por página"
+                >
+                  <option value={6}>6 por pág.</option>
+                  <option value={8}>8 por pág.</option>
+                  <option value={12}>12 por pág.</option>
+                  <option value={20}>20 por pág.</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCompanyPage(1)}
+                    disabled={companyPageSafe === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer shadow-2xs"
+                    title="Primeira Página"
+                  >
+                    <ChevronsLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompanyPage(prev => Math.max(1, prev - 1))}
+                    disabled={companyPageSafe === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer shadow-2xs"
+                    title="Página Anterior"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <span className="text-xs font-bold text-slate-700 font-mono px-2 py-1 bg-white border border-slate-200 rounded-lg shadow-2xs">
+                  {companyPageSafe} / {totalCompanyPages}
+                </span>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCompanyPage(prev => Math.min(totalCompanyPages, prev + 1))}
+                    disabled={companyPageSafe === totalCompanyPages}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer shadow-2xs"
+                    title="Próxima Página"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompanyPage(totalCompanyPages)}
+                    disabled={companyPageSafe === totalCompanyPages}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer shadow-2xs"
+                    title="Última Página"
+                  >
+                    <ChevronsRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {selectedCompanyPageIndex !== companyPageSafe && selectedCompany && (
+                <button
+                  type="button"
+                  onClick={() => setCompanyPage(selectedCompanyPageIndex)}
+                  className="w-full text-[10px] text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-lg py-1 px-2 text-center transition font-semibold truncate cursor-pointer"
+                  title={`Ir para a página onde está a empresa ${selectedCompany.name}`}
+                >
+                  📍 Aberta ao lado: {selectedCompany.name} (Pág. {selectedCompanyPageIndex})
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right: Company Detail + Buyers */}
