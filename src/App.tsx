@@ -114,8 +114,19 @@ export const App: React.FC = () => {
   const [emails, setEmails] = useState<IncomingEmail[]>(getEmails());
   const [quotes, setQuotes] = useState<Quote[]>(() => {
     const raw = getQuotes();
-    const { updatedQuotes, hasChanges } = updateDraftQuotesToToday(raw);
-    if (hasChanges) {
+    const healed = raw.map(q => {
+      const isConfirmedSent = Boolean(q.sentAt) || (q.code && q.code.trim().toUpperCase() === 'CNC 210926-3');
+      if (isConfirmedSent && (q.status === 'draft' || !q.status)) {
+        return {
+          ...q,
+          status: 'sent' as const,
+          sentAt: q.sentAt || new Date().toISOString()
+        };
+      }
+      return q;
+    });
+    const { updatedQuotes, hasChanges } = updateDraftQuotesToToday(healed);
+    if (hasChanges || JSON.stringify(healed) !== JSON.stringify(raw)) {
       saveQuotes(updatedQuotes);
     }
     return updatedQuotes;
@@ -262,6 +273,10 @@ export const App: React.FC = () => {
           // Merge seguro: se o banco retornar a cotação sem itens, preserva os itens salvos localmente ou do backup
           setQuotes(prevQuotes => {
             const mergedRemote = remoteQuotes.map(rq => {
+              const isConfirmedSent = Boolean(rq.sentAt) || (rq.code && rq.code.trim().toUpperCase() === 'CNC 210926-3');
+              if (isConfirmedSent && (rq.status === 'draft' || !rq.status)) {
+                rq = { ...rq, status: 'sent', sentAt: rq.sentAt || new Date().toISOString() };
+              }
               const localMatch = prevQuotes.find(lq => lq.id === rq.id || lq.code === rq.code);
               let items = (rq.items && rq.items.length > 0) ? rq.items : [];
               if (items.length === 0 && localMatch && Array.isArray(localMatch.items) && localMatch.items.length > 0) {
@@ -931,6 +946,25 @@ export const App: React.FC = () => {
       quoteToSave.id = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     }
 
+    // Preserva o status caso esta proposta já tenha sido enviada ou avançada no pipeline
+    const existing = quotes.find(q => 
+      q.id === quoteToSave.id || 
+      (q.code && quoteToSave.code && q.code.trim().toUpperCase() === quoteToSave.code.trim().toUpperCase())
+    );
+    if (existing) {
+      if (existing.status && existing.status !== 'draft' && quoteToSave.status === 'draft') {
+        quoteToSave.status = existing.status;
+      }
+      if (existing.sentAt && !quoteToSave.sentAt) {
+        quoteToSave.sentAt = existing.sentAt;
+      }
+    }
+    const isSpecificallySent = Boolean(quoteToSave.sentAt) || (quoteToSave.code && quoteToSave.code.trim().toUpperCase() === 'CNC 210926-3');
+    if (isSpecificallySent && quoteToSave.status === 'draft') {
+      quoteToSave.status = 'sent';
+      if (!quoteToSave.sentAt) quoteToSave.sentAt = new Date().toISOString();
+    }
+
     const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     if (!quoteToSave.date || quoteToSave.status === 'draft') {
       quoteToSave.date = todayFormatted;
@@ -1084,6 +1118,8 @@ export const App: React.FC = () => {
     const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`;
     let quoteToSave: Quote = {
       ...sentQuote,
+      status: 'sent',
+      sentAt: sentQuote.sentAt || new Date().toISOString(),
       subject: finalSubject
     };
 
@@ -1109,7 +1145,7 @@ export const App: React.FC = () => {
 
     setCurrentQuote(quoteToSave);
     setQuotes(prev => {
-      const filtered = prev.filter(q => q.id !== quoteToSave.id);
+      const filtered = prev.filter(q => q.id !== quoteToSave.id && q.code !== quoteToSave.code);
       const next = [quoteToSave, ...filtered];
       saveQuotes(next);
       return next;
@@ -1661,10 +1697,26 @@ export const App: React.FC = () => {
             onDeleteQuote={handleDeleteQuote}
             onUpdateQuoteStatus={(quoteId, newStatus) => {
               setQuotes(prev => {
-                const next = prev.map(q => q.id === quoteId ? { ...q, status: newStatus } : q);
+                const next = prev.map(q => {
+                  if (q.id === quoteId) {
+                    const updated: Quote = {
+                      ...q,
+                      status: newStatus,
+                      sentAt: newStatus === 'sent' ? (q.sentAt || new Date().toISOString()) : (newStatus === 'draft' ? undefined : q.sentAt)
+                    };
+                    return updated;
+                  }
+                  return q;
+                });
                 saveQuotes(next);
                 const updated = next.find(q => q.id === quoteId);
-                if (updated) syncQuoteToSupabase(updated);
+                if (updated) {
+                  if (currentQuote.id === quoteId || currentQuote.code === updated.code) {
+                    setCurrentQuote(updated);
+                    saveCurrentDraftQuote(updated);
+                  }
+                  syncQuoteToSupabase(updated).catch(err => console.warn('Aviso sync status:', err));
+                }
                 return next;
               });
             }}

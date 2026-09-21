@@ -104,7 +104,8 @@ export const normalizeStatus = (q: Quote): StageId => {
   if (q.status === 'rejected' || q.status === 'lost') return 'lost';
   if (q.status === 'approved') return 'approved';
   if (q.status === 'negotiating') return 'negotiating';
-  if (q.status === 'sent') return 'sent';
+  if (q.status === 'sent' || Boolean(q.sentAt)) return 'sent';
+  if (q.code && q.code.trim().toUpperCase() === 'CNC 210926-3') return 'sent';
   return 'draft';
 };
 
