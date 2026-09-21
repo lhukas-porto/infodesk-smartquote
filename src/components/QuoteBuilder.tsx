@@ -1536,16 +1536,18 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     }));
   };
 
-  // Preenchimento em lote: aplicar formatação de texto estilo Word em todos os itens da cotação
+  // Preenchimento em lote: aplicar formatação de texto estilo Word nos itens selecionados (ou todos se nenhum selecionado)
   const handleApplyCaseToQuoteItems = (style: WordCaseStyle) => {
     setActiveQuoteCaseStyle(style);
     setIsQuoteCaseMenuOpen(false);
+    const hasSelection = selectedItemIds.length > 0;
     setCurrentQuote(prev => ({
       ...prev,
-      items: prev.items.map(it => ({
-        ...it,
-        name: applyTextCase(it.name, style)
-      }))
+      items: prev.items.map(it => {
+        // Se há seleção, aplica só nos selecionados; caso contrário, aplica em todos
+        if (hasSelection && !selectedItemIds.includes(it.id)) return it;
+        return { ...it, name: applyTextCase(it.name, style) };
+      })
     }));
   };
 
@@ -2652,7 +2654,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         ? 'bg-sky-50 text-sky-700 border-sky-300 ring-1 ring-sky-200'
                         : 'bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border-slate-200'
                     }`}
-                    title="Altera maiúsculas/minúsculas de todos os itens da cotação (estilo Microsoft Word)"
+                    title={selectedItemIds.length > 0 ? `Altera maiúsculas/minúsculas dos ${selectedItemIds.length} item(s) selecionado(s)` : 'Altera maiúsculas/minúsculas de todos os itens da cotação (estilo Microsoft Word)'}
                   >
                     <span className="font-serif font-bold text-xs tracking-tight text-sky-700 bg-sky-100 px-1 py-0.2 rounded">
                       Aa
@@ -2664,7 +2666,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   {isQuoteCaseMenuOpen && (
                     <div className="absolute left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-40 animate-in fade-in slide-in-from-top-1">
                       <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Formatar Itens da Cotação (Word)
+                        {selectedItemIds.length > 0 ? `Formatar ${selectedItemIds.length} Item(s) Selecionado(s)` : 'Formatar Todos os Itens (Word)'}
                       </div>
 
                       <button
@@ -2950,6 +2952,17 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                               />
                               <span className="font-medium text-[10px] whitespace-nowrap">Foto na proposta</span>
                             </label>
+
+                            {/* Botão Aa – Alterna maiúsculas/minúsculas do item */}
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleCycleItemTextCase(idx, item.id)}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-sky-700 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
+                              title="Alternar maiúsculas/minúsculas da palavra sob o cursor, da seleção ou do nome completo"
+                            >
+                              <span className="font-serif font-bold text-[11px] tracking-tight text-sky-700">Aa</span>
+                            </button>
 
                             <button
                               type="button"
