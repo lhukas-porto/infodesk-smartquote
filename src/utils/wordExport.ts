@@ -424,14 +424,23 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
   }
 
   if (cleanObs) {
+    const obsLines = cleanObs.split('\n');
+    const obsRuns: TextRun[] = [
+      new TextRun({ text: '➤  ', size: 20 }),
+      new TextRun({ text: 'Obs: ', bold: true, size: 20 })
+    ];
+    obsLines.forEach((line, lIdx) => {
+      if (lIdx === 0) {
+        obsRuns.push(new TextRun({ text: line, size: 20 }));
+      } else {
+        obsRuns.push(new TextRun({ text: `     ${line}`, break: 1, size: 20 }));
+      }
+    });
+
     conditionsParagraphs.push(
       new Paragraph({
         spacing: { line: 360, after: 480 },
-        children: [
-          new TextRun({ text: '➤  ', size: 20 }),
-          new TextRun({ text: 'Obs: ', bold: true, size: 20 }),
-          new TextRun({ text: cleanObs, size: 20 })
-        ]
+        children: obsRuns
       })
     );
   } else if (!formattedShipping) {

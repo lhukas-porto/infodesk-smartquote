@@ -3769,7 +3769,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </div>
 
           {/* Cláusula de Frete */}
-          <div>
+          <div className="md:col-span-2">
             <div className="flex items-center justify-between mb-1">
               <label className="text-slate-600 font-medium flex items-center gap-1 text-xs">
                 <Truck className="w-3.5 h-3.5 text-sky-600" />
@@ -3802,14 +3802,26 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             />
           </div>
 
-          {/* Observações da Proposta (ao lado do frete) */}
-          <div>
-            <label className="block text-slate-600 font-medium mb-1 flex items-center gap-1">
-              <FileText className="w-3.5 h-3.5 text-sky-600" />
-              <span>Observações na Proposta</span>
-            </label>
-            <input
-              type="text"
+          {/* Observações da Proposta (Amplo e Multilinha) */}
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-slate-700 font-bold flex items-center gap-1.5 text-xs">
+                <FileText className="w-4 h-4 text-sky-600" />
+                <span>Observações na Proposta</span>
+                <span className="text-[10.5px] text-slate-400 font-normal">(aparece no documento oficial e no corpo do e-mail)</span>
+              </label>
+              {(currentQuote.observations || currentQuote.notes) && (
+                <button
+                  type="button"
+                  onClick={() => setCurrentQuote(prev => ({ ...prev, observations: '', notes: '' }))}
+                  className="text-[10px] text-slate-400 hover:text-rose-600 font-medium transition cursor-pointer"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+            <textarea
+              rows={3}
               value={currentQuote.observations || currentQuote.notes || ''}
               onChange={(e) => {
                 const val = e.target.value;
@@ -3819,8 +3831,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   notes: val
                 }));
               }}
-              placeholder="Ex: Faturamento direto da fábrica / Impostos inclusos."
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-sky-500 font-medium text-xs"
+              placeholder="Ex: Faturamento direto da fábrica.&#10;Impostos inclusos no valor total.&#10;Garantia on-site com atendimento nacional."
+              className="w-full min-h-[85px] bg-slate-50 border border-slate-300 hover:border-slate-400 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl px-3.5 py-2.5 text-slate-900 font-medium text-xs leading-relaxed transition resize-y"
             />
           </div>
         </div>

@@ -314,7 +314,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                 const clean = (quote.observations || quote.notes || '').trim().replace(/^(obs(\.|ervação|ervações)?\s*:\s*)/i, '').trim();
                 if (!clean) return null;
                 return (
-                  <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>
+                  <p style={{ fontSize: '10pt', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
                     ➤&nbsp; <strong style={{ fontWeight: 'bold' }}>Obs:</strong> {clean}
                   </p>
                 );

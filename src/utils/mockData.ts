@@ -9,7 +9,7 @@ export const defaultCompanySettings: CompanySettings = {
   cityState: 'Brasília – DF',
   phone: '(61) 3033-5373',
   whatsapp: '(61) 9 9627-2630',
-  email: 'lucas@infodesk.com.br',
+  email: 'lucas@infodesk.net.br',
   representativeName: 'Lucas Porto',
   defaultValidityDays: '03 (três) dias ou enquanto durar o estoque.',
   defaultPaymentTerms: 'Faturado.',

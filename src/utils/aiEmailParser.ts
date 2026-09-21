@@ -2986,7 +2986,9 @@ export function generateProposalEmailHtml(
       ${formattedShipping ? `<p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; font-weight: bold; color: #000000;">➤&nbsp; ${formattedShipping}</p>` : ''}
       ${(() => {
         const clean = (quote.observations || quote.notes || '').trim().replace(/^(obs(\.|ervação|ervações)?\s*:\s*)/i, '').trim();
-        return clean ? `<p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; <strong style="font-weight: bold;">Obs:</strong> ${clean}</p>` : '';
+        if (!clean) return '';
+        const formattedHtml = escapeHtml(clean).replace(/\n/g, '<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+        return `<p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000; white-space: pre-line;">➤&nbsp; <strong style="font-weight: bold;">Obs:</strong> ${formattedHtml}</p>`;
       })()}
     </div>
 

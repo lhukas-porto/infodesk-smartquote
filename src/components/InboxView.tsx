@@ -65,7 +65,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
   onDeleteManualAnalysis,
   onUpdateManualAnalysis,
   isGoogleConnected = false,
-  connectedEmail = 'lucas@infodesk.com.br',
+  connectedEmail = 'lucas@infodesk.net.br',
   isSyncing = false,
   syncError = null,
   currentPeriod = '7d',
