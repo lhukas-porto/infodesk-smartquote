@@ -14,6 +14,7 @@ export interface Product {
   sourceUrl?: string;
   imageUrl?: string;
   shippingCost?: number;
+  dollarPrice?: number;
 }
 
 export interface SupplierOffer {
@@ -145,6 +146,7 @@ export interface CompanySettings {
   defaultMarkupPercent: number;
   defaultTaxPercent: number;
   defaultShippingCost: number;
+  dailyDollarRate?: number;
   googleWorkspaceConnected: boolean;
   googleAccountEmail: string;
   registeredCategories?: string[];

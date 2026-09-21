@@ -70,12 +70,13 @@ const STORAGE_SCAN_CACHE_KEY = 'infodesk_price_scan_cache_v2';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
 
 /**
- * Modelos Gemini modernos disponíveis em produção (substituem modelos descontinuados 1.5 e 2.0)
- * Prioriza os 2 modelos oficiais mais rápidos para evitar cascatas desnecessárias de rede
+ * Modelos Gemini disponíveis em produção (em ordem de preferência: mais capaz → mais rápido)
+ * Atualizados em Set/2025 para refletir os modelos reais da API Gemini
  */
 export const MODERN_GEMINI_MODELS = [
-  'gemini-3.6-flash',
-  'gemini-3.5-flash'
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash'
 ];
 
 /**
@@ -100,7 +101,7 @@ export function resetGeminiCircuitBreaker(): void {
 async function fetchGeminiWithTimeout(
   endpoint: string,
   body: any,
-  timeoutMs: number = 6000
+  timeoutMs: number = 25000
 ): Promise<{ ok: boolean; status: number; data?: any; errorText?: string; rateLimited?: boolean }> {
   if (isGeminiCircuitBreakerActive()) {
     return { ok: false, status: 429, errorText: 'Circuit breaker ativo (cota de IA em resfriamento)', rateLimited: true };
@@ -134,7 +135,7 @@ async function fetchGeminiWithTimeout(
   } catch (err: any) {
     clearTimeout(timer);
     const isTimeout = err?.name === 'AbortError';
-    return { ok: false, status: isTimeout ? 408 : 0, errorText: isTimeout ? 'Timeout (6s excedido)' : err?.message };
+    return { ok: false, status: isTimeout ? 408 : 0, errorText: isTimeout ? `Timeout (${timeoutMs / 1000}s excedido)` : err?.message };
   }
 }
 
@@ -1450,7 +1451,7 @@ Retorne ESTRITAMENTE um JSON no formato:
             temperature: 0.1,
             responseMimeType: 'application/json'
           }
-        }, 6000);
+        }, 30000);
 
         if (callRes.rateLimited) {
           // Cota excedida ou disjuntor acionado: interrompe cascata imediatamente

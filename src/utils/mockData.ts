@@ -19,6 +19,7 @@ export const defaultCompanySettings: CompanySettings = {
   defaultMarkupPercent: 23.5,
   defaultTaxPercent: 9.1,
   defaultShippingCost: 0,
+  dailyDollarRate: 5.60,
   googleWorkspaceConnected: true,
   googleAccountEmail: 'lucas@infodesk.net.br'
 };

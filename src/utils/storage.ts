@@ -227,6 +227,9 @@ export const getSettings = (): CompanySettings => {
       if (!parsed.googleAccountEmail || parsed.googleAccountEmail.includes('infodesk.com.br')) {
         parsed.googleAccountEmail = 'lucas@infodesk.net.br';
       }
+      if (!parsed.dailyDollarRate || isNaN(Number(parsed.dailyDollarRate)) || Number(parsed.dailyDollarRate) <= 0) {
+        parsed.dailyDollarRate = defaultCompanySettings.dailyDollarRate || 5.60;
+      }
       return parsed;
     } catch (e) { console.error(e); }
   }
@@ -239,7 +242,8 @@ export const saveSettings = (settings: CompanySettings): void => {
   const normalized: CompanySettings = {
     ...settings,
     email: cleanEmail,
-    googleAccountEmail: cleanGoogleEmail
+    googleAccountEmail: cleanGoogleEmail,
+    dailyDollarRate: Number(settings.dailyDollarRate) > 0 ? Number(settings.dailyDollarRate) : 5.60
   };
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));

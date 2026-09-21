@@ -73,7 +73,7 @@ Regras:
 
   const prompt = `Texto da solicitação de cotação:\n"""\n${rawText.slice(0, 12000)}\n"""`;
 
-  const models = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest'];
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
   for (const model of models) {
     try {

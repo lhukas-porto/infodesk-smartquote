@@ -47,6 +47,7 @@ export async function fetchCompanySettingsFromSupabase(): Promise<CompanySetting
       defaultMarkupPercent: !isNaN(Number(data.default_markup_percent)) ? Number(data.default_markup_percent) : 23.5,
       defaultTaxPercent: !isNaN(Number(data.default_tax_percent)) ? Number(data.default_tax_percent) : 9.1,
       defaultShippingCost: !isNaN(Number(data.default_shipping_cost)) ? Number(data.default_shipping_cost) : 0,
+      dailyDollarRate: !isNaN(Number(data.daily_dollar_rate)) && Number(data.daily_dollar_rate) > 0 ? Number(data.daily_dollar_rate) : 5.60,
       googleWorkspaceConnected: Boolean(data.google_workspace_connected ?? true),
       googleAccountEmail: String(data.google_account_email || data.email || 'lucas@infodesk.net.br').replace('@infodesk.com.br', '@infodesk.net.br'),
       registeredCategories: Array.isArray(data.registered_categories) ? data.registered_categories : undefined,
@@ -81,6 +82,7 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
       default_markup_percent: settings.defaultMarkupPercent,
       default_tax_percent: settings.defaultTaxPercent,
       default_shipping_cost: settings.defaultShippingCost,
+      daily_dollar_rate: settings.dailyDollarRate || 5.60,
       ...(Array.isArray(settings.registeredCategories) ? { registered_categories: settings.registeredCategories } : {}),
       ...(Array.isArray(settings.registeredUnits) ? { registered_units: settings.registeredUnits } : {}),
       updated_at: new Date().toISOString()

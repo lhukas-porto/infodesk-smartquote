@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS company_settings (
   default_markup_percent NUMERIC(6,2) NOT NULL DEFAULT 35.00,
   default_tax_percent NUMERIC(6,2) NOT NULL DEFAULT 6.00,
   default_shipping_cost NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  daily_dollar_rate NUMERIC(8,4) NOT NULL DEFAULT 5.6000,
   google_workspace_connected BOOLEAN NOT NULL DEFAULT true,
   google_account_email TEXT DEFAULT 'lucas@infodesk.net.br',
   registered_categories TEXT[] DEFAULT ARRAY[]::TEXT[],
@@ -37,9 +38,10 @@ CREATE TABLE IF NOT EXISTS company_settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Migração retroativa idempotente para Categorias e Unidades unificadas:
+-- Migração retroativa idempotente para Categorias, Unidades e Dólar do Dia:
 ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS registered_categories TEXT[] DEFAULT ARRAY[]::TEXT[];
 ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS registered_units TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS daily_dollar_rate NUMERIC(8,4) DEFAULT 5.6000;
 
 
 -- ==============================================================================

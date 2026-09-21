@@ -28,6 +28,7 @@ import { CreatableCombobox } from './CreatableCombobox';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { WebImagePickerModal } from './WebImagePickerModal';
+import { getSettings } from '../utils/storage';
 
 export interface ProductEditModalProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ export interface ProductEditModalProps {
   badgeText?: string;
   initialShippingCost?: number;
   showShippingFields?: boolean;
+  dailyDollarRate?: number;
   saveButtonText?: string;
   saveButtonTitle?: string;
 }
@@ -132,10 +134,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   badgeText = 'Proposta & Produtos',
   initialShippingCost = 0,
   showShippingFields = true,
+  dailyDollarRate,
   saveButtonText = 'Salvar',
   saveButtonTitle = 'Salvar alterações no produto'
 }) => {
   const [draft, setDraft] = useState<Partial<Product>>(() => product || {});
+  const [dollarInput, setDollarInput] = useState<string>('');
   const [costInput, setCostInput] = useState<string>('');
   const [shippingInput, setShippingInput] = useState<string>('');
 
@@ -149,12 +153,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const backdropRef = useRef<HTMLDivElement>(null);
   const caseMenuRef = useRef<HTMLDivElement>(null);
 
+  const effectiveDollarRate = Number(dailyDollarRate) > 0 ? Number(dailyDollarRate) : (getSettings().dailyDollarRate || 5.60);
+
   // Sincroniza estado inicial sempre que o modal abre ou o produto fornecido muda
   useEffect(() => {
     if (isOpen && product) {
       setDraft({ ...product });
       const initialCost = product.costPrice !== undefined ? product.costPrice : 0;
       setCostInput(initialCost > 0 ? formatCurrencyPtBr(initialCost) : '0,00');
+
+      const initialDollar = (product as any)?.dollarPrice;
+      setDollarInput(initialDollar && initialDollar > 0 ? formatCurrencyPtBr(initialDollar) : '');
 
       const resolvedShipping = initialShippingCost !== undefined && initialShippingCost > 0
         ? initialShippingCost
@@ -167,6 +176,46 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       setIsWebImagePickerOpen(false);
     }
   }, [isOpen, product, initialShippingCost]);
+
+  // Conversão de Dólar para Real
+  const handleDollarChange = (val: string) => {
+    setDollarInput(val);
+    const parsedDollar = parsePtBrNumber(val);
+    if (parsedDollar > 0) {
+      const calculatedCostBrl = Number((parsedDollar * effectiveDollarRate).toFixed(2));
+      setCostInput(formatCurrencyPtBr(calculatedCostBrl));
+      setDraft(prev => ({
+        ...prev,
+        dollarPrice: parsedDollar,
+        costPrice: calculatedCostBrl
+      }));
+    } else {
+      setDraft(prev => ({
+        ...prev,
+        dollarPrice: undefined
+      }));
+    }
+  };
+
+  const handleDollarBlur = () => {
+    const parsedDollar = parsePtBrNumber(dollarInput);
+    if (parsedDollar > 0) {
+      setDollarInput(formatCurrencyPtBr(parsedDollar));
+      const calculatedCostBrl = Number((parsedDollar * effectiveDollarRate).toFixed(2));
+      setCostInput(formatCurrencyPtBr(calculatedCostBrl));
+      setDraft(prev => ({
+        ...prev,
+        dollarPrice: parsedDollar,
+        costPrice: calculatedCostBrl
+      }));
+    } else {
+      setDollarInput('');
+      setDraft(prev => ({
+        ...prev,
+        dollarPrice: undefined
+      }));
+    }
+  };
 
   // Fecha o menu de casos ao clicar fora
   useEffect(() => {
@@ -381,6 +430,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const unifiedCode = (draft.sku || draft.partNumber || '').trim();
     const parsedCost = parsePtBrNumber(costInput);
     const parsedShipping = parsePtBrNumber(shippingInput);
+    const parsedDollar = parsePtBrNumber(dollarInput);
 
     const finalProd: Product = {
       id: draft.id || `prod-${Date.now()}`,
@@ -391,6 +441,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       description: draft.description || '',
       category: draft.category || 'Geral',
       costPrice: parsedCost,
+      dollarPrice: parsedDollar > 0 ? parsedDollar : undefined,
       unit: draft.unit || 'Un.',
       supplier: draft.supplier || 'Fornecedor Web / Mercado',
       stock: draft.stock !== undefined ? Number(draft.stock) : 10,
@@ -729,8 +780,34 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               </div>
 
-              {/* Preço de Custo, Frete Unitário, Custo Total e Unidade */}
-              <div className={`grid grid-cols-1 ${showShippingFields ? 'sm:grid-cols-4' : 'sm:grid-cols-2'} gap-3`}>
+              {/* Preço em Dólar, Preço de Custo, Frete Unitário, Custo Total e Unidade */}
+              <div className={`grid grid-cols-1 ${showShippingFields ? 'sm:grid-cols-5' : 'sm:grid-cols-3'} gap-3`}>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Preço em Dólar (US$)
+                  </label>
+                  <input
+                    type="text"
+                    value={dollarInput}
+                    onFocus={() => {
+                      const parsed = parsePtBrNumber(dollarInput);
+                      if (parsed <= 0) {
+                        setDollarInput('');
+                      }
+                    }}
+                    onChange={(e) => handleDollarChange(e.target.value)}
+                    onBlur={handleDollarBlur}
+                    placeholder="0,00"
+                    title={`Preço em dólar americano (Cotação atual: R$ ${effectiveDollarRate.toFixed(2).replace('.', ',')})`}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
+                  />
+                  {effectiveDollarRate > 0 && (
+                    <p className="text-[9px] text-slate-400 text-center mt-0.5 font-medium truncate" title="Cotação do dia definida nas Configurações">
+                      US$ = R$ {effectiveDollarRate.toFixed(2).replace('.', ',')}
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
                     Preço de Custo (R$) *

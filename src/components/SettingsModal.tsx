@@ -60,6 +60,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   });
   const [markupInput, setMarkupInput] = useState<string>('');
   const [taxInput, setTaxInput] = useState<string>('');
+  const [dollarRateInput, setDollarRateInput] = useState<string>(() => {
+    const rate = settings.dailyDollarRate !== undefined && settings.dailyDollarRate > 0 ? settings.dailyDollarRate : 5.60;
+    return Number(rate).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  });
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [geminiKey, setGeminiKey] = useState(getStoredGeminiKey());
   const [serpApiKey, setSerpApiKey] = useState(getStoredSerpApiKey());
@@ -112,6 +116,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setForm(s);
       setMarkupInput(settings.defaultMarkupPercent !== undefined ? String(settings.defaultMarkupPercent).replace('.', ',') : '23,5');
       setTaxInput(settings.defaultTaxPercent !== undefined ? String(settings.defaultTaxPercent).replace('.', ',') : '9,1');
+      const rate = settings.dailyDollarRate !== undefined && settings.dailyDollarRate > 0 ? settings.dailyDollarRate : 5.60;
+      setDollarRateInput(Number(rate).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
       setGeminiKey(getStoredGeminiKey());
       setSerpApiKey(getStoredSerpApiKey());
       setCategories(getRegisteredCategories());
@@ -240,9 +246,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const cleanMarkup = markupInput.replace('%', '').trim().replace(',', '.');
     const cleanTax = taxInput.replace('%', '').trim().replace(',', '.');
+    const cleanDollar = dollarRateInput.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
 
     const parsedMarkup = parseFloat(cleanMarkup);
     const parsedTax = parseFloat(cleanTax);
+    const parsedDollar = parseFloat(cleanDollar);
 
     const cleanEmail = (form.email || form.googleAccountEmail || 'lucas@infodesk.net.br').trim().toLowerCase().replace('@infodesk.com.br', '@infodesk.net.br');
     const cleanGoogleEmail = (form.googleAccountEmail || cleanEmail || 'lucas@infodesk.net.br').trim().toLowerCase().replace('@infodesk.com.br', '@infodesk.net.br');
@@ -254,6 +262,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       googleAccountEmail: cleanGoogleEmail,
       defaultMarkupPercent: !isNaN(parsedMarkup) && parsedMarkup >= 0 ? parsedMarkup : (form.defaultMarkupPercent ?? 23.5),
       defaultTaxPercent: !isNaN(parsedTax) && parsedTax >= 0 ? parsedTax : (form.defaultTaxPercent ?? 9.1),
+      dailyDollarRate: !isNaN(parsedDollar) && parsedDollar > 0 ? parsedDollar : (form.dailyDollarRate ?? 5.60),
       defaultShippingCost: 0
     };
 
@@ -461,7 +470,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Calculator className="w-3.5 h-3.5" /> Parâmetros de Composição de Preço
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-slate-600 font-medium mb-1">Margem de Lucro Padrão (%)</label>
                 <div className="relative">
@@ -502,6 +511,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <span className="absolute right-2.5 top-2 text-xs text-slate-400">%</span>
                 </div>
                 <span className="text-[10px] text-slate-400">Ex: Simples Nacional 9,1%</span>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-medium mb-1 flex items-center justify-between">
+                  <span>Dólar do Dia (R$)</span>
+                  <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">US$ 1,00</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">R$</span>
+                  <input
+                    type="text"
+                    value={dollarRateInput}
+                    onChange={(e) => {
+                      setDollarRateInput(e.target.value);
+                      const clean = e.target.value.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
+                      const parsed = parseFloat(clean);
+                      if (!isNaN(parsed) && parsed > 0) {
+                        setForm(prev => ({ ...prev, dailyDollarRate: parsed }));
+                      }
+                    }}
+                    onBlur={() => {
+                      const clean = dollarRateInput.replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
+                      const parsed = parseFloat(clean);
+                      if (!isNaN(parsed) && parsed > 0) {
+                        setDollarRateInput(parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+                        setForm(prev => ({ ...prev, dailyDollarRate: parsed }));
+                      }
+                    }}
+                    placeholder="5,60"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-500 font-semibold font-mono"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400">Cotação p/ cálculo de itens em US$</span>
               </div>
             </div>
 
