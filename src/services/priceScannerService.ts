@@ -8,6 +8,7 @@ import { resolveProductDetails, resolveImageForDescription, cleanAlphanumericCod
 import { extractImageFromStoreUrl, extractDirectImageFromUrlPatterns } from './imageExtractorService';
 import { DiscoveredProduct } from '../types';
 import { searchProductImages } from './imageSearchService';
+import { compressImageDataUrl } from '../utils/imageCompressor';
 
 export type { DiscoveredProduct };
 export { searchProductImages };
@@ -71,11 +72,12 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
 
 /**
  * Modelos Gemini disponíveis para esta conta.
- * gemini-flash-lite-latest (3.5-flash-lite) responde em ~3s mesmo em picos de alta demanda.
- * gemini-3.6-flash e 3.5-flash atuam como fallbacks.
+ * gemini-flash-lite-latest e gemini-3.1-flash-lite respondem em ~3s mesmo em picos de alta demanda.
+ * gemini-3.6-flash e 3.5-flash atuam como fallbacks adicionais.
  */
 export const MODERN_GEMINI_MODELS = [
   'gemini-flash-lite-latest',
+  'gemini-3.1-flash-lite',
   'gemini-3.6-flash',
   'gemini-3.5-flash'
 ];
@@ -1181,25 +1183,21 @@ export interface Phase1DiscoveryOptions {
 export async function convertImageSourceToBase64(imageSource: string | File | Blob): Promise<{ mimeType: string; base64: string } | null> {
   if (!imageSource) return null;
 
+  let rawDataUrl: string | null = null;
+
   if (typeof imageSource === 'string') {
     if (imageSource.startsWith('data:')) {
-      const match = imageSource.match(/^data:([^;]+);base64,(.*)$/);
-      if (match) {
-        return { mimeType: match[1], base64: match[2] };
-      }
-    }
-    if (imageSource.startsWith('http')) {
+      rawDataUrl = imageSource;
+    } else if (imageSource.startsWith('http')) {
       try {
-        const resp = await fetch(imageSource);
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 4000);
+        const resp = await fetch(imageSource, { signal: controller.signal });
+        clearTimeout(t);
         const blob = await resp.blob();
-        return new Promise((resolve) => {
+        rawDataUrl = await new Promise<string | null>((resolve) => {
           const reader = new FileReader();
-          reader.onloadend = () => {
-            const res = reader.result as string;
-            const match = res?.match(/^data:([^;]+);base64,(.*)$/);
-            if (match) resolve({ mimeType: match[1], base64: match[2] });
-            else resolve(null);
-          };
+          reader.onloadend = () => resolve(reader.result as string || null);
           reader.onerror = () => resolve(null);
           reader.readAsDataURL(blob);
         });
@@ -1207,20 +1205,24 @@ export async function convertImageSourceToBase64(imageSource: string | File | Bl
         return null;
       }
     }
-    return null;
+  } else {
+    rawDataUrl = await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string || null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(imageSource);
+    });
   }
 
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const res = reader.result as string;
-      const match = res?.match(/^data:([^;]+);base64,(.*)$/);
-      if (match) resolve({ mimeType: match[1], base64: match[2] });
-      else resolve(null);
-    };
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(imageSource);
-  });
+  if (!rawDataUrl) return null;
+
+  // Comprime a imagem para 1024x1024 mantendo nitidez visual, mas reduzindo o payload de 5MB para ~60KB
+  const optimizedUrl = await compressImageDataUrl(rawDataUrl, 1024, 1024, 0.85);
+  const match = optimizedUrl.match(/^data:([^;]+);base64,(.*)$/);
+  if (match) {
+    return { mimeType: match[1], base64: match[2] };
+  }
+  return null;
 }
 
 /**
@@ -1452,7 +1454,7 @@ Retorne ESTRITAMENTE um JSON no formato:
             temperature: 0.1,
             responseMimeType: 'application/json'
           }
-        }, 30000);
+        }, 45000);
 
         if (callRes.rateLimited) {
           // Cota excedida ou disjuntor acionado: interrompe cascata imediatamente
