@@ -1455,22 +1455,37 @@ Retorne ESTRITAMENTE um JSON no formato:
 
         if (callRes.rateLimited) {
           // Cota excedida ou disjuntor acionado: interrompe cascata imediatamente
+          console.error(`[Phase1][${model}] Rate limited / Circuit breaker ativo`);
           break;
         }
 
         if (!callRes.ok || !callRes.data) {
+          console.error(`[Phase1][${model}] Falha HTTP ${callRes.status}:`, callRes.errorText?.slice(0, 300));
           continue;
         }
 
         const data = callRes.data;
         const rawOutput = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!rawOutput) continue;
+        if (!rawOutput) {
+          const finishReason = data?.candidates?.[0]?.finishReason;
+          const safetyRatings = data?.candidates?.[0]?.safetyRatings;
+          console.error(`[Phase1][${model}] Sem rawOutput. finishReason:`, finishReason, '| safety:', JSON.stringify(safetyRatings));
+          continue;
+        }
 
         const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) continue;
+        if (!jsonMatch) {
+          console.error(`[Phase1][${model}] Resposta não é JSON:`, rawOutput.slice(0, 200));
+          continue;
+        }
 
         const parsed = JSON.parse(jsonMatch[0]);
         const list = Array.isArray(parsed.products) ? parsed.products : (parsed.standardizedName ? [parsed] : []);
+
+        if (list.length === 0) {
+          console.error(`[Phase1][${model}] Gemini retornou lista vazia de produtos. JSON:`, rawOutput.slice(0, 200));
+          continue;
+        }
 
         if (list.length > 0) {
           const results = await Promise.all(
