@@ -90,7 +90,7 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
   const handleSelectOption = (opt: string) => {
     const cleanOpt = opt.trim();
     onChange(cleanOpt);
-    if (onAddOption) onAddOption(cleanOpt);
+    // Não chama onAddOption para opções já cadastradas (evita duplicatas)
     setFilterText('');
     setIsOpen(false);
   };
@@ -120,9 +120,13 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
     const trimmed = (value || '').trim();
     if (!trimmed && defaultValue) {
       onChange(defaultValue);
-      if (onAddOption) onAddOption(defaultValue);
+      // Só registra o padrão se ele não for uma opção já existente
+      const isExisting = uniqueOptions.some(o => o.toLowerCase() === defaultValue.toLowerCase());
+      if (!isExisting && onAddOption) onAddOption(defaultValue);
     } else if (trimmed) {
-      if (onAddOption) onAddOption(trimmed);
+      // Só chama onAddOption se for um valor NOVO (não existente na lista)
+      const isExisting = uniqueOptions.some(o => o.toLowerCase() === trimmed.toLowerCase());
+      if (!isExisting && onAddOption) onAddOption(trimmed);
     }
   };
 

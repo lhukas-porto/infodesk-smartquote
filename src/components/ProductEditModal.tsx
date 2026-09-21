@@ -892,7 +892,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     onChange={(val) => {
                       const finalVal = val.trim() || 'Un.';
                       setDraft(prev => ({ ...prev, unit: finalVal }));
-                      if (onAddUnit) onAddUnit(finalVal);
+                      // onAddUnit só é chamado pelo onAddOption (ao confirmar a nova entrada)
                     }}
                     options={availableUnits}
                     onAddOption={(newUnit) => {
@@ -916,7 +916,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     onChange={(val) => {
                       const finalVal = val.trim() || 'Geral';
                       setDraft(prev => ({ ...prev, category: finalVal }));
-                      if (onAddCategory) onAddCategory(finalVal);
+                      // onAddCategory só é chamado pelo onAddOption (ao confirmar a nova entrada)
                     }}
                     options={availableCategories}
                     onAddOption={(newCat) => {
