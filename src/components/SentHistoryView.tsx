@@ -99,6 +99,15 @@ const PIPELINE_STAGES: StageStep[] = [
 
 export type HistoryDateFilter = 'today' | 'yesterday' | '7days' | 'thisMonth' | 'all' | 'specificDate' | 'customRange';
 
+// Normaliza o status do quote para os estágios do pipeline (escopo de módulo para evitar TDZ em inicializadores de estado)
+export const normalizeStatus = (q: Quote): StageId => {
+  if (q.status === 'rejected' || q.status === 'lost') return 'lost';
+  if (q.status === 'approved') return 'approved';
+  if (q.status === 'negotiating') return 'negotiating';
+  if (q.status === 'sent') return 'sent';
+  return 'draft';
+};
+
 export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   quotes,
   onOpenQuote,
@@ -167,15 +176,6 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
       default:
         return 'Hoje';
     }
-  };
-
-  // Normaliza o status do quote
-  const normalizeStatus = (q: Quote): StageId => {
-    if (q.status === 'rejected' || q.status === 'lost') return 'lost';
-    if (q.status === 'approved') return 'approved';
-    if (q.status === 'negotiating') return 'negotiating';
-    if (q.status === 'sent') return 'sent';
-    return 'draft';
   };
 
   // Verifica se uma proposta enviada ou em negociação tem mais de 48 horas (precisa de Follow-up)
