@@ -989,54 +989,44 @@ export function extractDeliveryLocation(emailBody: string = '', fullEmailContext
   return 'Brasília';
 }
 
-const numberToPortugueseWords: Record<number, string> = {
-  1: 'um',
-  2: 'dois',
-  3: 'três',
-  4: 'quatro',
-  5: 'cinco',
-  6: 'seis',
-  7: 'sete',
-  8: 'oito',
-  9: 'nove',
-  10: 'dez',
-  12: 'doze',
-  15: 'quinze',
-  20: 'vinte',
-  25: 'vinte e cinco',
-  30: 'trinta',
-  45: 'quarenta e cinco',
-  60: 'sessenta'
-};
-
 /**
- * Converte número para extenso em português
+ * Converte qualquer número inteiro para extenso em português brasileiro (ex: 1 -> "um", 40 -> "quarenta", 120 -> "cento e vinte")
  */
-export function getPortugueseNumberWord(num: number): string {
-  const map: Record<number, string> = {
-    1: 'um',
-    2: 'dois',
-    3: 'três',
-    4: 'quatro',
-    5: 'cinco',
-    6: 'seis',
-    7: 'sete',
-    8: 'oito',
-    9: 'nove',
-    10: 'dez',
-    12: 'doze',
-    15: 'quinze',
-    20: 'vinte',
-    24: 'vinte e quatro',
-    25: 'vinte e cinco',
-    28: 'vinte e oito',
-    30: 'trinta',
-    36: 'trinta e seis',
-    45: 'quarenta e cinco',
-    60: 'sessenta',
-    90: 'noventa'
-  };
-  return map[num] || num.toString();
+export function getPortugueseNumberWord(n: number): string {
+  const num = Math.round(Number(n));
+  if (isNaN(num) || num <= 0) return String(n);
+
+  const units = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+  const teens = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+  const tens = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+  const hundreds = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+
+  if (num === 100) return 'cem';
+
+  if (num < 10) return units[num];
+  if (num >= 10 && num < 20) return teens[num - 10];
+  if (num >= 20 && num < 100) {
+    const t = Math.floor(num / 10);
+    const u = num % 10;
+    return u === 0 ? tens[t] : `${tens[t]} e ${units[u]}`;
+  }
+  if (num >= 100 && num < 1000) {
+    const h = Math.floor(num / 100);
+    const rest = num % 100;
+    if (rest === 0) return num === 100 ? 'cem' : hundreds[h];
+    return `${hundreds[h]} e ${getPortugueseNumberWord(rest)}`;
+  }
+
+  if (num >= 1000 && num < 1000000) {
+    const th = Math.floor(num / 1000);
+    const rest = num % 1000;
+    const thWord = th === 1 ? 'mil' : `${getPortugueseNumberWord(th)} mil`;
+    if (rest === 0) return thWord;
+    const separator = (rest < 100 || rest % 100 === 0) ? ' e ' : ' ';
+    return `${thWord}${separator}${getPortugueseNumberWord(rest)}`;
+  }
+
+  return String(num);
 }
 
 /**
@@ -1044,7 +1034,7 @@ export function getPortugueseNumberWord(num: number): string {
  */
 export function formatDeliveryDaysText(daysCount: number): string {
   const count = Math.max(1, Math.round(daysCount));
-  const word = numberToPortugueseWords[count] || getPortugueseNumberWord(count);
+  const word = getPortugueseNumberWord(count);
   const dayUnit = count === 1 ? 'dia útil' : 'dias úteis';
   const padded = count < 10 ? `0${count}` : `${count}`;
   return `em até ${padded} (${word}) ${dayUnit} após autorização de fornecimento.`;
@@ -1077,7 +1067,7 @@ export function formatDeliveryDaysWithException(
   }
 
   const excCount = Math.max(1, Math.round(exceptionDays));
-  const excWord = numberToPortugueseWords[excCount] || getPortugueseNumberWord(excCount);
+  const excWord = getPortugueseNumberWord(excCount);
   const excDayUnit = excCount === 1 ? 'dia útil' : 'dias úteis';
   const excPadded = excCount < 10 ? `0${excCount}` : `${excCount}`;
 
