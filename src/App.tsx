@@ -247,6 +247,9 @@ export const App: React.FC = () => {
       if (!isSupabaseConfigured) return;
       try {
         // 1. Configurações
+        // Lê o valor local ANTES de qualquer sobrescrita remota para preservar campos
+        // que podem não existir ainda na coluna do Supabase (ex: daily_dollar_rate)
+        const localSettingsBeforeHydrate = getSettings();
         const remoteSettings = await fetchCompanySettingsFromSupabase();
         if (remoteSettings) {
           if (!remoteSettings.defaultOpeningText || remoteSettings.defaultOpeningText.trim() === 'Em atenção...' || remoteSettings.defaultOpeningText.trim() === 'Em atenção' || remoteSettings.defaultOpeningText.trim().startsWith('Em atenção ao que foi solicitado')) {
@@ -257,6 +260,17 @@ export const App: React.FC = () => {
           }
           if (remoteSettings.googleAccountEmail && remoteSettings.googleAccountEmail.includes('infodesk.com.br')) {
             remoteSettings.googleAccountEmail = remoteSettings.googleAccountEmail.replace('@infodesk.com.br', '@infodesk.net.br');
+          }
+          // Preserva a cotação do dólar definida localmente se o Supabase retornou o valor
+          // padrão (5.60), o que indica que a coluna está nula ou a migration não foi aplicada.
+          // Sem essa proteção, o F5 sempre reverteria o valor para 5.60.
+          const localDollarRate = localSettingsBeforeHydrate?.dailyDollarRate;
+          if (
+            localDollarRate &&
+            localDollarRate !== 5.60 &&
+            (!remoteSettings.dailyDollarRate || remoteSettings.dailyDollarRate === 5.60)
+          ) {
+            remoteSettings.dailyDollarRate = localDollarRate;
           }
           setSettings(remoteSettings);
           saveSettings(remoteSettings);

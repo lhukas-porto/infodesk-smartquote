@@ -100,13 +100,19 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
     if (targetId) {
       const { error } = await supabase.from('company_settings').update(payload).eq('id', targetId);
       if (error) {
-        // Se a coluna ainda não existir no Postgres, tenta sem os campos de categorias/unidades para não quebrar a persistência
+        // Se a coluna ainda não existir no Postgres, tenta sem os campos que podem falhar
         const fallbackPayload = { ...payload };
         delete (fallbackPayload as any).registered_categories;
         delete (fallbackPayload as any).registered_units;
         const { error: retryError } = await supabase.from('company_settings').update(fallbackPayload).eq('id', targetId);
         if (retryError) {
-          console.error('Erro ao atualizar company_settings no Supabase:', retryError);
+          // Último recurso: remove também daily_dollar_rate se a coluna não existir
+          const minimalPayload = { ...fallbackPayload };
+          delete (minimalPayload as any).daily_dollar_rate;
+          const { error: minRetryError } = await supabase.from('company_settings').update(minimalPayload).eq('id', targetId);
+          if (minRetryError) {
+            console.error('Erro ao atualizar company_settings no Supabase:', minRetryError);
+          }
         }
       }
     } else {
@@ -117,7 +123,13 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
         delete (fallbackPayload as any).registered_units;
         const { error: retryError } = await supabase.from('company_settings').insert(fallbackPayload);
         if (retryError) {
-          console.error('Erro ao inserir company_settings no Supabase:', retryError);
+          // Último recurso: remove também daily_dollar_rate se a coluna não existir
+          const minimalPayload = { ...fallbackPayload };
+          delete (minimalPayload as any).daily_dollar_rate;
+          const { error: minRetryError } = await supabase.from('company_settings').insert(minimalPayload);
+          if (minRetryError) {
+            console.error('Erro ao inserir company_settings no Supabase:', minRetryError);
+          }
         }
       }
     }
