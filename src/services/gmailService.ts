@@ -27,10 +27,10 @@ export const getStoredAccessToken = (): string | null => {
 export const getStoredUserEmail = (): string | null => {
   const email = localStorage.getItem(GMAIL_USER_EMAIL);
   if (email && email.includes('infodesk.com.br')) {
-    localStorage.removeItem(GMAIL_USER_EMAIL);
+    localStorage.setItem(GMAIL_USER_EMAIL, 'lucas@infodesk.net.br');
     return 'lucas@infodesk.net.br';
   }
-  return email || 'lucas@infodesk.net.br';
+  return email ? email.replace('@infodesk.com.br', '@infodesk.net.br') : 'lucas@infodesk.net.br';
 };
 
 export const disconnectGmailAccount = () => {

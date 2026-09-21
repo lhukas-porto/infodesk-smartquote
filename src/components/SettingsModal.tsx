@@ -50,7 +50,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveSettings
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'catalog'>('general');
-  const [form, setForm] = useState<CompanySettings>(settings);
+  const [form, setForm] = useState<CompanySettings>(() => {
+    const s = { ...settings };
+    if (s.email && s.email.includes('infodesk.com.br')) s.email = s.email.replace('@infodesk.com.br', '@infodesk.net.br');
+    if (s.googleAccountEmail && s.googleAccountEmail.includes('infodesk.com.br')) s.googleAccountEmail = s.googleAccountEmail.replace('@infodesk.com.br', '@infodesk.net.br');
+    if (!s.googleAccountEmail) s.googleAccountEmail = 'lucas@infodesk.net.br';
+    if (!s.email) s.email = 'lucas@infodesk.net.br';
+    return s;
+  });
   const [markupInput, setMarkupInput] = useState<string>('');
   const [taxInput, setTaxInput] = useState<string>('');
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -97,7 +104,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
-      setForm(settings);
+      const s = { ...settings };
+      if (s.email && s.email.includes('infodesk.com.br')) s.email = s.email.replace('@infodesk.com.br', '@infodesk.net.br');
+      if (s.googleAccountEmail && s.googleAccountEmail.includes('infodesk.com.br')) s.googleAccountEmail = s.googleAccountEmail.replace('@infodesk.com.br', '@infodesk.net.br');
+      if (!s.googleAccountEmail) s.googleAccountEmail = 'lucas@infodesk.net.br';
+      if (!s.email) s.email = 'lucas@infodesk.net.br';
+      setForm(s);
       setMarkupInput(settings.defaultMarkupPercent !== undefined ? String(settings.defaultMarkupPercent).replace('.', ',') : '23,5');
       setTaxInput(settings.defaultTaxPercent !== undefined ? String(settings.defaultTaxPercent).replace('.', ',') : '9,1');
       setGeminiKey(getStoredGeminiKey());
@@ -232,9 +244,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const parsedMarkup = parseFloat(cleanMarkup);
     const parsedTax = parseFloat(cleanTax);
 
+    const cleanEmail = (form.email || form.googleAccountEmail || 'lucas@infodesk.net.br').trim().toLowerCase().replace('@infodesk.com.br', '@infodesk.net.br');
+    const cleanGoogleEmail = (form.googleAccountEmail || cleanEmail || 'lucas@infodesk.net.br').trim().toLowerCase().replace('@infodesk.com.br', '@infodesk.net.br');
+
     const updatedForm: CompanySettings = {
       ...form,
       id: settings.id || form.id,
+      email: cleanEmail,
+      googleAccountEmail: cleanGoogleEmail,
       defaultMarkupPercent: !isNaN(parsedMarkup) && parsedMarkup >= 0 ? parsedMarkup : (form.defaultMarkupPercent ?? 23.5),
       defaultTaxPercent: !isNaN(parsedTax) && parsedTax >= 0 ? parsedTax : (form.defaultTaxPercent ?? 9.1),
       defaultShippingCost: 0
@@ -492,14 +509,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Mail className="w-3.5 h-3.5" /> Integração Google Workspace
             </h3>
 
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-              <div>
-                <p className="font-bold text-slate-900 text-xs">Conta Conectada ao Gmail</p>
-                <p className="text-slate-500 text-[11px]">{form.googleAccountEmail}</p>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex-1">
+                <label className="block text-slate-900 font-bold text-xs mb-1">Conta Conectada ao Gmail / Google Workspace</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="email"
+                    value={form.googleAccountEmail || 'lucas@infodesk.net.br'}
+                    onChange={(e) => {
+                      const val = e.target.value.trim().toLowerCase();
+                      setForm(prev => ({
+                        ...prev,
+                        googleAccountEmail: val,
+                        email: val
+                      }));
+                    }}
+                    className="w-full max-w-sm bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 shadow-2xs"
+                    placeholder="lucas@infodesk.net.br"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">E-mail corporativo utilizado para emissão e envio oficial via Google Workspace.</p>
               </div>
-              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold text-[10px] flex items-center gap-1">
-                <Check className="w-3 h-3" /> Sincronizado
-              </span>
+              <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold text-[10px] flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Sincronizado
+                </span>
+              </div>
             </div>
 
             <h3 className="font-bold text-sky-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">

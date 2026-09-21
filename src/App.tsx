@@ -252,6 +252,12 @@ export const App: React.FC = () => {
           if (!remoteSettings.defaultOpeningText || remoteSettings.defaultOpeningText.trim() === 'Em atenção...' || remoteSettings.defaultOpeningText.trim() === 'Em atenção' || remoteSettings.defaultOpeningText.trim().startsWith('Em atenção ao que foi solicitado')) {
             remoteSettings.defaultOpeningText = defaultCompanySettings.defaultOpeningText;
           }
+          if (remoteSettings.email && remoteSettings.email.includes('infodesk.com.br')) {
+            remoteSettings.email = remoteSettings.email.replace('@infodesk.com.br', '@infodesk.net.br');
+          }
+          if (remoteSettings.googleAccountEmail && remoteSettings.googleAccountEmail.includes('infodesk.com.br')) {
+            remoteSettings.googleAccountEmail = remoteSettings.googleAccountEmail.replace('@infodesk.com.br', '@infodesk.net.br');
+          }
           setSettings(remoteSettings);
           saveSettings(remoteSettings);
         }
@@ -548,9 +554,14 @@ export const App: React.FC = () => {
       setIsSyncingEmails(true);
       const targetEmail = connectedUserEmail || 'lucas@infodesk.net.br';
       const { token, email } = await requestGmailAccessToken(googleClientId, false, targetEmail);
+      const cleanEmail = (email || 'lucas@infodesk.net.br').replace('@infodesk.com.br', '@infodesk.net.br');
       setIsGoogleConnected(true);
-      setConnectedUserEmail(email);
-      setSettings(prev => ({ ...prev, googleAccountEmail: email, googleWorkspaceConnected: true }));
+      setConnectedUserEmail(cleanEmail);
+      setSettings(prev => {
+        const updated = { ...prev, googleAccountEmail: cleanEmail, email: cleanEmail, googleWorkspaceConnected: true };
+        saveSettings(updated);
+        return updated;
+      });
 
       const realMessages = await fetchRealGmailMessages(token, emailPeriod);
       if (realMessages && realMessages.length > 0) {
@@ -571,10 +582,11 @@ export const App: React.FC = () => {
     setConnectedUserEmail(null);
     try {
       const auth = await requestGmailAccessToken(googleClientId, true);
+      const cleanEmail = (auth.email || 'lucas@infodesk.net.br').replace('@infodesk.com.br', '@infodesk.net.br');
       setIsGoogleConnected(true);
-      setConnectedUserEmail(auth.email);
+      setConnectedUserEmail(cleanEmail);
       setSettings(prev => {
-        const updated = { ...prev, googleAccountEmail: auth.email, googleWorkspaceConnected: true };
+        const updated = { ...prev, googleAccountEmail: cleanEmail, email: cleanEmail, googleWorkspaceConnected: true };
         saveSettings(updated);
         return updated;
       });

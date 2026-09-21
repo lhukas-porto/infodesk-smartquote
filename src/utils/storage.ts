@@ -221,8 +221,11 @@ export const getSettings = (): CompanySettings => {
       if (!parsed.defaultWarrantyTerms || parsed.defaultWarrantyTerms.includes('contra eventuais problemas de fabricação')) {
         parsed.defaultWarrantyTerms = defaultCompanySettings.defaultWarrantyTerms;
       }
-      if (!parsed.defaultPaymentTerms) {
-        parsed.defaultPaymentTerms = defaultCompanySettings.defaultPaymentTerms;
+      if (!parsed.email || parsed.email.includes('infodesk.com.br')) {
+        parsed.email = 'lucas@infodesk.net.br';
+      }
+      if (!parsed.googleAccountEmail || parsed.googleAccountEmail.includes('infodesk.com.br')) {
+        parsed.googleAccountEmail = 'lucas@infodesk.net.br';
       }
       return parsed;
     } catch (e) { console.error(e); }
@@ -231,10 +234,12 @@ export const getSettings = (): CompanySettings => {
 };
 
 export const saveSettings = (settings: CompanySettings): void => {
+  const cleanEmail = (settings.email || 'lucas@infodesk.net.br').toLowerCase().trim().replace('@infodesk.com.br', '@infodesk.net.br');
+  const cleanGoogleEmail = (settings.googleAccountEmail || cleanEmail || 'lucas@infodesk.net.br').toLowerCase().trim().replace('@infodesk.com.br', '@infodesk.net.br');
   const normalized: CompanySettings = {
     ...settings,
-    email: (settings.email || '').toLowerCase().trim(),
-    googleAccountEmail: (settings.googleAccountEmail || '').toLowerCase().trim()
+    email: cleanEmail,
+    googleAccountEmail: cleanGoogleEmail
   };
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));

@@ -37,7 +37,7 @@ export async function fetchCompanySettingsFromSupabase(): Promise<CompanySetting
       cityState: data.city_state,
       phone: data.phone,
       whatsapp: data.whatsapp,
-      email: data.email,
+      email: String(data.email || 'lucas@infodesk.net.br').replace('@infodesk.com.br', '@infodesk.net.br'),
       representativeName: data.representative_name,
       defaultValidityDays: data.default_validity_days,
       defaultPaymentTerms: data.default_payment_terms,
@@ -48,7 +48,7 @@ export async function fetchCompanySettingsFromSupabase(): Promise<CompanySetting
       defaultTaxPercent: !isNaN(Number(data.default_tax_percent)) ? Number(data.default_tax_percent) : 9.1,
       defaultShippingCost: !isNaN(Number(data.default_shipping_cost)) ? Number(data.default_shipping_cost) : 0,
       googleWorkspaceConnected: Boolean(data.google_workspace_connected ?? true),
-      googleAccountEmail: data.google_account_email || data.email,
+      googleAccountEmail: String(data.google_account_email || data.email || 'lucas@infodesk.net.br').replace('@infodesk.com.br', '@infodesk.net.br'),
       registeredCategories: Array.isArray(data.registered_categories) ? data.registered_categories : undefined,
       registeredUnits: Array.isArray(data.registered_units) ? data.registered_units : undefined
     };
@@ -70,7 +70,8 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
       city_state: settings.cityState,
       phone: settings.phone,
       whatsapp: settings.whatsapp,
-      email: settings.email,
+      email: (settings.email || 'lucas@infodesk.net.br').replace('@infodesk.com.br', '@infodesk.net.br'),
+      google_account_email: (settings.googleAccountEmail || settings.email || 'lucas@infodesk.net.br').replace('@infodesk.com.br', '@infodesk.net.br'),
       representative_name: settings.representativeName,
       default_validity_days: settings.defaultValidityDays,
       default_payment_terms: settings.defaultPaymentTerms,
