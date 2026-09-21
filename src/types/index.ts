@@ -84,7 +84,6 @@ export interface Quote {
   globalMarkupPercent?: number;
   globalTaxPercent?: number;
   globalShipping?: number;
-  freightTotal?: number; // Frete geral da proposta (valor fixo da entrega)
   status: 'draft' | 'sent' | 'negotiating' | 'approved' | 'rejected' | 'lost';
   createdAt: string;
   sentAt?: string;

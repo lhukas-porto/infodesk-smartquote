@@ -5,7 +5,6 @@ export interface PricingCalculationOptions {
   globalShipping?: number;
   globalMarkup?: number;
   globalTax?: number;
-  freightTotal?: number; // Frete geral da proposta (valor fixo)
 }
 
 export interface QuoteTotalsResult {
@@ -111,13 +110,6 @@ export function recalculateQuoteTotals(
     totalAmount += itemTotal;
     totalTaxes += itemTaxAmount;
   });
-
-  // Frete geral da proposta (quando o usuário define um valor global fixo de frete em vez de unitário por item)
-  const generalFreight = Number(options.freightTotal || 0);
-  if (generalFreight > 0) {
-    totalAmount += generalFreight;
-    totalShipping += generalFreight;
-  }
 
   const totalProfit = totalAmount - totalCost - totalShipping - totalTaxes;
   const baseTotalCost = totalCost + totalShipping;

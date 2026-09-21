@@ -292,34 +292,6 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                   );
                   })}
                 </tbody>
-                {quote.items.length > 0 && quote.freightTotal && quote.freightTotal > 0 ? (
-                  <tfoot>
-                    <tr>
-                      <td colSpan={5} className="p-1.5 text-right font-bold text-black" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
-                        Subtotal dos Produtos:
-                      </td>
-                      <td className="p-1.5 text-center font-bold text-black whitespace-nowrap" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
-                        R$ {(quote.items.reduce((acc, it) => acc + (it.totalPrice || 0), 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td colSpan={5} className="p-1.5 text-right font-bold text-black" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
-                        Frete:
-                      </td>
-                      <td className="p-1.5 text-center font-bold text-black whitespace-nowrap" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
-                        R$ {quote.freightTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td colSpan={5} className="p-1.5 text-right font-bold text-black uppercase" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
-                        Valor Total da Proposta:
-                      </td>
-                      <td className="p-1.5 text-center font-bold text-black whitespace-nowrap" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
-                        R$ {quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tfoot>
-                ) : null}
               </table>
             </div>
 

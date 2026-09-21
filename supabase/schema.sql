@@ -153,7 +153,6 @@ CREATE TABLE IF NOT EXISTS quotes (
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS recipient_emails TEXT[] DEFAULT ARRAY[]::TEXT[];
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS cc_emails TEXT[] DEFAULT ARRAY[]::TEXT[];
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS global_markup_percent NUMERIC(6,2) DEFAULT 35.00;
-ALTER TABLE quotes ADD COLUMN IF NOT EXISTS freight_total NUMERIC(12,2) DEFAULT 0.00;
 
 -- ==============================================================================
 -- 7. TABELA: quote_items (Itens da Proposta com Imagem Proporcional 4cm)

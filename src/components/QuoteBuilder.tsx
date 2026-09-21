@@ -144,9 +144,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   const [globalShipping, setGlobalShipping] = useState<number>(() => {
     return currentQuote.globalShipping ?? settings.defaultShippingCost ?? 0;
   });
-  const [freightTotal, setFreightTotal] = useState<number>(() => {
-    return currentQuote.freightTotal ?? 0;
-  });
 
   const [savedCatalogIds, setSavedCatalogIds] = useState<Record<string, boolean>>({});
   const [selectedProductId, setSelectedProductId] = useState<string>('');
@@ -334,10 +331,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         setGlobalShipping(currentQuote.globalShipping);
       } else if (settings.defaultShippingCost !== undefined) {
         setGlobalShipping(settings.defaultShippingCost);
-      }
-
-      if (currentQuote.freightTotal !== undefined) {
-        setFreightTotal(currentQuote.freightTotal);
       }
     }
 
@@ -635,27 +628,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     return calculateCommercialUnitPrice(cost, shipping, markup, tax);
   };
 
-  const recalculateQuote = (items: QuoteItem[], customFreight?: number) => {
-    const fTotal = customFreight !== undefined ? customFreight : freightTotal;
+  const recalculateQuote = (items: QuoteItem[]) => {
     return recalculateQuoteTotals(items, {
       globalShipping,
       globalMarkup,
-      globalTax,
-      freightTotal: fTotal
+      globalTax
     });
-  };
-
-  const handleFreightTotalChange = (val: string) => {
-    const clean = val.replace(/[^\d.,]/g, '').replace(',', '.');
-    const parsed = parseFloat(clean);
-    const newFreight = isNaN(parsed) || parsed < 0 ? 0 : Number(parsed.toFixed(2));
-    setFreightTotal(newFreight);
-    const totals = recalculateQuote(currentQuote.items, newFreight);
-    setCurrentQuote(prev => ({
-      ...prev,
-      freightTotal: newFreight,
-      ...totals
-    }));
   };
 
   const handleApplyGlobalMarkup = (markup: number) => {
@@ -3308,75 +3286,19 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 ))
               )}
             </tbody>
-            {currentQuote.items.length > 0 && (() => {
-              const itemsSubtotal = currentQuote.items.reduce((acc, it) => acc + (it.totalPrice || 0), 0);
-              return (
-                <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-xs">
-                  {/* Subtotal dos Produtos */}
-                  <tr className="border-b border-slate-100">
-                    <td colSpan={7} className="py-2.5 px-3 text-right text-slate-500 uppercase tracking-wider text-[11px] font-semibold">
-                      Subtotal dos Produtos:
-                    </td>
-                    <td colSpan={2} className="py-2.5 px-3 text-right text-slate-700 text-xs font-mono font-bold">
-                      R$ {itemsSubtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td></td>
-                  </tr>
-
-                  {/* Campo de Frete Geral da Proposta (solicitado por Lucas) */}
-                  <tr className="bg-amber-50/35 border-b border-slate-200">
-                    <td colSpan={7} className="py-2 px-3 text-right">
-                      <div className="flex items-center justify-end gap-2 text-slate-700">
-                        <Truck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span className="text-[11.5px] font-bold">Frete Geral da Proposta:</span>
-                        <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">(opcional para frete global da entrega)</span>
-                      </div>
-                    </td>
-                    <td colSpan={2} className="py-2 px-3 text-right">
-                      <div className="inline-flex items-center justify-end gap-1.5">
-                        <span className="text-xs text-slate-500 font-mono font-semibold">R$</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={freightTotal === 0 ? '' : freightTotal.toString().replace('.', ',')}
-                          placeholder="0,00"
-                          onChange={(e) => handleFreightTotalChange(e.target.value)}
-                          className="w-24 h-7 px-2 text-right bg-white border border-slate-300 hover:border-slate-400 focus:border-sky-500 focus:ring-1 focus:ring-sky-200 rounded-lg text-xs font-mono font-bold text-slate-900 shadow-2xs transition"
-                          title="Informe o valor de frete geral da entrega para ser somado ao total da proposta"
-                        />
-                      </div>
-                    </td>
-                    <td className="py-2 px-1 text-center">
-                      {freightTotal > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => handleFreightTotalChange('0')}
-                          className="text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50 p-1 rounded transition inline-flex items-center justify-center"
-                          title="Zerar frete geral (Frete incluso / R$ 0,00)"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      ) : (
-                        <span className="text-[9.5px] text-emerald-700 font-semibold uppercase px-1.5 py-0.5 bg-emerald-50 border border-emerald-200/60 rounded" title="Frete incluso / R$ 0,00">
-                          Incluso
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-
-                  {/* Total Geral da Proposta */}
-                  <tr className="bg-slate-100/70">
-                    <td colSpan={7} className="p-3 text-right text-slate-900 uppercase tracking-wider text-[11px] font-extrabold">
-                      Total Geral da Proposta:
-                    </td>
-                    <td colSpan={2} className="p-3 text-right text-emerald-700 text-sm md:text-base font-mono font-extrabold">
-                      R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              );
-            })()}
+            {currentQuote.items.length > 0 && (
+              <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-xs">
+                <tr>
+                  <td colSpan={7} className="p-3 text-right text-slate-600 uppercase tracking-wider text-[11px]">
+                    Total Geral da Proposta:
+                  </td>
+                  <td colSpan={2} className="p-3 text-right text-emerald-700 text-sm font-mono font-extrabold">
+                    R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
           <datalist id="quote-registered-units">
             {availableUnits.map(u => (
