@@ -176,6 +176,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     const details = extractDeliveryExceptionDetails(currentQuote.deliveryDays);
     return details.days;
   });
+  const [customDeliveryDaysInput, setCustomDeliveryDaysInput] = useState<string>('');
 
   // Estado da janela de verificação geral antes de salvar no catálogo
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
@@ -3483,13 +3484,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             </div>
 
             {/* Dias gerais da proposta */}
-            <div className="h-7 flex items-center gap-1.5 flex-wrap">
+            <div className="min-h-7 flex items-center gap-1.5 flex-wrap">
               <span className="text-[10.5px] text-slate-400 font-medium mr-0.5">Padrão:</span>
               {[3, 5, 7, 10, 15, 20, 30].map(days => (
                 <button
                   key={days}
                   type="button"
                   onClick={() => {
+                    setCustomDeliveryDaysInput('');
                     const phrase = exceptionItemNumbers.length > 0
                       ? formatDeliveryDaysWithException(days, exceptionItemNumbers, exceptionDays)
                       : formatDeliveryDaysText(days);
@@ -3498,14 +3500,62 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       deliveryDays: phrase
                     }));
                   }}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${extractDeliveryDaysNumber(currentQuote.deliveryDays) === days
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                    }`}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                    extractDeliveryDaysNumber(currentQuote.deliveryDays) === days && !customDeliveryDaysInput
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                  }`}
                 >
                   {days}d
                 </button>
               ))}
+
+              {/* Separador e Campo Editável para prazo personalizado */}
+              <span className="w-px h-3.5 bg-slate-200 mx-0.5" />
+              <div className="inline-flex items-center gap-1">
+                <span className="text-[10.5px] text-slate-400 font-medium">Outro:</span>
+                {(() => {
+                  const currentExtracted = extractDeliveryDaysNumber(currentQuote.deliveryDays);
+                  const isStandard = [3, 5, 7, 10, 15, 20, 30].includes(currentExtracted);
+                  const displayVal = customDeliveryDaysInput !== ''
+                    ? customDeliveryDaysInput
+                    : (!isStandard && currentExtracted > 0 ? String(currentExtracted) : '');
+                  const isCustomActive = Boolean(customDeliveryDaysInput || (!isStandard && currentExtracted > 0));
+
+                  return (
+                    <div className="relative inline-flex items-center">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="ex: 12"
+                        value={displayVal}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, '');
+                          setCustomDeliveryDaysInput(raw);
+                          const num = parseInt(raw, 10);
+                          if (num && num > 0) {
+                            const phrase = exceptionItemNumbers.length > 0
+                              ? formatDeliveryDaysWithException(num, exceptionItemNumbers, exceptionDays)
+                              : formatDeliveryDaysText(num);
+                            setCurrentQuote(prev => ({
+                              ...prev,
+                              deliveryDays: phrase
+                            }));
+                          }
+                        }}
+                        className={`w-14 h-6 px-1.5 text-center text-[10.5px] font-bold font-mono rounded-lg border transition ${
+                          isCustomActive
+                            ? 'bg-sky-50 border-sky-500 text-sky-800 shadow-2xs ring-1 ring-sky-200'
+                            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-200'
+                        }`}
+                        title="Digite qualquer prazo em dias úteis caso o frete/fornecedor varie"
+                      />
+                      <span className="text-[10px] text-slate-500 font-bold ml-1">dias</span>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
 
             {/* Painel de Regra de Exceção por Itens */}
