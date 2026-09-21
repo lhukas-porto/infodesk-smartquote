@@ -120,8 +120,8 @@ async function fetchGeminiWithTimeout(
     clearTimeout(timer);
 
     if (res.status === 429) {
-      geminiCircuitBreakerUntil = Date.now() + 5 * 60 * 1000;
-      console.warn('[Gemini Circuit Breaker] Cota excedida (429). Disjuntor ativado por 5min para manter o scanner instantâneo.');
+      geminiCircuitBreakerUntil = Date.now() + 60 * 1000; // 60s (era 5min — muita restrição)
+      console.warn('[Gemini Circuit Breaker] Cota excedida (429). Disjuntor ativado por 60s. O scanner usará dados já identificados.');
       return { ok: false, status: 429, errorText: 'Quota exceeded', rateLimited: true };
     }
 
@@ -1579,6 +1579,12 @@ Retorne ESTRITAMENTE um JSON no formato:
   }
 
   // Fallback inteligente heurístico local sem chave de IA
+  // LOG DE DIAGNÓSTICO: se chegar aqui, o Gemini não respondeu (sem chave, circuit breaker ativo ou API falhou)
+  console.warn(
+    '[Phase1 Fallback Heurístico] Gemini não respondeu para:', rawText.slice(0, 80),
+    '| Tem chave IA:', !!activeKey,
+    '| Circuit Breaker ativo:', isGeminiCircuitBreakerActive()
+  );
   const parsedItems = parsePastedProductListWithQty(rawText);
   const itemsToProcess: Array<{ query: string; quantity: number; isPhoto?: boolean; photoIndex?: number }> = [];
 
