@@ -19,6 +19,10 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
 
+// Cache de detecção de capacidades do banco para evitar 404/400 ruidosos no console
+let isAtomicRpcSupported: boolean | null = null;
+let hasProductsSkuUniqueConstraint: boolean | null = null;
+
 // ==============================================================================
 // 1. CONFIGURAÇÕES DA EMPRESA (company_settings)
 // ==============================================================================
@@ -100,19 +104,15 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
     if (targetId) {
       const { error } = await supabase.from('company_settings').update(payload).eq('id', targetId);
       if (error) {
-        // Se a coluna ainda não existir no Postgres, tenta sem os campos que podem falhar
+        // Se alguma coluna ainda não existir no Postgres, tenta sem os campos opcionais
         const fallbackPayload = { ...payload };
         delete (fallbackPayload as any).registered_categories;
         delete (fallbackPayload as any).registered_units;
+        delete (fallbackPayload as any).google_account_email;
+        delete (fallbackPayload as any).daily_dollar_rate;
         const { error: retryError } = await supabase.from('company_settings').update(fallbackPayload).eq('id', targetId);
         if (retryError) {
-          // Último recurso: remove também daily_dollar_rate se a coluna não existir
-          const minimalPayload = { ...fallbackPayload };
-          delete (minimalPayload as any).daily_dollar_rate;
-          const { error: minRetryError } = await supabase.from('company_settings').update(minimalPayload).eq('id', targetId);
-          if (minRetryError) {
-            console.error('Erro ao atualizar company_settings no Supabase:', minRetryError);
-          }
+          console.warn('[Supabase] Aviso ao atualizar company_settings (colunas em sincronização):', retryError.message);
         }
       }
     } else {
@@ -121,15 +121,11 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
         const fallbackPayload = { ...payload };
         delete (fallbackPayload as any).registered_categories;
         delete (fallbackPayload as any).registered_units;
+        delete (fallbackPayload as any).google_account_email;
+        delete (fallbackPayload as any).daily_dollar_rate;
         const { error: retryError } = await supabase.from('company_settings').insert(fallbackPayload);
         if (retryError) {
-          // Último recurso: remove também daily_dollar_rate se a coluna não existir
-          const minimalPayload = { ...fallbackPayload };
-          delete (minimalPayload as any).daily_dollar_rate;
-          const { error: minRetryError } = await supabase.from('company_settings').insert(minimalPayload);
-          if (minRetryError) {
-            console.error('Erro ao inserir company_settings no Supabase:', minRetryError);
-          }
+          console.warn('[Supabase] Aviso ao inserir company_settings (colunas em sincronização):', retryError.message);
         }
       }
     }
@@ -394,18 +390,24 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     source_url: item.sourceUrl || null
   }));
 
-  // 1. Tentar salvar atomicamente via RPC PostgreSQL no Supabase se existir
-  try {
-    const { error: rpcError } = await supabase.rpc('save_quote_atomic', {
-      p_quote: sanitizedQuotePayload,
-      p_items: itemsPayload
-    });
+  // 1. Tentar salvar atomicamente via RPC PostgreSQL no Supabase se suportado
+  if (isAtomicRpcSupported !== false) {
+    try {
+      const { error: rpcError } = await supabase.rpc('save_quote_atomic', {
+        p_quote: sanitizedQuotePayload,
+        p_items: itemsPayload
+      });
 
-    if (!rpcError) {
-      return;
+      if (!rpcError) {
+        isAtomicRpcSupported = true;
+        return;
+      }
+      if (rpcError.code === 'PGRST202' || rpcError.message?.includes('Could not find the function')) {
+        isAtomicRpcSupported = false;
+      }
+    } catch {
+      isAtomicRpcSupported = false;
     }
-  } catch (rpcErr) {
-    // Fallback caso a função RPC não exista no schema cache
   }
 
   // 2. Upsert direto protegido na tabela quotes
@@ -564,11 +566,18 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
       updated_at: new Date().toISOString()
     }));
 
-    const { error: batchErr } = await supabase.from('products').upsert(payload, { onConflict: 'sku' });
-    if (!batchErr) return;
+    if (hasProductsSkuUniqueConstraint !== false) {
+      const { error: batchErr } = await supabase.from('products').upsert(payload, { onConflict: 'sku' });
+      if (!batchErr) {
+        hasProductsSkuUniqueConstraint = true;
+        return;
+      }
+      if (batchErr.message?.includes('no unique or exclusion constraint')) {
+        hasProductsSkuUniqueConstraint = false;
+      }
+    }
 
     // Fallback individual resiliente se o upsert em lote for rejeitado pelo banco
-    console.warn('[SmartQuote] Upsert em lote rejeitado pelo banco, aplicando fallback item a item:', batchErr.message);
     for (const item of payload) {
       try {
         const { data: existing } = await supabase
@@ -582,8 +591,8 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
         } else {
           await supabase.from('products').insert(item);
         }
-      } catch (itemErr) {
-        console.warn(`[SmartQuote] Falha ao sincronizar item [${item.sku}]:`, itemErr);
+      } catch {
+        // Silencioso: não polui console
       }
     }
   } catch (err) {
@@ -826,12 +835,10 @@ export async function syncIncomingEmailsToSupabase(emails: IncomingEmail[]): Pro
       sender_name: e.senderName,
       sender_company: e.senderCompany,
       sender_email: e.senderEmail,
-      sender_phone: e.senderPhone || null,
       subject: e.subject,
       date: e.date,
       snippet: e.snippet || '',
       body: e.body || '',
-      body_html: e.bodyHtml || null,
       delivery_location: e.deliveryLocation || null,
       unread: e.unread ?? true,
       status: e.status || 'new',

@@ -332,8 +332,6 @@ export const App: React.FC = () => {
                 }];
               }
               if (items.length > 0) {
-                if (rq.code) saveQuoteItemsBackup(rq.code, items);
-                if (rq.id) saveQuoteItemsBackup(rq.id, items);
                 return { ...rq, items };
               }
               return rq;

@@ -70,11 +70,12 @@ const STORAGE_SCAN_CACHE_KEY = 'infodesk_price_scan_cache_v2';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
 
 /**
- * Modelos Gemini disponíveis para esta conta (verificado via API 404 — apenas gemini-3.x disponível)
- * gemini-2.5-flash / 2.0-flash / 1.5-flash retornam 404 para esta chave de API.
- * A própria API recomenda usar gemini-3.6-flash.
+ * Modelos Gemini disponíveis para esta conta.
+ * gemini-flash-lite-latest (3.5-flash-lite) responde em ~3s mesmo em picos de alta demanda.
+ * gemini-3.6-flash e 3.5-flash atuam como fallbacks.
  */
 export const MODERN_GEMINI_MODELS = [
+  'gemini-flash-lite-latest',
   'gemini-3.6-flash',
   'gemini-3.5-flash'
 ];
