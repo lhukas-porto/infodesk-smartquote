@@ -441,13 +441,26 @@ export const getQuotes = (): Quote[] => {
   return initialSentQuotes;
 };
 
+function safeEmailString(val: any): string | undefined {
+  if (!val) return undefined;
+  if (Array.isArray(val)) {
+    const s = val.map(x => String(x || '').trim().toLowerCase()).filter(Boolean).join(', ');
+    return s || undefined;
+  }
+  if (typeof val === 'string') {
+    const s = val.trim().toLowerCase();
+    return s || undefined;
+  }
+  return undefined;
+}
+
 export const saveQuotes = (quotes: Quote[]): void => {
   try {
     const normalized = quotes.map(q => ({
       ...q,
       clientEmail: (q.clientEmail || '').toLowerCase().trim(),
-      recipientEmails: q.recipientEmails ? q.recipientEmails.toLowerCase().trim() : undefined,
-      ccEmails: q.ccEmails ? q.ccEmails.toLowerCase().trim() : undefined
+      recipientEmails: safeEmailString(q.recipientEmails),
+      ccEmails: safeEmailString(q.ccEmails)
     }));
     try {
       localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));

@@ -126,6 +126,19 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
 // ==============================================================================
 // 2. ORÇAMENTOS E ITENS (quotes & quote_items)
 // ==============================================================================
+function normalizeEmailListString(val: any): string | undefined {
+  if (!val) return undefined;
+  if (Array.isArray(val)) {
+    const joined = val.map(x => String(x || '').trim()).filter(Boolean).join(', ');
+    return joined || undefined;
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    return trimmed || undefined;
+  }
+  return undefined;
+}
+
 export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<Quote[] | null> {
   if (!supabase) return null;
   try {
@@ -242,8 +255,8 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
         globalTaxPercent: Number(q.global_tax_percent || 6),
         globalShipping: Number(q.global_shipping || 0),
         status: q.status || 'draft',
-        recipientEmails: q.recipient_emails || [],
-        ccEmails: q.cc_emails || [],
+        recipientEmails: normalizeEmailListString(q.recipient_emails),
+        ccEmails: normalizeEmailListString(q.cc_emails),
         createdAt: q.created_at,
         sentAt: q.sent_at
       };
@@ -342,6 +355,16 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     global_shipping: Number(quote.globalShipping ?? 0),
     status: quote.status || 'draft',
     sent_at: quote.sentAt || null,
+    recipient_emails: quote.recipientEmails
+      ? (typeof quote.recipientEmails === 'string'
+          ? quote.recipientEmails.split(/[,;]/).map(s => s.trim()).filter(Boolean)
+          : (Array.isArray(quote.recipientEmails) ? quote.recipientEmails : []))
+      : [],
+    cc_emails: quote.ccEmails
+      ? (typeof quote.ccEmails === 'string'
+          ? quote.ccEmails.split(/[,;]/).map(s => s.trim()).filter(Boolean)
+          : (Array.isArray(quote.ccEmails) ? quote.ccEmails : []))
+      : [],
     updated_at: new Date().toISOString()
   };
 

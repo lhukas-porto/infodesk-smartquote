@@ -133,8 +133,12 @@ export const requestGmailAccessToken = async (
 
       if (forceSelectAccount) {
         requestOptions.prompt = 'select_account';
-      } else if (targetHint && targetHint.includes('@')) {
-        requestOptions.hint = targetHint;
+      } else {
+        requestOptions.prompt = '';
+      }
+
+      if (targetHint && targetHint.includes('@')) {
+        requestOptions.login_hint = targetHint;
       }
 
       client.requestAccessToken(requestOptions);

@@ -1033,10 +1033,20 @@ export const App: React.FC = () => {
     try {
       // Para envio oficial por e-mail pelo Gmail, usamos a logo embutida com CID inline: cid:infodesk-logo
       const proposalHtml = generateProposalEmailHtml(sentQuote, settings, { forEmailSend: true });
-      const recipient = (sentQuote.recipientEmails || sentQuote.clientEmail || '').trim();
+      const recipient = (
+        typeof sentQuote.recipientEmails === 'string'
+          ? sentQuote.recipientEmails
+          : (Array.isArray(sentQuote.recipientEmails) ? (sentQuote.recipientEmails as string[]).join(', ') : (sentQuote.clientEmail || ''))
+      ).trim();
       if (!recipient) {
         throw new Error('Nenhum e-mail de destinatário informado.');
       }
+
+      const ccList = (
+        typeof sentQuote.ccEmails === 'string'
+          ? sentQuote.ccEmails
+          : (Array.isArray(sentQuote.ccEmails) ? (sentQuote.ccEmails as string[]).join(', ') : '')
+      ).trim();
 
       // Nome do remetente solicitado: "primeiro nome do responsavel que está salvo nas configuraçoes" - "Nome fantasia salvo nas configurações"
       const repFirstName = (settings.representativeName || '').trim().split(/\s+/)[0] || 'Lucas';
@@ -1051,7 +1061,7 @@ export const App: React.FC = () => {
 
       await sendRealGmailMessage(token, {
         to: recipient,
-        cc: sentQuote.ccEmails,
+        cc: ccList || undefined,
         from: senderAddress,
         fromName: senderDisplayName,
         replyTo: replyToAddress,

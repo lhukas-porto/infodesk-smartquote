@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Send, 
   Mail, 
@@ -8,6 +8,17 @@ import {
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
 import { generateProposalEmailHtml } from '../utils/aiEmailParser';
+
+function extractEmailString(val: any): string {
+  if (!val) return '';
+  if (Array.isArray(val)) {
+    return val.map(x => String(x || '').trim()).filter(Boolean).join(', ');
+  }
+  if (typeof val === 'string') {
+    return val.trim();
+  }
+  return '';
+}
 
 interface EmailSendModalProps {
   isOpen: boolean;
@@ -31,6 +42,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [isSentSuccess, setIsSentSuccess] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const toInputRef = useRef<HTMLInputElement>(null);
 
   const proposalHtml = useMemo(() => {
     return generateProposalEmailHtml(quote, settings);
@@ -41,9 +53,17 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
     : `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
   const defaultBody = `Prezada(o) ${quote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial para fornecimento dos produtos para ${quote.clientCompany || 'sua empresa'}.\n\nValor Total: R$ ${quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCondições de Pagamento: ${quote.paymentTerms}\nPrazo de Entrega: ${quote.deliveryDays}\nGarantia: ${quote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\nInfodesk — Informática & Tecnologia\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`;
 
+  const getResolvedInitialTo = (q: Quote): string => {
+    const fromRecipient = extractEmailString(q.recipientEmails);
+    if (fromRecipient) return fromRecipient;
+    const fromClient = extractEmailString(q.clientEmail);
+    if (fromClient) return fromClient;
+    return '';
+  };
+
   // ⚠️ Todos os hooks devem ficar ANTES de qualquer early return (Rules of Hooks)
-  const initialTo = quote.recipientEmails || quote.clientEmail || '';
-  const initialCc = quote.ccEmails || '';
+  const initialTo = getResolvedInitialTo(quote);
+  const initialCc = extractEmailString(quote.ccEmails);
   const [toEmails, setToEmails] = useState(initialTo);
   const [ccEmails, setCcEmails] = useState(initialCc);
   const [showCc, setShowCc] = useState(Boolean(initialCc));
@@ -63,9 +83,11 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
       setIsSending(false);
       setIsSentSuccess(false);
       setSendError(null);
-      setToEmails(quote.recipientEmails || quote.clientEmail || '');
-      setCcEmails(quote.ccEmails || '');
-      if (quote.ccEmails) setShowCc(true);
+      const resolvedTo = getResolvedInitialTo(quote);
+      const resolvedCc = extractEmailString(quote.ccEmails);
+      setToEmails(resolvedTo);
+      setCcEmails(resolvedCc);
+      if (resolvedCc) setShowCc(true);
 
       const computedSubject = (quote.subject && quote.subject !== 'Fornecimento de produtos para informática' && quote.subject !== 'Fornecimento de Materiais e Equipamentos')
         ? quote.subject
@@ -85,22 +107,25 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   if (!isOpen) return null;
 
   const handleSend = async () => {
-    if (!toEmails.trim()) {
-      setSendError('Por favor, informe ao menos um e-mail de destinatário.');
-      return;
-    }
-
-    setSendError(null);
-    setIsSending(true);
-
     try {
-      const finalSubject = subject.trim() || `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
+      const cleanTo = extractEmailString(toEmails);
+      if (!cleanTo) {
+        setSendError('Por favor, informe ao menos um e-mail de destinatário no campo "Destinatários (Para:) *".');
+        toInputRef.current?.focus();
+        return;
+      }
+
+      setSendError(null);
+      setIsSending(true);
+
+      const finalSubject = (subject || '').trim() || `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
+      const cleanCc = extractEmailString(ccEmails);
 
       await onConfirmSend({
         ...quote,
-        clientEmail: toEmails.split(/[,;]/)[0]?.trim() || quote.clientEmail,
-        recipientEmails: toEmails.trim(),
-        ccEmails: ccEmails.trim(),
+        clientEmail: cleanTo.split(/[,;]/)[0]?.trim() || extractEmailString(quote.clientEmail),
+        recipientEmails: cleanTo,
+        ccEmails: cleanCc,
         subject: finalSubject,
         status: 'sent',
         sentAt: new Date().toISOString()
@@ -192,11 +217,19 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 )}
               </div>
               <input
+                ref={toInputRef}
                 type="text"
                 value={toEmails}
-                onChange={(e) => setToEmails(e.target.value)}
+                onChange={(e) => {
+                  setToEmails(e.target.value);
+                  if (sendError) setSendError(null);
+                }}
                 placeholder="email1@empresa.com, email2@empresa.com"
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-xs"
+                className={`w-full bg-white border ${
+                  sendError && !extractEmailString(toEmails)
+                    ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20'
+                    : 'border-slate-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-500'
+                } rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none text-xs transition`}
               />
               <span className="text-[10px] text-slate-400 mt-0.5 block">
                 Separe múltiplos e-mails por vírgula ou ponto e vírgula
@@ -322,6 +355,12 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            {sendError && (
+              <span className="text-[11px] text-rose-600 font-semibold truncate max-w-[220px] sm:max-w-xs animate-fadeIn" title={sendError}>
+                ⚠️ {sendError}
+              </span>
+            )}
+
             <button
               type="button"
               onClick={handleCancel}
