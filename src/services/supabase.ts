@@ -725,24 +725,8 @@ export async function syncClientCompaniesToSupabase(companies: ClientCompany[]):
       }
     }
 
-    // 3. Sincronização e exclusão de contatos removidos por empresa
-    for (const comp of companies) {
-      const activeContactIds = (comp.contacts || []).map(c => c.id).filter(Boolean);
-      const { data: existingContacts } = await supabase
-        .from('client_contacts')
-        .select('id')
-        .eq('company_id', comp.id);
-
-      if (existingContacts && existingContacts.length > 0) {
-        const toDelete = existingContacts
-          .map(c => c.id)
-          .filter(id => !activeContactIds.includes(id));
-
-        if (toDelete.length > 0) {
-          await supabase.from('client_contacts').delete().in('id', toDelete);
-        }
-      }
-    }
+    // Observação: Exclusões de contatos são tratadas de forma explícita via deleteContactFromSupabase,
+    // evitando deleção acidental de compradores por estados parciais ou dessincronizados.
   } catch (err) {
     console.warn('Erro ao sincronizar empresas no Supabase:', err);
   }

@@ -1,6 +1,6 @@
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
-import { syncRegisteredMetadataToSupabase } from '../services/supabase';
+import { syncRegisteredMetadataToSupabase, syncClientCompaniesToSupabase } from '../services/supabase';
 
 const SETTINGS_KEY = 'infodesk_settings';
 const PRODUCTS_KEY = 'infodesk_products';
@@ -539,6 +539,10 @@ export const saveClientCompanies = (companies: ClientCompany[]): void => {
       .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 
     localStorage.setItem(CLIENT_COMPANIES_KEY, JSON.stringify(normalized));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('infodesk_companies_changed', { detail: normalized }));
+    }
+    syncClientCompaniesToSupabase(normalized).catch(() => {});
   } catch (err) {
     console.warn('Erro ao salvar empresas no localStorage:', err);
   }

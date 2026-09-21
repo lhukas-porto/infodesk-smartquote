@@ -412,7 +412,11 @@ export const App: React.FC = () => {
           saveClientCompanies(finalCompanies);
 
           // Sincroniza de volta para o Supabase caso houvesse dados locais preservados
-          if (localOnlyCompanies.length > 0 || finalCompanies.some(c => c.website && !remoteCompanies.find(rc => rc.id === c.id)?.website)) {
+          const hasLocalOnlyContacts = mergedCompanies.some(mc => {
+            const remote = remoteCompanies.find(rc => rc.id === mc.id);
+            return (mc.contacts || []).length > (remote?.contacts?.length || 0);
+          });
+          if (localOnlyCompanies.length > 0 || hasLocalOnlyContacts || finalCompanies.some(c => c.website && !remoteCompanies.find(rc => rc.id === c.id)?.website)) {
             syncClientCompaniesToSupabase(finalCompanies).catch(() => {});
           }
         }
@@ -429,6 +433,17 @@ export const App: React.FC = () => {
     }
 
     hydrateFromSupabase();
+  }, []);
+
+  // Manter estado de clientCompanies sincronizado quando houver alterações em qualquer componente
+  useEffect(() => {
+    const handleCompaniesChanged = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setClientCompanies(e.detail);
+      }
+    };
+    window.addEventListener('infodesk_companies_changed', handleCompaniesChanged);
+    return () => window.removeEventListener('infodesk_companies_changed', handleCompaniesChanged);
   }, []);
 
   // Google Workspace / Gmail Real Integration State
@@ -696,13 +711,14 @@ export const App: React.FC = () => {
       createdAt: new Date().toISOString()
     };
 
-    registerOrUpdateClient(
+    const updatedComps = registerOrUpdateClient(
       newQuote.clientCompany,
       newQuote.contactPerson,
       newQuote.clientEmail,
       newQuote.clientPhone,
       newQuote.deliveryLocation
     );
+    setClientCompanies(updatedComps);
 
     setCurrentQuote(newQuote);
     setActiveTab('builder');
@@ -896,13 +912,14 @@ export const App: React.FC = () => {
       return;
     }
 
-    registerOrUpdateClient(
+    const updatedComps = registerOrUpdateClient(
       currentQuote.clientCompany,
       currentQuote.contactPerson,
       currentQuote.clientEmail,
       currentQuote.clientPhone,
       currentQuote.deliveryLocation
     );
+    setClientCompanies(updatedComps);
 
     let quoteToSave: Quote = { ...currentQuote };
     if (!quoteToSave.id) {
@@ -974,13 +991,14 @@ export const App: React.FC = () => {
   };
 
   const handleConfirmSendEmail = async (sentQuote: Quote) => {
-    registerOrUpdateClient(
+    const updatedComps = registerOrUpdateClient(
       sentQuote.clientCompany,
       sentQuote.contactPerson,
       sentQuote.clientEmail,
       sentQuote.clientPhone,
       sentQuote.deliveryLocation
     );
+    setClientCompanies(updatedComps);
 
     let token = getStoredAccessToken();
 
