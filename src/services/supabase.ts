@@ -355,16 +355,6 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     global_shipping: Number(quote.globalShipping ?? 0),
     status: quote.status || 'draft',
     sent_at: quote.sentAt || null,
-    recipient_emails: quote.recipientEmails
-      ? (typeof quote.recipientEmails === 'string'
-          ? quote.recipientEmails.split(/[,;]/).map(s => s.trim()).filter(Boolean)
-          : (Array.isArray(quote.recipientEmails) ? quote.recipientEmails : []))
-      : [],
-    cc_emails: quote.ccEmails
-      ? (typeof quote.ccEmails === 'string'
-          ? quote.ccEmails.split(/[,;]/).map(s => s.trim()).filter(Boolean)
-          : (Array.isArray(quote.ccEmails) ? quote.ccEmails : []))
-      : [],
     updated_at: new Date().toISOString()
   };
 
