@@ -2984,6 +2984,34 @@ export function generateProposalEmailHtml(
       <tbody>
         ${itemsRows}
       </tbody>
+      ${(quote.freightTotal && quote.freightTotal > 0) ? `
+        <tfoot>
+          <tr>
+            <td colspan="5" style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: right; font-weight: bold; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; color: #000000;">
+              Subtotal dos Produtos:
+            </td>
+            <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; font-weight: bold; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; white-space: nowrap; color: #000000;">
+              R$ ${(quote.items || []).reduce((acc: number, it: any) => acc + Number(it.totalPrice || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </td>
+          </tr>
+          <tr>
+            <td colspan="5" style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: right; font-weight: bold; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; color: #000000;">
+              Frete:
+            </td>
+            <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; font-weight: bold; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; white-space: nowrap; color: #000000;">
+              R$ ${Number(quote.freightTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </td>
+          </tr>
+          <tr>
+            <td colspan="5" style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: right; font-weight: bold; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; color: #000000;">
+              Valor Total da Proposta:
+            </td>
+            <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; font-weight: bold; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; white-space: nowrap; color: #000000;">
+              R$ ${Number(quote.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </td>
+          </tr>
+        </tfoot>
+      ` : ''}
     </table>
 
     <!-- Condições Gerais -->

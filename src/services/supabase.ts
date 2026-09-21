@@ -241,6 +241,13 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
         globalMarkupPercent: q.global_markup_percent !== undefined && q.global_markup_percent !== null ? Number(q.global_markup_percent) : undefined,
         globalTaxPercent: Number(q.global_tax_percent || 6),
         globalShipping: Number(q.global_shipping || 0),
+        freightTotal: q.freight_total !== undefined && q.freight_total !== null
+          ? Number(q.freight_total)
+          : (() => {
+              const itemsShipping = quoteItems.reduce((acc: number, it: any) => acc + ((it.shippingCost || 0) * (it.quantity || 1)), 0);
+              const diff = Number(q.total_shipping || 0) - itemsShipping;
+              return diff > 0.009 ? Number(diff.toFixed(2)) : undefined;
+            })(),
         status: q.status || 'draft',
         recipientEmails: q.recipient_emails || [],
         ccEmails: q.cc_emails || [],

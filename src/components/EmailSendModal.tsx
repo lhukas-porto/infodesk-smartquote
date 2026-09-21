@@ -209,10 +209,11 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 const repFirst = (settings.representativeName || '').trim().split(/\s+/)[0] || 'Lucas';
                 const trade = (settings.tradeName || 'Infodesk').trim();
                 const senderDisplayName = `${repFirst} - ${trade}`;
+                const senderEmail = (connectedUserEmail || 'lucas@infodesk.net.br').toLowerCase();
                 return (
                   <input
                     type="text"
-                    value={`${senderDisplayName} <${(settings.email || '').toLowerCase()}>`}
+                    value={`${senderDisplayName} <${senderEmail}>`}
                     readOnly
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-600 font-medium focus:outline-none text-xs"
                   />

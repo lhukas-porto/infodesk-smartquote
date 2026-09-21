@@ -13,7 +13,10 @@ export interface CachedPriceOffer {
 }
 
 const LOCAL_CACHE_KEY = 'smartquote_price_cache_v1';
-const MAX_CACHE_ITEMS = 200;
+const MAX_CACHE_ITEMS = 100;
+
+// Cache em memória RAM para consulta a 0ms
+const RAM_PART_NUMBER_CACHE = new Map<string, CachedPriceOffer>();
 
 function normalizePartNumber(pn: string): string {
   return (pn || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
@@ -33,21 +36,23 @@ function getLocalCache(): Record<string, CachedPriceOffer> {
 }
 
 /**
- * Persiste cache no LocalStorage
+ * Persiste cache no LocalStorage com proteção de quota
  */
 function setLocalCache(cache: Record<string, CachedPriceOffer>): void {
   try {
-    // Manter o tamanho controlado
+    // Manter o tamanho estritamente controlado
     const keys = Object.keys(cache);
     if (keys.length > MAX_CACHE_ITEMS) {
-      // Ordenar pelas mais antigas e descartar
       const sortedKeys = keys.sort((a, b) => new Date(cache[a].date).getTime() - new Date(cache[b].date).getTime());
       const keysToRemove = sortedKeys.slice(0, keys.length - MAX_CACHE_ITEMS);
       keysToRemove.forEach(k => delete cache[k]);
     }
     localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(cache));
   } catch (err) {
-    console.warn('[priceCacheService] Falha ao gravar cache local:', err);
+    console.warn('[priceCacheService] Falha ao gravar cache local, limpando com segurança:', err);
+    try {
+      localStorage.removeItem(LOCAL_CACHE_KEY);
+    } catch { /* ignore */ }
   }
 }
 
@@ -78,14 +83,17 @@ export function savePriceToCache(params: {
     isRecent: true
   };
 
+  // Salva na memória RAM (0ms)
+  RAM_PART_NUMBER_CACHE.set(normPn, offer);
+
   const cache = getLocalCache();
   cache[normPn] = offer;
   setLocalCache(cache);
 }
 
 /**
- * Busca oferta recente por Part Number (primeiro no LocalStorage, depois no Supabase)
- * Responde em milissegundos (<50ms).
+ * Busca oferta recente por Part Number (RAM -> LocalStorage -> Supabase)
+ * Responde em milissegundos (<5ms).
  */
 export async function findRecentPriceByPartNumber(
   partNumber: string
@@ -94,10 +102,25 @@ export async function findRecentPriceByPartNumber(
   const normPn = normalizePartNumber(partNumber);
   if (!normPn || normPn.length < 3) return null;
 
+  // 1. Consulta ultrarrápida na RAM (0ms)
+  const ramCached = RAM_PART_NUMBER_CACHE.get(normPn);
+  if (ramCached) {
+    const cachedDate = new Date(ramCached.date);
+    const diffMs = Date.now() - cachedDate.getTime();
+    const daysAgo = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    return {
+      ...ramCached,
+      daysAgo,
+      isRecent: daysAgo <= 15
+    };
+  }
+
+  // 2. Consulta no LocalStorage
   const cache = getLocalCache();
   const cached = cache[normPn];
 
   if (cached) {
+    RAM_PART_NUMBER_CACHE.set(normPn, cached);
     const cachedDate = new Date(cached.date);
     const diffMs = Date.now() - cachedDate.getTime();
     const daysAgo = Math.floor(diffMs / (1000 * 60 * 60 * 24));

@@ -452,7 +452,7 @@ export const App: React.FC = () => {
 
   // Google Workspace / Gmail Real Integration State
   const [isGoogleConnected, setIsGoogleConnected] = useState<boolean>(() => !!getStoredAccessToken());
-  const [connectedUserEmail, setConnectedUserEmail] = useState<string | null>(() => getStoredUserEmail() || settings.email || 'lucas@infodesk.com.br');
+  const [connectedUserEmail, setConnectedUserEmail] = useState<string | null>(() => getStoredUserEmail() || 'lucas@infodesk.net.br');
   const [isSyncingEmails, setIsSyncingEmails] = useState(false);
   const [emailSyncError, setEmailSyncError] = useState<string | null>(null);
   const [emailPeriod, setEmailPeriod] = useState<EmailPeriodFilter>('7d');
@@ -531,7 +531,8 @@ export const App: React.FC = () => {
     try {
       setEmailSyncError(null);
       setIsSyncingEmails(true);
-      const { token, email } = await requestGmailAccessToken(googleClientId);
+      const targetEmail = connectedUserEmail || 'lucas@infodesk.net.br';
+      const { token, email } = await requestGmailAccessToken(googleClientId, false, targetEmail);
       setIsGoogleConnected(true);
       setConnectedUserEmail(email);
       setSettings(prev => ({ ...prev, googleAccountEmail: email, googleWorkspaceConnected: true }));
@@ -1006,10 +1007,11 @@ export const App: React.FC = () => {
 
     let token = getStoredAccessToken();
 
-    // Se não estiver conectado ou token expirado, conecta automaticamente com o Google
+    // Se não estiver conectado ou token expirado, conecta automaticamente com o Google usando a conta preferida
     if (!token) {
       try {
-        const auth = await requestGmailAccessToken(googleClientId, true);
+        const targetEmail = connectedUserEmail || 'lucas@infodesk.net.br';
+        const auth = await requestGmailAccessToken(googleClientId, false, targetEmail);
         token = auth.token;
         setIsGoogleConnected(true);
         setConnectedUserEmail(auth.email);
@@ -1043,8 +1045,8 @@ export const App: React.FC = () => {
 
       // O Gmail exige que o campo From corresponda à conta autenticada (ou um alias configurado nela).
       // Usar a conta conectada garante 100% de entrega e gravação imediata nos "Itens Enviados" do Gmail.
-      const senderAddress = connectedUserEmail || settings.googleAccountEmail || 'me';
-      const replyToAddress = settings.email || senderAddress;
+      const senderAddress = connectedUserEmail || getStoredUserEmail() || 'lucas@infodesk.net.br';
+      const replyToAddress = senderAddress;
       const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`;
 
       await sendRealGmailMessage(token, {
@@ -1059,10 +1061,13 @@ export const App: React.FC = () => {
       });
     } catch (err: any) {
       console.error('Erro no envio via Gmail API:', err);
-      // Se deu erro de conta errada, 400, 401, token ou from, limpa a sessão para permitir escolher a certa
-      disconnectGmailAccount();
-      setIsGoogleConnected(false);
-      setConnectedUserEmail(null);
+      // Se deu erro de token/autenticação 401, limpa a sessão para permitir escolher a certa
+      const errMsg = String(err?.message || '').toLowerCase();
+      if (errMsg.includes('401') || errMsg.includes('token') || errMsg.includes('invalid credentials') || errMsg.includes('auth')) {
+        disconnectGmailAccount();
+        setIsGoogleConnected(false);
+        setConnectedUserEmail(null);
+      }
       throw new Error(`Falha no envio do Gmail: ${err.message || 'Verifique se você selecionou a conta correta do Google'}`);
     }
 

@@ -353,11 +353,17 @@ export async function exportCostSheetToExcel(quote: Quote, dollarRate?: number):
   cellLblTotal.font = fontVerdana(9.5, true);
   cellLblTotal.alignment = { horizontal: 'right', vertical: 'middle' };
 
+  const freightTotal = Number(quote.freightTotal || 0);
   const cellValTotal = worksheet.getCell(`H${totRow2}`);
-  cellValTotal.value = { 
-    formula: `SUM(L${startRow}:L${lastItemRow})`, 
-    result: quote.totalAmount 
-  };
+  cellValTotal.value = freightTotal > 0
+    ? { 
+        formula: `SUM(L${startRow}:L${lastItemRow})+${freightTotal.toFixed(2)}`, 
+        result: quote.totalAmount 
+      }
+    : { 
+        formula: `SUM(L${startRow}:L${lastItemRow})`, 
+        result: quote.totalAmount 
+      };
   cellValTotal.numFmt = numFmtAccounting;
   cellValTotal.font = fontVerdana(9.5, true);
   cellValTotal.alignment = { horizontal: 'right', vertical: 'middle' };

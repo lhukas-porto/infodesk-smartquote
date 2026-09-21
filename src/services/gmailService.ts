@@ -25,7 +25,12 @@ export const getStoredAccessToken = (): string | null => {
 };
 
 export const getStoredUserEmail = (): string | null => {
-  return localStorage.getItem(GMAIL_USER_EMAIL);
+  const email = localStorage.getItem(GMAIL_USER_EMAIL);
+  if (email && email.includes('infodesk.com.br')) {
+    localStorage.removeItem(GMAIL_USER_EMAIL);
+    return 'lucas@infodesk.net.br';
+  }
+  return email || 'lucas@infodesk.net.br';
 };
 
 export const disconnectGmailAccount = () => {
@@ -34,7 +39,11 @@ export const disconnectGmailAccount = () => {
   localStorage.removeItem(GMAIL_USER_EMAIL);
 };
 
-export const requestGmailAccessToken = async (clientId: string, forceSelectAccount: boolean = true): Promise<{ token: string; email: string }> => {
+export const requestGmailAccessToken = async (
+  clientId: string,
+  forceSelectAccount: boolean = false,
+  preferredEmail?: string
+): Promise<{ token: string; email: string }> => {
   return new Promise((resolve, reject) => {
     if (!window.google?.accounts?.oauth2) {
       reject(new Error('Google Identity Services não foi carregado. Recarregue a página e tente novamente.'));
@@ -110,7 +119,7 @@ export const requestGmailAccessToken = async (clientId: string, forceSelectAccou
               localStorage.setItem(GMAIL_USER_EMAIL, userEmail);
             }
 
-            safeResolve({ token: accessToken, email: userEmail || 'lucas@infodesk.com.br' });
+            safeResolve({ token: accessToken, email: userEmail || 'lucas@infodesk.net.br' });
           } catch (err: any) {
             console.error('Erro ao consultar perfil da conta Google:', err);
             disconnectGmailAccount();
@@ -119,8 +128,16 @@ export const requestGmailAccessToken = async (clientId: string, forceSelectAccou
         },
       });
 
-      // Se forceSelectAccount for true, força a seleção de conta para evitar login automático na conta errada
-      client.requestAccessToken({ prompt: forceSelectAccount ? 'select_account' : 'consent' });
+      const targetHint = (preferredEmail || getStoredUserEmail() || 'lucas@infodesk.net.br').trim();
+      const requestOptions: any = {};
+
+      if (forceSelectAccount) {
+        requestOptions.prompt = 'select_account';
+      } else if (targetHint && targetHint.includes('@')) {
+        requestOptions.hint = targetHint;
+      }
+
+      client.requestAccessToken(requestOptions);
     } catch (err: any) {
       safeReject(err);
     }
@@ -398,7 +415,11 @@ export const sendRealGmailMessage = async (
     const utf8FromName = `=?utf-8?B?${encodeUtf8Base64(params.fromName.trim())}?=`;
     // Se params.from já vier com <email>, extrai só o email
     const rawEmailMatch = params.from.match(/<([^>]+)>/) || [null, params.from.trim()];
-    const cleanEmail = rawEmailMatch[1] || params.from.trim();
+    let cleanEmail = (rawEmailMatch[1] || params.from.trim()).toLowerCase();
+    if (cleanEmail === 'me' || cleanEmail.includes('com.br')) {
+      const stored = getStoredUserEmail();
+      cleanEmail = (stored && !stored.includes('com.br')) ? stored : 'lucas@infodesk.net.br';
+    }
     fromHeader = `${utf8FromName} <${cleanEmail}>`;
   }
 

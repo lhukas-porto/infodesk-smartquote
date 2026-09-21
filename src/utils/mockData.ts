@@ -20,7 +20,7 @@ export const defaultCompanySettings: CompanySettings = {
   defaultTaxPercent: 9.1,
   defaultShippingCost: 0,
   googleWorkspaceConnected: true,
-  googleAccountEmail: 'lucas@infodesk.com.br'
+  googleAccountEmail: 'lucas@infodesk.net.br'
 };
 
 export const initialProducts: Product[] = [];

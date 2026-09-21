@@ -71,14 +71,72 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
 
 /**
  * Modelos Gemini modernos disponíveis em produção (substituem modelos descontinuados 1.5 e 2.0)
+ * Prioriza os 2 modelos oficiais mais rápidos para evitar cascatas desnecessárias de rede
  */
 export const MODERN_GEMINI_MODELS = [
-  'gemini-3.5-flash',
   'gemini-3.6-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-flash-latest',
-  'gemini-flash-lite-latest'
+  'gemini-3.5-flash'
 ];
+
+/**
+ * Disjuntor (Circuit Breaker) para a API Gemini:
+ * Se a cota estiver esgotada (429) ou ocorrer erro de autenticação, suspende chamadas de IA
+ * por 5 minutos para que todas as buscas subsequentes respondam em <50ms pelo catálogo local.
+ */
+let geminiCircuitBreakerUntil = 0;
+
+export function isGeminiCircuitBreakerActive(): boolean {
+  return Date.now() < geminiCircuitBreakerUntil;
+}
+
+export function resetGeminiCircuitBreaker(): void {
+  geminiCircuitBreakerUntil = 0;
+}
+
+/**
+ * Executa requisição para a API Gemini com timeout estrito via AbortController
+ * e interrupção imediata em caso de cota excedida (429)
+ */
+async function fetchGeminiWithTimeout(
+  endpoint: string,
+  body: any,
+  timeoutMs: number = 6000
+): Promise<{ ok: boolean; status: number; data?: any; errorText?: string; rateLimited?: boolean }> {
+  if (isGeminiCircuitBreakerActive()) {
+    return { ok: false, status: 429, errorText: 'Circuit breaker ativo (cota de IA em resfriamento)', rateLimited: true };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+
+    if (res.status === 429) {
+      geminiCircuitBreakerUntil = Date.now() + 5 * 60 * 1000;
+      console.warn('[Gemini Circuit Breaker] Cota excedida (429). Disjuntor ativado por 5min para manter o scanner instantâneo.');
+      return { ok: false, status: 429, errorText: 'Quota exceeded', rateLimited: true };
+    }
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      return { ok: false, status: res.status, errorText: errText };
+    }
+
+    const data = await res.json().catch(() => null);
+    return { ok: true, status: 200, data };
+  } catch (err: any) {
+    clearTimeout(timer);
+    const isTimeout = err?.name === 'AbortError';
+    return { ok: false, status: isTimeout ? 408 : 0, errorText: isTimeout ? 'Timeout (6s excedido)' : err?.message };
+  }
+}
 
 /**
  * Normaliza especificações técnicas retornadas por IA, aceitando array [{ label, value }] ou objeto chave-valor
@@ -169,22 +227,63 @@ export function normalizeSearchTerm(raw: string): string {
   return text.length >= 3 ? text : raw.trim();
 }
 
+// Cache ultrarrápido em memória RAM de sessão (0ms)
+const RAM_SCAN_CACHE = new Map<string, { timestamp: number; data: ScannedPriceResult }>();
+
 /**
- * Cache local de resultados de escaneamento para velocidade instantânea
+ * Remove fotos em base64 gigantes antes de persistir no cache,
+ * evitando 'QuotaExceededError' e travamentos de CPU por 'memória cheia'.
+ */
+function sanitizeResultForCache(res: ScannedPriceResult): ScannedPriceResult {
+  const sanitized = { ...res };
+  if (sanitized.imageUrl && sanitized.imageUrl.startsWith('data:image')) {
+    sanitized.imageUrl = '';
+  }
+  if (Array.isArray(sanitized.images)) {
+    sanitized.images = sanitized.images
+      .filter(img => img && !img.startsWith('data:image'))
+      .slice(0, 4);
+  }
+  if ((sanitized as any).customerPhotoUrl) {
+    const copy = { ...sanitized };
+    delete (copy as any).customerPhotoUrl;
+    return copy;
+  }
+  return sanitized;
+}
+
+/**
+ * Cache local de resultados de escaneamento para velocidade instantânea (<1ms)
  */
 function getCachedScanResult(query: string): ScannedPriceResult | null {
+  const key = query.trim().toLowerCase();
+  if (!key) return null;
+
+  // 1. Resposta instantânea da RAM
+  const ramEntry = RAM_SCAN_CACHE.get(key);
+  if (ramEntry) {
+    if (Date.now() - ramEntry.timestamp <= CACHE_TTL_MS) {
+      return ramEntry.data;
+    }
+    RAM_SCAN_CACHE.delete(key);
+  }
+
+  // 2. Fallback para LocalStorage leve
   try {
     const raw = localStorage.getItem(STORAGE_SCAN_CACHE_KEY);
     if (!raw) return null;
     const cache: Record<string, { timestamp: number; data: ScannedPriceResult }> = JSON.parse(raw);
-    const key = query.trim().toLowerCase();
     const entry = cache[key];
     if (!entry) return null;
     if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
       delete cache[key];
-      localStorage.setItem(STORAGE_SCAN_CACHE_KEY, JSON.stringify(cache));
+      try {
+        localStorage.setItem(STORAGE_SCAN_CACHE_KEY, JSON.stringify(cache));
+      } catch { /* ignore */ }
       return null;
     }
+    // Promove para a RAM para a próxima leitura ser a 0ms
+    RAM_SCAN_CACHE.set(key, entry);
     return entry.data;
   } catch {
     return null;
@@ -193,20 +292,38 @@ function getCachedScanResult(query: string): ScannedPriceResult | null {
 
 function saveScanResultToCache(query: string, result: ScannedPriceResult): void {
   if (!result || result.bestPrice <= 0) return;
+  const key = query.trim().toLowerCase();
+  if (!key) return;
+
+  // 1. Salva na RAM completo
+  RAM_SCAN_CACHE.set(key, { timestamp: Date.now(), data: result });
+
+  // 2. Salva no LocalStorage sanitizado (sem strings base64 pesadas)
   try {
+    const cleanResult = sanitizeResultForCache(result);
     const raw = localStorage.getItem(STORAGE_SCAN_CACHE_KEY);
-    const cache: Record<string, { timestamp: number; data: ScannedPriceResult }> = raw ? JSON.parse(raw) : {};
-    const key = query.trim().toLowerCase();
-    cache[key] = { timestamp: Date.now(), data: result };
+    let cache: Record<string, { timestamp: number; data: ScannedPriceResult }> = {};
+    if (raw) {
+      try {
+        cache = JSON.parse(raw);
+      } catch {
+        cache = {};
+      }
+    }
+    cache[key] = { timestamp: Date.now(), data: cleanResult };
     
-    // Limita o cache a 150 itens mais recentes para não lotar localStorage
+    // Limita o cache a 60 itens leves para não lotar localStorage
     const keys = Object.keys(cache);
-    if (keys.length > 150) {
-      delete cache[keys[0]];
+    if (keys.length > 60) {
+      const keysToRemove = keys.slice(0, keys.length - 60);
+      keysToRemove.forEach(k => delete cache[k]);
     }
     localStorage.setItem(STORAGE_SCAN_CACHE_KEY, JSON.stringify(cache));
   } catch {
-    // ignore
+    // Se a cota de localStorage estiver estourada por lixo antigo, faz auto-faxina
+    try {
+      localStorage.removeItem(STORAGE_SCAN_CACHE_KEY);
+    } catch { /* ignore */ }
   }
 }
 
@@ -1313,6 +1430,7 @@ Retorne ESTRITAMENTE um JSON no formato:
 }`;
 
     for (const model of models) {
+      if (isGeminiCircuitBreakerActive()) break;
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
         const parts: any[] = [];
@@ -1326,24 +1444,24 @@ Retorne ESTRITAMENTE um JSON no formato:
         });
         parts.push({ text: prompt });
 
-        const resp = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: {
-              temperature: 0.1,
-              responseMimeType: 'application/json'
-            }
-          })
-        });
+        const callRes = await fetchGeminiWithTimeout(endpoint, {
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json'
+          }
+        }, 6000);
 
-        if (!resp.ok) {
-          const errText = await resp.text();
-          console.warn(`Tentativa de Fase 1 no modelo ${model} retornou status ${resp.status}:`, errText);
+        if (callRes.rateLimited) {
+          // Cota excedida ou disjuntor acionado: interrompe cascata imediatamente
+          break;
+        }
+
+        if (!callRes.ok || !callRes.data) {
           continue;
         }
-        const data = await resp.json();
+
+        const data = callRes.data;
         const rawOutput = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!rawOutput) continue;
 
@@ -1605,21 +1723,23 @@ Retorne ESTRITAMENTE um JSON válido no formato:
 }`;
 
   for (const model of models) {
+    if (isGeminiCircuitBreakerActive()) break;
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const resp = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-            responseMimeType: 'application/json'
-          }
-        })
-      });
-      if (!resp.ok) continue;
-      const data = await resp.json();
+      const callRes = await fetchGeminiWithTimeout(endpoint, {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: 'application/json'
+        }
+      }, 6000);
+
+      if (callRes.rateLimited) {
+        break;
+      }
+
+      if (!callRes.ok || !callRes.data) continue;
+      const data = callRes.data;
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (rawText) {
         const jsonMatch = rawText.match(/\{[\s\S]*\}/);
@@ -1744,6 +1864,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
 }`;
 
   for (const model of models) {
+    if (isGeminiCircuitBreakerActive()) break;
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -1755,28 +1876,14 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       };
 
       let usedGoogleSearch = true;
-      let response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
+      let callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 6500);
 
-      // 2. Fallback para formato alternativo (googleSearch) se o novo falhar
-      if (!response.ok) {
-        requestBody = {
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ googleSearch: {} }],
-          generationConfig: { temperature: 0.1 }
-        };
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody)
-        });
+      if (callRes.rateLimited) {
+        break; // Cota esgotada, não tenta mais para não travar
       }
 
-      // 3. Fallback sem grounding (modelo usa catálogo próprio e conhecimentos nativos com alta fidelidade)
-      if (!response.ok) {
+      // 2. Fallback sem grounding se a busca ao vivo falhar por formato
+      if (!callRes.ok && callRes.status !== 408) {
         usedGoogleSearch = false;
         requestBody = {
           contents: [{ parts: [{ text: prompt }] }],
@@ -1785,16 +1892,13 @@ Retorne ESTRITAMENTE um objeto JSON válido:
             responseMimeType: 'application/json'
           }
         };
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody)
-        });
+        callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 5000);
+        if (callRes.rateLimited) break;
       }
 
-      if (!response.ok) continue;
+      if (!callRes.ok || !callRes.data) continue;
 
-      const data = await response.json();
+      const data = callRes.data;
       const textOutput = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!textOutput) continue;
 
@@ -2010,16 +2114,12 @@ export async function runBatchPhase2Scan(
       if (chosenPhoto) {
         res.imageUrl = chosenPhoto;
       } else if (res.buyUrl && !res.buyUrl.includes('google.com/search')) {
-        try {
-          const directImg = await extractImageFromStoreUrl(res.buyUrl, 2500);
-          if (directImg) {
-            res.imageUrl = directImg;
-            if (!res.images.includes(directImg)) {
-              res.images.push(directImg);
-            }
+        const directImg = extractDirectImageFromUrlPatterns(res.buyUrl);
+        if (directImg) {
+          res.imageUrl = directImg;
+          if (!res.images.includes(directImg)) {
+            res.images.push(directImg);
           }
-        } catch {
-          // ignora
         }
       }
 
@@ -2175,14 +2275,10 @@ export async function runBatchPriceScan(
       const res = await scanSingleProductPrice(item.query, geminiApiKey);
       res.quantity = item.quantity;
 
-      if (res.buyUrl && !res.buyUrl.includes('google.com/search')) {
-        try {
-          const directImg = await extractImageFromStoreUrl(res.buyUrl, 2500);
-          if (directImg) {
-            res.imageUrl = directImg;
-          }
-        } catch {
-          // ignore error and keep existing image
+      if (res.buyUrl && !res.buyUrl.includes('google.com/search') && !res.imageUrl) {
+        const directImg = extractDirectImageFromUrlPatterns(res.buyUrl);
+        if (directImg) {
+          res.imageUrl = directImg;
         }
       }
 

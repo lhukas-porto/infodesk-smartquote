@@ -361,6 +361,117 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
     );
   }
 
+  // Se houver frete geral da proposta, inclui as linhas de Subtotal, Frete e Total Geral
+  if (quote.freightTotal && quote.freightTotal > 0) {
+    const itemsSubtotal = (quote.items || []).reduce((acc: number, it: any) => acc + (it.totalPrice || 0), 0);
+    const spanWidth = colWidths.slice(0, 5).reduce((a, b) => a + b, 0);
+
+    itemRows.push(
+      new TableRow({
+        cantSplit: true,
+        children: [
+          new TableCell({
+            width: { size: spanWidth, type: WidthType.DXA },
+            borders: cellBorders,
+            margins: cellMargins,
+            columnSpan: 5,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [new TextRun({ text: 'Subtotal dos Produtos:', bold: true, size: 20 })]
+              })
+            ]
+          }),
+          new TableCell({
+            width: { size: colWidths[5], type: WidthType.DXA },
+            borders: cellBorders,
+            margins: cellMargins,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    text: `R$ ${itemsSubtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    bold: true,
+                    size: 20
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      }),
+      new TableRow({
+        cantSplit: true,
+        children: [
+          new TableCell({
+            width: { size: spanWidth, type: WidthType.DXA },
+            borders: cellBorders,
+            margins: cellMargins,
+            columnSpan: 5,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [new TextRun({ text: 'Frete:', bold: true, size: 20 })]
+              })
+            ]
+          }),
+          new TableCell({
+            width: { size: colWidths[5], type: WidthType.DXA },
+            borders: cellBorders,
+            margins: cellMargins,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    text: `R$ ${quote.freightTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    bold: true,
+                    size: 20
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      }),
+      new TableRow({
+        cantSplit: true,
+        children: [
+          new TableCell({
+            width: { size: spanWidth, type: WidthType.DXA },
+            borders: cellBorders,
+            margins: cellMargins,
+            columnSpan: 5,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [new TextRun({ text: 'Valor Total da Proposta:', bold: true, size: 20 })]
+              })
+            ]
+          }),
+          new TableCell({
+            width: { size: colWidths[5], type: WidthType.DXA },
+            borders: cellBorders,
+            margins: cellMargins,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    text: `R$ ${quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    bold: true,
+                    size: 20
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      })
+    );
+  }
+
   // Monta a Tabela Oficial
   const itemsTable = new Table({
     width: {
