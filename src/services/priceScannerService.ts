@@ -1733,7 +1733,7 @@ Retorne ESTRITAMENTE um JSON válido no formato:
           temperature: 0.1,
           responseMimeType: 'application/json'
         }
-      }, 6000);
+      }, 25000);
 
       if (callRes.rateLimited) {
         break;
@@ -1877,7 +1877,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       };
 
       let usedGoogleSearch = true;
-      let callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 6500);
+      let callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 25000);
 
       if (callRes.rateLimited) {
         break; // Cota esgotada, não tenta mais para não travar
@@ -1893,7 +1893,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
             responseMimeType: 'application/json'
           }
         };
-        callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 5000);
+        callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 20000);
         if (callRes.rateLimited) break;
       }
 
