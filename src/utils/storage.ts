@@ -1,6 +1,13 @@
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
-import { syncRegisteredMetadataToSupabase, syncClientCompaniesToSupabase } from '../services/supabase';
+import { 
+  syncRegisteredMetadataToSupabase, 
+  syncClientCompaniesToSupabase,
+  syncCompanySettingsToSupabase,
+  syncBatchProductsToSupabase,
+  syncIncomingEmailsToSupabase,
+  syncQuoteToSupabase
+} from '../services/supabase';
 
 const SETTINGS_KEY = 'infodesk_settings';
 const PRODUCTS_KEY = 'infodesk_products';
@@ -52,6 +59,23 @@ export const getCurrentDraftQuote = (): Quote | null => {
   return null;
 };
 
+let draftSyncTimer: any = null;
+export const syncDraftQuoteDebounced = (quote: Quote): void => {
+  if (draftSyncTimer) clearTimeout(draftSyncTimer);
+  draftSyncTimer = setTimeout(() => {
+    if (quote && (quote.clientCompany || (quote.items && quote.items.length > 0))) {
+      const draftQuote: Quote = {
+        ...quote,
+        status: quote.status || 'draft',
+        code: quote.code || `RASCUNHO-${Date.now()}`
+      };
+      syncQuoteToSupabase(draftQuote).catch(err => {
+        console.warn('[Storage] Erro ao sincronizar rascunho ativo no Supabase:', err);
+      });
+    }
+  }, 1200);
+};
+
 export const saveCurrentDraftQuote = (quote: Quote | null): void => {
   if (!quote) {
     try {
@@ -99,6 +123,11 @@ export const saveCurrentDraftQuote = (quote: Quote | null): void => {
     } catch {
       // Ignora erro de backup secundário
     }
+  }
+
+  // Cloud-First: Garante sincronização contínua do rascunho no Supabase
+  if (quote.clientCompany || (quote.items && quote.items.length > 0)) {
+    syncDraftQuoteDebounced(quote);
   }
 };
 
@@ -218,6 +247,11 @@ export const saveSettings = (settings: CompanySettings): void => {
       console.error('[Storage] Falha ao salvar configurações no localStorage:', e2);
     }
   }
+
+  // Cloud-First: Sincroniza imediatamente com o Supabase
+  syncCompanySettingsToSupabase(normalized).catch(err => {
+    console.warn('[Storage] Erro ao sincronizar configurações no Supabase:', err);
+  });
 };
 
 const MOCK_SKUS_SET = new Set([
@@ -278,6 +312,11 @@ export const saveProducts = (products: Product[]): void => {
       }
     }
   }
+
+  // Cloud-First: Sincroniza imediatamente o lote de produtos no Supabase
+  syncBatchProductsToSupabase(products).catch(err => {
+    console.warn('[Storage] Erro ao sincronizar lote de produtos no Supabase:', err);
+  });
 };
 
 export const sanitizeEmailObject = (e: any): IncomingEmail => {
@@ -383,6 +422,11 @@ export const saveEmails = (emails: IncomingEmail[]): void => {
   } catch (err) {
     console.error('Erro ao processar saveEmails:', err);
   }
+
+  // Cloud-First: Sincroniza imediatamente com o Supabase
+  syncIncomingEmailsToSupabase(emails).catch(err => {
+    console.warn('[Storage] Erro ao sincronizar e-mails no Supabase:', err);
+  });
 };
 
 export const getQuotes = (): Quote[] => {

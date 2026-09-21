@@ -816,6 +816,15 @@ export async function syncIncomingEmailsToSupabase(emails: IncomingEmail[]): Pro
   }
 }
 
+export async function deleteIncomingEmailFromSupabase(emailId: string): Promise<void> {
+  if (!supabase || !emailId) return;
+  try {
+    await supabase.from('incoming_emails').delete().eq('id', emailId);
+  } catch (err) {
+    console.warn('Erro ao excluir e-mail no Supabase:', err);
+  }
+}
+
 // ==============================================================================
 // 6. METADADOS: CATEGORIAS E UNIDADES REGISTRADAS (Unificação com Banco)
 // ==============================================================================

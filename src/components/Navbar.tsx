@@ -8,7 +8,8 @@ import {
   Users,
   History,
   BarChart3,
-  Clock
+  Clock,
+  Cloud
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 
@@ -215,6 +216,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               </button>
             )}
+
+            <div 
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-semibold select-none shadow-2xs"
+              title="Banco de dados Supabase ativo. Todas as alterações são salvas na nuvem em tempo real."
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <Cloud className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="text-[11px] font-mono font-bold tracking-tight">Cloud Ativa</span>
+            </div>
 
             <button
               onClick={openSettings}

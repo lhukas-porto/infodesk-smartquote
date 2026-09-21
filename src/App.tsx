@@ -94,6 +94,7 @@ import {
   deleteQuoteFromSupabase,
   fetchIncomingEmailsFromSupabase,
   syncIncomingEmailsToSupabase,
+  deleteIncomingEmailFromSupabase,
   fetchRegisteredMetadataFromSupabase,
   syncRegisteredMetadataToSupabase
 } from './services/supabase';
@@ -177,6 +178,7 @@ export const App: React.FC = () => {
       if (exists) return prev;
       const next = [email, ...prev];
       saveManualAnalyses(next);
+      syncIncomingEmailsToSupabase(next).catch(() => {});
       return next;
     });
   };
@@ -185,6 +187,7 @@ export const App: React.FC = () => {
     setManualAnalyses(prev => {
       const next = prev.filter(a => a.id !== id);
       saveManualAnalyses(next);
+      deleteIncomingEmailFromSupabase(id).catch(() => {});
       return next;
     });
   };
@@ -193,6 +196,7 @@ export const App: React.FC = () => {
     setManualAnalyses(prev => {
       const next = prev.map(a => a.id === id ? { ...a, ...updates } : a);
       saveManualAnalyses(next);
+      syncIncomingEmailsToSupabase(next).catch(() => {});
       return next;
     });
   };
