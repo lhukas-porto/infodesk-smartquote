@@ -1986,14 +1986,47 @@ export const App: React.FC = () => {
             onDeleteCompany={handleDeleteCompany}
             onDeleteContact={handleDeleteContact}
             onSelectBuyerForQuote={(companyName, contact, location) => {
-              setCurrentQuote(prev => ({
-                ...prev,
-                clientCompany: formatCompanyPrefix(companyName),
-                contactPerson: formatContactPerson(contact.name),
-                clientEmail: (contact.email || prev.clientEmail || '').toLowerCase().trim(),
-                clientPhone: contact.phone || prev.clientPhone,
-                deliveryLocation: location || prev.deliveryLocation
-              }));
+              const defaultMarkup = settings.defaultMarkupPercent ?? 23.5;
+              const defaultTax = settings.defaultTaxPercent ?? 9.1;
+              const defaultShipping = settings.defaultShippingCost ?? 0;
+              const targetCompany = clientCompanies.find(c => c.name.trim().toLowerCase() === companyName.trim().toLowerCase());
+              const companyPrefix = targetCompany?.prefix;
+              const formattedCompany = formatCompanyPrefix(companyName, companyPrefix);
+              const contactFullName = contact.title ? `${contact.title} ${contact.name}` : contact.name;
+              const formattedContact = formatContactPerson(contactFullName);
+              const deliveryLoc = location || targetCompany?.defaultDeliveryLocation || 'Brasília - DF';
+
+              const newQuote: Quote = {
+                id: `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                code: generateQuoteCode(companyName, new Date(), quotes),
+                clientCompany: formattedCompany,
+                contactPerson: formattedContact,
+                clientEmail: (contact.email || '').toLowerCase().trim(),
+                clientPhone: contact.phone || '',
+                deliveryLocation: deliveryLoc,
+                shippingTerms: `Frete incluso p/ ${deliveryLoc}.`,
+                subject: `Proposta Comercial — ${companyName}`,
+                city: 'Brasília',
+                date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
+                validityDays: settings.defaultValidityDays,
+                paymentTerms: settings.defaultPaymentTerms || 'Faturado.',
+                deliveryDays: settings.defaultDeliveryDays,
+                warrantyTerms: settings.defaultWarrantyTerms || '6m',
+                openingText: settings.defaultOpeningText,
+                items: [],
+                totalCost: 0,
+                totalProfit: 0,
+                totalAmount: 0,
+                averageMargin: defaultMarkup,
+                globalMarkupPercent: defaultMarkup,
+                globalTaxPercent: defaultTax,
+                globalShipping: defaultShipping,
+                status: 'draft',
+                createdAt: new Date().toISOString()
+              };
+
+              setCurrentQuote(newQuote);
+              saveCurrentDraftQuote(newQuote);
               setActiveTab('builder');
             }}
           />
