@@ -186,27 +186,7 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
     return quotesData.map((q: any): Quote => {
       const quoteItems = (itemsByQuoteId[q.id] && itemsByQuoteId[q.id].length > 0)
         ? itemsByQuoteId[q.id]
-        : (Number(q.total_amount || 0) > 0 ? [{
-            id: `item-${q.id}-fallback`,
-            itemNumber: 1,
-            name: q.subject || `Fornecimento para ${q.client_company || 'Cliente'}`,
-            description: '',
-            rawSearchQuery: q.subject || q.code,
-            partNumber: '',
-            ncm: '',
-            imageUrl: '',
-            showImage: false,
-            quantity: 1,
-            unit: 'Un.',
-            costPrice: Number(q.total_cost || 0),
-            shippingCost: Number(q.total_shipping || 0),
-            taxPercent: Number(q.global_tax_percent || 6),
-            markupPercent: Number(q.average_margin || 35),
-            unitPrice: Number(q.total_amount || 0),
-            totalPrice: Number(q.total_amount || 0),
-            sourceUrl: '',
-            supplier: ''
-          }] : []);
+        : [];
 
       return {
         id: q.id,

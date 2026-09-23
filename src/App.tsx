@@ -298,44 +298,49 @@ export const App: React.FC = () => {
               if (isConfirmedSent && (rq.status === 'draft' || !rq.status)) {
                 rq = { ...rq, status: 'sent', sentAt: rq.sentAt || new Date().toISOString() };
               }
-              const localMatch = prevQuotes.find(lq => lq.id === rq.id || lq.code === rq.code);
-              let items = (rq.items && rq.items.length > 0) ? rq.items : [];
-              if (items.length === 0 && localMatch && Array.isArray(localMatch.items) && localMatch.items.length > 0) {
+              const localMatch = prevQuotes.find(lq => lq.id === rq.id || (lq.code && rq.code && lq.code.trim().toUpperCase() === rq.code.trim().toUpperCase()));
+              const isValidRealItems = (itList?: QuoteItem[] | null): boolean => {
+                if (!itList || !Array.isArray(itList) || itList.length === 0) return false;
+                if (itList.length === 1) {
+                  const it = itList[0];
+                  if (it.id?.includes('fallback')) return false;
+                  if (it.name && (
+                    it.name === rq.subject ||
+                    it.name.startsWith('Proposta Comercial') ||
+                    it.name.startsWith('Fornecimento para')
+                  )) {
+                    return false;
+                  }
+                }
+                return true;
+              };
+
+              let items = isValidRealItems(rq.items) ? rq.items : [];
+
+              // Se o remoto não veio com itens reais, busca na memória local ou nos backups
+              if (!isValidRealItems(items) && localMatch && isValidRealItems(localMatch.items)) {
                 items = localMatch.items;
               }
-              if (items.length === 0) {
+              if (!isValidRealItems(items)) {
                 const bCode = rq.code ? getQuoteItemsBackup(rq.code) : null;
                 const bId = rq.id ? getQuoteItemsBackup(rq.id) : null;
-                if (bCode && bCode.length > 0) items = bCode;
-                else if (bId && bId.length > 0) items = bId;
+                const blmCode = localMatch?.code ? getQuoteItemsBackup(localMatch.code) : null;
+                const blmId = localMatch?.id ? getQuoteItemsBackup(localMatch.id) : null;
+
+                if (isValidRealItems(bCode)) items = bCode!;
+                else if (isValidRealItems(bId)) items = bId!;
+                else if (isValidRealItems(blmCode)) items = blmCode!;
+                else if (isValidRealItems(blmId)) items = blmId!;
               }
-              if (items.length === 0 && (Number(rq.totalAmount || 0) > 0 || Number(rq.totalCost || 0) > 0)) {
-                items = [{
-                  id: `item-${rq.id || Date.now()}-fallback`,
-                  itemNumber: 1,
-                  name: rq.subject || `Fornecimento para ${rq.clientCompany || 'Cliente'}`,
-                  description: '',
-                  rawSearchQuery: rq.subject || rq.code,
-                  partNumber: '',
-                  ncm: '',
-                  imageUrl: '',
-                  showImage: false,
-                  quantity: 1,
-                  unit: 'Un.',
-                  costPrice: Number(rq.totalCost || 0),
-                  shippingCost: Number(rq.totalShipping || 0),
-                  taxPercent: Number(rq.globalTaxPercent || 6),
-                  markupPercent: Number(rq.averageMargin || 35),
-                  unitPrice: Number(rq.totalAmount || 0),
-                  totalPrice: Number(rq.totalAmount || 0),
-                  sourceUrl: '',
-                  supplier: ''
-                }];
+
+              // Se recuperamos itens reais que estavam ausentes no banco, cura o Supabase em background
+              if (items.length > 0 && !isValidRealItems(rq.items)) {
+                syncQuoteToSupabase({ ...rq, items }).catch(e => {
+                  console.warn('[SmartQuote] Falha ao curar itens no Supabase:', e);
+                });
               }
-              if (items.length > 0) {
-                return { ...rq, items };
-              }
-              return rq;
+
+              return { ...rq, items };
             });
 
             // Preserva propostas que existem apenas localmente (evita perda de dados locais)
@@ -1518,8 +1523,24 @@ export const App: React.FC = () => {
   };
 
   const resolveQuoteItems = async (q: Quote, localQuotes: Quote[]): Promise<QuoteItem[]> => {
-    // 1. Já possui itens na memória
-    if (Array.isArray(q.items) && q.items.length > 0) {
+    const isValidRealItems = (itList?: QuoteItem[] | null): boolean => {
+      if (!itList || !Array.isArray(itList) || itList.length === 0) return false;
+      if (itList.length === 1) {
+        const it = itList[0];
+        if (it.id?.includes('fallback')) return false;
+        if (it.name && (
+          it.name === q.subject ||
+          it.name.startsWith('Proposta Comercial') ||
+          it.name.startsWith('Fornecimento para')
+        )) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    // 1. Já possui itens reais na memória
+    if (isValidRealItems(q.items)) {
       if (q.code) saveQuoteItemsBackup(q.code, q.items);
       if (q.id) saveQuoteItemsBackup(q.id, q.items);
       return q.items;
@@ -1527,7 +1548,7 @@ export const App: React.FC = () => {
 
     // 2. Tentar recuperar da lista de cotações em memória
     const matched = localQuotes.find(item => item.id === q.id || item.code === q.code);
-    if (matched && Array.isArray(matched.items) && matched.items.length > 0) {
+    if (matched && isValidRealItems(matched.items)) {
       if (q.code) saveQuoteItemsBackup(q.code, matched.items);
       if (q.id) saveQuoteItemsBackup(q.id, matched.items);
       return matched.items;
@@ -1535,7 +1556,7 @@ export const App: React.FC = () => {
 
     // 3. Tentar recuperar do rascunho salvo no localStorage
     const draft = getCurrentDraftQuote();
-    if (draft && (draft.id === q.id || draft.code === q.code) && Array.isArray(draft.items) && draft.items.length > 0) {
+    if (draft && (draft.id === q.id || draft.code === q.code) && isValidRealItems(draft.items)) {
       if (q.code) saveQuoteItemsBackup(q.code, draft.items);
       if (q.id) saveQuoteItemsBackup(q.id, draft.items);
       return draft.items;
@@ -1543,16 +1564,16 @@ export const App: React.FC = () => {
 
     // 4. Tentar recuperar do backup persistente por código e id
     const bCode = q.code ? getQuoteItemsBackup(q.code) : null;
-    if (bCode && bCode.length > 0) return bCode;
+    if (isValidRealItems(bCode)) return bCode!;
 
     const bId = q.id ? getQuoteItemsBackup(q.id) : null;
-    if (bId && bId.length > 0) return bId;
+    if (isValidRealItems(bId)) return bId!;
 
     // 5. Buscar diretamente no Supabase em tempo real caso tenha id no banco
     if (q.id && isSupabaseConfigured) {
       try {
         const remoteItems = await fetchQuoteItemsByQuoteId(q.id);
-        if (remoteItems && remoteItems.length > 0) {
+        if (isValidRealItems(remoteItems)) {
           if (q.code) saveQuoteItemsBackup(q.code, remoteItems);
           saveQuoteItemsBackup(q.id, remoteItems);
           return remoteItems;
@@ -1562,105 +1583,8 @@ export const App: React.FC = () => {
       }
     }
 
-    // 6. Tentar encontrar e-mail ou análise correspondente
-    const searchList = [...emails, ...manualAnalyses];
-    const matchingSource = searchList.find(e => {
-      const sEmail = (e.senderEmail || '').toLowerCase().trim();
-      const qEmail = (q.clientEmail || '').toLowerCase().trim();
-      const sComp = (e.senderCompany || '').toLowerCase().trim();
-      const qComp = (q.clientCompany || '').toLowerCase().trim();
-      const codePrefix = (q.code || '').split(' ')[0].toLowerCase();
-      return (
-        (qEmail && sEmail === qEmail) ||
-        (qComp && (sComp.includes(qComp) || qComp.includes(sComp))) ||
-        (codePrefix && sComp.includes(codePrefix))
-      );
-    });
-
-    if (matchingSource && matchingSource.suggestedItems && matchingSource.suggestedItems.length > 0) {
-      const markup = q.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 35;
-      const tax = q.globalTaxPercent ?? settings.defaultTaxPercent ?? 6;
-      const shipping = q.globalShipping ?? settings.defaultShippingCost ?? 0;
-      const reconstructed: QuoteItem[] = matchingSource.suggestedItems.map((it, idx) => {
-        const matchedProd = products.find(p => p.name.toLowerCase() === it.name.toLowerCase() || p.name.toLowerCase().includes(it.name.toLowerCase()));
-        const exactSearchRef = it.rawSearchQuery || [it.name, it.description].filter(Boolean).join(' - ');
-        const resolved = resolveProductDetails(exactSearchRef, it.description);
-        const cost = matchedProd ? matchedProd.costPrice : (resolved.estimatedCost || it.estimatedCost || 0);
-        const unitPrice = it.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
-        const markupPercent = (it.unitPrice && cost > 0)
-          ? calculateMarkupFromUnitPrice(it.unitPrice, cost, shipping, tax)
-          : markup;
-        const totalPrice = Number((unitPrice * it.quantity).toFixed(2));
-        const finalImageUrl = it.imageUrl || matchedProd?.imageUrl || resolved.imageUrl;
-        const finalPartNumber = it.partNumber || it.itemCode || matchedProd?.partNumber || resolved.partNumber;
-        const finalNcm = it.ncm || matchedProd?.ncm || resolved.ncm;
-        const itemUrl = (it.sourceUrl && isExactProductUrl(it.sourceUrl)) ? it.sourceUrl : (isExactProductUrl(resolved.sourceUrl) ? resolved.sourceUrl : (isExactProductUrl(matchedProd?.sourceUrl) ? matchedProd?.sourceUrl : ''));
-        return {
-          id: `item-${Date.now()}-${idx}`,
-          itemNumber: idx + 1,
-          productId: matchedProd?.id,
-          name: formatProductSentenceCase(resolved.standardizedName || it.name),
-          description: it.description ? formatProductSentenceCase(it.description) : '',
-          rawSearchQuery: exactSearchRef,
-          partNumber: finalPartNumber,
-          ncm: finalNcm,
-          imageUrl: finalImageUrl,
-          showImage: false,
-          quantity: it.quantity,
-          unit: it.unit || 'Un.',
-          costPrice: cost,
-          shippingCost: shipping,
-          taxPercent: tax,
-          markupPercent,
-          unitPrice,
-          totalPrice,
-          sourceUrl: itemUrl
-        };
-      });
-
-      if (reconstructed.length > 0) {
-        if (q.code) saveQuoteItemsBackup(q.code, reconstructed);
-        if (q.id) saveQuoteItemsBackup(q.id, reconstructed);
-        return reconstructed;
-      }
-    }
-
-    // 7. Auto-recuperação infalível baseada nos totais da proposta (evita tabela vazia)
-    if (Number(q.totalAmount || 0) > 0 || Number(q.totalCost || 0) > 0) {
-      const cost = Number(q.totalCost || 0);
-      const shipping = Number(q.totalShipping || 0);
-      const tax = Number(q.globalTaxPercent || 6);
-      const total = Number(q.totalAmount || 0);
-      const markup = (total > 0 && cost > 0)
-        ? calculateMarkupFromUnitPrice(total, cost, shipping, tax)
-        : Number(q.averageMargin || q.globalMarkupPercent || 35);
-      const fallbackItem: QuoteItem = {
-        id: `item-${Date.now()}-1`,
-        itemNumber: 1,
-        name: q.subject || `Fornecimento para ${q.clientCompany || 'Cliente'}`,
-        description: '',
-        rawSearchQuery: q.subject || q.code,
-        partNumber: '',
-        ncm: '',
-        imageUrl: '',
-        showImage: false,
-        quantity: 1,
-        unit: 'Un.',
-        costPrice: cost,
-        shippingCost: shipping,
-        taxPercent: tax,
-        markupPercent: markup,
-        unitPrice: total,
-        totalPrice: total,
-        sourceUrl: '',
-        supplier: ''
-      };
-      if (q.code) saveQuoteItemsBackup(q.code, [fallbackItem]);
-      if (q.id) saveQuoteItemsBackup(q.id, [fallbackItem]);
-      return [fallbackItem];
-    }
-
-    return [];
+    // 6. Retorna itens existentes originais caso não haja recuperação melhor
+    return Array.isArray(q.items) ? q.items : [];
   };
 
   return (

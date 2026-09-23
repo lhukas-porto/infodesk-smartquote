@@ -808,40 +808,82 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                         </span>
                       )}
                     </p>
-                    {q.subject && (
-                      <p className="text-[11px] font-medium text-slate-600 mt-1 truncate max-w-sm sm:max-w-md flex items-center gap-1.5" title={q.subject}>
-                        <Mail className="w-3 h-3 text-sky-600 shrink-0" />
-                        <span className="truncate">{q.subject}</span>
-                      </p>
-                    )}
-
-                    {searchTerm.trim() && Array.isArray(q.items) && (() => {
+                    {/* Lista / Preview dos Produtos Cotados na Proposta */}
+                    {Array.isArray(q.items) && q.items.length > 0 ? (() => {
                       const term = normalizeSearchText(searchTerm);
-                      if (!term) return null;
-                      const matched = q.items.filter(it => 
-                        normalizeSearchText(it.name).includes(term) ||
-                        normalizeSearchText(it.partNumber).includes(term) ||
-                        normalizeSearchText(it.description).includes(term) ||
-                        normalizeSearchText(it.ncm).includes(term) ||
-                        normalizeSearchText(it.supplier).includes(term)
-                      );
-                      if (matched.length === 0) return null;
+                      const sortedItems = term
+                        ? [...q.items].sort((a, b) => {
+                            const aMatch = 
+                              normalizeSearchText(a.name).includes(term) ||
+                              normalizeSearchText(a.partNumber).includes(term) ||
+                              normalizeSearchText(a.description).includes(term);
+                            const bMatch = 
+                              normalizeSearchText(b.name).includes(term) ||
+                              normalizeSearchText(b.partNumber).includes(term) ||
+                              normalizeSearchText(b.description).includes(term);
+                            if (aMatch && !bMatch) return -1;
+                            if (!aMatch && bMatch) return 1;
+                            return 0;
+                          })
+                        : q.items;
+
                       return (
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {matched.slice(0, 3).map((it, idx) => (
-                            <span key={idx} className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-1.5 py-0.5 rounded font-medium flex items-center gap-1 shadow-2xs">
-                              <Package className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
-                              <span className="truncate max-w-[240px]">Produto: {it.name}</span>
-                            </span>
-                          ))}
-                          {matched.length > 3 && (
-                            <span className="text-[10px] text-slate-400 font-medium self-center">
-                              +{matched.length - 3} item(ns)
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {sortedItems.slice(0, 3).map((it, idx) => {
+                            const isFallback = 
+                              it.name === q.subject || 
+                              it.name?.startsWith('Proposta Comercial') || 
+                              it.name?.startsWith('Fornecimento para') ||
+                              it.name?.startsWith('Fornecimento de produtos');
+                            const displayName = isFallback ? 'Item da proposta' : (it.name || 'Produto');
+                            const isMatched = term && (
+                              normalizeSearchText(it.name).includes(term) ||
+                              normalizeSearchText(it.partNumber).includes(term)
+                            );
+
+                            return (
+                              <span 
+                                key={idx} 
+                                className={`text-[11px] px-2 py-0.5 rounded-lg font-medium flex items-center gap-1.5 max-w-[280px] truncate shadow-2xs transition-colors ${
+                                  isMatched 
+                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/90' 
+                                    : 'bg-slate-100 hover:bg-sky-50 text-slate-800 border border-slate-200/80'
+                                }`}
+                                title={`${displayName}${it.partNumber ? ` (PN: ${it.partNumber})` : ''} - Qtd: ${it.quantity || 1}`}
+                              >
+                                <Package className={`w-3 h-3 shrink-0 ${isMatched ? 'text-emerald-600' : 'text-sky-600'}`} />
+                                <span className="truncate">{displayName}</span>
+                                {(it.quantity || 1) > 1 && (
+                                  <span className="text-[10px] text-slate-500 font-mono font-bold">
+                                    ({it.quantity}x)
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })}
+                          {q.items.length > 3 && (
+                            <span className="text-[10.5px] text-slate-500 font-semibold bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs">
+                              +{q.items.length - 3} produto(s)
                             </span>
                           )}
                         </div>
                       );
-                    })()}
+                    })() : (
+                      <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
+                        <Package className="w-3 h-3 text-slate-300 shrink-0" />
+                        <span>Nenhum produto cadastrado</span>
+                      </p>
+                    )}
+
+                    {/* Assunto de e-mail (apenas se for assunto real/personalizado, discreto) */}
+                    {q.subject && 
+                     !q.subject.startsWith('Proposta Comercial') && 
+                     !q.subject.startsWith('Fornecimento de produtos') && (
+                      <p className="text-[10.5px] text-slate-400 mt-1 truncate max-w-sm sm:max-w-md flex items-center gap-1.5" title={q.subject}>
+                        <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate">Ref: {q.subject}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
