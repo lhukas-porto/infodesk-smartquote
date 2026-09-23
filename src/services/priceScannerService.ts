@@ -2021,28 +2021,41 @@ export async function phase1DiscoverProductsFromText(
     const models = MODERN_GEMINI_MODELS;
 
     const photoPrioritySection = imgDataList.length > 0 ? `
-🚨 REGRAS PARA ENTRADA COM FOTO(S) (${imgDataList.length} FOTO(S) ANEXADA(S)):
-- O comprador anexou ${imgDataList.length} FOTO(S) de produto (Imagem 1 a Imagem ${imgDataList.length})!
-- Analise com lupa: estrutura, chassi, acabamento, detalhes visíveis, etiquetas, conectores e formato real.
-- PRINCÍPIO DE CONSOLIDAÇÃO VISUAL: Se as fotos enviadas forem DIFERENTES ÂNGULOS, COMPONENTES, DETALHES, PEÇAS OU EMBALAGEM DO MESMO PRODUTO, você DEVE retornar APENAS 1 PRODUTO no array "products"!
-- SÓ retorne produtos separados se as fotos mostrarem itens comprovadamente distintos e sem qualquer relação entre si.
+🚨 REGRAS PARA ENTRADA VISUAL (${imgDataList.length} IMAGEM/FOTO ANEXADA):
+Analise o conteúdo visual com rigor e diferencie com precisão o tipo de imagem:
+
+TIPO A — DOCUMENTO, PRINT DE TELA, TABELA, PEDIDO OU LISTA (MÁXIMA ATENÇÃO):
+Se a imagem for um print de tela, documento digital, planilha, tabela, lista digitada, WhatsApp ou formulário contendo texto e produtos:
+1. LEITURA E TRANSCRIÇÃO INTERNA COMPLETA:
+   - Leia e compreenda internamente todo o texto, códigos, referências, part numbers, quantidades e descrições contidos na imagem.
+2. DIVISÃO EM LINHAS / BORDAS DE TABELA:
+   - Observe atentamente as LINHAS HORIZONTAIS, BORDAS DE TABELA, ZEBRADOS OU SEPARADORES que dividem os itens.
+   - Cada linha ou bloco delimitado por linhas horizontais representa UM ITEM COMERCIAL INDEPENDENTE!
+3. DESCRIÇÕES EXTENSAS EM MÚLTIPLAS LINHAS:
+   - Se a descrição de um determinado item for longa e ocupar várias linhas verticais dentro da mesma célula/linha (ex: especificações técnicas detalhadas, dimensões, normas):
+     TODO esse bloco contínuo de texto pertence àquele único item específico delimitado pelas linhas divisórias!
+     NÃO quebre essa descrição em produtos fictícios e NÃO ignore os outros produtos da tabela!
+     As linhas horizontais divisórias da tabela determinam o início e o fim de cada produto.
+4. QUANTIDADE DE PRODUTOS NO ARRAY:
+   - Se o print contiver 4 itens delimitados por linhas, você DEVE retornar EXATAMENTE OS 4 PRODUTOS no array "products"!
+5. PROIBIDO UNIFICAR TABELAS/PRINTS: O Princípio de Unificação NUNCA se aplica a prints de tela, listas ou tabelas com múltiplos produtos! Cada linha é um produto autônomo que deve ser pesquisado e cotado individualmente.
+
+TIPO B — FOTOS REAIS DO MESMO OBJETO FÍSICO:
+- Somente se as fotos mostrarem diferentes ângulos, componentes ou embalagem de um ÚNICO objeto físico (ex: fotos de um jogo de xadrez):
+  Aplica-se o Princípio de Consolidação: retorne 1 único produto unificando as informações visuais das fotos.
 - Preencha "visualSearchQuery", "visualSearchQueryAlt" e "visualSearchQueryEn" com termos físicos e comerciais precisos para localizar o produto no e-commerce brasileiro e internacional.
 - Preencha "negativeKeywords" com termos a evitar.
 ` : '';
 
     const hybridRuleSection = (imgDataList.length > 0 && rawText.trim()) ? `
-🚨🚨🚨 REGRA DE OURO PARA ENTRADA COMBINADA (${imgDataList.length} FOTO(S) + TEXTO ESCRITO):
-O comprador digitou uma busca e TAMBÉM anexou ${imgDataList.length} foto(s) para fornecer o máximo de detalhes e precisão!
-1. PRINCÍPIO DA UNIFICAÇÃO (MÁXIMA PRIORIDADE):
-   Na imensa maioria das buscas (ex: texto "JOGO DE XADREZ GIGANTE 66x66CM- PEDAGÓGICO" com 3 fotos de xadrez), o comprador quer EXATAMENTE 1 PRODUTO!
-   Ele anexou fotos de diferentes ângulos, tabuleiro, peças, detalhes e caixa para alimentar o scanner com informações ricas para achar o produto correto.
-   PORTANTO, SE AS FOTOS E O TEXTO DIZEM RESPEITO AO MESMO TIPO/TEMA DE PRODUTO, RETORNE ESTRITAMENTE 1 ÚNICO PRODUTO no array "products"!
-   O produto único deve consolidar o nome, medidas e especificações do texto com todas as pistas visuais das fotos.
-2. EXCEÇÃO ÚNICA PARA MÚLTIPLOS PRODUTOS:
-   Você SÓ DEVE retornar mais de 1 produto se:
-   a) O texto for uma lista explícita com vários itens numerados ou separados (ex: "1. Xadrez gigante, 2. Jogo de Damas, 3. Dominó"); OU
-   b) As fotos anexadas forem comprovadamente de itens completamente diferentes e sem qualquer relação com o texto (ex: texto fala de xadrez, mas uma foto é de geladeira e outra de furadeira).
-   FORA DESSAS EXCEÇÕES EXPLÍCITAS, NUNCA crie produtos duplicados ou separe as fotos do texto! Retorne sempre 1 PRODUTO unificado!
+🚨🚨🚨 REGRA PARA ENTRADA COMBINADA (${imgDataList.length} FOTO/PRINT + TEXTO ESCRITO):
+1. SE A IMAGEM FOR UM PRINT DE TELA, TABELA OU LISTA:
+   Mesmo que haja texto digitado, você DEVE transcrever e extrair cada um dos itens delimitados por linhas no print. Se o print tiver 4 produtos separados por linhas, retorne os 4 produtos no array "products"!
+2. SE AS FOTOS FOREM DE UM ÚNICO OBJETO FÍSICO COMPLEMENTANDO UM PRODUTO DIGITADO:
+   Ex: texto "JOGO DE XADREZ GIGANTE 66x66CM- PEDAGÓGICO" com 3 fotos de xadrez:
+   Neste caso, retorne 1 único produto consolidando o texto e as fotos!
+3. SE O TEXTO FOR UMA LISTA DE MÚLTIPLOS ITENS:
+   Retorne cada item como um produto separado no array "products".
 ` : '';
 
     const prompt = `Você é um engenheiro sênior especialista em suprimentos corporativos, equipamentos industriais, informática e catalogação da Infodesk Store e SmartQuote Brasil.
@@ -2050,7 +2063,7 @@ Receberá uma solicitação de produtos (podendo conter ${imgDataList.length > 0
 ${photoPrioritySection}
 ${hybridRuleSection}
 SUA MISSÃO NA FASE 1: DEDUZIR E ENRIQUECER O(S) PRODUTO(S) COM FICHA TÉCNICA 360° COMPLETA (SISTEMÁTICA INFODESK STORE).
-LEMBRE-SE: Se o comprador digitou um produto e enviou fotos complementares dele, RETORNE APENAS 1 PRODUTO CONSOLIDADO com todas as informações unificadas!
+LEMBRE-SE: Se a imagem for um print de tela, documento ou tabela com múltiplos itens separados por linhas horizontais, você DEVE RETORNAR CADA ITEM SEPARADAMENTE no array "products" (ex: 4 linhas de produtos = 4 produtos distintos)! Somente unifique em 1 produto se forem diferentes ângulos físicos de um mesmo objeto.
 
 DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
 - "isFromPhoto": Booleano (true se o produto corresponde ou foi enriquecido pelas fotos anexadas, false se for estritamente do texto sem fotos).

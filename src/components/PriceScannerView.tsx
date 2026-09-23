@@ -344,32 +344,35 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
   };
 
   // ─── FASE 1: Identificar Produto(s) com Dedução e Engenharia Reversa ──────────
-  const handleStartPhase1Discovery = async () => {
-    if (!batchRawInput.trim() && attachedProductPhotos.length === 0) return;
+  const handleStartPhase1Discovery = async (customText?: string, customPhotos?: string[]) => {
+    const textToProcess = customText !== undefined ? customText : batchRawInput;
+    const photosToProcess = customPhotos !== undefined ? customPhotos : attachedProductPhotos;
+
+    if (!textToProcess.trim() && photosToProcess.length === 0) return;
 
     setIsDiscoveringPhase1(true);
     setPhase1StatusMessage(
-      attachedProductPhotos.length > 0 && batchRawInput.trim()
-        ? `Cruzando ${attachedProductPhotos.length} foto(s) com as especificações do texto para identificar o produto...`
-        : attachedProductPhotos.length > 0
-          ? `Examinando ${attachedProductPhotos.length} foto(s) com prioridade visual...`
+      photosToProcess.length > 0 && textToProcess.trim()
+        ? `Lendo ${photosToProcess.length} imagem(ns), transcrevendo dados e cruzando com as especificações...`
+        : photosToProcess.length > 0
+          ? `Lendo imagem(ns), transcrevendo itens e identificando produtos com fidelidade máxima...`
           : 'Analisando características técnicas e buscando fotos reais...'
     );
     setBatchResults([]);
     setSelectedResultIds(new Set());
 
     try {
-      const discovered = await phase1DiscoverProductsFromText(batchRawInput, {
-        imageSources: attachedProductPhotos,
-        imageSource: attachedProductPhotos[0] || null
+      const discovered = await phase1DiscoverProductsFromText(textToProcess, {
+        imageSources: photosToProcess,
+        imageSource: photosToProcess[0] || null
       });
       setDiscoveredProducts(discovered);
       if (discovered.length > 0) {
         showToast(
-          attachedProductPhotos.length > 0 && batchRawInput.trim()
-            ? `Fotos e descrições processadas! ${discovered.length} produto(s) identificado(s)!`
-            : attachedProductPhotos.length > 0
-              ? `${discovered.length} produto(s) deduzido(s) com fidelidade máxima às fotos!`
+          photosToProcess.length > 0 && textToProcess.trim()
+            ? `Print/fotos e descrições processadas! ${discovered.length} produto(s) identificado(s)!`
+            : photosToProcess.length > 0
+              ? `${discovered.length} produto(s) identificado(s) a partir do print/foto!`
               : `${discovered.length} produto(s) identificado(s) com sucesso!`
         );
       }
@@ -728,17 +731,19 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
     }
   };
 
-  // OCR
+  // OCR / Transcrição Automática de Print ou Pedido
   const handleProcessImageForOcr = async (fileOrBlob: File | Blob) => {
     setIsOcrProcessing(true);
-    setOcrProgressMessage('Carregando imagem...');
+    setOcrProgressMessage('Lendo imagem e transcrevendo produtos...');
+    let previewUrl = '';
     try {
       const reader = new FileReader();
       reader.onload = (ev) => {
         const url = ev.target?.result as string;
+        previewUrl = url;
         setOcrImagePreview(url);
         if (url) {
-          setAttachedProductPhotos(prev => [...prev, url]);
+          setAttachedProductPhotos(prev => (prev.includes(url) ? prev : [...prev, url]));
         }
       };
       reader.readAsDataURL(fileOrBlob);
@@ -773,8 +778,16 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
           return `${combined}${codePart}${qtyPart}`.trim();
         });
 
-        setOcrEditableText(formattedLines.join('\n'));
-        setIsOcrModalOpen(true);
+        const fullFormattedText = formattedLines.join('\n');
+        setOcrEditableText(fullFormattedText);
+        setBatchRawInput(fullFormattedText);
+        showToast(`${extracted.items.length} produto(s) transcrito(s) do print! Identificando produtos...`);
+
+        // Executa a Fase 1 de descoberta automaticamente, sem exigir telas intermediárias
+        setTimeout(() => {
+          const photos = previewUrl ? [previewUrl] : undefined;
+          handleStartPhase1Discovery(fullFormattedText, photos);
+        }, 150);
       } else {
         alert('Não foi possível identificar produtos na imagem. Tente uma foto mais nítida.');
       }
@@ -799,6 +812,11 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
       });
       if (files.length > 0) {
         handleAttachProductPhotos(files);
+        // Se colar um print e o campo de texto estiver vazio, transcreve silenciosamente e inicia a pesquisa
+        if (files.length === 1 && !batchRawInput.trim()) {
+          showToast('Print colado! Lendo imagem e transcrevendo produtos...');
+          handleProcessImageForOcr(files[0]);
+        }
       }
     }
   };
@@ -1097,7 +1115,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
 
           <button
             type="button"
-            onClick={handleStartPhase1Discovery}
+            onClick={() => handleStartPhase1Discovery()}
             disabled={isDiscoveringPhase1 || isScanningBatch || (!batchRawInput.trim() && attachedProductPhotos.length === 0)}
             className="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-98"
           >

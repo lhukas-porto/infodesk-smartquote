@@ -353,17 +353,23 @@ async function extractWithGeminiVision(
       'Você é um especialista sênior em cotações comerciais, suprimentos corporativos e compras públicas no Brasil.\n' +
       'Analise a imagem desta cotação, pedido ou print com extrema precisão.\n\n' +
       'DIRETRIZES OBRIGATÓRIAS:\n' +
-      '0. PRIORIDADE VISUAL DA FOTO DO PRODUTO: Se a imagem contiver uma foto real do produto físico (ex: carrinho plataforma, equipamento, máquina ou peça), ANALISE ATENTAMENTE A FOTO PRIMEIRO: formato do chassi, presença de grade (fixa ou móvel aramada), tipo exato de rodas/rodízios (pneumáticas com câmara vs borracha maciça), acabamento e cores. O nome e descrição DEVEM descrever fielmente o produto físico visível na foto com máxima especificidade comercial.\n' +
-      '1. NOMENCLATURA PADRONIZADA DE CATÁLOGO / FABRICANTE: Para cada produto, defina um nome canônico e profissional no padrão:\n' +
+      '0. SEPARAÇÃO EM LINHAS / BORDAS DE TABELA / PRINTS (MÁXIMA ATENÇÃO):\n' +
+      '   - Se a imagem for um print de tela, documento digital, tabela ou pedido de cotação com múltiplos itens:\n' +
+      '   - Observe com rigor as LINHAS HORIZONTAIS e BORDAS que separam os itens.\n' +
+      '   - Cada linha ou bloco delimitado por linhas horizontais representa UM ITEM SEPARADO.\n' +
+      '   - Se a descrição de um item for extensa e ocupar várias linhas verticais dentro da mesma linha/célula da tabela: agrupe todo esse texto na descrição DAQUELE ITEM ESPECÍFICO. NÃO fragmente em itens fictícios e NÃO ignore os outros produtos da tabela!\n' +
+      '   - Extraia TODOS os produtos presentes na tabela/print (ex: se houver 4 itens separados por linhas, você DEVE retornar exatamente os 4 itens no array "items").\n' +
+      '1. PRIORIDADE VISUAL DA FOTO DO PRODUTO: Se a imagem contiver uma foto real do produto físico (ex: carrinho plataforma, equipamento, máquina ou peça), ANALISE ATENTAMENTE A FOTO PRIMEIRO: formato do chassi, presença de grade (fixa ou móvel aramada), tipo exato de rodas/rodízios (pneumáticas com câmara vs borracha maciça), acabamento e cores. O nome e descrição DEVEM descrever fielmente o produto físico visível na foto com máxima especificidade comercial.\n' +
+      '2. NOMENCLATURA PADRONIZADA DE CATÁLOGO / FABRICANTE: Para cada produto, defina um nome canônico e profissional no padrão:\n' +
       '   [Tipo do Produto] [Marca] [Linha Especificação Sabor] [Embalagem Gramatura Tamanho]\n' +
       '   - REGRA DE OURO DE PONTUAÇÃO: NUNCA use vírgulas (,) no nome ou descrição dos produtos. Traços, hífens (-), barras e outros símbolos são totalmente permitidos quando fizerem parte do modelo, código, part number ou especificação.\n' +
       '   - Exemplo CORRETO de Café: "Café Torrado e Moído Tradicional Vácuo 500g Café do Sítio"\n' +
       '   - Exemplo CORRETO de Chá: "Chá Twinings Sabores Diversos Caixa com 100 Sachês"\n' +
       '   - PROIBIDO inventar palavras desnecessárias (ex: não troque para "Chá Preto e Verde", use o termo canônico solicitado: "Chá Twinings Sabores Diversos Caixa com 100 Sachês").\n' +
       '   - PROIBIDO nomes informais ou redundantes como "Kit de chá", "Kit de...", ou duplicar a descrição dentro do nome.\n' +
-      '2. QUANTIDADES: Identifique com precisão absoluta a quantidade solicitada (ex: se na linha ou tabela constar 500 pct, quantidade = 500, unit = "Pct"). Não deixe passar pedidos em lote.\n' +
-      '3. NCM FISCAL REAL: Sugira o NCM exato do produto (ex: café torrado = 0901.21.00; chá preto/aromatizado = 0902.30.00; eletrônicos = 84/85; utilidades plásticas = 3924.90.00).\n' +
-      '4. DADOS DO CLIENTE: Identifique órgão, empresa solicitante, comprador, e-mail, telefone e cidade de entrega se visíveis.\n\n' +
+      '3. QUANTIDADES: Identifique com precisão absoluta a quantidade solicitada (ex: se na linha ou tabela constar 500 pct, quantidade = 500, unit = "Pct"). Não deixe passar pedidos em lote.\n' +
+      '4. NCM FISCAL REAL: Sugira o NCM exato do produto (ex: café torrado = 0901.21.00; chá preto/aromatizado = 0902.30.00; eletrônicos = 84/85; utilidades plásticas = 3924.90.00).\n' +
+      '5. DADOS DO CLIENTE: Identifique órgão, empresa solicitante, comprador, e-mail, telefone e cidade de entrega se visíveis.\n\n' +
       'Retorne ESTRITAMENTE um JSON com esta estrutura:\n' +
       '{\n' +
       '  "senderCompany": "Nome da empresa ou órgão comprador",\n' +
