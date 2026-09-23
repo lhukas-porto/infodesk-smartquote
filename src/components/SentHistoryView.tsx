@@ -744,203 +744,209 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
             return (
               <div
                 key={q.id}
-                className={`bg-white border rounded-2xl p-4 shadow-xs transition hover:shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4 group ${
+                className={`bg-white border rounded-2xl p-4 shadow-xs transition hover:shadow-sm flex flex-col gap-3 group ${
                   isDue ? 'border-amber-300/80 bg-amber-50/10' : 'border-slate-200 hover:border-sky-300'
                 }`}
               >
-                {/* 1. Identificação da Proposta & Cliente */}
-                <div className="min-w-[280px] max-w-md space-y-1.5">
-                  {(() => {
-                    const { displayDate, displayTime } = formatQuoteDateTime(q);
-                    return (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
-                          {q.code || 'PROPOSTA'}
-                        </span>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{displayDate}</span>
+                {/* 1. Nível Superior: Identificação da Proposta & Cliente à esquerda, Financeiro à direita */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  {/* Esquerda: Código, Data/Hora e Dados do Cliente */}
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    {(() => {
+                      const { displayDate, displayTime } = formatQuoteDateTime(q);
+                      return (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
+                            {q.code || 'PROPOSTA'}
                           </span>
-                          {displayTime && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{displayDate}</span>
+                            </span>
+                            {displayTime && (
+                              <span 
+                                className="flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[10.5px] font-semibold"
+                                title={q.sentAt ? `Horário do envio: ${displayTime}` : `Horário de criação: ${displayTime}`}
+                              >
+                                <Clock className="w-2.5 h-2.5 text-sky-600 shrink-0" />
+                                <span>{displayTime}</span>
+                              </span>
+                            )}
+                          </div>
+                          {currentStage === 'draft' && (
                             <span 
-                              className="flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[10.5px] font-semibold"
-                              title={q.sentAt ? `Horário do envio: ${displayTime}` : `Horário de criação: ${displayTime}`}
+                              className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1"
+                              title="Orçamento em rascunho (pendente de envio)"
                             >
-                              <Clock className="w-2.5 h-2.5 text-sky-600 shrink-0" />
-                              <span>{displayTime}</span>
+                              <Clock className="w-2.5 h-2.5 text-amber-600" />
+                              Rascunho
+                            </span>
+                          )}
+                          {isDue && (
+                            <span 
+                              className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1 animate-pulse"
+                              title="Enviada há mais de 48h sem resposta do cliente"
+                            >
+                              <Flame className="w-2.5 h-2.5 text-amber-600" />
+                              +48h sem retorno
                             </span>
                           )}
                         </div>
-                        {currentStage === 'draft' && (
-                          <span 
-                            className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1"
-                            title="Orçamento em rascunho (pendente de envio)"
-                          >
-                            <Clock className="w-2.5 h-2.5 text-amber-600" />
-                            Rascunho
-                          </span>
-                        )}
-                        {isDue && (
-                          <span 
-                            className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1 animate-pulse"
-                            title="Enviada há mais de 48h sem resposta do cliente"
-                          >
-                            <Flame className="w-2.5 h-2.5 text-amber-600" />
-                            +48h sem retorno
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
+                      );
+                    })()}
 
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 group-hover:text-sky-700 transition flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{q.clientCompany || 'Cliente sem nome'}</span>
-                    </h3>
-                    <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                      <User className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span>{q.contactPerson || 'Comprador não especificado'}</span>
-                      {q.clientEmail && (
-                        <span className="text-slate-400 truncate max-w-[180px]">
-                          • {q.clientEmail}
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-sky-700 transition flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{q.clientCompany || 'Cliente sem nome'}</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <User className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{q.contactPerson || 'Comprador não especificado'}</span>
                         </span>
-                      )}
-                    </p>
+                        {q.clientEmail && (
+                          <span className="text-slate-400 truncate max-w-[220px]">
+                            • {q.clientEmail}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
 
+                  {/* Direita: Valores Financeiros & Margem com destaque executivo */}
+                  <div className="sm:text-right shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 flex sm:flex-col justify-between sm:justify-start items-baseline sm:items-end">
+                    <span className="text-base sm:text-lg font-mono font-bold text-emerald-700 block">
+                      R$ {q.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <div className="flex items-center sm:justify-end gap-2 text-[11px] text-slate-500 mt-0.5">
+                      <span>{q.items?.length || 0} produto(s)</span>
+                      <span>•</span>
+                      <span className="font-semibold text-sky-700 font-mono">
+                        {q.averageMargin?.toFixed(0) || 25}% margem
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* 2. Stepper de Estágio Comercial Interativo */}
-                <div className="flex-1 max-w-xl">
-                  <div className="flex items-center bg-slate-50 p-1 rounded-xl border border-slate-200 overflow-x-auto">
-                    {PIPELINE_STAGES.map((stage, idx) => {
-                      const isCurrent = currentStage === stage.id;
-                      const Icon = stage.icon;
+                {/* 2. Nível Inferior: Barra de Controle (Stepper do Pipeline à esquerda + Ações à direita) */}
+                <div className="border-t border-slate-100 pt-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+                  {/* Stepper de Estágio Comercial Interativo */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center bg-slate-50 p-1 rounded-xl border border-slate-200 overflow-x-auto max-w-full">
+                      {PIPELINE_STAGES.map((stage, idx) => {
+                        const isCurrent = currentStage === stage.id;
+                        const Icon = stage.icon;
 
-                      return (
-                        <React.Fragment key={stage.id}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (onUpdateQuoteStatus) {
-                                onUpdateQuoteStatus(q.id, stage.id);
-                              }
-                            }}
-                            className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                              isCurrent
-                                ? `${stage.activeBg} ${stage.activeText} border ${stage.activeBorder} shadow-2xs`
-                                : 'text-slate-500 hover:text-slate-800 hover:bg-white/80'
-                            }`}
-                            title={`Mover para estágio: ${stage.label}`}
-                          >
-                            <Icon className={`w-3.5 h-3.5 ${isCurrent ? stage.activeText : 'text-slate-400'}`} />
-                            <span className="text-[11px]">{stage.shortLabel}</span>
-                          </button>
-                          {idx < PIPELINE_STAGES.length - 1 && (
-                            <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 mx-0.5" />
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <React.Fragment key={stage.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onUpdateQuoteStatus) {
+                                  onUpdateQuoteStatus(q.id, stage.id);
+                                }
+                              }}
+                              className={`py-1 px-2.5 sm:px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                                isCurrent
+                                  ? `${stage.activeBg} ${stage.activeText} border ${stage.activeBorder} shadow-2xs`
+                                  : 'text-slate-500 hover:text-slate-800 hover:bg-white/80'
+                              }`}
+                              title={`Mover para estágio: ${stage.label}`}
+                            >
+                              <Icon className={`w-3.5 h-3.5 ${isCurrent ? stage.activeText : 'text-slate-400'}`} />
+                              <span className="text-[11px] sm:text-xs">{stage.shortLabel}</span>
+                            </button>
+                            {idx < PIPELINE_STAGES.length - 1 && (
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 mx-0.5" />
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
 
-                  {/* Opção discreta de marcar como Perdida */}
-                  <div className="flex items-center justify-end mt-1 px-1">
+                    {/* Opção discreta de marcar como Perdida */}
                     {currentStage === 'lost' ? (
-                      <span className="text-[10px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 font-bold flex items-center gap-1">
-                        <X className="w-3 h-3 text-rose-600" /> Proposta Perdida / Declinada
+                      <span className="text-[10px] text-rose-700 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200 font-bold flex items-center gap-1">
+                        <X className="w-3 h-3 text-rose-600" /> Perdida / Declinada
                       </span>
                     ) : (
                       onUpdateQuoteStatus && (
                         <button
                           type="button"
                           onClick={() => onUpdateQuoteStatus(q.id, 'lost')}
-                          className="text-[10.5px] text-slate-400 hover:text-rose-600 transition flex items-center gap-1"
+                          className="text-[11px] text-slate-400 hover:text-rose-600 transition flex items-center gap-1 px-2 py-1 hover:bg-rose-50 rounded-lg cursor-pointer"
+                          title="Marcar como proposta perdida"
                         >
                           <X className="w-3 h-3" />
-                          <span>Marcar como perdida</span>
+                          <span>Perdida</span>
                         </button>
                       )
                     )}
                   </div>
-                </div>
 
-                {/* 3. Valores Financeiros & Itens */}
-                <div className="xl:text-right min-w-[150px] border-t xl:border-t-0 pt-2 xl:pt-0 border-slate-100 flex xl:flex-col justify-between items-end">
-                  <span className="text-sm md:text-base font-mono font-bold text-emerald-700 block">
-                    R$ {q.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                  <div className="flex items-center xl:justify-end gap-2 text-[11px] text-slate-500 mt-0.5">
-                    <span>{q.items?.length || 0} produto(s)</span>
-                    <span>•</span>
-                    <span className="font-semibold text-sky-700 font-mono">
-                      {q.averageMargin?.toFixed(0) || 25}% margem
-                    </span>
-                  </div>
-                </div>
+                  {/* Botões de Ação Padronizados */}
+                  <div className="flex items-center md:justify-end gap-1.5 shrink-0 flex-wrap">
+                    {onEditQuote && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (currentStage === 'draft') {
+                            const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                            onEditQuote({ ...q, date: todayFormatted, createdAt: new Date().toISOString() });
+                          } else {
+                            onEditQuote(q);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 border border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                        title="Editar proposta no QuoteBuilder"
+                      >
+                        <FileEdit className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Editar</span>
+                      </button>
+                    )}
 
-                {/* 4. Botões de Ação Padronizados */}
-                <div className="flex items-center xl:justify-end gap-1.5 shrink-0 border-t xl:border-t-0 pt-2 xl:pt-0 border-slate-100">
-                  {onEditQuote && (
+                    {onDuplicateQuote && (
+                      <button
+                        type="button"
+                        onClick={() => onDuplicateQuote(q)}
+                        className="px-3 py-1.5 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                        title="Duplicar proposta como uma nova cotação com código único e itens preservados"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Duplicar</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => {
                         if (currentStage === 'draft') {
                           const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-                          onEditQuote({ ...q, date: todayFormatted, createdAt: new Date().toISOString() });
+                          onOpenQuote({ ...q, date: todayFormatted, createdAt: new Date().toISOString() });
                         } else {
-                          onEditQuote(q);
+                          onOpenQuote(q);
                         }
                       }}
-                      className="px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 border border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                      title="Editar proposta no QuoteBuilder"
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                      title="Visualizar documento pronto para impressão/PDF"
                     >
-                      <FileEdit className="w-3.5 h-3.5 text-sky-600" />
-                      <span>Editar</span>
+                      <Eye className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Visualizar</span>
                     </button>
-                  )}
 
-                  {onDuplicateQuote && (
-                    <button
-                      type="button"
-                      onClick={() => onDuplicateQuote(q)}
-                      className="px-3 py-2 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                      title="Duplicar proposta como uma nova cotação com código único e itens preservados"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-sky-600" />
-                      <span>Duplicar</span>
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (currentStage === 'draft') {
-                        const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-                        onOpenQuote({ ...q, date: todayFormatted, createdAt: new Date().toISOString() });
-                      } else {
-                        onOpenQuote(q);
-                      }
-                    }}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                    title="Visualizar documento pronto para impressão/PDF"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Visualizar</span>
-                  </button>
-
-                  {onDeleteQuote && (
-                    <button
-                      type="button"
-                      onClick={() => setQuoteToDelete(q)}
-                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition shadow-2xs cursor-pointer"
-                      title="Excluir proposta"
-                    >
-                      <Trash2 className="w-4 h-4 text-rose-500" />
-                    </button>
-                  )}
+                    {onDeleteQuote && (
+                      <button
+                        type="button"
+                        onClick={() => setQuoteToDelete(q)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition shadow-2xs cursor-pointer"
+                        title="Excluir proposta"
+                      >
+                        <Trash2 className="w-4 h-4 text-rose-500" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
               </div>
