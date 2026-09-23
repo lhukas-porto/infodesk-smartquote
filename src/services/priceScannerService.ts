@@ -232,6 +232,99 @@ export function normalizeSearchTerm(raw: string): string {
   return text.length >= 3 ? text : raw.trim();
 }
 
+/**
+ * Higieniza o nome comercial padronizado do produto:
+ * - Remove artefatos de OCR e marcadores soltos: ".º", "1 .º", "º", "* —", etc.
+ * - Remove prefixos errôneos de categoria (ex: "Monitor ventosa" -> "Ventosa")
+ * - Remove parágrafos descritivos colados no título comercial
+ * - Limpa pontuações quebradas e vírgulas
+ */
+export function sanitizeStandardizedProductName(rawName: string, category?: string, brand?: string): string {
+  if (!rawName) return '';
+  let name = rawName.trim();
+
+  // 1. Remove artefatos de OCR e marcadores soltos: ".º", "1 .º", "º", "* —", "•", "▪"
+  name = name.replace(/(?:\.º|\d+\s*\.º|º|\*\s*—|•|▪|→)/g, ' ');
+
+  // 2. Remove pontuações estranhas e vírgulas
+  name = name.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+  // 3. Remove frases truncadas de fim de linha comuns em OCR (ex: "pacote com", "kit com", "caixa com" solto no final)
+  name = name.replace(/\s+(?:pacote|kit|caixa|embalagem)\s+(?:com|de)?\s*$/i, '');
+
+  // 4. Correção de prefixos incorretos de categoria:
+  // Se o nome começar com "Monitor " mas for uma ventosa, bucha, suporte adesivo, etc.
+  if (/^Monitor\s+(?:ventosa|bucha|parafuso|adesivo|pel[ií]cula|presilha|abra[çc]adeira|gancho)/i.test(name)) {
+    name = name.replace(/^Monitor\s+/i, '');
+  }
+
+  // 5. Se o nome for longo e contiver frases/verbos descritivos emendados:
+  // Ex: "Ventosa de 30mm... produzidas em plástico silicone e pvc cristal garantem boa fixação..."
+  const cutMarkers = [
+    /\s+produzid[ao]s?\s+em\b/i,
+    /\s+fabricad[ao]s?\s+em\b/i,
+    /\s+garantem?\b/i,
+    /\s+adequado?\s+para\b/i,
+    /\s+ideal\s+para\b/i,
+    /\s+desenvolvid[ao]\s+para\b/i,
+    /\s+evitando\b/i,
+    /\s+cor:\s*/i,
+    /\s+di[aâ]metro:\s*/i,
+    /\s+di[aâ]metro\s+do\s+furo:\s*/i
+  ];
+
+  for (const marker of cutMarkers) {
+    const match = name.search(marker);
+    if (match > 12) {
+      name = name.substring(0, match).trim();
+      break;
+    }
+  }
+
+  // 6. Limpeza final de pontuação e capitalização
+  name = name.replace(/[\.\-\:\,]+$/, '').trim();
+  if (name.length > 0) {
+    name = name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  return name;
+}
+
+/**
+ * Higieniza e estrutura a descrição técnica do produto:
+ * - Remove lixo de OCR e marcadores (".º", "1 .º", "* —")
+ * - Remove frases truncadas como "pacote com" solto no final
+ * - Remove prefixos errôneos
+ * - Garante pontuação e parágrafos elegantes
+ */
+export function sanitizeProductDescription(rawDesc: string, fallbackName: string): string {
+  if (!rawDesc || rawDesc.trim().length < 15) {
+    return `Produto comercial de alta qualidade: ${fallbackName}. Fabricado com padrões rigorosos de resistência, acabamento e durabilidade para uso corporativo e profissional.`;
+  }
+
+  let text = rawDesc.trim();
+
+  // 1. Remove artefatos de OCR e marcadores soltos
+  text = text.replace(/(?:\.º|\d+\s*\.º|º|\*\s*—|•|▪|→)/g, ' ');
+
+  // 2. Remove frases truncadas de fim de texto
+  text = text.replace(/\s+(?:pacote|kit|caixa|embalagem)\s+(?:com|de)?\s*$/i, '.');
+
+  // 3. Remove "Monitor " se colado no início de produtos que não são monitores
+  text = text.replace(/^Monitor\s+(ventosa|bucha|parafuso|adesivo|presilha)/i, '$1');
+
+  // 4. Limpa múltiplos espaços
+  text = text.replace(/\s{2,}/g, ' ').trim();
+
+  // 5. Garante que inicie com letra maiúscula e termine com ponto final
+  text = text.charAt(0).toUpperCase() + text.slice(1);
+  if (!text.endsWith('.')) {
+    text += '.';
+  }
+
+  return text;
+}
+
 // Cache ultrarrápido em memória RAM de sessão (0ms)
 const RAM_SCAN_CACHE = new Map<string, { timestamp: number; data: ScannedPriceResult }>();
 
@@ -2068,12 +2161,17 @@ LEMBRE-SE: Se a imagem for um print de tela, documento ou tabela com múltiplos 
 DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
 - "isFromPhoto": Booleano (true se o produto corresponde ou foi enriquecido pelas fotos anexadas, false se for estritamente do texto sem fotos).
 - "photoIndex": Número inteiro (0 para foto principal ou -1 se não houver fotos).
-- "standardizedName": Nome comercial no padrão de mercado brasileiro: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
+- "standardizedName": TÍTULO COMERCIAL PADRONIZADO E CONCISO (máximo 5 a 15 palavras). Padrão: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. Exemplo CORRETO de Ventosa: "Ventosa de Silicone e PVC Cristal 30mm Transparente com Furo 2.5mm".
+  REGRAS CRÍTICAS DO NOME:
+  1. NUNCA coloque parágrafos, frases descritivas ("garantem boa fixação", "adequado para utilizar em display"), tópicos ou listas de atributos dentro do nome! O nome deve ser limpo e conciso.
+  2. NUNCA insira prefixos de categoria incorretos! Por exemplo: uma ventosa de silicone usada para apoiar display de acrílico ou tampo de vidro NÃO é um "Monitor ventosa"! Uma ventosa é uma ventosa de fixação. Analise a real natureza física do produto.
+  3. NUNCA inclua lixo de OCR ou caracteres truncados (ex: ".º", "1 .º", "º", "* —", frases cortadas como "pacote com").
+  4. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
 - "brand": Marca comercial oficial ou "Genérica" se sem marca visível.
 - "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
 - "model": Modelo exato do produto (ex: CPG-300).
 - "partNumber": Part Number oficial ou código alfanumérico.
-- "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. NUNCA crie categorias fora desta lista.
+- "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. ATENÇÃO: Ventosas, fixadores, buchas e suportes pertencem a "Construção, Acabamento & Marcenaria" ou "Equipamentos & Insumos Industriais", NUNCA a "Monitores, Displays & TVs"! NUNCA crie categorias fora desta lista.
 - "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40).
 - "ean": Código de barras EAN se conhecido, senão "".
 - "weight": Peso aproximado da embalagem para frete em kg (ex: "14.500 kg", "0.200 kg").
@@ -2084,6 +2182,9 @@ DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
 - "costPrice": Preço de custo estimado de atacado/distribuidor em Reais (número decimal, ex: 220.00).
 - "confidence": "Alta"
 - "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, em português gramaticalmente perfeito com acentuação e cedilhas preservadas, destacando materiais, estrutura, resistência e diferenciais. NUNCA use vírgulas para separar atributos.
+  REGRAS CRÍTICAS DA DESCRIÇÃO:
+  1. É EXPRESSAMENTE PROIBIDO cuspir texto bruto de OCR com pontuações quebradas, marcadores de lista desformatados (".º", "1 .º", "* —") ou frases incompletas ("pacote com", "kit com").
+  2. Reescreva todas as informações em parágrafos fluídos de redação técnica e comercial elegante.
 - "specifications": Array de 4 a 8 especificações técnicas detalhadas no formato [{"label": "Nome da Característica", "value": "Valor"}].
 - "supplier": Nome do fornecedor ou marketplace de referência no Brasil (ex: "Mercado Livre", "Amazon Brasil", "Kalunga", "Leroy Merlin", "Fabricante").
 - "buyUrl": URL direta ou de busca no marketplace brasileiro para compra do item.
@@ -2191,9 +2292,12 @@ Retorne ESTRITAMENTE um JSON no formato:
         if (list.length > 0) {
           const results = await Promise.all(
             list.map(async (item: any, idx: number) => {
-              const stdName = (item.standardizedName || rawText).replace(/,/g, ' ').replace(/\s{2,}/g, ' ').trim();
               const brand = (item.brand || 'Genérica').trim();
-              const category = (item.category || 'Ferramentas').trim();
+              let category = (item.category || 'Ferramentas & Instrumentos de Medição').trim();
+              if (/ventosa|fixador|apoio\s+de\s+vidro/i.test(item.standardizedName || rawText) && category.toLowerCase().includes('monitor')) {
+                category = 'Construção, Acabamento & Marcenaria';
+              }
+              const stdName = sanitizeStandardizedProductName(item.standardizedName || rawText, category, brand);
 
               const isFromPhoto = Boolean(
                 item.isFromPhoto === true ||
@@ -2290,7 +2394,7 @@ Retorne ESTRITAMENTE um JSON no formato:
                 suggestedPrice: typeof item.suggestedPrice === 'number' && item.suggestedPrice > 0 ? item.suggestedPrice : undefined,
                 costPrice: typeof item.costPrice === 'number' && item.costPrice > 0 ? item.costPrice : undefined,
                 confidence: isFromPhoto ? 'Alta - Identificado pela Foto do Produto' : 'Alta - Identificado da Descrição Escrita',
-                description: (item.description || '').trim(),
+                description: sanitizeProductDescription(item.description, stdName),
                 specifications: normalizeSpecifications(item.specifications),
                 images: gallery,
                 imageUrl: gallery[0] || '',
@@ -2688,10 +2792,11 @@ Retorne ESTRITAMENTE um objeto JSON válido:
         observation = 'Item cadastrado com especificações completas (cotação sob consulta).';
       }
 
-      const stdName = (parsed.standardizedName || discovered.standardizedName)
-        .replace(/,/g, ' ')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
+      const stdName = sanitizeStandardizedProductName(
+        parsed.standardizedName || discovered.standardizedName,
+        discovered.category,
+        parsed.brand || discovered.brand
+      );
 
       const preservedPhoto = (discovered as any).customerPhotoUrl || (discovered as any).imageUrl || (discovered as any).images?.[0] || '';
       let finalImg = preservedPhoto || shoppingBestOffer?.thumbnail || parsed.imageUrl;
@@ -2728,9 +2833,15 @@ Retorne ESTRITAMENTE um objeto JSON válido:
           : directPurchase.store);
 
       const scannedNcm = cleanNcmCode(parsed.ncm || (discovered as any).ncm);
-      const scannedCategory = getCategoryFromNcm(scannedNcm, discovered.category);
+      let scannedCategory = getCategoryFromNcm(scannedNcm, discovered.category);
+      if (/ventosa|fixador|apoio\s+de\s+vidro/i.test(stdName) && scannedCategory.toLowerCase().includes('monitor')) {
+        scannedCategory = 'Construção, Acabamento & Marcenaria';
+      }
 
-      const finalDescription = (parsed.description || (discovered as any).description || '').trim();
+      const finalDescription = sanitizeProductDescription(
+        parsed.description || (discovered as any).description || '',
+        stdName
+      );
       const finalSpecs = normalizeSpecifications(parsed.specifications || (discovered as any).specifications);
       const finalWeight = normalizeWeight(parsed.weight || (discovered as any).weight);
       const finalDims = normalizeDimensions(parsed.dimensions || (discovered as any).dimensions);

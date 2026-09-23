@@ -765,12 +765,16 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
           let extraDesc = '';
           if (it.description && it.description.trim() && it.description.trim().toLowerCase() !== cleanName.toLowerCase()) {
             const desc = it.description.trim();
+            // Apenas complementa se o nome for muito curto e a descrição for sucinta (evita despejar parágrafos inteiros de OCR)
             if (!desc.toLowerCase().startsWith(cleanName.toLowerCase()) && !cleanName.toLowerCase().startsWith(desc.toLowerCase())) {
-              extraDesc = ` ${desc}`;
+              if (cleanName.length < 25 && desc.length <= 40 && !/[.º•▪*—→]/.test(desc)) {
+                extraDesc = ` ${desc}`;
+              }
             }
           }
 
           const combined = `${cleanName}${extraDesc}`
+            .replace(/(?:\.º|\d+\s*\.º|º|\*\s*—|•|▪|→)/g, ' ')
             .replace(/,/g, ' ')
             .replace(/\s{2,}/g, ' ')
             .trim();
