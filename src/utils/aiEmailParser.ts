@@ -796,26 +796,71 @@ function htmlToPlainText(html: string): string {
 }
 
 /**
+ * Remove blocos de respostas e históricos de conversas de e-mails ("Em ... escreveu:", "De: ... Para: ...")
+ * para evitar que produtos mencionados em mensagens anteriores do thread sejam duplicados.
+ */
+function cleanEmailReplyQuotes(text: string): string {
+  if (!text) return '';
+  const replyMarkers = [
+    /\n\s*Em\s+[a-zà-ÿ]{3,9},?\s+\d+.*escreveu:/i,
+    /\n\s*On\s+[a-z]{3,9},?\s+[A-Za-z0-9\s,]+wrote:/i,
+    /\n\s*-{3,}\s*Mensagem original\s*-{3,}/i,
+    /\n\s*-{3,}\s*Original Message\s*-{3,}/i,
+    /\n\s*De:\s+.*?\nEnviado\s+em:\s+/i,
+    /\n\s*From:\s+.*?\nSent:\s+/i
+  ];
+  for (const marker of replyMarkers) {
+    const idx = text.search(marker);
+    if (idx > 50) {
+      return text.slice(0, idx);
+    }
+  }
+  return text;
+}
+
+/**
  * Unified extractor for both HTML emails (with tables) and plain text.
  */
 export function extractItemsFromEmailContent(rawTextOrHtml: string): ParsedItem[] {
   if (!rawTextOrHtml || rawTextOrHtml.trim().length === 0) return [];
 
-  const isHtml = rawTextOrHtml.includes('<table') || rawTextOrHtml.includes('<tr') || rawTextOrHtml.includes('</div>') || rawTextOrHtml.includes('</p>');
+  const cleanedRaw = cleanEmailReplyQuotes(rawTextOrHtml);
+  const isHtml = cleanedRaw.includes('<table') || cleanedRaw.includes('<tr') || cleanedRaw.includes('</div>') || cleanedRaw.includes('</p>');
+
+  let rawItems: ParsedItem[] = [];
 
   if (isHtml) {
     // 1. Try extracting from true product HTML tables first
-    const tableItems = parseHtmlTable(rawTextOrHtml);
-    if (tableItems.length > 0) return tableItems;
-
-    // 2. If no product table was found in the HTML, extract clean plain text and parse line-by-line
-    const textContent = htmlToPlainText(rawTextOrHtml);
-    const textItems = parseSmartText(textContent);
-    if (textItems.length > 0) return textItems;
+    const tableItems = parseHtmlTable(cleanedRaw);
+    if (tableItems.length > 0) {
+      rawItems = tableItems;
+    } else {
+      // 2. If no product table was found in the HTML, extract clean plain text and parse line-by-line
+      const textContent = cleanEmailReplyQuotes(htmlToPlainText(cleanedRaw));
+      const textItems = parseSmartText(textContent);
+      rawItems = textItems;
+    }
+  } else {
+    // 3. Fallback: Parse as raw text
+    rawItems = parseSmartText(cleanedRaw);
   }
 
-  // 3. Fallback: Parse as raw text
-  return parseSmartText(rawTextOrHtml);
+  // Deduplicação inteligente de itens extraídos do mesmo e-mail (evita repetições de histórico)
+  const seenKeys = new Set<string>();
+  const dedupedItems: ParsedItem[] = [];
+
+  for (const it of rawItems) {
+    const normName = normalizeSearchText(it.name);
+    const pn = (it.itemCode || '').trim().toLowerCase();
+    const qty = it.quantity || 1;
+    const key = `${normName}|${pn}|${qty}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      dedupedItems.push(it);
+    }
+  }
+
+  return dedupedItems;
 }
 
 

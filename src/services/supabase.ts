@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
-import { extractStoreNameFromUrl } from '../utils/aiEmailParser';
+import { extractStoreNameFromUrl, normalizeSearchText } from '../utils/aiEmailParser';
 
 const FALLBACK_SUPABASE_URL = 'https://dxhbjygtbcxpabflsijv.supabase.co';
 const FALLBACK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4aGJqeWd0YmN4cGFiZmxzaWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMTQ3MTIsImV4cCI6MjEwMzg5MDcxMn0.Bt9yCZDtPYCk8Cqa223MgReN2EmGfCl-41fR22GAucU';
@@ -389,21 +389,30 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
     if (error || !data || data.length === 0) return null;
 
     // Deduplicação inteligente e higienização automática do banco
-    const seenMap = new Map<string, any>();
+    const seenPns = new Set<string>();
+    const seenNames = new Set<string>();
+    const seenSkus = new Set<string>();
     const duplicateIdsToDelete: string[] = [];
+    const uniqueRows: any[] = [];
 
     for (const row of data) {
       const skuKey = (row.sku || '').trim().toLowerCase();
-      const nameKey = (row.name || '').trim().toLowerCase();
-      const key = skuKey ? `sku:${skuKey}` : `name:${nameKey}`;
+      const pnKey = (row.part_number || '').trim().toLowerCase();
+      const nameKey = normalizeSearchText(row.name || '');
 
-      if (!seenMap.has(key)) {
-        seenMap.set(key, row);
-      } else {
-        // Já temos uma versão mais recente deste produto: marca o ID duplicado para expurgo
+      const isPnDup = Boolean(pnKey && pnKey.length >= 3 && seenPns.has(pnKey));
+      const isSkuDup = Boolean(skuKey && !skuKey.startsWith('inf-auto-') && !skuKey.startsWith('sku-') && seenSkus.has(skuKey));
+      const isNameDup = Boolean(nameKey && nameKey.length >= 3 && seenNames.has(nameKey));
+
+      if (isPnDup || isSkuDup || isNameDup) {
         if (row.id) {
           duplicateIdsToDelete.push(row.id);
         }
+      } else {
+        if (pnKey && pnKey.length >= 3) seenPns.add(pnKey);
+        if (skuKey) seenSkus.add(skuKey);
+        if (nameKey && nameKey.length >= 3) seenNames.add(nameKey);
+        uniqueRows.push(row);
       }
     }
 
@@ -419,7 +428,6 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
       });
     }
 
-    const uniqueRows = Array.from(seenMap.values());
     return uniqueRows.map((p: any) => ({
       id: p.id,
       sku: p.sku,
@@ -443,22 +451,27 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
 }
 
 export async function syncProductToSupabase(product: Product): Promise<void> {
-  if (!supabase) return;
-  let sku = (product.sku || product.partNumber || '').trim();
+  if (!supabase || !product || !product.name) return;
+
+  const rawPn = (product.partNumber || '').trim();
+  const rawSku = (product.sku || rawPn).trim();
+  const cleanName = product.name.trim();
+
+  let sku = rawSku;
   if (!sku) {
-    const safeNameHash = (product.name || 'PROD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase();
-    const uniqueSuffix = (product.id || Date.now().toString()).slice(-6);
+    const safeNameHash = cleanName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase();
+    const uniqueSuffix = (product.id || 'PROD').slice(-6);
     sku = `INF-${safeNameHash || 'AUTO'}-${uniqueSuffix}`;
   }
 
   const payload = {
     sku,
-    part_number: product.partNumber || null,
+    part_number: rawPn || null,
     ncm: product.ncm || null,
-    name: product.name,
+    name: cleanName,
     description: product.description || '',
     category: product.category || 'Informática & Tecnologia',
-    cost_price: product.costPrice || 0,
+    cost_price: Number(product.costPrice) || 0,
     unit: product.unit || 'Un.',
     supplier: product.supplier || null,
     stock: product.stock ?? 0,
@@ -468,42 +481,56 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
   };
 
   try {
-    // Busca todas as linhas existentes pelo SKU (usando lista para nunca falhar com erro PGRST116 do maybeSingle)
-    const { data: existingBySku } = await supabase
-      .from('products')
-      .select('id')
-      .eq('sku', sku);
+    // 1. Procura por ID direto se fornecido
+    if (product.id) {
+      const { data: byId } = await supabase.from('products').select('id').eq('id', product.id).limit(1);
+      if (byId && byId.length > 0) {
+        await supabase.from('products').update(payload).eq('id', product.id);
+        return;
+      }
+    }
 
-    if (existingBySku && existingBySku.length > 0) {
-      const primaryId = existingBySku[0].id;
+    // 2. Procura por Part Number se informado (ignora maiúsculas/minúsculas)
+    if (rawPn && rawPn.length >= 3) {
+      const { data: byPn } = await supabase.from('products').select('id').ilike('part_number', rawPn);
+      if (byPn && byPn.length > 0) {
+        const primaryId = byPn[0].id;
+        await supabase.from('products').update(payload).eq('id', primaryId);
+        if (byPn.length > 1) {
+          const extraIds = byPn.slice(1).map(r => r.id);
+          await supabase.from('products').delete().in('id', extraIds);
+        }
+        return;
+      }
+    }
+
+    // 3. Procura por SKU oficial
+    if (rawSku && !rawSku.startsWith('INF-') && !rawSku.startsWith('SKU-')) {
+      const { data: bySku } = await supabase.from('products').select('id').eq('sku', rawSku);
+      if (bySku && bySku.length > 0) {
+        const primaryId = bySku[0].id;
+        await supabase.from('products').update(payload).eq('id', primaryId);
+        if (bySku.length > 1) {
+          const extraIds = bySku.slice(1).map(r => r.id);
+          await supabase.from('products').delete().in('id', extraIds);
+        }
+        return;
+      }
+    }
+
+    // 4. Procura por Nome similar/idêntico
+    const { data: byName } = await supabase.from('products').select('id').ilike('name', cleanName);
+    if (byName && byName.length > 0) {
+      const primaryId = byName[0].id;
       await supabase.from('products').update(payload).eq('id', primaryId);
-
-      // Expurga imediatamente quaisquer registros duplicados restantes com o mesmo SKU
-      if (existingBySku.length > 1) {
-        const extraIds = existingBySku.slice(1).map(r => r.id);
+      if (byName.length > 1) {
+        const extraIds = byName.slice(1).map(r => r.id);
         await supabase.from('products').delete().in('id', extraIds);
       }
       return;
     }
 
-    // Se não encontrou por SKU, checa se existe produto com o mesmo nome para evitar duplicatas por SKU ligeiramente diferente
-    const { data: existingByName } = await supabase
-      .from('products')
-      .select('id')
-      .eq('name', product.name)
-      .limit(5);
-
-    if (existingByName && existingByName.length > 0) {
-      const primaryId = existingByName[0].id;
-      await supabase.from('products').update(payload).eq('id', primaryId);
-      if (existingByName.length > 1) {
-        const extraIds = existingByName.slice(1).map(r => r.id);
-        await supabase.from('products').delete().in('id', extraIds);
-      }
-      return;
-    }
-
-    // Se realmente não existe nenhum similar, insere como novo produto
+    // 5. Se não existe, insere como novo produto
     await supabase.from('products').insert(payload);
   } catch (err) {
     console.warn('Erro ao sincronizar produto no Supabase:', err);

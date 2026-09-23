@@ -75,7 +75,8 @@ import {
   extractStoreNameFromUrl,
   getCategoryFromNcm,
   buildDirectPurchaseUrl,
-  buildCompleteProductDescription
+  buildCompleteProductDescription,
+  normalizeSearchText
 } from '../utils/aiEmailParser';
 import { 
   getClientCompanies, 
@@ -1267,32 +1268,52 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     const prod = products.find(p => p.id === pId);
     if (!prod) return;
 
-    const unitPrice = calculateItemUnitPrice(prod.costPrice, globalShipping, globalMarkup, globalTax);
-    const newItem: QuoteItem = {
-      id: `item-${Date.now()}`,
-      productId: prod.id,
-      itemNumber: currentQuote.items.length + 1,
-      name: prod.name,
-      description: prod.description || '',
-      imageUrl: prod.imageUrl || '',
-      showImage: false,
-      partNumber: prod.partNumber || '',
-      ncm: prod.ncm || '',
-      quantity: 1,
-      unit: prod.unit || 'Un.',
-      costPrice: prod.costPrice,
-      shippingCost: globalShipping,
-      taxPercent: globalTax,
-      markupPercent: globalMarkup,
-      unitPrice,
-      totalPrice: unitPrice,
-      supplier: prod.supplier,
-      sourceUrl: prod.sourceUrl
-    };
+    // Se o produto já estiver na cotação (mesmo ID, mesmo Part Number ou mesmo Nome), incrementa a quantidade
+    const normProdName = normalizeSearchText(prod.name);
+    const normProdPn = (prod.partNumber || '').trim().toLowerCase();
 
-    const updatedItems = [...currentQuote.items, newItem];
+    const existingIdx = (currentQuote.items || []).findIndex(it => {
+      if (prod.id && it.productId === prod.id) return true;
+      if (normProdPn && normProdPn.length >= 3 && (it.partNumber || '').trim().toLowerCase() === normProdPn) return true;
+      if (normProdName && normProdName.length >= 3 && normalizeSearchText(it.name) === normProdName) return true;
+      return false;
+    });
+
+    let updatedItems: QuoteItem[];
+    if (existingIdx >= 0) {
+      updatedItems = (currentQuote.items || []).map((it, idx) => {
+        if (idx !== existingIdx) return it;
+        const newQty = (it.quantity || 1) + 1;
+        const newTotal = Number((it.unitPrice * newQty).toFixed(2));
+        return { ...it, quantity: newQty, totalPrice: newTotal };
+      });
+    } else {
+      const unitPrice = calculateItemUnitPrice(prod.costPrice, globalShipping, globalMarkup, globalTax);
+      const newItem: QuoteItem = {
+        id: `item-${Date.now()}`,
+        productId: prod.id,
+        itemNumber: (currentQuote.items || []).length + 1,
+        name: prod.name,
+        description: prod.description || '',
+        imageUrl: prod.imageUrl || '',
+        showImage: Boolean(prod.imageUrl),
+        partNumber: prod.partNumber || '',
+        ncm: prod.ncm || '',
+        quantity: 1,
+        unit: prod.unit || 'Un.',
+        costPrice: prod.costPrice,
+        shippingCost: globalShipping,
+        taxPercent: globalTax,
+        markupPercent: globalMarkup,
+        unitPrice,
+        totalPrice: unitPrice,
+        supplier: prod.supplier,
+        sourceUrl: prod.sourceUrl
+      };
+      updatedItems = [...(currentQuote.items || []), newItem];
+    }
+
     const totals = recalculateQuote(updatedItems);
-
     setCurrentQuote(prev => ({
       ...prev,
       items: updatedItems,

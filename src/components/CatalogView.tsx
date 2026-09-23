@@ -31,6 +31,7 @@ import Papa from 'papaparse';
 import { Product } from '../types';
 import { 
   saveProducts, 
+  deduplicateProductsList,
   getRegisteredUnits, 
   saveRegisteredUnit, 
   getRegisteredCategories, 
@@ -360,15 +361,44 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       setRegisteredCategories(getRegisteredCategories());
     }
 
+    let finalCreated = created;
     setProducts(prev => {
-      const next = [created, ...prev];
-      saveProducts(next);
-      return next;
+      const normName = normalizeSearchText(created.name);
+      const normPn = (created.partNumber || '').trim().toLowerCase();
+      const normSku = (created.sku || '').trim().toLowerCase();
+
+      const existingIdx = prev.findIndex(p => {
+        const pPn = (p.partNumber || '').trim().toLowerCase();
+        const pSku = (p.sku || '').trim().toLowerCase();
+        const pName = normalizeSearchText(p.name);
+
+        return (
+          Boolean(normPn && normPn.length >= 3 && pPn === normPn) ||
+          Boolean(normSku && !normSku.startsWith('inf-auto-') && pSku === normSku) ||
+          Boolean(normName && normName.length >= 3 && pName === normName)
+        );
+      });
+
+      let next: Product[];
+      if (existingIdx >= 0) {
+        finalCreated = {
+          ...prev[existingIdx],
+          ...created,
+          id: prev[existingIdx].id
+        };
+        next = [...prev];
+        next[existingIdx] = finalCreated;
+      } else {
+        next = [created, ...prev];
+      }
+      const deduped = deduplicateProductsList(next);
+      saveProducts(deduped);
+      return deduped;
     });
-    syncProductToSupabase(created);
+    syncProductToSupabase(finalCreated);
 
     setIsAddModalOpen(false);
-    setImportStatus(`Produto "${created.name}" cadastrado com sucesso!`);
+    setImportStatus(`Produto "${finalCreated.name}" salvo com sucesso!`);
     setTimeout(() => setImportStatus(null), 4000);
   };
 

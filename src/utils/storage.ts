@@ -1,5 +1,6 @@
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
+import { normalizeSearchText } from './aiEmailParser';
 import { 
   syncRegisteredMetadataToSupabase, 
   syncClientCompaniesToSupabase,
@@ -273,24 +274,89 @@ const MOCK_SKUS_SET = new Set([
   'cis-sw-24p'
 ]);
 
+/**
+ * Deduplica rigorosamente uma lista de produtos unificando por:
+ * 1. ID único (se presente)
+ * 2. Part Number oficial (mínimo 3 caracteres)
+ * 3. SKU oficial
+ * 4. Nome normalizado do produto (sempre mantendo e enriquecendo o registro mais completo)
+ */
+export const deduplicateProductsList = (products: Product[]): Product[] => {
+  if (!products || !Array.isArray(products) || products.length === 0) return [];
+
+  const seenIds = new Set<string>();
+  const seenSkus = new Set<string>();
+  const seenPartNumbers = new Set<string>();
+  const seenNames = new Set<string>();
+  const result: Product[] = [];
+
+  for (const p of products) {
+    if (!p || !p.name) continue;
+
+    const idKey = (p.id || '').trim();
+    const rawSku = (p.sku || '').trim().toLowerCase();
+    const rawPn = (p.partNumber || '').trim().toLowerCase();
+    const normName = normalizeSearchText(p.name);
+
+    // Ignora mock SKUs antigos
+    if (rawSku && MOCK_SKUS_SET.has(rawSku)) continue;
+
+    const isIdDuplicate = Boolean(idKey && seenIds.has(idKey));
+    const isPnDuplicate = Boolean(rawPn && rawPn.length >= 3 && seenPartNumbers.has(rawPn));
+    const isSkuDuplicate = Boolean(rawSku && !rawSku.startsWith('inf-auto-') && !rawSku.startsWith('sku-') && seenSkus.has(rawSku));
+    const isNameDuplicate = Boolean(normName && normName.length >= 3 && seenNames.has(normName));
+
+    if (isIdDuplicate || isPnDuplicate || isSkuDuplicate || isNameDuplicate) {
+      // Já existe um produto equivalente: funde para preservar o mais completo
+      const existingIdx = result.findIndex(ex => {
+        const exId = (ex.id || '').trim();
+        const exPn = (ex.partNumber || '').trim().toLowerCase();
+        const exSku = (ex.sku || '').trim().toLowerCase();
+        const exName = normalizeSearchText(ex.name);
+
+        return (
+          Boolean(idKey && exId && exId === idKey) ||
+          Boolean(rawPn && rawPn.length >= 3 && exPn && exPn === rawPn) ||
+          Boolean(rawSku && !rawSku.startsWith('inf-auto-') && !rawSku.startsWith('sku-') && exSku && exSku === rawSku) ||
+          Boolean(normName && normName.length >= 3 && exName && exName === normName)
+        );
+      });
+
+      if (existingIdx >= 0) {
+        const existing = result[existingIdx];
+        result[existingIdx] = {
+          ...existing,
+          partNumber: existing.partNumber || p.partNumber,
+          ncm: existing.ncm || p.ncm,
+          imageUrl: existing.imageUrl || p.imageUrl,
+          sourceUrl: existing.sourceUrl || p.sourceUrl,
+          supplier: existing.supplier || p.supplier,
+          category: (existing.category && existing.category !== 'Informática & Tecnologia') ? existing.category : (p.category || existing.category),
+          costPrice: existing.costPrice > 0 ? existing.costPrice : (p.costPrice || 0),
+          stock: Math.max(existing.stock || 0, p.stock || 0)
+        };
+      }
+      continue;
+    }
+
+    if (idKey) seenIds.add(idKey);
+    if (rawPn && rawPn.length >= 3) seenPartNumbers.add(rawPn);
+    if (rawSku) seenSkus.add(rawSku);
+    if (normName && normName.length >= 3) seenNames.add(normName);
+
+    result.push(p);
+  }
+
+  return result;
+};
+
 export const getProducts = (): Product[] => {
   const saved = localStorage.getItem(PRODUCTS_KEY);
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
-        const seen = new Set<string>();
-        const deduped: Product[] = [];
-        for (const p of parsed) {
-          const skuKey = (p.sku || '').trim().toLowerCase();
-          const nameKey = (p.name || '').trim().toLowerCase();
-          const key = skuKey || nameKey;
-          if (key && !MOCK_SKUS_SET.has(skuKey) && !seen.has(key)) {
-            seen.add(key);
-            deduped.push(p);
-          }
-        }
-        return deduped;
+        return deduplicateProductsList(parsed);
       }
     } catch (e) { console.error(e); }
   }
@@ -300,18 +366,7 @@ export const getProducts = (): Product[] => {
 export const saveProducts = (products: Product[]): void => {
   if (!products || !Array.isArray(products)) return;
 
-  // Deduplicação estrita antes de persistir
-  const seen = new Set<string>();
-  const deduped: Product[] = [];
-  for (const p of products) {
-    const skuKey = (p.sku || '').trim().toLowerCase();
-    const nameKey = (p.name || '').trim().toLowerCase();
-    const key = skuKey || nameKey;
-    if (key && !MOCK_SKUS_SET.has(skuKey) && !seen.has(key)) {
-      seen.add(key);
-      deduped.push(p);
-    }
-  }
+  const deduped = deduplicateProductsList(products);
 
   try {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(deduped));

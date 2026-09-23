@@ -28,6 +28,7 @@ import {
 import { 
   getEmails, 
   getProducts, 
+  deduplicateProductsList,
   getQuotes, 
   getSettings, 
   saveEmails, 
@@ -423,33 +424,9 @@ export const App: React.FC = () => {
         // 3. Catálogo de Produtos
         const remoteProducts = await fetchProductsFromSupabase();
         if (remoteProducts && remoteProducts.length > 0) {
-          const MOCK_SKUS_SET = new Set([
-            'tra-plu-01',
-            'del-mon-27',
-            'log-mxk-01',
-            'apc-nob-1500',
-            'kng-ssd-1tb',
-            'fur-cab-cat6',
-            'cis-sw-24p'
-          ]);
-          // Deduplica rigorosamente por SKU e Nome
-          const seenSkus = new Set<string>();
-          const cleanRemote: Product[] = [];
-          for (const p of remoteProducts) {
-            const skuKey = (p.sku || '').trim().toLowerCase();
-            const nameKey = (p.name || '').trim().toLowerCase();
-            const key = skuKey || nameKey;
-            if (key && !MOCK_SKUS_SET.has(skuKey) && !seenSkus.has(key)) {
-              seenSkus.add(key);
-              cleanRemote.push(p);
-            }
-          }
+          const cleanRemote = deduplicateProductsList(remoteProducts);
           setProducts(cleanRemote);
-          try {
-            localStorage.setItem('smartquote_products', JSON.stringify(cleanRemote));
-          } catch (e) {
-            console.warn('[SmartQuote] Falha ao persistir produtos localmente:', e);
-          }
+          saveProducts(cleanRemote);
         }
 
         // 4. Empresas e Cidades de Frete
@@ -1002,9 +979,13 @@ export const App: React.FC = () => {
 
       const existingIdx = prev.findIndex(item => {
         const itemSku = (item.sku || '').trim().toLowerCase();
-        // Um produto só atualiza outro existente se tiver exatamente o mesmo ID ou o mesmo SKU oficial
+        const itemPn = (item.partNumber || '').trim().toLowerCase();
+        const itemName = normalizeSearchText(item.name);
+
         if (p.id && item.id === p.id) return true;
-        if (normSku && itemSku && normSku === itemSku) return true;
+        if (normPn && normPn.length >= 3 && itemPn === normPn) return true;
+        if (normSku && !normSku.startsWith('inf-auto-') && itemSku === normSku) return true;
+        if (normName && normName.length >= 3 && itemName === normName) return true;
         return false;
       });
 
@@ -1014,15 +995,17 @@ export const App: React.FC = () => {
           ...prev[existingIdx], 
           ...p, 
           id: prev[existingIdx].id,
-          sku: prev[existingIdx].sku || p.sku 
+          sku: prev[existingIdx].sku || p.sku,
+          partNumber: prev[existingIdx].partNumber || p.partNumber
         };
         next = [...prev];
         next[existingIdx] = savedProduct;
       } else {
         next = [p, ...prev];
       }
-      saveProducts(next);
-      return next;
+      const deduped = deduplicateProductsList(next);
+      saveProducts(deduped);
+      return deduped;
     });
     syncProductToSupabase(savedProduct);
   };
@@ -1542,26 +1525,52 @@ export const App: React.FC = () => {
     const tax = settings.defaultTaxPercent || 6;
     const shipping = settings.defaultShippingCost || 0;
     const unitPrice = calculateCommercialUnitPrice(product.costPrice, shipping, markup, tax);
-    const newItem: QuoteItem = {
-      id: `item-${Date.now()}`,
-      productId: product.id,
-      itemNumber: currentQuote.items.length + 1,
-      name: product.name,
-      description: product.description,
-      quantity: 1,
-      unit: product.unit || 'Un.',
-      costPrice: product.costPrice,
-      markupPercent: markup,
-      unitPrice,
-      totalPrice: unitPrice,
-      sourceUrl: product.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(product.name)}`
-    };
 
-    const updatedItems = [...currentQuote.items, newItem];
+    // Se o produto já estiver na cotação (mesmo ID, mesmo Part Number ou mesmo Nome), incrementa a quantidade
+    const normProdName = normalizeSearchText(product.name);
+    const normProdPn = (product.partNumber || '').trim().toLowerCase();
+
+    const existingIdx = currentQuote.items.findIndex(it => {
+      if (product.id && it.productId === product.id) return true;
+      if (normProdPn && normProdPn.length >= 3 && (it.partNumber || '').trim().toLowerCase() === normProdPn) return true;
+      if (normProdName && normProdName.length >= 3 && normalizeSearchText(it.name) === normProdName) return true;
+      return false;
+    });
+
+    let updatedItems: QuoteItem[];
+    if (existingIdx >= 0) {
+      updatedItems = currentQuote.items.map((it, idx) => {
+        if (idx !== existingIdx) return it;
+        const newQty = (it.quantity || 1) + 1;
+        const newTotal = Number((it.unitPrice * newQty).toFixed(2));
+        return { ...it, quantity: newQty, totalPrice: newTotal };
+      });
+    } else {
+      const newItem: QuoteItem = {
+        id: `item-${Date.now()}`,
+        productId: product.id,
+        itemNumber: currentQuote.items.length + 1,
+        name: product.name,
+        description: product.description,
+        partNumber: product.partNumber || '',
+        ncm: product.ncm || '',
+        imageUrl: product.imageUrl || '',
+        showImage: Boolean(product.imageUrl),
+        quantity: 1,
+        unit: product.unit || 'Un.',
+        costPrice: product.costPrice,
+        markupPercent: markup,
+        unitPrice,
+        totalPrice: unitPrice,
+        sourceUrl: product.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(product.name)}`
+      };
+      updatedItems = [...currentQuote.items, newItem];
+    }
+
     let totalCost = 0;
     let totalAmount = 0;
     updatedItems.forEach(i => {
-      totalCost += i.costPrice * i.quantity;
+      totalCost += i.costPrice * (i.quantity || 1);
       totalAmount += i.totalPrice;
     });
     const totalProfit = totalAmount - totalCost;
