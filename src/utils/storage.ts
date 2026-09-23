@@ -237,7 +237,7 @@ export const getSettings = (): CompanySettings => {
   return defaultCompanySettings;
 };
 
-export const saveSettings = (settings: CompanySettings): void => {
+export const saveSettings = (settings: CompanySettings, syncToCloud: boolean = false): void => {
   const cleanEmail = (settings.email || 'lucas@infodesk.net.br').toLowerCase().trim().replace('@infodesk.com.br', '@infodesk.net.br');
   const cleanGoogleEmail = (settings.googleAccountEmail || cleanEmail || 'lucas@infodesk.net.br').toLowerCase().trim().replace('@infodesk.com.br', '@infodesk.net.br');
   const normalized: CompanySettings = {
@@ -258,10 +258,13 @@ export const saveSettings = (settings: CompanySettings): void => {
     }
   }
 
-  // Cloud-First: Sincroniza imediatamente com o Supabase
-  syncCompanySettingsToSupabase(normalized).catch(err => {
-    console.warn('[Storage] Erro ao sincronizar configurações no Supabase:', err);
-  });
+  // Apenas sincroniza com a nuvem quando explicitamente solicitado (ex: ao salvar no formulário)
+  // Isso evita que renderizações iniciais locais sobrescrevam os dados reais do Supabase
+  if (syncToCloud) {
+    syncCompanySettingsToSupabase(normalized).catch(err => {
+      console.warn('[Storage] Erro ao sincronizar configurações no Supabase:', err);
+    });
+  }
 };
 
 const MOCK_SKUS_SET = new Set([

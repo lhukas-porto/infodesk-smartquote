@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { InboxView } from './components/InboxView';
 import { QuoteBuilder } from './components/QuoteBuilder';
@@ -134,6 +134,8 @@ export const App: React.FC = () => {
       return nextTab;
     });
   }, []);
+
+  const isSettingsHydratedRef = useRef(false);
   const [settings, setSettings] = useState<CompanySettings>(getSettings());
   const [products, setProducts] = useState<Product[]>(getProducts());
   const [emails, setEmails] = useState<IncomingEmail[]>(getEmails());
@@ -298,7 +300,10 @@ export const App: React.FC = () => {
             remoteSettings.dailyDollarRate = localDollarRate;
           }
           setSettings(remoteSettings);
-          saveSettings(remoteSettings);
+          saveSettings(remoteSettings, false);
+          isSettingsHydratedRef.current = true;
+        } else {
+          isSettingsHydratedRef.current = true;
         }
 
         // Sincronização e unificação de Categorias & Unidades com Supabase
@@ -559,7 +564,11 @@ export const App: React.FC = () => {
     };
   });
 
-  useEffect(() => { saveSettings(settings); }, [settings]);
+  useEffect(() => { 
+    if (isSettingsHydratedRef.current) {
+      saveSettings(settings, false); 
+    }
+  }, [settings]);
   useEffect(() => { saveProducts(products); }, [products]);
   useEffect(() => { saveEmails(emails); }, [emails]);
   useEffect(() => { saveQuotes(quotes); }, [quotes]);

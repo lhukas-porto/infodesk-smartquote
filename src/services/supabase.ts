@@ -61,6 +61,11 @@ export async function fetchCompanySettingsFromSupabase(): Promise<CompanySetting
 
 export async function syncCompanySettingsToSupabase(settings: CompanySettings): Promise<void> {
   if (!supabase) return;
+  // Guardião de integridade: nunca sobrescreve o banco com dados vazios ou corrompidos
+  if (!settings || !settings.companyName?.trim() || !settings.cnpj?.trim()) {
+    console.warn('[Supabase] Tentativa de sincronizar configurações com Razão Social ou CNPJ vazios ignorada.');
+    return;
+  }
   try {
     const payload: any = {
       company_name: settings.companyName,
