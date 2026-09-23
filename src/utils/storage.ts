@@ -863,22 +863,21 @@ export const DEFAULT_REGISTERED_UNITS = [
 ].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 
 export const DEFAULT_REGISTERED_CATEGORIES = [
-  'Acessórios & Escritório',
-  'Automação & Energia',
-  'Elétrica',
+  'Áudio, Vídeo & Apresentação',
+  'Construção, Acabamento & Marcenaria',
+  'Diversos & Sazonais',
+  'Eletrodomésticos, Refrigeração & Copa',
+  'Elétrica & Iluminação Tática',
+  'Energia, Nobreaks & Baterias',
   'Equipamentos & Insumos Industriais',
-  'Ferramentas',
-  'Geral',
-  'Hardware & Peças',
-  'Informática & Tecnologia',
-  'Limpeza & Higiene',
-  'Papelaria e Materiais Escolares',
-  'Periféricos & Cabos',
-  'Redes & Conectividade',
-  'Segurança & CFTV',
-  'Segurança Eletrônica',
-  'Serviços & Instalação',
-  'Suprimentos & Copa'
+  'Ferramentas & Instrumentos de Medição',
+  'Impressão & Automação Comercial',
+  'Informática, Hardware & Periféricos',
+  'Limpeza, Higiene & Descartáveis',
+  'Monitores, Displays & TVs',
+  'Papelaria, Artes & Material de Escritório',
+  'Pet Shop & Veterinária',
+  'Redes, Conectividade & Telefonia'
 ].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 
 const notifyMetadataChanged = () => {

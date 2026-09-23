@@ -1348,7 +1348,7 @@ DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
 - "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
 - "model": Modelo exato do produto (ex: CPG-300).
 - "partNumber": Part Number oficial ou código alfanumérico.
-- "category": Categoria ideal do produto (ex: Ferramentas, Informática, Automação, Redes, Componentes Eletrônicos, Elétrica, etc.).
+- "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. NUNCA crie categorias fora desta lista.
 - "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40).
 - "ean": Código de barras EAN se conhecido, senão "".
 - "weight": Peso aproximado da embalagem para frete em kg (ex: "14.500 kg", "0.200 kg").
@@ -1733,7 +1733,7 @@ Retorne ESTRITAMENTE um JSON válido no formato:
   "manufacturer": "Fabricante",
   "model": "Modelo",
   "partNumber": "Part Number / MPN",
-  "category": "Categoria",
+  "category": "Uma das categorias oficiais: Informática, Hardware & Periféricos | Redes, Conectividade & Telefonia | Áudio, Vídeo & Apresentação | Monitores, Displays & TVs | Energia, Nobreaks & Baterias | Impressão & Automação Comercial | Papelaria, Artes & Material de Escritório | Elétrica & Iluminação Tática | Construção, Acabamento & Marcenaria | Ferramentas & Instrumentos de Medição | Equipamentos & Insumos Industriais | Eletrodomésticos, Refrigeração & Copa | Limpeza, Higiene & Descartáveis | Pet Shop & Veterinária | Diversos & Sazonais",
   "ncm": "8544.42.00",
   "ean": "",
   "weight": "0.150 kg",

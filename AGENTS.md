@@ -43,3 +43,27 @@ Consulte `.agents/rules/UI_DESIGN_SYSTEM.md` e `src/index.css` para todas as cla
 - Execute testes via browser/DOM **EXCLUSIVAMENTE** quando o Lucas pedir explicitamente (ex: *"faça o teste no browser"*, *"teste o DOM"*, *"teste a tela"*).
 - Para verificações rotineiras e seguras de entrega de código, utilize validação estática (`npm run build` / `tsc`) e testes unitários sem abrir ou inspecionar o navegador sem permissão.
 
+---
+
+## 🏷️ DIRETRIZ DE CATEGORIZAÇÃO OFICIAL DE PRODUTOS (REGRA DO LUCAS)
+
+Todo e qualquer produto novo cadastrado, importado ou descoberto por IA/NCM deve ser classificado OBRIGATORIAMENTE em uma das seguintes categorias oficiais:
+
+1. **Informática, Hardware & Periféricos** (SSDs, pendrives, teclados, mouses, tablets, suportes, peças de informática)
+2. **Redes, Conectividade & Telefonia** (switches, roteadores, cabos de rede Furukawa, keystones, patch cords, HDMI, Starlink, telefones IP)
+3. **Áudio, Vídeo & Apresentação** (projetores, webcams, gimbals, microfones, headsets, iluminação de estúdio/softbox)
+4. **Monitores, Displays & TVs** (monitores para PC, telas de projeção, Smart TVs, antenas HDTV)
+5. **Energia, Nobreaks & Baterias** (nobreaks, pilhas AA/AAA, baterias 9V, carregadores de pilhas, testadores)
+6. **Impressão & Automação Comercial** (impressoras de etiquetas térmicas, leitores de código de barras, rotuladores, laminadoras térmicas, sistemas de pagers)
+7. **Papelaria, Artes & Material de Escritório** (canetas, lápis, giz, tintas artísticas/telas, pincéis, pranchetas, binders, clipes)
+8. **Elétrica & Iluminação Tática** (cabos flexíveis Corfio, eletrodutos, caixas de luz de embutir, lanternas táticas)
+9. **Construção, Acabamento & Marcenaria** (cimento, areia, massas PVA/acrílica, tintas de parede, gesso, piso vinílico, rodapés, MDF, parafusos, buchas)
+10. **Ferramentas & Instrumentos de Medição** (alicates, chaves combinadas, serras, parafusadeiras, trenas, termômetros com calibração RBC, carrinhos de transporte)
+11. **Equipamentos & Insumos Industriais** (seringas industriais Nordson, pontas/agulhas dosadoras, lentes de laser CO2, filamentos 3D)
+12. **Eletrodomésticos, Refrigeração & Copa** (geladeiras, frigobares, cooktops, chaleiras elétricas, chuveiros, organizadores de pia, cumbucas)
+13. **Limpeza, Higiene & Descartáveis** (álcool 70%, dispensers/refis de odores sanitários, estopas, borrifadores, assentos sanitários)
+14. **Pet Shop & Veterinária** (rações secas/úmidas, caminhas pet, acessórios para animais)
+15. **Diversos & Sazonais** (itens sazonais ou excepcionais que não se enquadram nos departamentos acima)
+
+**PROIBIDO**: Criar categorias fragmentadas (ex: "Armazenamento & SSDs", "Periféricos & Cabos", "Refrigeração, Geladeiras & Frigobares", "Ferramentas Elétricas"). Use sempre os macro-departamentos oficiais acima.
+

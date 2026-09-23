@@ -1263,102 +1263,79 @@ export function getCategoryFromNcm(ncmCode: string | undefined, fallbackCategory
   const pos = clean.slice(0, 4);
 
   // 1. Alimentos, Bebidas, Café e Copa
-  if (pos === '0901') return 'Café, Chás & Matinais';
-  if (pos === '0902' || pos === '0903') return 'Chás & Infusões';
-  if (cap === '09') return 'Café, Chás & Especiarias';
-  if (pos === '1701' || pos === '1702' || pos === '1704') return 'Açúcar & Doces';
-  if (pos === '1806') return 'Chocolates & Bomboniere';
-  if (pos === '1905') return 'Biscoitos & Snacks';
-  if (pos === '2101') return 'Café Solúvel & Extratos';
-  if (cap === '21') return 'Alimentos & Mercearia';
-  if (pos === '2201' || pos === '2202') return 'Águas, Sucos & Bebidas';
-  if (cap === '22') return 'Bebidas & Líquidos';
-
-  // 2. Embalagens, Descartáveis, Limpeza e Higiene
-  if (pos === '3923') return 'Embalagens & Descartáveis';
-  if (pos === '3924') return 'Utilidades Domésticas & Plásticos';
-  if (pos === '3926') return 'Artigos Plásticos & Acessórios';
-  if (cap === '39') return 'Plásticos & Polímeros';
-  if (pos === '4818') return 'Papéis Higiênicos & Guardanapos';
-  if (pos === '4819') return 'Caixas & Embalagens de Papelão';
-  if (pos === '4820') return 'Papelaria & Cadernos';
-  if (cap === '48') return 'Papelaria & Escritório';
-  if (pos === '3401' || pos === '3402') return 'Limpeza & Higiene Profissional';
-  if (cap === '34') return 'Produtos de Limpeza';
-  if (cap === '33') return 'Higiene Pessoal & Cosméticos';
-
-  // 3. Informática, Tecnologia e Automação (Capítulo 84 e 85)
-  if (pos === '8471') {
-    const sub = clean.slice(0, 6);
-    if (sub === '847130') return 'Notebooks & Computadores Portáteis';
-    if (sub === '847141' || sub === '847149' || sub === '847150') return 'Desktops & Servidores';
-    if (sub === '847160') return 'Periféricos & Entrada de Dados';
-    if (sub === '847170') return 'Armazenamento & SSDs';
-    if (sub === '847180' || sub === '847190') return 'Componentes & Placas';
-    return 'Informática & Tecnologia';
+  if (cap === '09' || cap === '17' || cap === '18' || cap === '19' || cap === '21' || cap === '22') {
+    return 'Eletrodomésticos, Refrigeração & Copa';
   }
-  if (pos === '8443') return 'Impressoras, Multifuncionais & Toners';
-  if (pos === '8470') return 'Calculadoras & Automação Comercial';
-  if (pos === '8473') return 'Partes & Peças para Informática';
 
-  // 4. Redes, Conectividade e Telecomunicações
+  // 2. Pet Shop & Veterinária (Alimentos para animais NCM 2309)
+  if (pos === '2309') return 'Pet Shop & Veterinária';
+
+  // 3. Limpeza, Higiene & Descartáveis
+  if (pos === '3401' || pos === '3402' || cap === '33' || cap === '34' || pos === '4818' || pos === '3923') {
+    return 'Limpeza, Higiene & Descartáveis';
+  }
+
+  // 4. Papelaria, Artes & Material de Escritório
+  if (pos === '4820' || cap === '48' || cap === '49' || pos === '9608' || pos === '9609' || cap === '96') {
+    return 'Papelaria, Artes & Material de Escritório';
+  }
+
+  // 5. Impressão & Automação Comercial
+  if (pos === '8443' || pos === '8470') {
+    return 'Impressão & Automação Comercial';
+  }
+
+  // 6. Monitores, Displays & TVs
+  if (pos === '8528') {
+    return 'Monitores, Displays & TVs';
+  }
+
+  // 7. Áudio, Vídeo & Apresentação
+  if (pos === '8518' || pos === '8519' || pos === '8521' || pos === '8522' || pos === '8525' || pos === '9006') {
+    return 'Áudio, Vídeo & Apresentação';
+  }
+
+  // 8. Redes, Conectividade & Telefonia
   if (pos === '8517') {
-    const sub = clean.slice(0, 6);
-    if (sub === '851711' || sub === '851713' || sub === '851714') return 'Telefonia & Smartphones';
-    if (sub === '851761' || sub === '851762') return 'Redes, Roteadores & Switches';
-    if (sub === '851771' || sub === '851779') return 'Antenas & Telecomunicação';
-    return 'Redes & Conectividade';
+    return 'Redes, Conectividade & Telefonia';
   }
 
-  // 5. Monitores, Áudio e Vídeo
-  if (pos === '8528') return 'Monitores & Telas Profissionais';
-  if (pos === '8518') return 'Áudio, Caixas de Som & Headsets';
-  if (pos === '8519' || pos === '8521' || pos === '8522') return 'Áudio & Vídeo';
-  if (pos === '8525') return 'Câmeras, Webcams & CFTV';
-
-  // 6. Energia, Fontes e Nobreaks
-  if (pos === '8504') {
-    const sub = clean.slice(0, 6);
-    if (sub === '850440') return 'Nobreaks, Fontes & Conversores';
-    return 'Transformadores & Energia';
+  // 9. Informática, Hardware & Periféricos
+  if (pos === '8471' || pos === '8473') {
+    return 'Informática, Hardware & Periféricos';
   }
-  if (pos === '8506' || pos === '8507') return 'Pilhas, Baterias & Nobreaks';
-  if (pos === '8535' || pos === '8536' || pos === '8537') return 'Materiais Elétricos & Disjuntores';
-  if (pos === '8544') return 'Cabos & Conectores';
 
-  // 7. Eletrodomésticos, Refrigeração e Climatização
-  if (pos === '8418') return 'Refrigeração, Geladeiras & Frigobares';
-  if (pos === '8415') return 'Ar-Condicionado & Climatização';
-  if (pos === '8414') return 'Ventilação, Coifas & Exaustores';
-  if (pos === '8421') return 'Filtros & Purificadores de Água';
-  if (pos === '8422') return 'Lava-Louças & Máquinas de Limpeza';
-  if (pos === '8450') return 'Lavadoras & Secadoras';
-  if (pos === '8516') return 'Eletroportáteis, Fornos & Micro-ondas';
+  // 10. Energia, Nobreaks & Baterias
+  if (pos === '8504' || pos === '8506' || pos === '8507') {
+    return 'Energia, Nobreaks & Baterias';
+  }
 
-  // 8. Válvulas, Tubos, Metais e Hidráulica Industrial
-  if (pos === '8481') return 'Válvulas & Registros Industriais';
-  if (pos === '8413') return 'Bombas Hidráulicas & Motores';
-  if (pos === '7304' || pos === '7306' || pos === '7307') return 'Tubos & Conexões de Aço';
-  if (pos === '7411' || pos === '7412') return 'Tubos & Conexões de Cobre';
-  if (cap === '73' || cap === '76') return 'Metais & Estruturas';
-  if (cap === '40') return 'Borrachas, Juntas & Vedações';
+  // 11. Elétrica & Iluminação Tática
+  if (pos === '8535' || pos === '8536' || pos === '8537' || pos === '8544' || pos === '8513' || pos === '9405') {
+    return 'Elétrica & Iluminação Tática';
+  }
 
-  // 9. Ferramentas, Segurança e EPI
-  if (pos === '8203' || pos === '8204' || pos === '8205' || pos === '8206') return 'Ferramentas Manuais';
-  if (pos === '8467') return 'Ferramentas Elétricas';
-  if (cap === '82') return 'Ferramentas & Cutelaria';
-  if (pos === '9004' || pos === '9020') return 'EPI & Proteção Individual';
-  if (cap === '90') return 'Instrumentos de Medição & Óptica';
+  // 12. Eletrodomésticos, Refrigeração & Copa
+  if (pos === '8418' || pos === '8415' || pos === '8414' || pos === '8421' || pos === '8422' || pos === '8450' || pos === '8516' || pos === '3924') {
+    return 'Eletrodomésticos, Refrigeração & Copa';
+  }
 
-  // 10. Mobiliário e Escritório
-  if (pos === '9401' || pos === '9403') return 'Mobiliário Corporativo & Cadeiras';
-  if (pos === '9405') return 'Iluminação & Luminárias';
-  if (cap === '94') return 'Mobiliário & Decoração';
+  // 13. Construção, Acabamento & Marcenaria
+  if (cap === '25' || cap === '68' || cap === '69' || cap === '32' || cap === '44' || pos === '7318' || cap === '73' || cap === '76') {
+    return 'Construção, Acabamento & Marcenaria';
+  }
 
-  // 11. Veículos e Autopeças
-  if (cap === '87') return 'Veículos & Autopeças';
+  // 14. Ferramentas & Instrumentos de Medição
+  if (cap === '82' || pos === '8467' || cap === '90' || pos === '8716') {
+    return 'Ferramentas & Instrumentos de Medição';
+  }
 
-  return fallbackCategory || 'Geral';
+  // 15. Equipamentos & Insumos Industriais
+  if (pos === '8481' || pos === '8413' || cap === '84' || cap === '39' || cap === '40') {
+    return 'Equipamentos & Insumos Industriais';
+  }
+
+  return fallbackCategory || 'Diversos & Sazonais';
 }
 
 /**
