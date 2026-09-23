@@ -356,10 +356,27 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
         ? `Lendo ${photosToProcess.length} imagem(ns), transcrevendo dados e cruzando com as especificações...`
         : photosToProcess.length > 0
           ? `Lendo imagem(ns), transcrevendo itens e identificando produtos com fidelidade máxima...`
-          : 'Analisando características técnicas e buscando fotos reais...'
+          : 'Identificando itens e marcas comerciais...'
     );
     setBatchResults([]);
     setSelectedResultIds(new Set());
+
+    let stepTimer: any = null;
+    if (!photosToProcess.length) {
+      let stepCount = 0;
+      const steps = [
+        'Identificando itens e marcas comerciais...',
+        'Diferenciando especificações técnicas e NCM oficial do Brasil...',
+        'Buscando fotos reais e referências de fornecedores...',
+        'Montando fichas técnicas completas no padrão 360° Infodesk Store...'
+      ];
+      stepTimer = setInterval(() => {
+        stepCount++;
+        if (stepCount < steps.length) {
+          setPhase1StatusMessage(steps[stepCount]);
+        }
+      }, 4500);
+    }
 
     try {
       const discovered = await phase1DiscoverProductsFromText(textToProcess, {
@@ -380,6 +397,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
       console.error('Erro na Fase 1 (Dedução de Produtos):', err);
       alert('Não foi possível identificar os produtos. Verifique o texto/fotos e tente novamente.');
     } finally {
+      if (stepTimer) clearInterval(stepTimer);
       setIsDiscoveringPhase1(false);
       setPhase1StatusMessage('');
     }

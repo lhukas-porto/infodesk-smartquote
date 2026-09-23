@@ -1800,6 +1800,76 @@ Construção robusta com design resistente a respingos de líquidos acidentais, 
       { label: 'Tomadas de Saída', value: '8 tomadas padrão NBR 14136 (10A)' },
       { label: 'Bateria', value: 'Baterias seladas chumbo-ácido livres de manutenção' }
     ]
+  },
+  'intelbras 125i': {
+    standardizedName: 'Telefone Sem Fio Intelbras TS 125i com Identificador de Chamadas Preto',
+    brand: 'Intelbras',
+    manufacturer: 'Intelbras S/A',
+    model: 'TS 125i',
+    partNumber: '4121251',
+    category: 'Redes, Conectividade & Telefonia',
+    ncm: '8517.18.90',
+    weight: '0.550 kg',
+    dimensions: '15cm x 15cm x 10cm',
+    suggestedPrice: 119.90,
+    costPrice: 75.00,
+    description: `Telefone sem fio digital Intelbras TS 125i desenvolvido para proporcionar máxima clareza e praticidade em comunicações corporativas e residenciais. Equipado com display luminoso âmbar e tecnologia digital DECT 6.0 livre de interferências.
+
+Possui identificador de chamadas DTMF e FSK automático, agenda interna para até 50 contatos com nome e número, funções de rediscagem dos últimos 10 números, discagem rápida e controle ergonômico de volume com alta autonomia de conversação.`,
+    specifications: [
+      { label: 'Tecnologia', value: 'DECT 6.0 sem interferências' },
+      { label: 'Identificador de Chamadas', value: 'Sim (DTMF e FSK automático)' },
+      { label: 'Agenda Telefônica', value: 'Até 50 contatos com nome e número' },
+      { label: 'Display Luminoso', value: 'Alfanumérico com iluminação âmbar' },
+      { label: 'Autonomia da Bateria', value: 'Até 15h em conversação e 150h em standby' },
+      { label: 'Alimentação', value: 'Bivolt Automático 100-240V' }
+    ]
+  },
+  'ts 125i': {
+    standardizedName: 'Telefone Sem Fio Intelbras TS 125i com Identificador de Chamadas Preto',
+    brand: 'Intelbras',
+    manufacturer: 'Intelbras S/A',
+    model: 'TS 125i',
+    partNumber: '4121251',
+    category: 'Redes, Conectividade & Telefonia',
+    ncm: '8517.18.90',
+    weight: '0.550 kg',
+    dimensions: '15cm x 15cm x 10cm',
+    suggestedPrice: 119.90,
+    costPrice: 75.00,
+    description: `Telefone sem fio digital Intelbras TS 125i desenvolvido para proporcionar máxima clareza e praticidade em comunicações corporativas e residenciais. Equipado com display luminoso âmbar e tecnologia digital DECT 6.0 livre de interferências.
+
+Possui identificador de chamadas DTMF e FSK automático, agenda interna para até 50 contatos com nome e número, funções de rediscagem dos últimos 10 números, discagem rápida e controle ergonômico de volume com alta autonomia de conversação.`,
+    specifications: [
+      { label: 'Tecnologia', value: 'DECT 6.0 sem interferências' },
+      { label: 'Identificador de Chamadas', value: 'Sim (DTMF e FSK automático)' },
+      { label: 'Agenda Telefônica', value: 'Até 50 contatos com nome e número' },
+      { label: 'Display Luminoso', value: 'Alfanumérico com iluminação âmbar' },
+      { label: 'Alimentação', value: 'Bivolt Automático 100-240V' }
+    ]
+  },
+  'ventosa 30mm': {
+    standardizedName: 'Ventosa de Silicone e PVC Cristal 30mm Transparente com Furo 2.5mm',
+    brand: 'Genérica',
+    manufacturer: 'Fabricante Nacional / Importado',
+    model: 'Ventosa 30mm',
+    partNumber: 'VT-30MM',
+    category: 'Construção, Acabamento & Marcenaria',
+    ncm: '3926.90.90',
+    weight: '0.100 kg',
+    dimensions: '10cm x 10cm x 5cm',
+    suggestedPrice: 2.50,
+    costPrice: 0.90,
+    description: `Ventosa de fixação produzida em plástico silicone e PVC cristal transparente com 30mm (3cm) de diâmetro. Desenvolvida para garantir excelente fixação por vácuo em superfícies lisas, não porosas, vidros e acrílicos.
+
+Equipada com furo central de 2,5mm para encaixe de parafusos, ganchos ou pinos de sustentação. Ideal para apoio de tampos de vidro, displays promocionais, artesanato e proteção de mesas evitando o deslocamento do vidro.`,
+    specifications: [
+      { label: 'Diâmetro Externo', value: '30 mm (3 cm)' },
+      { label: 'Diâmetro do Furo', value: '2,5 mm' },
+      { label: 'Material', value: 'Silicone e PVC Cristal Transparente' },
+      { label: 'Superfícies de Aplicação', value: 'Vidro, acrílico, espelho e superfícies polidas' },
+      { label: 'Finalidade', value: 'Fixação e apoio anti-deslocamento' }
+    ]
   }
 };
 
@@ -2384,7 +2454,7 @@ Retorne ESTRITAMENTE um JSON no formato:
             temperature: 0.1,
             responseMimeType: 'application/json'
           }
-        }, 18000);
+        }, 45000);
 
         if (callRes.rateLimited) {
           console.warn(`[Phase1][${model}] Rate limited (429) no modelo ${model}, tentando próximo da cascata...`);
@@ -2874,7 +2944,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       };
 
       let usedGoogleSearch = true;
-      let callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 25000);
+      let callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 35000);
 
       if (callRes.rateLimited) {
         console.warn(`[Phase2][${model}] Rate limited (429) no modelo ${model}, tentando próximo da cascata...`);
@@ -2891,7 +2961,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
             responseMimeType: 'application/json'
           }
         };
-        callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 20000);
+        callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 30000);
         if (callRes.rateLimited) continue;
       }
 
