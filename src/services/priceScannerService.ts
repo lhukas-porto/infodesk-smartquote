@@ -76,17 +76,17 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
  * gemini-3.6-flash e 3.5-flash atuam como fallbacks adicionais.
  */
 export const MODERN_GEMINI_MODELS = [
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3-flash-preview',
   'gemini-flash-lite-latest',
-  'gemini-3.1-flash-lite'
+  'gemini-3.1-flash-lite',
+  'gemini-3.6-flash',
+  'gemini-flash-latest',
+  'gemini-3.5-flash'
 ];
 
 /**
  * Disjuntor (Circuit Breaker) para a API Gemini:
- * Se a cota estiver esgotada (429) ou ocorrer erro de autenticação, suspende chamadas de IA
- * por 5 minutos para que todas as buscas subsequentes respondam em <50ms pelo catálogo local.
+ * Se todos os modelos da cascata falharem por cota, suspende chamadas de IA
+ * por apenas 15 segundos para dar tempo à cota regenerar.
  */
 let geminiCircuitBreakerUntil = 0;
 
@@ -99,8 +99,8 @@ export function resetGeminiCircuitBreaker(): void {
 }
 
 /**
- * Executa requisição para a API Gemini com timeout estrito via AbortController
- * e interrupção imediata em caso de cota excedida (429)
+ * Executa requisição para a API Gemini com timeout estrito via AbortController.
+ * Não trava todos os modelos se apenas 1 deles tiver cota esgotada (429).
  */
 async function fetchGeminiWithTimeout(
   endpoint: string,
@@ -108,7 +108,7 @@ async function fetchGeminiWithTimeout(
   timeoutMs: number = 25000
 ): Promise<{ ok: boolean; status: number; data?: any; errorText?: string; rateLimited?: boolean }> {
   if (isGeminiCircuitBreakerActive()) {
-    return { ok: false, status: 429, errorText: 'Circuit breaker ativo (cota de IA em resfriamento)', rateLimited: true };
+    return { ok: false, status: 429, errorText: 'Circuit breaker ativo (cota de IA em resfriamento rápido)', rateLimited: true };
   }
 
   const controller = new AbortController();
@@ -124,9 +124,8 @@ async function fetchGeminiWithTimeout(
     clearTimeout(timer);
 
     if (res.status === 429) {
-      geminiCircuitBreakerUntil = Date.now() + 60 * 1000; // 60s (era 5min — muita restrição)
-      console.warn('[Gemini Circuit Breaker] Cota excedida (429). Disjuntor ativado por 60s. O scanner usará dados já identificados.');
-      return { ok: false, status: 429, errorText: 'Quota exceeded', rateLimited: true };
+      console.warn('[Gemini API] Modelo retornou 429 (rate limit). O scanner tentará o próximo modelo da cascata.');
+      return { ok: false, status: 429, errorText: 'Quota exceeded for model', rateLimited: true };
     }
 
     if (!res.ok) {
@@ -289,6 +288,25 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
   name = name.replace(/[\.\-\:\,]+$/, '').trim();
   if (name.length > 0) {
     name = name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  // 7. Restaura capitalização oficial de marcas reconhecidas no nome do produto
+  for (const b of RECOGNIZED_BRANDS) {
+    const reg = new RegExp(`\\b${b}\\b`, 'gi');
+    name = name.replace(reg, b);
+  }
+
+  // Se uma marca explícita foi detectada/passada (ex: Intelbras, Logitech), assegura sua grafia correta
+  if (brand && brand !== 'Genérica') {
+    const regB = new RegExp(`\\b${brand}\\b`, 'gi');
+    name = name.replace(regB, brand);
+  }
+
+  // 8. Restaura siglas e acrônimos técnicos comuns em maiúsculo
+  const techAcronyms = ['USB', 'HDMI', 'VGA', 'DVI', 'P3', 'P2', 'Cat6', 'Cat5e', 'Cat5', 'LED', 'LCD', 'OLED', 'RGB', 'SSD', 'HDD', 'NVMe', 'ABNT2', 'Bivolt', 'Wi-Fi', 'WiFi', 'Bluetooth', 'PoE', 'RJ45', 'RJ11', 'Full HD', '4K'];
+  for (const ac of techAcronyms) {
+    const reg = new RegExp(`\\b${ac}\\b`, 'gi');
+    name = name.replace(reg, ac);
   }
 
   return name;
@@ -2073,10 +2091,11 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       ncm = '8544.49.00';
       weight = '1.000 kg';
       dimensions = '25cm x 25cm x 10cm';
-    } else if (/switch|roteador|modem|patch cord|cabo de rede|keystone|fibra|telefonia/i.test(norm)) {
+    } else if (/switch|roteador|modem|patch cord|cabo de rede|keystone|fibra|telefonia|telefone|interfone/i.test(norm)) {
       category = 'Redes, Conectividade & Telefonia';
-      ncm = '8517.62.59';
-      weight = '1.200 kg';
+      ncm = /telefone|interfone/i.test(norm) ? '8517.18.00' : '8517.62.59';
+      weight = '0.550 kg';
+      dimensions = '18cm x 15cm x 10cm';
     } else if (/papel|caneta|l[aá]pis|caderno|prancheta|envelope|pasta|grampeador|borracha/i.test(norm)) {
       category = 'Papelaria, Artes & Material de Escritório';
       ncm = '4820.10.00';
@@ -2101,7 +2120,7 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       category = 'Energia, Nobreaks & Baterias';
       ncm = '8504.40.40';
       weight = '6.000 kg';
-    } else if (/projetor|webcam|c[aâ]mera|microfone|headset|fone|caixa de som|audiovisu/i.test(norm)) {
+    } else if (/projetor|webcam|c[aâ]mera|microfone|\b(?:headset|fone de ouvido|headphone|auricular)\b|caixa de som|audiovisu/i.test(norm)) {
       category = 'Áudio, Vídeo & Apresentação';
       ncm = '8518.30.00';
       weight = '0.400 kg';
@@ -2111,31 +2130,48 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       weight = '0.500 kg';
     }
 
+    const isPhone = /telefone|interfone/i.test(norm);
+    const resolvedModel = model || (norm.match(/\b(\d{2,4}[a-z]?)\b/i)?.[1]?.toUpperCase() || '');
+
     const stdName = sanitizeStandardizedProductName(
       formatProductSentenceCase(normalizeSearchTerm(cleanQuery)),
       category,
-      brand
+      brand !== 'Genérica' ? brand : undefined
     );
+
+    const specs = isPhone ? [
+      { label: 'Tipo de Aparelho', value: 'Telefone com fio para mesa ou parede' },
+      { label: 'Marca / Fabricante', value: brand !== 'Genérica' ? brand : 'Intelbras' },
+      { label: 'Funções Integradas', value: 'Flash, Rediscagem, Mudo e Ajuste de Volume' },
+      { label: 'Conexão', value: 'Linha Telefônica Padrão RJ11' },
+      { label: 'Categoria Oficial', value: category },
+      { label: 'Aplicação', value: 'Uso corporativo, comercial e residencial' }
+    ] : [
+      { label: 'Produto', value: stdName },
+      { label: 'Marca / Fabricante', value: brand !== 'Genérica' ? brand : 'Nacional / Importado' },
+      { label: 'Categoria Oficial', value: category },
+      { label: 'Aplicação', value: 'Uso comercial, empresarial e corporativo' },
+      { label: 'Padrão Técnico', value: 'Conforme especificações e normas do fabricante' }
+    ];
+
+    const desc = isPhone
+      ? `Telefone ${brand !== 'Genérica' ? brand : ''} ${resolvedModel} desenvolvido para proporcionar comunicação clara, confiável e de alta qualidade em ambientes corporativos e comerciais. Possui teclas ergonômicas de toque suave, ajuste de volume da campainha e funções essenciais como rediscagem e modo mudo.\n\nConstrução robusta e durável em plástico de engenharia, sendo compatível com centrais PABX analógicas e linhas telefônicas convencionais com instalação versátil em mesa ou parede.`
+      : `${stdName} desenvolvido para atender demandas corporativas e comerciais com confiabilidade e qualidade técnica comprovadas.`;
 
     return {
       standardizedName: stdName,
       brand,
       manufacturer: brand !== 'Genérica' ? `${brand} do Brasil / Importado` : 'Fabricante Nacional / Importado',
-      model,
-      partNumber: pNumber,
+      model: resolvedModel || model,
+      partNumber: pNumber || (resolvedModel ? `${brand !== 'Genérica' ? brand.substring(0, 3).toUpperCase() : 'PROD'}-${resolvedModel}` : ''),
       category,
       ncm,
       weight,
       dimensions,
-      suggestedPrice: 99.00,
-      costPrice: 65.00,
-      description: `${stdName} desenvolvido para atender demandas corporativas e comerciais com confiabilidade e qualidade técnica comprovadas.`,
-      specifications: [
-        { label: 'Produto', value: stdName },
-        { label: 'Marca / Fabricante', value: brand !== 'Genérica' ? brand : 'Nacional / Importado' },
-        { label: 'Categoria Oficial', value: category },
-        { label: 'Finalidade', value: 'Uso comercial, empresarial e corporativo' }
-      ],
+      suggestedPrice: isPhone ? 89.90 : 99.00,
+      costPrice: isPhone ? 55.00 : 65.00,
+      description: desc,
+      specifications: specs,
       quantity: quantity > 0 ? quantity : 1,
       unit: 'Un.',
       confidence: 'Alta - Ficha Técnica Estruturada'
@@ -2351,9 +2387,8 @@ Retorne ESTRITAMENTE um JSON no formato:
         }, 18000);
 
         if (callRes.rateLimited) {
-          // Cota excedida ou disjuntor acionado: interrompe cascata imediatamente
-          console.error(`[Phase1][${model}] Rate limited / Circuit breaker ativo`);
-          break;
+          console.warn(`[Phase1][${model}] Rate limited (429) no modelo ${model}, tentando próximo da cascata...`);
+          continue;
         }
 
         if (!callRes.ok || !callRes.data) {
@@ -2842,7 +2877,8 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       let callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 25000);
 
       if (callRes.rateLimited) {
-        break; // Cota esgotada, não tenta mais para não travar
+        console.warn(`[Phase2][${model}] Rate limited (429) no modelo ${model}, tentando próximo da cascata...`);
+        continue;
       }
 
       // 2. Fallback sem grounding se a busca ao vivo falhar por formato
@@ -2856,7 +2892,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
           }
         };
         callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 20000);
-        if (callRes.rateLimited) break;
+        if (callRes.rateLimited) continue;
       }
 
       if (!callRes.ok || !callRes.data) continue;
