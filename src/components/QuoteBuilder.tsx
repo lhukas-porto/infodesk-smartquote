@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Plus,
   Trash2,
   Search,
   Sparkles,
+  Zap,
   Save,
   Eye,
   Calculator,
@@ -88,6 +89,7 @@ import {
 import { CreatableCombobox } from './CreatableCombobox';
 import { exportCostSheetToExcel } from '../utils/excelExport';
 import { UniversalListImportModal } from './UniversalListImportModal';
+import { BatchPriceScanModal } from './BatchPriceScanModal';
 import { WebImagePickerModal } from './WebImagePickerModal';
 import { ProductEditModal } from './ProductEditModal';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
@@ -162,8 +164,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   
   // Estado para Modal de Importação Universal (MEL-10) e Perfis de Margem (MEL-07)
   const [isUniversalImportOpen, setIsUniversalImportOpen] = useState(false);
+  const [isBatchPriceScanOpen, setIsBatchPriceScanOpen] = useState(false);
   const [selectedPricingProfile, setSelectedPricingProfile] = useState<string>('corporativo_padrao');
   const [isSupplierMatrixOpen, setIsSupplierMatrixOpen] = useState(false);
+
+  // Contador de itens pendentes de custo para badge visual
+  const itemsWithoutCostCount = useMemo(() => {
+    return (currentQuote.items || []).filter(it => !it.costPrice || it.costPrice === 0).length;
+  }, [currentQuote.items]);
 
   // Estado da regra de exceção no prazo de entrega (ex: Exceto para os itens 1 e 2 em até 25 dias úteis)
   const [showDeliveryException, setShowDeliveryException] = useState(() => {
@@ -1212,6 +1220,38 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       ...totals
     }));
     setIsSupplierMatrixOpen(false);
+  };
+
+  const handleApplyBatchScanResults = (updates: Map<string, Partial<QuoteItem>>) => {
+    setCurrentQuote(prev => {
+      const nextItems = prev.items.map(item => {
+        const up = updates.get(item.id);
+        if (!up) return item;
+
+        const cost = up.costPrice !== undefined ? up.costPrice : item.costPrice;
+        const markup = item.markupPercent ?? globalMarkup;
+        const shipping = item.shippingCost ?? globalShipping;
+        const tax = item.taxPercent ?? globalTax;
+
+        const unitPrice = calculateItemUnitPrice(cost, shipping, markup, tax);
+        const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
+
+        return {
+          ...item,
+          ...up,
+          costPrice: cost,
+          unitPrice,
+          totalPrice
+        };
+      });
+
+      const totals = recalculateQuote(nextItems);
+      return {
+        ...prev,
+        items: nextItems,
+        ...totals
+      };
+    });
   };
 
   const handleAddFromCatalog = (productIdToAdd?: string) => {
@@ -2437,6 +2477,25 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   <Layers className="w-3.5 h-3.5 text-sky-600" />
                   <span className="hidden sm:inline">Matriz Fornecedores & Split</span>
                   <span className="sm:hidden">Matriz</span>
+                </button>
+              )}
+
+              {/* Botão de Varredura em Lote (MEL-03) */}
+              {currentQuote.items && currentQuote.items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsBatchPriceScanOpen(true)}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-gradient-to-r from-amber-50 to-sky-50 hover:from-amber-100 hover:to-sky-100 text-slate-800 border border-amber-300/80 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+                  title="Pesquisar preços de múltiplos produtos em paralelo em segundo plano com IA (MEL-03)"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                  <span className="hidden sm:inline">Varredura em Lote (IA)</span>
+                  <span className="sm:hidden">Varredura</span>
+                  {itemsWithoutCostCount > 0 && (
+                    <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[9px] font-bold font-mono">
+                      {itemsWithoutCostCount}
+                    </span>
+                  )}
                 </button>
               )}
 
@@ -4489,6 +4548,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         onClose={() => setIsSupplierMatrixOpen(false)}
         items={currentQuote.items || []}
         onApplyOptimizedBasket={handleApplyOptimizedBasket}
+      />
+
+      {/* Modal de Varredura Concorrente de Preços em Lote (MEL-03) */}
+      <BatchPriceScanModal
+        isOpen={isBatchPriceScanOpen}
+        onClose={() => setIsBatchPriceScanOpen(false)}
+        items={currentQuote.items || []}
+        onApplyResults={handleApplyBatchScanResults}
       />
 
       {/* Modal de Escolha de Foto Comercial na Web */}
