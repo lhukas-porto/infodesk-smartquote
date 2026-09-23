@@ -442,9 +442,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
   const handleDeleteProduct = (id: string) => {
     const toDelete = products.find(p => p.id === id);
-    if (toDelete?.sku) {
-      deleteProductFromSupabase(toDelete.sku);
-    }
+    deleteProductFromSupabase(id, toDelete?.sku, toDelete?.partNumber);
     setProducts(prev => {
       const next = prev.filter(p => p.id !== id);
       saveProducts(next);

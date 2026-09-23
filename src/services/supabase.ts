@@ -567,10 +567,19 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
   }
 }
 
-export async function deleteProductFromSupabase(productSku: string): Promise<void> {
-  if (!supabase || !productSku) return;
+export async function deleteProductFromSupabase(productIdOrSku: string, extraSku?: string, extraPn?: string): Promise<void> {
+  if (!supabase || !productIdOrSku) return;
   try {
-    await supabase.from('products').delete().eq('sku', productSku);
+    // Exclui por ID
+    await supabase.from('products').delete().eq('id', productIdOrSku);
+    // Exclui por SKU se coincidir
+    await supabase.from('products').delete().eq('sku', productIdOrSku);
+    if (extraSku && extraSku !== productIdOrSku) {
+      await supabase.from('products').delete().eq('sku', extraSku);
+    }
+    if (extraPn && extraPn.length >= 3) {
+      await supabase.from('products').delete().ilike('part_number', extraPn);
+    }
   } catch (err) {
     console.warn('Erro ao excluir produto no Supabase:', err);
   }
