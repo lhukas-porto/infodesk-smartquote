@@ -70,20 +70,11 @@ export const getCurrentDraftQuote = (): Quote | null => {
 };
 
 let draftSyncTimer: any = null;
-export const syncDraftQuoteDebounced = (quote: Quote): void => {
+export const syncDraftQuoteDebounced = (_quote: Quote): void => {
   if (draftSyncTimer) clearTimeout(draftSyncTimer);
-  draftSyncTimer = setTimeout(() => {
-    if (quote && (quote.clientCompany || (quote.items && quote.items.length > 0))) {
-      const draftQuote: Quote = {
-        ...quote,
-        status: quote.status || 'draft',
-        code: quote.code || `RASCUNHO-${Date.now()}`
-      };
-      syncQuoteToSupabase(draftQuote).catch(err => {
-        console.warn('[Storage] Erro ao sincronizar rascunho ativo no Supabase:', err);
-      });
-    }
-  }, 1200);
+  // DESATIVADO: Nunca sincronizar rascunhos temporários de digitação para o Supabase!
+  // O Supabase armazena exclusivamente cotações que o usuário explicitamente salvou (handleSaveQuote, handleSaveAsNewQuote, handleSendQuote, handleDuplicateQuote).
+  // O rascunho de tela fica restrito ao localStorage para recuperação instantânea contra F5/queda de conexão.
 };
 
 export const saveCurrentDraftQuote = (quote: Quote | null): void => {
@@ -133,11 +124,6 @@ export const saveCurrentDraftQuote = (quote: Quote | null): void => {
     } catch {
       // Ignora erro de backup secundário
     }
-  }
-
-  // Cloud-First: Garante sincronização contínua do rascunho no Supabase
-  if (quote.clientCompany || (quote.items && quote.items.length > 0)) {
-    syncDraftQuoteDebounced(quote);
   }
 };
 

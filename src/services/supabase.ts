@@ -281,6 +281,12 @@ export async function fetchQuoteItemsByQuoteId(quoteId: string): Promise<QuoteIt
 export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
   if (!supabase) return;
 
+  // REGRA DE SEGURANÇA: NUNCA persistir propostas vazias (sem itens comerciais) no banco
+  if (!quote || !Array.isArray(quote.items) || quote.items.length === 0) {
+    console.warn('[Supabase] Tentativa de sincronizar cotação vazia (0 itens) cancelada:', quote?.code);
+    return;
+  }
+
   const cleanCompany = (quote.clientCompany || '').trim() || 'Cliente';
   const cleanContact = (quote.contactPerson || '').trim() || 'A/C Compras';
   const cleanEmail = (quote.clientEmail || '').trim() || 'contato@cliente.com.br';

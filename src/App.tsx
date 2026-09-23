@@ -201,7 +201,7 @@ export const App: React.FC = () => {
   }, [quotes]);
 
   const draftQuotesCount = useMemo(() => {
-    return quotes.filter(q => (q.status || 'draft') === 'draft').length;
+    return quotes.filter(q => (q.status || 'draft') === 'draft' && Array.isArray(q.items) && q.items.length > 0).length;
   }, [quotes]);
 
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(() => {
@@ -363,9 +363,19 @@ export const App: React.FC = () => {
         // 2. Orçamentos
         const remoteQuotes = await fetchQuotesFromSupabase();
         if (remoteQuotes && remoteQuotes.length > 0) {
+          // Descarta rascunhos fantasmas vazios que possam ter sido gravados no banco
+          const validRemoteQuotes = remoteQuotes.filter(rq => {
+            const hasItems = Array.isArray(rq.items) && rq.items.length > 0;
+            const hasAmount = Number(rq.totalAmount || 0) > 0;
+            if ((rq.status || 'draft') === 'draft' && !hasItems && !hasAmount) {
+              return false;
+            }
+            return true;
+          });
+
           // Merge seguro: se o banco retornar a cotação sem itens, preserva os itens salvos localmente ou do backup
           setQuotes(prevQuotes => {
-            const mergedRemote = remoteQuotes.map(rq => {
+            const mergedRemote = validRemoteQuotes.map(rq => {
               const isConfirmedSent = Boolean(rq.sentAt) || (rq.code && rq.code.trim().toUpperCase() === 'CNC 210926-3');
               if (isConfirmedSent && (rq.status === 'draft' || !rq.status)) {
                 rq = { ...rq, status: 'sent', sentAt: rq.sentAt || new Date().toISOString() };
@@ -420,12 +430,14 @@ export const App: React.FC = () => {
               !mergedRemote.some(rq => rq.id === lq.id || (rq.code && lq.code && rq.code.trim().toUpperCase() === lq.code.trim().toUpperCase()))
             );
 
-            // Sincroniza automaticamente para o Supabase qualquer proposta que estava presa no navegador local
+            // Sincroniza para o Supabase apenas propostas com itens reais e valor comercial
             if (localOnlyQuotes.length > 0) {
               localOnlyQuotes.forEach(lq => {
-                syncQuoteToSupabase(lq).catch(err => {
-                  console.warn('Aviso ao sincronizar proposta pendente para Supabase:', err);
-                });
+                if (lq.items && lq.items.length > 0 && Number(lq.totalAmount || 0) > 0) {
+                  syncQuoteToSupabase(lq).catch(err => {
+                    console.warn('Aviso ao sincronizar proposta pendente para Supabase:', err);
+                  });
+                }
               });
             }
 
@@ -437,27 +449,12 @@ export const App: React.FC = () => {
 
           setCurrentQuote(prev => {
             const draft = getCurrentDraftQuote();
-            // Se já temos um rascunho recente que o usuário está editando, preserva o rascunho
+            // Apenas restaura rascunho ativo se ele possuir itens reais
             let chosen: Quote = prev;
-            if (draft && ((Array.isArray(draft.items) && draft.items.length > 0) || Boolean(draft.clientCompany && draft.clientCompany.trim()))) {
+            if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
               chosen = draft;
-            } else if (prev.code === 'CNC 280826' && remoteQuotes[0]) {
-              const firstRemote = remoteQuotes[0];
-              // Se o remoteQuote não trouxe itens mas o initial prev tinha, mantém itens
-              if ((!firstRemote.items || firstRemote.items.length === 0) && prev.items && prev.items.length > 0) {
-                chosen = { ...firstRemote, items: prev.items };
-              } else {
-                chosen = firstRemote;
-              }
-            }
-            if ((chosen.status || 'draft') === 'draft' && !isSameDay(parseQuoteTimestamp(chosen), Date.now())) {
-              const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-              chosen = {
-                ...chosen,
-                date: todayFormatted,
-                createdAt: new Date().toISOString()
-              };
-              saveCurrentDraftQuote(chosen);
+            } else if (prev.code === 'CNC 280826' && validRemoteQuotes[0]) {
+              chosen = validRemoteQuotes[0];
             }
             if (!chosen.openingText || chosen.openingText.trim() === 'Em atenção...' || chosen.openingText.trim() === 'Em atenção') {
               chosen = {
@@ -573,10 +570,10 @@ export const App: React.FC = () => {
 
   const [currentQuote, setCurrentQuote] = useState<Quote>(() => {
     const draft = getCurrentDraftQuote();
-    if (draft && ((Array.isArray(draft.items) && draft.items.length > 0) || Boolean(draft.clientCompany && draft.clientCompany.trim()))) {
+    if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
       return draft;
     }
-    const existing = quotes[0];
+    const existing = quotes.find(q => Array.isArray(q.items) && q.items.length > 0) || quotes[0];
     if (existing) return existing;
     return {
       id: `quote-${Date.now()}`,
