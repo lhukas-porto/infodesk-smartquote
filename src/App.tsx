@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Navbar } from './components/Navbar';
 import { InboxView } from './components/InboxView';
 import { QuoteBuilder } from './components/QuoteBuilder';
@@ -105,11 +105,34 @@ import {
   recalculateQuoteTotals 
 } from './services/pricingEngine';
 
+export type TabType = 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard';
+
+const VALID_TABS: TabType[] = ['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients', 'dashboard'];
+
+const getTabFromHash = (): TabType | null => {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash.replace('#', '').trim().toLowerCase();
+  return VALID_TABS.includes(hash as TabType) ? (hash as TabType) : null;
+};
+
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard'>(() => {
+  const [activeTab, setActiveTabState] = useState<TabType>(() => {
+    const hashTab = getTabFromHash();
+    if (hashTab) return hashTab;
     const saved = getSavedActiveTab('inbox');
-    return (['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients', 'dashboard'].includes(saved) ? saved : 'inbox') as any;
+    return (VALID_TABS.includes(saved as TabType) ? saved : 'inbox') as TabType;
   });
+
+  const setActiveTab = useCallback((target: TabType | ((prev: TabType) => TabType)) => {
+    setActiveTabState(prev => {
+      const nextTab = typeof target === 'function' ? target(prev) : target;
+      if (VALID_TABS.includes(nextTab) && nextTab !== prev) {
+        window.history.pushState({ tab: nextTab }, '', `#${nextTab}`);
+        saveActiveTab(nextTab);
+      }
+      return nextTab;
+    });
+  }, []);
   const [settings, setSettings] = useState<CompanySettings>(getSettings());
   const [products, setProducts] = useState<Product[]>(getProducts());
   const [emails, setEmails] = useState<IncomingEmail[]>(getEmails());
@@ -580,6 +603,39 @@ export const App: React.FC = () => {
     };
   }, [currentQuote]);
   useEffect(() => { saveActiveTab(activeTab); }, [activeTab]);
+
+  // Sincroniza o histórico do navegador (permite que o botão Voltar/Avançar retorne para a tela anterior da aplicação)
+  useEffect(() => {
+    // 1. Inicializa o estado atual no histórico com a hash correspondente
+    const initialHashTab = getTabFromHash();
+    const currentInitial = initialHashTab || activeTab;
+    window.history.replaceState({ tab: currentInitial }, '', `#${currentInitial}`);
+
+    // 2. Intercepta os eventos de voltar/avançar do navegador (popstate)
+    const handlePopState = (event: PopStateEvent) => {
+      // Fecha modais flutuantes se estiverem abertos
+      setIsEmailModalOpen(false);
+      setIsSettingsOpen(false);
+
+      let targetTab: TabType | null = null;
+      if (event.state && typeof event.state.tab === 'string' && VALID_TABS.includes(event.state.tab as TabType)) {
+        targetTab = event.state.tab as TabType;
+      } else {
+        const hashTab = getTabFromHash();
+        if (hashTab) targetTab = hashTab;
+      }
+
+      if (targetTab) {
+        setActiveTabState(targetTab);
+        saveActiveTab(targetTab);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   const handleConnectGoogle = async () => {
     try {
