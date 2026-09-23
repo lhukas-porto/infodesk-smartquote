@@ -592,6 +592,57 @@ export const saveCompanyPrefixPreference = (id: string, name: string, prefix: '�
   } catch { /* noop */ }
 };
 
+const DELETED_CONTACT_IDS_KEY = 'infodesk_deleted_contact_ids';
+
+export const getDeletedContactIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_CONTACT_IDS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch { /* noop */ }
+  return new Set();
+};
+
+export const recordDeletedContactId = (contactId: string): void => {
+  if (!contactId) return;
+  try {
+    const set = getDeletedContactIds();
+    set.add(contactId);
+    localStorage.setItem(DELETED_CONTACT_IDS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const deduplicateCompanyContacts = (contacts: ClientContact[]): ClientContact[] => {
+  if (!Array.isArray(contacts)) return [];
+  const seenNames = new Set<string>();
+  const seenEmails = new Set<string>();
+  const deletedIds = getDeletedContactIds();
+  const result: ClientContact[] = [];
+
+  for (const ct of contacts) {
+    if (!ct || !ct.name || deletedIds.has(ct.id)) continue;
+    const cleanName = ct.name.trim().toLowerCase();
+    const cleanEmail = (ct.email || '').trim().toLowerCase();
+
+    // Se já vimos este comprador exatamente pelo nome nesta empresa, ignora a duplicata
+    if (cleanName && seenNames.has(cleanName)) {
+      continue;
+    }
+    // Se o e-mail for preenchido e já vimos o mesmo e-mail, ignora
+    if (cleanEmail && seenEmails.has(cleanEmail)) {
+      continue;
+    }
+
+    if (cleanName) seenNames.add(cleanName);
+    if (cleanEmail) seenEmails.add(cleanEmail);
+    result.push(ct);
+  }
+
+  return result;
+};
+
 export const getClientCompanies = (): ClientCompany[] => {
   try {
     const prefixMap = getCompanyPrefixesMap();
@@ -623,8 +674,8 @@ export const getClientCompanies = (): ClientCompany[] => {
           const cleanName = (c.name || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
           const resolvedPrefix = c.prefix || prefixMap[c.id] || prefixMap[cleanName] || (c.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
 
-          const sortedContacts = (Array.isArray(c.contacts) ? c.contacts : [])
-            .slice()
+          const rawContacts = Array.isArray(c.contacts) ? c.contacts : [];
+          const dedupedContacts = deduplicateCompanyContacts(rawContacts)
             .sort((a: ClientContact, b: ClientContact) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 
           return {
@@ -632,7 +683,7 @@ export const getClientCompanies = (): ClientCompany[] => {
             prefix: resolvedPrefix as 'À' | 'Ao',
             defaultDeliveryLocation: c.defaultDeliveryLocation || locs[0] || 'Brasília',
             locations: locs,
-            contacts: sortedContacts
+            contacts: dedupedContacts
           };
         }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
       }
@@ -643,7 +694,7 @@ export const getClientCompanies = (): ClientCompany[] => {
   return initialClientCompanies
     .map(comp => ({
       ...comp,
-      contacts: (comp.contacts || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }))
+      contacts: deduplicateCompanyContacts(comp.contacts || []).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }))
     }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 };

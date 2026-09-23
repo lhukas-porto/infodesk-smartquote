@@ -386,25 +386,7 @@ export const initialClientCompanies: ClientCompany[] = [
       'Itabira'
     ],
     lastUsed: '2026-09-03T12:00:00Z',
-    contacts: [
-      {
-        id: 'cont-alex-ubec',
-        name: 'Alex Pereira da Silva Vasconcellos',
-        title: 'Sr.',
-        email: 'alex.vasconcellos@ubec.edu.br',
-        phone: '(61) 3403-2944',
-        location: 'Brasília',
-        lastUsed: '2026-09-03T12:00:00Z'
-      },
-      {
-        id: 'cont-rafael-ubec',
-        name: 'Rafael Costa',
-        title: 'Sr.',
-        email: 'rafael.costa@ubec.edu.br',
-        phone: '(61) 3403-2900',
-        location: 'Coronel Fabriciano'
-      }
-    ]
+    contacts: []
   },
   {
     id: 'comp-pauloctavio',
@@ -417,17 +399,7 @@ export const initialClientCompanies: ClientCompany[] = [
       'Águas Claras'
     ],
     lastUsed: '2026-09-03T11:49:00Z',
-    contacts: [
-      {
-        id: 'cont-marcelo-pauloctavio',
-        name: 'Marcelo Mattos',
-        title: 'Sr.',
-        email: 'marcelo.mattos@casashoppingpauloctavio.com',
-        phone: '(61) 3218-4000',
-        location: 'Brasília',
-        lastUsed: '2026-09-03T11:49:00Z'
-      }
-    ]
+    contacts: []
   },
   {
     id: 'comp-cnc',
@@ -440,17 +412,7 @@ export const initialClientCompanies: ClientCompany[] = [
       'São Paulo'
     ],
     lastUsed: '2026-08-28T10:00:00Z',
-    contacts: [
-      {
-        id: 'cont-alexandra-cnc',
-        name: 'Alexandra Oliveira',
-        title: 'Srta.',
-        email: 'alexandraoliveira@cnc.org.br',
-        phone: '(61) 3033-0000',
-        location: 'Brasília',
-        lastUsed: '2026-08-28T10:00:00Z'
-      }
-    ]
+    contacts: []
   },
   {
     id: 'comp-inframerica',
@@ -462,24 +424,7 @@ export const initialClientCompanies: ClientCompany[] = [
       'Natal'
     ],
     lastUsed: '2026-08-20T10:00:00Z',
-    contacts: [
-      {
-        id: 'cont-paulo-infra',
-        name: 'Paulo Silva',
-        title: 'Sr.',
-        email: 'compras@inframerica.aero',
-        phone: '(61) 3364-9000',
-        location: 'Brasília'
-      },
-      {
-        id: 'cont-mariana-infra',
-        name: 'Mariana Duarte',
-        title: 'Srta.',
-        email: 'mariana.duarte@inframerica.aero',
-        phone: '(61) 3364-9015',
-        location: 'Brasília'
-      }
-    ]
+    contacts: []
   },
   {
     id: 'comp-terraco',
@@ -490,15 +435,6 @@ export const initialClientCompanies: ClientCompany[] = [
       'Brasília'
     ],
     lastUsed: '2026-08-25T10:00:00Z',
-    contacts: [
-      {
-        id: 'cont-compras-terraco',
-        name: 'Equipe de Suprimentos',
-        title: 'Sr.',
-        email: 'suprimentos@terraco.com.br',
-        phone: '(61) 3403-2944',
-        location: 'Brasília'
-      }
-    ]
+    contacts: []
   }
 ];

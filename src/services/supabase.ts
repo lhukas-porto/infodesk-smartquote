@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
+import { deduplicateCompanyContacts } from '../utils/storage';
 import { extractStoreNameFromUrl, normalizeSearchText } from '../utils/aiEmailParser';
 
 const FALLBACK_SUPABASE_URL = 'https://dxhbjygtbcxpabflsijv.supabase.co';
@@ -669,7 +670,7 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
         website: extractedWebsite,
         logoUrl: extractedLogoUrl,
         lastUsed: c.last_used,
-        contacts: contactsByCompanyId[c.id] || []
+        contacts: deduplicateCompanyContacts(contactsByCompanyId[c.id] || [])
       };
     });
   } catch (err) {
@@ -762,10 +763,13 @@ export async function deleteCompanyFromSupabase(companyId: string): Promise<void
   }
 }
 
-export async function deleteContactFromSupabase(contactId: string): Promise<void> {
+export async function deleteContactFromSupabase(contactId: string, companyId?: string, contactName?: string): Promise<void> {
   if (!supabase || !contactId) return;
   try {
     await supabase.from('client_contacts').delete().eq('id', contactId);
+    if (companyId && contactName && contactName.trim()) {
+      await supabase.from('client_contacts').delete().eq('company_id', companyId).ilike('name', contactName.trim());
+    }
   } catch (err) {
     console.warn('Erro ao deletar comprador do Supabase:', err);
   }

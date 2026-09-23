@@ -50,7 +50,10 @@ import {
   getRegisteredCategories,
   saveRegisteredCategoriesList,
   getRegisteredUnits,
-  saveRegisteredUnitsList
+  saveRegisteredUnitsList,
+  deduplicateCompanyContacts,
+  getDeletedContactIds,
+  recordDeletedContactId
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -247,19 +250,28 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteContact = async (contactId: string, companyId: string) => {
-    await deleteContactFromSupabase(contactId);
+    const targetComp = clientCompanies.find(c => c.id === companyId);
+    const targetContact = targetComp?.contacts.find(ct => ct.id === contactId);
+    
+    // 1. Grava no cofre de exclusões para impedir que qualquer cache ressuscite este contato
+    recordDeletedContactId(contactId);
+
+    // 2. Deleta no Supabase por ID e também por nome dentro da empresa
+    await deleteContactFromSupabase(contactId, companyId, targetContact?.name);
+
+    // 3. Atualiza estado e cache local
     const updated = clientCompanies.map(c => {
       if (c.id === companyId) {
         return {
           ...c,
-          contacts: c.contacts.filter(ct => ct.id !== contactId)
+          contacts: deduplicateCompanyContacts(c.contacts.filter(ct => ct.id !== contactId && ct.name.trim().toLowerCase() !== targetContact?.name?.trim().toLowerCase()))
         };
       }
       return c;
     });
     setClientCompanies(updated);
     saveClientCompanies(updated);
-    syncClientCompaniesToSupabase(updated);
+    await syncClientCompaniesToSupabase(updated);
   };
 
   const handleSaveSettings = async (newSettings: CompanySettings) => {
@@ -440,6 +452,8 @@ export const App: React.FC = () => {
           const localCompanies = getClientCompanies();
           const localById = new Map<string, ClientCompany>();
           const localByName = new Map<string, ClientCompany>();
+          const deletedContactIds = getDeletedContactIds();
+
           localCompanies.forEach(c => {
             localById.set(c.id, c);
             const clean = c.name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
@@ -450,11 +464,23 @@ export const App: React.FC = () => {
             const clean = rc.name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
             const local = localById.get(rc.id) || localByName.get(clean);
 
-            // Preservar contatos locais não sincronizados
-            const remoteContactIds = new Set((rc.contacts || []).map(ct => ct.id));
-            const localOnlyContacts = (local?.contacts || []).filter(ct => !remoteContactIds.has(ct.id));
-            const mergedContacts = [...(rc.contacts || []), ...localOnlyContacts];
+            // Contatos vindos da nuvem (já saneados contra IDs deletados)
+            const cleanRemoteContacts = deduplicateCompanyContacts(
+              (rc.contacts || []).filter(ct => !deletedContactIds.has(ct.id))
+            );
+            const remoteContactIds = new Set(cleanRemoteContacts.map(ct => ct.id));
+            const remoteContactNames = new Set(cleanRemoteContacts.map(ct => (ct.name || '').trim().toLowerCase()));
 
+            // Apenas adiciona contatos locais se forem criados offline e não existirem na nuvem por ID ou Nome
+            const localOnlyContacts = (local?.contacts || []).filter(ct => {
+              if (!ct || !ct.name) return false;
+              if (deletedContactIds.has(ct.id)) return false;
+              if (remoteContactIds.has(ct.id)) return false;
+              if (remoteContactNames.has(ct.name.trim().toLowerCase())) return false;
+              return true;
+            });
+
+            const mergedContacts = deduplicateCompanyContacts([...cleanRemoteContacts, ...localOnlyContacts]);
             const preservedPrefix = rc.prefix || local?.prefix;
 
             return {
@@ -474,12 +500,8 @@ export const App: React.FC = () => {
           setClientCompanies(finalCompanies);
           saveClientCompanies(finalCompanies);
 
-          // Sincroniza de volta para o Supabase caso houvesse dados locais preservados
-          const hasLocalOnlyContacts = mergedCompanies.some(mc => {
-            const remote = remoteCompanies.find(rc => rc.id === mc.id);
-            return (mc.contacts || []).length > (remote?.contacts?.length || 0);
-          });
-          if (localOnlyCompanies.length > 0 || hasLocalOnlyContacts || finalCompanies.some(c => c.website && !remoteCompanies.find(rc => rc.id === c.id)?.website)) {
+          // Sincroniza de volta para o Supabase apenas se houver empresas 100% novas locais
+          if (localOnlyCompanies.length > 0 || finalCompanies.some(c => c.website && !remoteCompanies.find(rc => rc.id === c.id)?.website)) {
             syncClientCompaniesToSupabase(finalCompanies).catch(() => {});
           }
         }
