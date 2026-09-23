@@ -158,6 +158,7 @@ interface PriceScannerViewProps {
   targetItemIndex?: number | null;
   onUpdateQuoteItem?: (index: number, updatedData: Partial<QuoteItem>) => void;
   existingItem?: Partial<QuoteItem> | null;
+  onScanningStateChange?: (isScanning: boolean) => void;
 }
 
 export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
@@ -170,7 +171,8 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
   initialQuery = '',
   targetItemIndex = null,
   onUpdateQuoteItem,
-  existingItem = null
+  existingItem = null,
+  onScanningStateChange
 }) => {
   // Batch / Search Input
   const [batchRawInput, setBatchRawInput] = useState(initialQuery);
@@ -191,6 +193,38 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
   const [ocrEditableText, setOcrEditableText] = useState('');
   const [ocrImagePreview, setOcrImagePreview] = useState<string | null>(null);
   const imageUploadInputRef = useRef<HTMLInputElement>(null);
+
+  // Monitora se qualquer processo de identificação ou varredura está ativo
+  const isScanningActive = isDiscoveringPhase1 || isScanningBatch || isOcrProcessing;
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__INFODESK_SCANNER_BUSY__ = isScanningActive;
+    }
+    if (onScanningStateChange) {
+      onScanningStateChange(isScanningActive);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        (window as any).__INFODESK_SCANNER_BUSY__ = false;
+      }
+      if (onScanningStateChange) {
+        onScanningStateChange(false);
+      }
+    };
+  }, [isScanningActive, onScanningStateChange]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isScanningActive) {
+        e.preventDefault();
+        e.returnValue = 'Uma pesquisa de produto está em andamento no Scanner. Se fechar ou recarregar agora, o progresso será perdido.';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isScanningActive]);
 
   // Fotos Reais dos Produtos com Prioridade Visual Máxima (Desejo do Comprador - Suporte a Múltiplas Fotos)
   const [attachedProductPhotos, setAttachedProductPhotos] = useState<string[]>([]);

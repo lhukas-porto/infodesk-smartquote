@@ -127,16 +127,38 @@ export const App: React.FC = () => {
     return (VALID_TABS.includes(saved as TabType) ? saved : 'inbox') as TabType;
   });
 
+  // Rastreamento de varredura ou identificação em andamento no Scanner de Preços
+  const [isScannerBusy, setIsScannerBusy] = useState(false);
+  const isScannerBusyRef = useRef(false);
+  isScannerBusyRef.current = isScannerBusy;
+
+  const activeTabRef = useRef<TabType>(activeTab);
+  activeTabRef.current = activeTab;
+
+  // Interceptador de segurança: confirmação antes de sair do Scanner durante pesquisa ativa
+  const confirmScannerExitIfNeeded = useCallback((): boolean => {
+    const isBusy = isScannerBusyRef.current || (typeof window !== 'undefined' && Boolean((window as any).__INFODESK_SCANNER_BUSY__));
+    if (activeTabRef.current === 'websearch' && isBusy) {
+      return window.confirm(
+        'Uma identificação de produto ou busca de preços está em andamento no Scanner.\n\nSe você sair agora para outra aba, o progresso da pesquisa poderá ser cancelado.\n\nDeseja realmente sair da pesquisa?'
+      );
+    }
+    return true;
+  }, []);
+
   const setActiveTab = useCallback((target: TabType | ((prev: TabType) => TabType)) => {
     setActiveTabState(prev => {
       const nextTab = typeof target === 'function' ? target(prev) : target;
       if (VALID_TABS.includes(nextTab) && nextTab !== prev) {
+        if (!confirmScannerExitIfNeeded()) {
+          return prev; // Impede a saída da aba de pesquisa se o usuário cancelar
+        }
         window.history.pushState({ tab: nextTab }, '', `#${nextTab}`);
         saveActiveTab(nextTab);
       }
       return nextTab;
     });
-  }, []);
+  }, [confirmScannerExitIfNeeded]);
 
   const isSettingsHydratedRef = useRef(false);
   const [settings, setSettings] = useState<CompanySettings>(getSettings());
@@ -600,8 +622,14 @@ export const App: React.FC = () => {
       saveCurrentDraftQuote(currentQuote);
     }, 400);
 
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       saveCurrentDraftQuote(currentQuote);
+      const isBusy = isScannerBusyRef.current || (typeof window !== 'undefined' && Boolean((window as any).__INFODESK_SCANNER_BUSY__));
+      if (activeTabRef.current === 'websearch' && isBusy) {
+        e.preventDefault();
+        e.returnValue = 'Uma pesquisa de produto está em andamento no Scanner. Se sair ou recarregar agora, o progresso será perdido.';
+        return e.returnValue;
+      }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -633,7 +661,12 @@ export const App: React.FC = () => {
         if (hashTab) targetTab = hashTab;
       }
 
-      if (targetTab) {
+      if (targetTab && targetTab !== activeTabRef.current) {
+        if (!confirmScannerExitIfNeeded()) {
+          // Re-adiciona a hash do websearch para que a URL e histórico do navegador permaneçam no scanner
+          window.history.pushState({ tab: 'websearch' }, '', '#websearch');
+          return;
+        }
         setActiveTabState(targetTab);
         saveActiveTab(targetTab);
       }
@@ -643,7 +676,7 @@ export const App: React.FC = () => {
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, []);
+  }, [confirmScannerExitIfNeeded]);
 
   const handleConnectGoogle = async () => {
     try {
@@ -1782,7 +1815,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'websearch' && (
+        <div style={{ display: activeTab === 'websearch' ? 'block' : 'none' }}>
           <PriceScannerView
             products={products}
             initialQuery={webSearchQuery}
@@ -1792,6 +1825,7 @@ export const App: React.FC = () => {
             onStartNewQuoteWithItems={handleStartNewQuoteWithItems}
             onNavigateToQuote={() => setActiveTab('builder')}
             quoteItemsCount={currentQuote.items.length}
+            onScanningStateChange={setIsScannerBusy}
             onUpdateQuoteItem={(idx, updatedData) => {
               setCurrentQuote(prev => {
                 const updatedItems = [...prev.items];
@@ -1820,7 +1854,7 @@ export const App: React.FC = () => {
             }}
             onSaveToCatalog={handleSaveProductToCatalog}
           />
-        )}
+        </div>
 
         {activeTab === 'preview' && (
           <QuotePreview
