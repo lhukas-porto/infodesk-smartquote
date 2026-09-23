@@ -781,10 +781,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               </div>
 
               {/* Preço em Dólar, Preço de Custo, Frete Unitário, Custo Total e Unidade */}
-              <div className={`grid grid-cols-1 ${showShippingFields ? 'sm:grid-cols-5' : 'sm:grid-cols-3'} gap-3`}>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Preço em Dólar (US$)
+              <div className={`grid grid-cols-1 ${showShippingFields ? 'sm:grid-cols-5' : 'sm:grid-cols-3'} gap-3 items-start`}>
+                <div className="flex flex-col">
+                  <label className="h-8 flex items-end justify-center sm:justify-start text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                    <span>Preço em Dólar (US$)</span>
                   </label>
                   <input
                     type="text"
@@ -799,18 +799,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     onBlur={handleDollarBlur}
                     placeholder="0,00"
                     title={`Preço em dólar americano (Cotação atual: R$ ${effectiveDollarRate.toFixed(2).replace('.', ',')})`}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
+                    className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
                   />
                   {effectiveDollarRate > 0 && (
-                    <p className="text-[9px] text-slate-400 text-center mt-0.5 font-medium truncate" title="Cotação do dia definida nas Configurações">
+                    <p className="text-[9px] text-slate-400 text-center mt-1 font-medium truncate" title="Cotação do dia definida nas Configurações">
                       US$ = R$ {effectiveDollarRate.toFixed(2).replace('.', ',')}
                     </p>
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Preço de Custo (R$) *
+                <div className="flex flex-col">
+                  <label className="h-8 flex items-end justify-center sm:justify-start text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                    <span>Preço de Custo (R$) *</span>
                   </label>
                   <input
                     type="text"
@@ -833,14 +833,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       setCostInput(formatCurrencyPtBr(parsed));
                     }}
                     placeholder="0,00"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
+                    className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
                   />
                 </div>
 
                 {showShippingFields && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-center sm:justify-start gap-1">
-                      <Truck className="w-3.5 h-3.5 text-amber-600" />
+                  <div className="flex flex-col">
+                    <label className="h-8 flex items-end justify-center sm:justify-start gap-1 text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                      <Truck className="w-3.5 h-3.5 text-amber-600 shrink-0 mb-0.5" />
                       <span>Frete Unitário (R$)</span>
                     </label>
                     <input
@@ -862,15 +862,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       }}
                       placeholder="0,00"
                       title="Frete unitário a ser aplicado neste item no orçamento"
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white text-xs text-center"
+                      className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white text-xs text-center"
                     />
                   </div>
                 )}
 
                 {showShippingFields && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-center sm:justify-start gap-1">
-                      <Calculator className="w-3.5 h-3.5 text-sky-600" />
+                  <div className="flex flex-col">
+                    <label className="h-8 flex items-end justify-center sm:justify-start gap-1 text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                      <Calculator className="w-3.5 h-3.5 text-sky-600 shrink-0 mb-0.5" />
                       <span>Custo Total (R$)</span>
                     </label>
                     <input
@@ -878,14 +878,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       readOnly
                       value={formatCurrencyPtBr(currentTotalCostVal)}
                       title="Custo total unitário: Preço de Custo + Frete Unitário"
-                      className="w-full bg-slate-100/90 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold text-xs text-center cursor-default select-all focus:outline-none"
+                      className="w-full h-10 bg-slate-100/90 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold text-xs text-center cursor-default select-all focus:outline-none"
                     />
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Unidade
+                <div className="flex flex-col">
+                  <label className="h-8 flex items-end justify-center sm:justify-start text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                    <span>Unidade</span>
                   </label>
                   <CreatableCombobox
                     value={draft.unit || 'Un.'}
@@ -901,14 +901,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     defaultValue="Un."
                     textAlign="center"
                     placeholder="Un."
+                    inputClassName="h-10 font-bold font-mono"
                   />
                 </div>
               </div>
 
               {/* Categoria e Fornecedor */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                <div className="flex flex-col">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                     Categoria
                   </label>
                   <CreatableCombobox
@@ -925,11 +926,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     defaultValue="Geral"
                     textAlign="left"
                     placeholder="Geral"
+                    inputClassName="h-10"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <div className="flex flex-col">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                     Fornecedor
                   </label>
                   <input
@@ -937,7 +939,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     value={draft.supplier || ''}
                     onChange={(e) => setDraft({ ...draft, supplier: e.target.value })}
                     placeholder="Ex: Mercado Livre, Kalunga, Fabricante"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500"
+                    className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 focus:outline-none focus:border-sky-500 text-xs"
                   />
                 </div>
               </div>
