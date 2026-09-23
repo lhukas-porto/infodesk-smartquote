@@ -15,7 +15,8 @@ import {
   Trash2,
   RotateCcw,
   X,
-  Search
+  Search,
+  FileText
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 import { 
@@ -544,6 +545,110 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   />
                 </div>
                 <span className="text-[10px] text-slate-400">Cotação p/ cálculo de itens em US$</span>
+              </div>
+            </div>
+
+            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
+              <FileText className="w-3.5 h-3.5" /> Condições Comerciais Padrão das Propostas
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-600 font-medium mb-1 flex items-center justify-between">
+                  <span>Condições de Pagamento Padrão</span>
+                  <span className="text-[10px] text-sky-700 font-bold font-mono">Padrão: Faturado</span>
+                </label>
+                <div className="flex gap-1.5 mb-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, defaultPaymentTerms: 'Faturado.' }))}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                      form.defaultPaymentTerms?.toLowerCase().includes('faturado')
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    Faturado
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, defaultPaymentTerms: 'À vista.' }))}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                      form.defaultPaymentTerms?.toLowerCase().includes('vista')
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    À vista
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, defaultPaymentTerms: '30 (trinta) dias.' }))}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                      !form.defaultPaymentTerms?.toLowerCase().includes('faturado') && !form.defaultPaymentTerms?.toLowerCase().includes('vista')
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    30 dias
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={form.defaultPaymentTerms || 'Faturado.'}
+                  onChange={(e) => setForm({ ...form, defaultPaymentTerms: e.target.value })}
+                  placeholder="Faturado."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500 text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-medium mb-1 flex items-center justify-between">
+                  <span>Termos de Garantia Padrão</span>
+                  <span className="text-[10px] text-sky-700 font-bold font-mono">Padrão: 6m Balcão</span>
+                </label>
+                <div className="flex gap-1.5 mb-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, defaultWarrantyTerms: '06 (seis) meses balcão para defeitos de fabricação.' }))}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                      form.defaultWarrantyTerms?.includes('06') || form.defaultWarrantyTerms?.includes('6')
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    6m Balcão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, defaultWarrantyTerms: '12 (doze) meses balcão para defeitos de fabricação.' }))}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                      form.defaultWarrantyTerms?.includes('12') && !form.defaultWarrantyTerms?.toLowerCase().includes('autorizada')
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    12m Balcão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, defaultWarrantyTerms: '12 (doze) meses na rede autorizada para defeitos de fabricação.' }))}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                      form.defaultWarrantyTerms?.toLowerCase().includes('autorizada')
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    12m Autorizada
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={form.defaultWarrantyTerms || '06 (seis) meses balcão para defeitos de fabricação.'}
+                  onChange={(e) => setForm({ ...form, defaultWarrantyTerms: e.target.value })}
+                  placeholder="06 (seis) meses balcão para defeitos de fabricação."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500 text-xs font-semibold"
+                />
               </div>
             </div>
 

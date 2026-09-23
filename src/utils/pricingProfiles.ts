@@ -25,7 +25,7 @@ export const PRICING_PROFILES: PricingProfile[] = [
     name: 'TI Corporativa Padrão',
     badge: 'Equilibrado',
     description: 'Perfil balanceado para vendas corporativas B2B (empresas médias e grandes).',
-    defaultMarkup: 25,
+    defaultMarkup: 23.5,
     rules: [
       {
         maxCost: 60,

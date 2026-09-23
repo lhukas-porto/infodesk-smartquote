@@ -38,7 +38,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
   isOpen,
   onClose,
   onImportItems,
-  defaultMarkupPercent = 25
+  defaultMarkupPercent = 23.5
 }) => {
   const pasteAreaId = useId();
   const fileInputId = useId();
@@ -255,7 +255,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
     if (parsedRows.length === 0) return;
 
     const formattedQuoteItems: Partial<QuoteItem>[] = parsedRows.map((row) => {
-      const markup = defaultMarkupPercent > 0 ? defaultMarkupPercent : 25;
+      const markup = defaultMarkupPercent > 0 ? defaultMarkupPercent : 23.5;
       const cost = row.costPrice || 0;
       const unitPrice = cost > 0 ? Number((cost * (1 + markup / 100)).toFixed(2)) : 0;
       const totalPrice = Number((unitPrice * row.quantity).toFixed(2));

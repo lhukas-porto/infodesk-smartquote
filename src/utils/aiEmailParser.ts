@@ -1361,7 +1361,7 @@ export function applyCommercialPriceRounding(rawPrice: number): number {
 export function calculateCommercialUnitPrice(
   costPrice: number,
   shippingCost: number = 0,
-  profitMarginPercent: number = 20,
+  profitMarginPercent: number = 23.5,
   taxPercent: number = 9.1
 ): number {
   const baseCost = Number(costPrice || 0) + Number(shippingCost || 0);

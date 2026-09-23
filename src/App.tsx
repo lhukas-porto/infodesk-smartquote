@@ -316,6 +316,15 @@ export const App: React.FC = () => {
           if (!remoteSettings.defaultOpeningText || remoteSettings.defaultOpeningText.trim() === 'Em atenção...' || remoteSettings.defaultOpeningText.trim() === 'Em atenção' || remoteSettings.defaultOpeningText.trim().startsWith('Em atenção ao que foi solicitado')) {
             remoteSettings.defaultOpeningText = defaultCompanySettings.defaultOpeningText;
           }
+          if (!remoteSettings.defaultPaymentTerms || remoteSettings.defaultPaymentTerms.trim() === '30 dias' || remoteSettings.defaultPaymentTerms.trim() === '30 dias.') {
+            remoteSettings.defaultPaymentTerms = 'Faturado.';
+          }
+          if (!remoteSettings.defaultWarrantyTerms || remoteSettings.defaultWarrantyTerms.includes('12 (doze) meses') || remoteSettings.defaultWarrantyTerms.includes('contra eventuais problemas')) {
+            remoteSettings.defaultWarrantyTerms = '06 (seis) meses balcão para defeitos de fabricação.';
+          }
+          if (remoteSettings.defaultMarkupPercent === undefined || remoteSettings.defaultMarkupPercent === 35 || remoteSettings.defaultMarkupPercent === 20 || remoteSettings.defaultMarkupPercent === 25) {
+            remoteSettings.defaultMarkupPercent = 23.5;
+          }
           if (remoteSettings.email && remoteSettings.email.includes('infodesk.com.br')) {
             remoteSettings.email = remoteSettings.email.replace('@infodesk.com.br', '@infodesk.net.br');
           }
@@ -762,9 +771,9 @@ export const App: React.FC = () => {
   };
 
   const handleSelectEmailToQuote = (email: IncomingEmail) => {
-    const markup = settings.defaultMarkupPercent || 35;
-    const tax = settings.defaultTaxPercent || 6;
-    const shipping = settings.defaultShippingCost || 0;
+    const markup = settings.defaultMarkupPercent ?? 23.5;
+    const tax = settings.defaultTaxPercent ?? 9.02;
+    const shipping = settings.defaultShippingCost ?? 0;
 
     const items: QuoteItem[] = email.suggestedItems.map((item, idx) => {
       // 1. Exact catalog search
@@ -888,9 +897,9 @@ export const App: React.FC = () => {
 
   const handleParseCustomEmail = (rawText: string) => {
     const parsedItems = extractItemsFromEmailContent(rawText);
-    const markup = settings.defaultMarkupPercent || 35;
-    const tax = settings.defaultTaxPercent || 6;
-    const shipping = settings.defaultShippingCost || 0;
+    const markup = settings.defaultMarkupPercent ?? 23.5;
+    const tax = settings.defaultTaxPercent ?? 9.02;
+    const shipping = settings.defaultShippingCost ?? 0;
 
     const items: QuoteItem[] = parsedItems.map((item, idx) => {
       const matchedProd = products.find(p => p.name.toLowerCase() === item.name.toLowerCase() || p.name.toLowerCase().includes(item.name.toLowerCase()));
@@ -1585,9 +1594,9 @@ export const App: React.FC = () => {
   };
 
   const handleAddProductToQuote = (product: Product) => {
-    const markup = settings.defaultMarkupPercent || 35;
-    const tax = settings.defaultTaxPercent || 6;
-    const shipping = settings.defaultShippingCost || 0;
+    const markup = settings.defaultMarkupPercent ?? 23.5;
+    const tax = settings.defaultTaxPercent ?? 9.02;
+    const shipping = settings.defaultShippingCost ?? 0;
     const unitPrice = calculateCommercialUnitPrice(product.costPrice, shipping, markup, tax);
 
     // Se o produto já estiver na cotação (mesmo ID, mesmo Part Number ou mesmo Nome), incrementa a quantidade

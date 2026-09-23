@@ -51,6 +51,15 @@ export const getCurrentDraftQuote = (): Quote | null => {
         if (!parsed.openingText || parsed.openingText.trim() === 'Em atenção...' || parsed.openingText.trim() === 'Em atenção' || parsed.openingText.trim().startsWith('Em atenção ao que foi solicitado')) {
           parsed.openingText = defaultCompanySettings.defaultOpeningText;
         }
+        if (!parsed.paymentTerms || parsed.paymentTerms.trim() === '30 dias' || parsed.paymentTerms.trim() === '30 dias.') {
+          parsed.paymentTerms = 'Faturado.';
+        }
+        if (!parsed.warrantyTerms || parsed.warrantyTerms.includes('12 (doze) meses') || parsed.warrantyTerms.includes('contra eventuais problemas')) {
+          parsed.warrantyTerms = '06 (seis) meses balcão para defeitos de fabricação.';
+        }
+        if (parsed.globalMarkupPercent === undefined || parsed.globalMarkupPercent === 35 || parsed.globalMarkupPercent === 20 || parsed.globalMarkupPercent === 25) {
+          parsed.globalMarkupPercent = 23.5;
+        }
         return parsed;
       }
     }
@@ -219,8 +228,14 @@ export const getSettings = (): CompanySettings => {
       if (!parsed.defaultOpeningText || parsed.defaultOpeningText.trim() === 'Em atenção...' || parsed.defaultOpeningText.trim() === 'Em atenção' || parsed.defaultOpeningText.trim().startsWith('Em atenção ao que foi solicitado')) {
         parsed.defaultOpeningText = defaultCompanySettings.defaultOpeningText;
       }
-      if (!parsed.defaultWarrantyTerms || parsed.defaultWarrantyTerms.includes('contra eventuais problemas de fabricação')) {
+      if (!parsed.defaultPaymentTerms || parsed.defaultPaymentTerms.trim() === '30 dias' || parsed.defaultPaymentTerms.trim() === '30 dias.') {
+        parsed.defaultPaymentTerms = 'Faturado.';
+      }
+      if (!parsed.defaultWarrantyTerms || parsed.defaultWarrantyTerms.includes('contra eventuais problemas de fabricação') || parsed.defaultWarrantyTerms.includes('12 (doze) meses')) {
         parsed.defaultWarrantyTerms = defaultCompanySettings.defaultWarrantyTerms;
+      }
+      if (parsed.defaultMarkupPercent === undefined || parsed.defaultMarkupPercent === 35 || parsed.defaultMarkupPercent === 20 || parsed.defaultMarkupPercent === 25) {
+        parsed.defaultMarkupPercent = 23.5;
       }
       if (!parsed.email || parsed.email.includes('infodesk.com.br')) {
         parsed.email = 'lucas@infodesk.net.br';
@@ -242,6 +257,9 @@ export const saveSettings = (settings: CompanySettings, syncToCloud: boolean = f
   const cleanGoogleEmail = (settings.googleAccountEmail || cleanEmail || 'lucas@infodesk.net.br').toLowerCase().trim().replace('@infodesk.com.br', '@infodesk.net.br');
   const normalized: CompanySettings = {
     ...settings,
+    defaultPaymentTerms: (!settings.defaultPaymentTerms || settings.defaultPaymentTerms.trim() === '30 dias' || settings.defaultPaymentTerms.trim() === '30 dias.') ? 'Faturado.' : settings.defaultPaymentTerms,
+    defaultWarrantyTerms: (!settings.defaultWarrantyTerms || settings.defaultWarrantyTerms.includes('12 (doze) meses') || settings.defaultWarrantyTerms.includes('contra eventuais problemas')) ? '06 (seis) meses balcão para defeitos de fabricação.' : settings.defaultWarrantyTerms,
+    defaultMarkupPercent: (settings.defaultMarkupPercent === undefined || settings.defaultMarkupPercent === 35 || settings.defaultMarkupPercent === 20 || settings.defaultMarkupPercent === 25) ? 23.5 : settings.defaultMarkupPercent,
     email: cleanEmail,
     googleAccountEmail: cleanGoogleEmail,
     dailyDollarRate: Number(settings.dailyDollarRate) > 0 ? Number(settings.dailyDollarRate) : 5.60
