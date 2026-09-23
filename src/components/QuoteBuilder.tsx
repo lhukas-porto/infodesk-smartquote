@@ -106,6 +106,7 @@ interface QuoteBuilderProps {
   quotes?: Quote[];
   onPreview: () => void;
   onSave: () => void;
+  onSaveAsNewQuote?: () => void;
   onSendEmail: () => void;
   onOpenWebSearch: (query?: string, itemIdx?: number | null, existingItem?: Partial<QuoteItem>) => void;
   onSaveToCatalog?: (prod: Product) => void;
@@ -125,6 +126,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   quotes: propsQuotes,
   onPreview,
   onSave,
+  onSaveAsNewQuote,
   onSendEmail,
   onOpenWebSearch,
   onSaveToCatalog,
@@ -1546,7 +1548,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       items: prev.items.map(it => {
         // Se há seleção, aplica só nos selecionados; caso contrário, aplica em todos
         if (hasSelection && !selectedItemIds.includes(it.id)) return it;
-        return { ...it, name: applyTextCase(it.name, style) };
+        return { 
+          ...it, 
+          name: applyTextCase(it.name, style),
+          description: it.description ? applyTextCase(it.description, style) : it.description
+        };
       })
     }));
   };
@@ -2625,7 +2631,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           {/* Barra de Operações Rápidas em Lote (Bulk Actions) */}
           {currentQuote.items && currentQuote.items.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 max-w-full">
+              <div className="flex items-center gap-2 flex-wrap max-w-full overflow-visible">
                 <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-sky-600" />
                   <span>Ações em Lote:</span>
@@ -3938,6 +3944,18 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               <span>Salvar</span>
             </button>
 
+            {onSaveAsNewQuote && (
+              <button
+                type="button"
+                onClick={() => persistAndProceed(onSaveAsNewQuote)}
+                className="px-3.5 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/90 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                title="Cria uma nova cotação independente com código exclusivo sem sobrescrever a original"
+              >
+                <Copy className="w-3.5 h-3.5 text-sky-600" />
+                <span>Salvar como Nova Cotação</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -4040,6 +4058,20 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                     <span>Salvar Excel (.xlsx)</span>
                   </button>
+
+                  {onSaveAsNewQuote && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMoreActionsOpen(false);
+                        persistAndProceed(onSaveAsNewQuote);
+                      }}
+                      className="w-full px-3 py-2.5 text-left text-xs font-semibold text-sky-800 hover:bg-sky-50 flex items-center gap-2 transition"
+                    >
+                      <Copy className="w-4 h-4 text-sky-600" />
+                      <span>Salvar como Nova Cotação</span>
+                    </button>
+                  )}
 
                   {onNewQuote && (
                     <button

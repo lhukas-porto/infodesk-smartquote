@@ -2822,6 +2822,84 @@ export function generateQuoteCode(
 }
 
 /**
+ * Garante a geração de um código 100% exclusivo e sem colisões para salvar uma nova cotação / duplicata.
+ * Verifica a lista em memória (quotes), o código atualmente aberto e todo o histórico do localStorage.
+ * Se já existir por exemplo "CNC 210926" e "CNC 210926-2", incrementa automaticamente para "CNC 210926-3".
+ */
+export function getNextUniqueQuoteCode(
+  companyName: string,
+  existingQuotes?: (string | { code?: string })[],
+  currentCode?: string
+): string {
+  const existingSet = new Set<string>();
+
+  // 1. Coleta códigos dos orçamentos passados como parâmetro
+  if (Array.isArray(existingQuotes)) {
+    existingQuotes.forEach(q => {
+      if (typeof q === 'string' && q.trim()) {
+        existingSet.add(q.trim().toUpperCase());
+      } else if (q && typeof q === 'object' && q.code) {
+        existingSet.add(q.code.trim().toUpperCase());
+      }
+    });
+  }
+
+  // 2. Coleta o código atualmente na tela
+  if (currentCode && currentCode.trim()) {
+    existingSet.add(currentCode.trim().toUpperCase());
+  }
+
+  // 3. Coleta do localStorage para garantir persistência histórica
+  try {
+    const rawQuotes = typeof window !== 'undefined' ? localStorage.getItem('infodesk_quotes') : null;
+    if (rawQuotes) {
+      const parsed = JSON.parse(rawQuotes);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((q: any) => {
+          if (q?.code) existingSet.add(String(q.code).trim().toUpperCase());
+        });
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    const rawHistory = typeof window !== 'undefined' ? localStorage.getItem('infodesk_history_quotes') : null;
+    if (rawHistory) {
+      const parsed = JSON.parse(rawHistory);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((q: any) => {
+          if (q?.code) existingSet.add(String(q.code).trim().toUpperCase());
+        });
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Gera o código com base no cliente e data
+  const baseCode = generateQuoteCode(companyName, new Date(), Array.from(existingSet));
+
+  // Validação estrita de unicidade
+  if (!existingSet.has(baseCode.toUpperCase())) {
+    return baseCode;
+  }
+
+  const basePrefix = baseCode.replace(/-\d+$/, '');
+  let counter = 2;
+  while (counter <= 9999) {
+    const candidate = `${basePrefix}-${counter}`;
+    if (!existingSet.has(candidate.toUpperCase())) {
+      return candidate;
+    }
+    counter++;
+  }
+
+  return `${basePrefix}-${Date.now().toString().slice(-4)}`;
+}
+
+/**
  * Função utilitária para sanitizar e escapar caracteres especiais de HTML,
  * prevenindo quebras visuais e injeção XSS nas propostas.
  */

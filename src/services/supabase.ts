@@ -405,9 +405,42 @@ export async function deleteQuoteFromSupabase(code: string): Promise<void> {
 export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.from('products').select('*').order('name');
+    const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
     if (error || !data || data.length === 0) return null;
-    return data.map((p: any) => ({
+
+    // Deduplicação inteligente e higienização automática do banco
+    const seenMap = new Map<string, any>();
+    const duplicateIdsToDelete: string[] = [];
+
+    for (const row of data) {
+      const skuKey = (row.sku || '').trim().toLowerCase();
+      const nameKey = (row.name || '').trim().toLowerCase();
+      const key = skuKey ? `sku:${skuKey}` : `name:${nameKey}`;
+
+      if (!seenMap.has(key)) {
+        seenMap.set(key, row);
+      } else {
+        // Já temos uma versão mais recente deste produto: marca o ID duplicado para expurgo
+        if (row.id) {
+          duplicateIdsToDelete.push(row.id);
+        }
+      }
+    }
+
+    // Expurgo automático em background das linhas duplicadas encontradas no Supabase
+    if (duplicateIdsToDelete.length > 0) {
+      console.log(`[SmartQuote] Saneando catálogo: removendo ${duplicateIdsToDelete.length} duplicatas do Supabase...`);
+      supabase.from('products').delete().in('id', duplicateIdsToDelete).then(({ error: delErr }) => {
+        if (delErr) {
+          console.warn('[SmartQuote] Aviso ao expurgar duplicatas de produtos:', delErr.message);
+        } else {
+          console.log(`[SmartQuote] Catálogo saneado: ${duplicateIdsToDelete.length} duplicatas removidas com sucesso.`);
+        }
+      });
+    }
+
+    const uniqueRows = Array.from(seenMap.values());
+    return uniqueRows.map((p: any) => ({
       id: p.id,
       sku: p.sku,
       partNumber: p.part_number,
@@ -455,25 +488,43 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
   };
 
   try {
-    const { error: upsertErr } = await supabase
-      .from('products')
-      .upsert(payload, { onConflict: 'sku' });
-
-    if (!upsertErr) return;
-
-    // Fallback caso a tabela no Supabase não tenha constraint UNIQUE em sku (erro 42P10)
-    console.warn('[SmartQuote] Upsert de produto falhou, aplicando fallback direto:', upsertErr.message);
-    const { data: existing } = await supabase
+    // Busca todas as linhas existentes pelo SKU (usando lista para nunca falhar com erro PGRST116 do maybeSingle)
+    const { data: existingBySku } = await supabase
       .from('products')
       .select('id')
-      .eq('sku', sku)
-      .maybeSingle();
+      .eq('sku', sku);
 
-    if (existing && existing.id) {
-      await supabase.from('products').update(payload).eq('id', existing.id);
-    } else {
-      await supabase.from('products').insert(payload);
+    if (existingBySku && existingBySku.length > 0) {
+      const primaryId = existingBySku[0].id;
+      await supabase.from('products').update(payload).eq('id', primaryId);
+
+      // Expurga imediatamente quaisquer registros duplicados restantes com o mesmo SKU
+      if (existingBySku.length > 1) {
+        const extraIds = existingBySku.slice(1).map(r => r.id);
+        await supabase.from('products').delete().in('id', extraIds);
+      }
+      return;
     }
+
+    // Se não encontrou por SKU, checa se existe produto com o mesmo nome para evitar duplicatas por SKU ligeiramente diferente
+    const { data: existingByName } = await supabase
+      .from('products')
+      .select('id')
+      .eq('name', product.name)
+      .limit(5);
+
+    if (existingByName && existingByName.length > 0) {
+      const primaryId = existingByName[0].id;
+      await supabase.from('products').update(payload).eq('id', primaryId);
+      if (existingByName.length > 1) {
+        const extraIds = existingByName.slice(1).map(r => r.id);
+        await supabase.from('products').delete().in('id', extraIds);
+      }
+      return;
+    }
+
+    // Se realmente não existe nenhum similar, insere como novo produto
+    await supabase.from('products').insert(payload);
   } catch (err) {
     console.warn('Erro ao sincronizar produto no Supabase:', err);
   }
@@ -482,10 +533,9 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
 export async function syncBatchProductsToSupabase(products: Product[]): Promise<void> {
   if (!supabase || !products || products.length === 0) return;
   try {
-    const seenSkus = new Set<string>();
-    const validProducts: Product[] = [];
-    
-    // Deduplica por SKU para evitar erro do PostgreSQL ON CONFLICT DO UPDATE em lote
+    const seenMap = new Map<string, Product>();
+
+    // Deduplica rigorosamente a lista antes de sincronizar
     for (const p of products) {
       let sku = (p.sku || p.partNumber || '').trim();
       if (!sku) {
@@ -493,47 +543,17 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
         const uniqueSuffix = (p.id || Math.random().toString(36).substring(2, 8)).slice(-6);
         sku = `INF-${safeNameHash || 'AUTO'}-${uniqueSuffix}`;
       }
-      if (!seenSkus.has(sku.toLowerCase())) {
-        seenSkus.add(sku.toLowerCase());
-        validProducts.push({ ...p, sku });
+      const key = sku.toLowerCase();
+      if (!seenMap.has(key)) {
+        seenMap.set(key, { ...p, sku });
       }
     }
 
+    const validProducts = Array.from(seenMap.values());
     if (validProducts.length === 0) return;
 
-    const payload = validProducts.map(p => ({
-      sku: p.sku,
-      part_number: p.partNumber || null,
-      ncm: p.ncm || null,
-      name: p.name,
-      description: p.description || '',
-      category: p.category || 'Informática & Tecnologia',
-      cost_price: p.costPrice || 0,
-      unit: p.unit || 'Un.',
-      supplier: p.supplier || null,
-      stock: p.stock ?? 0,
-      image_url: p.imageUrl || null,
-      source_url: p.sourceUrl || null,
-      updated_at: new Date().toISOString()
-    }));
-
-    // Sincronização resiliente item a item no Supabase (dispensa constraint unique em sku)
-    for (const item of payload) {
-      try {
-        const { data: existing } = await supabase
-          .from('products')
-          .select('id')
-          .eq('sku', item.sku)
-          .maybeSingle();
-
-        if (existing && existing.id) {
-          await supabase.from('products').update(item).eq('id', existing.id);
-        } else {
-          await supabase.from('products').insert(item);
-        }
-      } catch {
-        // Silencioso: não polui console
-      }
+    for (const p of validProducts) {
+      await syncProductToSupabase(p);
     }
   } catch (err) {
     console.warn('Erro ao sincronizar lote de produtos no Supabase:', err);

@@ -279,7 +279,18 @@ export const getProducts = (): Product[] => {
     try {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
-        return parsed.filter(p => !MOCK_SKUS_SET.has((p.sku || '').trim().toLowerCase()));
+        const seen = new Set<string>();
+        const deduped: Product[] = [];
+        for (const p of parsed) {
+          const skuKey = (p.sku || '').trim().toLowerCase();
+          const nameKey = (p.name || '').trim().toLowerCase();
+          const key = skuKey || nameKey;
+          if (key && !MOCK_SKUS_SET.has(skuKey) && !seen.has(key)) {
+            seen.add(key);
+            deduped.push(p);
+          }
+        }
+        return deduped;
       }
     } catch (e) { console.error(e); }
   }
@@ -289,19 +300,32 @@ export const getProducts = (): Product[] => {
 export const saveProducts = (products: Product[]): void => {
   if (!products || !Array.isArray(products)) return;
 
+  // Deduplicação estrita antes de persistir
+  const seen = new Set<string>();
+  const deduped: Product[] = [];
+  for (const p of products) {
+    const skuKey = (p.sku || '').trim().toLowerCase();
+    const nameKey = (p.name || '').trim().toLowerCase();
+    const key = skuKey || nameKey;
+    if (key && !MOCK_SKUS_SET.has(skuKey) && !seen.has(key)) {
+      seen.add(key);
+      deduped.push(p);
+    }
+  }
+
   try {
-    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(deduped));
   } catch (quotaErr) {
     console.warn('[Storage] Quota excedida ao salvar produtos. Executando limpeza preventiva...', quotaErr);
     pruneLocalStorage();
 
     try {
-      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(deduped));
     } catch (retryErr) {
       console.warn('[Storage] Quota ainda excedida. Aplicando higienização de fotos base64 do catálogo...', retryErr);
 
       // Nível 3: Remove imagens base64 volumosas (> 30KB) para salvar no localStorage sem crash
-      const lightweight = products.map(p => {
+      const lightweight = deduped.map(p => {
         if (p.imageUrl && p.imageUrl.startsWith('data:image/') && p.imageUrl.length > 30000) {
           return { ...p, imageUrl: '' };
         }
@@ -323,7 +347,7 @@ export const saveProducts = (products: Product[]): void => {
   }
 
   // Cloud-First: Sincroniza imediatamente o lote de produtos no Supabase
-  syncBatchProductsToSupabase(products).catch(err => {
+  syncBatchProductsToSupabase(deduped).catch(err => {
     console.warn('[Storage] Erro ao sincronizar lote de produtos no Supabase:', err);
   });
 };

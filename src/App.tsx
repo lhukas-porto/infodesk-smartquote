@@ -73,6 +73,7 @@ import {
   extractEmailFromText,
   extractContactPersonFromText,
   generateQuoteCode,
+  getNextUniqueQuoteCode,
   formatProductSentenceCase,
   generateProposalEmailHtml,
   normalizeSearchText
@@ -403,9 +404,24 @@ export const App: React.FC = () => {
             'fur-cab-cat6',
             'cis-sw-24p'
           ]);
-          const cleanRemote = remoteProducts.filter(p => !MOCK_SKUS_SET.has((p.sku || '').trim().toLowerCase()));
+          // Deduplica rigorosamente por SKU e Nome
+          const seenSkus = new Set<string>();
+          const cleanRemote: Product[] = [];
+          for (const p of remoteProducts) {
+            const skuKey = (p.sku || '').trim().toLowerCase();
+            const nameKey = (p.name || '').trim().toLowerCase();
+            const key = skuKey || nameKey;
+            if (key && !MOCK_SKUS_SET.has(skuKey) && !seenSkus.has(key)) {
+              seenSkus.add(key);
+              cleanRemote.push(p);
+            }
+          }
           setProducts(cleanRemote);
-          saveProducts(cleanRemote);
+          try {
+            localStorage.setItem('smartquote_products', JSON.stringify(cleanRemote));
+          } catch (e) {
+            console.warn('[SmartQuote] Falha ao persistir produtos localmente:', e);
+          }
         }
 
         // 4. Empresas e Cidades de Frete
@@ -1036,6 +1052,121 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleSaveAsNewQuote = async () => {
+    if (!currentQuote.clientCompany || !currentQuote.clientCompany.trim()) {
+      alert('Por favor, informe a empresa / cliente antes de salvar como nova cotação.');
+      return;
+    }
+
+    const updatedComps = registerOrUpdateClient(
+      currentQuote.clientCompany,
+      currentQuote.contactPerson,
+      currentQuote.clientEmail,
+      currentQuote.clientPhone,
+      currentQuote.deliveryLocation
+    );
+    setClientCompanies(updatedComps);
+
+    // 1. Gera código exclusivo garantido sem colisão (incrementa automaticamente se CNC 210926 e CNC 210926-2 já existirem)
+    const newCode = getNextUniqueQuoteCode(
+      currentQuote.clientCompany,
+      quotes,
+      currentQuote.code
+    );
+
+    // 2. Gera novo ID exclusivo para a cotação (garante que não sobrescreva a original)
+    const newQuoteId = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    // 3. Clona os itens gerando IDs novos para cada um
+    const clonedItems = (currentQuote.items || []).map((it, idx) => ({
+      ...it,
+      id: `item-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`
+    }));
+
+    const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    // 4. Monta a nova cotação independente
+    const newQuote: Quote = {
+      ...currentQuote,
+      id: newQuoteId,
+      code: newCode,
+      date: todayFormatted,
+      status: 'draft',
+      sentAt: undefined,
+      createdAt: new Date().toISOString(),
+      items: clonedItems
+    };
+
+    // 5. Salva backups imediatos
+    if (newQuote.items && newQuote.items.length > 0) {
+      saveQuoteItemsBackup(newQuote.code, newQuote.items);
+      saveQuoteItemsBackup(newQuote.id, newQuote.items);
+    }
+
+    // 6. Atualiza o rascunho ativo e o estado da proposta atual
+    saveCurrentDraftQuote(newQuote);
+    setCurrentQuote(newQuote);
+
+    // 7. Insere a nova proposta no topo da lista sem alterar a anterior
+    setQuotes(prev => {
+      const next = [newQuote, ...prev];
+      saveQuotes(next);
+      return next;
+    });
+
+    // 8. Sincroniza com Supabase
+    try {
+      await syncQuoteToSupabase(newQuote);
+    } catch (err: any) {
+      console.warn('Aviso de sincronização remota ao criar nova cotação:', err);
+    }
+
+    // 9. Feedback claro e amigável ao usuário
+    alert(`✅ Salvo como nova cotação com sucesso!\n\n📋 Novo Código: ${newQuote.code}\n📁 A cotação anterior permanece intacta no seu histórico.`);
+  };
+
+  const handleDuplicateQuoteFromHistory = async (q: Quote) => {
+    const itemsToUse = await resolveQuoteItems(q, quotes);
+    const newCode = getNextUniqueQuoteCode(
+      q.clientCompany,
+      quotes,
+      q.code
+    );
+    const newQuoteId = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const clonedItems = itemsToUse.map((it, idx) => ({
+      ...it,
+      id: `item-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`
+    }));
+    const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const newQuote: Quote = {
+      ...q,
+      id: newQuoteId,
+      code: newCode,
+      date: todayFormatted,
+      status: 'draft',
+      sentAt: undefined,
+      createdAt: new Date().toISOString(),
+      items: clonedItems
+    };
+    if (newQuote.items && newQuote.items.length > 0) {
+      saveQuoteItemsBackup(newQuote.code, newQuote.items);
+      saveQuoteItemsBackup(newQuote.id, newQuote.items);
+    }
+    saveCurrentDraftQuote(newQuote);
+    setCurrentQuote(newQuote);
+    setQuotes(prev => {
+      const next = [newQuote, ...prev];
+      saveQuotes(next);
+      return next;
+    });
+    try {
+      await syncQuoteToSupabase(newQuote);
+    } catch (err: any) {
+      console.warn('Aviso de sincronização remota ao duplicar cotação:', err);
+    }
+    setActiveTab('builder');
+  };
+
   const handleDeleteQuote = async (quoteToDelete: Quote) => {
     setQuotes(prev => {
       const next = prev.filter(q => q.id !== quoteToDelete.id);
@@ -1617,6 +1748,7 @@ export const App: React.FC = () => {
             onDeleteContact={handleDeleteContact}
             onPreview={() => setActiveTab('preview')}
             onSave={handleSaveQuote}
+            onSaveAsNewQuote={handleSaveAsNewQuote}
             onSendEmail={() => setIsEmailModalOpen(true)}
             onOpenWebSearch={(query?: string, itemIdx?: number | null, existingItem?: Partial<QuoteItem>) => {
               setWebSearchQuery(query || '');
@@ -1718,15 +1850,31 @@ export const App: React.FC = () => {
               saveCurrentDraftQuote(quoteToEdit);
               setActiveTab('builder');
             }}
+            onDuplicateQuote={handleDuplicateQuoteFromHistory}
             onDeleteQuote={handleDeleteQuote}
             onUpdateQuoteStatus={(quoteId, newStatus) => {
               setQuotes(prev => {
                 const next = prev.map(q => {
                   if (q.id === quoteId) {
+                    const isMovingFromDraft = (q.status || 'draft') === 'draft';
+                    const nowIso = new Date().toISOString();
+                    const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+                    // Se estiver em rascunho e mudar para enviado (ou qualquer estágio posterior), seta o horário exato dessa mudança
+                    let newSentAt: string | undefined;
+                    if (newStatus === 'draft') {
+                      newSentAt = undefined;
+                    } else if (newStatus === 'sent') {
+                      newSentAt = isMovingFromDraft ? nowIso : (q.sentAt || nowIso);
+                    } else {
+                      newSentAt = q.sentAt || nowIso;
+                    }
+
                     const updated: Quote = {
                       ...q,
                       status: newStatus,
-                      sentAt: newStatus === 'sent' ? (q.sentAt || new Date().toISOString()) : (newStatus === 'draft' ? undefined : q.sentAt)
+                      sentAt: newSentAt,
+                      date: (isMovingFromDraft && newStatus === 'sent') ? todayFormatted : (q.date || todayFormatted)
                     };
                     return updated;
                   }

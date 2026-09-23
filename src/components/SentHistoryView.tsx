@@ -25,7 +25,8 @@ import {
   Mail, 
   Package,
   Calendar,
-  CalendarDays
+  CalendarDays,
+  Copy
 } from 'lucide-react';
 import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
@@ -35,6 +36,7 @@ interface SentHistoryViewProps {
   quotes: Quote[];
   onOpenQuote: (quote: Quote) => void | Promise<void>;
   onEditQuote?: (quote: Quote) => void | Promise<void>;
+  onDuplicateQuote?: (quote: Quote) => void | Promise<void>;
   onDeleteQuote?: (quote: Quote) => void;
   onUpdateQuoteStatus?: (quoteId: string, newStatus: Quote['status']) => void;
   initialStageFilter?: StageId | 'all';
@@ -113,6 +115,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   quotes,
   onOpenQuote,
   onEditQuote,
+  onDuplicateQuote,
   onDeleteQuote,
   onUpdateQuoteStatus,
   initialStageFilter = 'all',
@@ -177,6 +180,59 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
       default:
         return 'Hoje';
     }
+  };
+
+  // Formata data e horário do envio com suporte a fuso horário brasileiro no formato compacto (DD/MM/YYYY HH:mm)
+  const formatQuoteDateTime = (q: Quote): { displayDate: string; displayTime?: string } => {
+    let dateStr = '';
+    let timeStr = '';
+
+    // 1. Prioriza sentAt ou createdAt para data e hora exatas
+    const tsSource = q.sentAt || q.createdAt;
+    if (tsSource) {
+      try {
+        const d = new Date(tsSource);
+        if (!isNaN(d.getTime())) {
+          dateStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 2. Se a data ainda não foi formatada, converte q.date para DD/MM/YYYY compacto
+    if (!dateStr && q.date) {
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(q.date.trim())) {
+        dateStr = q.date.trim();
+      } else {
+        const parsed = parseQuoteTimestamp(q);
+        if (parsed > 0) {
+          const d = new Date(parsed);
+          dateStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        } else {
+          dateStr = q.date;
+        }
+      }
+    }
+
+    return { 
+      displayDate: dateStr || 'Data n/d', 
+      displayTime: timeStr || undefined 
+    };
+  };
+
+  // Timestamp preciso para ordenação por horário de envio
+  const getSortTimestamp = (q: Quote): number => {
+    if (q.sentAt) {
+      const t = new Date(q.sentAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    if (q.createdAt) {
+      const t = new Date(q.createdAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    return parseQuoteTimestamp(q);
   };
 
   // Verifica se uma proposta enviada ou em negociação tem mais de 48 horas (precisa de Follow-up)
@@ -329,13 +385,8 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
         if (sortBy === 'amount_desc') return (b.totalAmount || 0) - (a.totalAmount || 0);
         if (sortBy === 'amount_asc') return (a.totalAmount || 0) - (b.totalAmount || 0);
 
-        // No modo cronológico recente, prioriza rascunhos em aberto no topo para visibilidade imediata
-        const aDraft = normalizeStatus(a) === 'draft';
-        const bDraft = normalizeStatus(b) === 'draft';
-        if (aDraft && !bDraft) return -1;
-        if (!aDraft && bDraft) return 1;
-
-        return parseQuoteTimestamp(b) - parseQuoteTimestamp(a);
+        // Classificação por horário de envio (mais recentes no topo)
+        return getSortTimestamp(b) - getSortTimestamp(a);
       });
   }, [dateFilteredQuotes, selectedStageFilter, onlyFollowUpDue, searchTerm, sortBy]);
 
@@ -648,7 +699,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
             onChange={(e) => setSortBy(e.target.value as any)}
             className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-sky-500"
           >
-            <option value="recent">Mais Recentes</option>
+            <option value="recent">Horário de Envio (Mais Recentes)</option>
             <option value="amount_desc">Maior Valor (R$)</option>
             <option value="amount_asc">Menor Valor (R$)</option>
           </select>
@@ -699,32 +750,49 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
               >
                 {/* 1. Identificação da Proposta & Cliente */}
                 <div className="min-w-[280px] max-w-md space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
-                      {q.code || 'PROPOSTA'}
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-medium">
-                      {q.date}
-                    </span>
-                    {currentStage === 'draft' && (
-                      <span 
-                        className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1"
-                        title="Orçamento em rascunho (pendente de envio)"
-                      >
-                        <Clock className="w-2.5 h-2.5 text-amber-600" />
-                        Rascunho
-                      </span>
-                    )}
-                    {isDue && (
-                      <span 
-                        className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1 animate-pulse"
-                        title="Enviada há mais de 48h sem resposta do cliente"
-                      >
-                        <Flame className="w-2.5 h-2.5 text-amber-600" />
-                        +48h sem retorno
-                      </span>
-                    )}
-                  </div>
+                  {(() => {
+                    const { displayDate, displayTime } = formatQuoteDateTime(q);
+                    return (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
+                          {q.code || 'PROPOSTA'}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{displayDate}</span>
+                          </span>
+                          {displayTime && (
+                            <span 
+                              className="flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[10.5px] font-semibold"
+                              title={q.sentAt ? `Horário do envio: ${displayTime}` : `Horário de criação: ${displayTime}`}
+                            >
+                              <Clock className="w-2.5 h-2.5 text-sky-600 shrink-0" />
+                              <span>{displayTime}</span>
+                            </span>
+                          )}
+                        </div>
+                        {currentStage === 'draft' && (
+                          <span 
+                            className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1"
+                            title="Orçamento em rascunho (pendente de envio)"
+                          >
+                            <Clock className="w-2.5 h-2.5 text-amber-600" />
+                            Rascunho
+                          </span>
+                        )}
+                        {isDue && (
+                          <span 
+                            className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1 animate-pulse"
+                            title="Enviada há mais de 48h sem resposta do cliente"
+                          >
+                            <Flame className="w-2.5 h-2.5 text-amber-600" />
+                            +48h sem retorno
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 group-hover:text-sky-700 transition flex items-center gap-1.5">
@@ -864,6 +932,18 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                     >
                       <FileEdit className="w-3.5 h-3.5 text-sky-600" />
                       <span>Editar</span>
+                    </button>
+                  )}
+
+                  {onDuplicateQuote && (
+                    <button
+                      type="button"
+                      onClick={() => onDuplicateQuote(q)}
+                      className="px-3 py-2 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                      title="Duplicar proposta como uma nova cotação com código único e itens preservados"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Duplicar</span>
                     </button>
                   )}
 
