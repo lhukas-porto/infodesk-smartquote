@@ -257,6 +257,10 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
   if (/^Monitor\s+(?:ventosa|bucha|parafuso|adesivo|pel[ií]cula|presilha|abra[çc]adeira|gancho)/i.test(name)) {
     name = name.replace(/^Monitor\s+/i, '');
   }
+  // Se o nome começar com "Headset " mas for de outros departamentos
+  if (/^Headset\s+(?!.*\b(?:fone|auricular|microfone|headphone|usb\b|p3\b|p2\b|bluetooth)\b)(?:ventosa|bucha|parafuso|adesivo|suporte|cabo|tinta|fita|disjuntor|alicate|chave|caneta|papel|l[aâ]mpada|lumin[aá]ria|filamento|resina|tubo|caixa|jogo\s+de\s+xadrez)/i.test(name)) {
+    name = name.replace(/^Headset\s+/i, '');
+  }
 
   // 5. Se o nome for longo e contiver frases/verbos descritivos emendados:
   // Ex: "Ventosa de 30mm... produzidas em plástico silicone e pvc cristal garantem boa fixação..."
@@ -2016,20 +2020,17 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
     }
   }
 
-  // 3. Detecção de Arquétipo de Produto
-  let archKey = 'headset';
-  if (/headset|fone|headphone|auricular/i.test(norm)) archKey = 'headset';
-  else if (/teclado|keyboard/i.test(norm)) archKey = 'teclado';
-  else if (/mouse/i.test(norm)) archKey = 'mouse';
-  else if (/webcam|c[aâ]mera/i.test(norm)) archKey = 'webcam';
-  else if (/ssd|nvme|m\.2|disco s[oó]lido/i.test(norm)) archKey = 'ssd';
-  else if (/switch|roteador|router/i.test(norm)) archKey = 'switch';
-  else if (/cabo de rede|patch cord|furukawa|cat6|cat5/i.test(norm)) archKey = 'cabo_rede';
-  else if (/nobreak|ups|estabilizador/i.test(norm)) archKey = 'nobreak';
-  else if (/monitor|tela|display/i.test(norm)) archKey = 'monitor';
-  else archKey = 'headset';
-
-  const arch = ARCHETYPE_RULES[archKey];
+  // 3. Detecção de Arquétipo de Produto (apenas se corresponder estritamente ao termo)
+  let archKey: string | null = null;
+  if (/\b(?:headset|fone de ouvido|headphone|auricular)\b/i.test(norm)) archKey = 'headset';
+  else if (/\b(?:teclado|keyboard)\b/i.test(norm)) archKey = 'teclado';
+  else if (/\bmouse\b/i.test(norm)) archKey = 'mouse';
+  else if (/\b(?:webcam|c[aâ]mera usb)\b/i.test(norm)) archKey = 'webcam';
+  else if (/\b(?:ssd|nvme|m\.2|disco s[oó]lido)\b/i.test(norm)) archKey = 'ssd';
+  else if (/\b(?:switch de rede|switch giga|switch 10\/100|switch 24|switch 16|switch 8 portas)\b/i.test(norm)) archKey = 'switch';
+  else if (/\b(?:cabo de rede|patch cord|furukawa|cat6|cat5e?)\b/i.test(norm)) archKey = 'cabo_rede';
+  else if (/\b(?:nobreak|ups|estabilizador de tens[aã]o)\b/i.test(norm)) archKey = 'nobreak';
+  else if (/\b(?:monitor corporativo|monitor dell|monitor led|monitor ips|smart tv)\b/i.test(norm)) archKey = 'monitor';
 
   // 4. Detecção de Modelo / Código Alfanumérico
   let detectedModel = '';
@@ -2048,9 +2049,103 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
 
   const brand = detectedBrand || 'Genérica';
   const model = detectedModel || '';
-  const pNumber = model ? `${brand.substring(0, 3).toUpperCase()}-${model}` : '';
+  const pNumber = model ? `${brand !== 'Genérica' ? brand.substring(0, 3).toUpperCase() : 'PROD'}-${model}` : '';
 
-  // Constrói nome padronizado no formato de mercado
+  // 5. Se NÃO for um dos arquétipos de informática, gera produto genérico limpo SEM prefixar Headset
+  if (!archKey) {
+    let category = 'Diversos & Sazonais';
+    let ncm = '8471.90.00';
+    let weight = '0.500 kg';
+    let dimensions = '20cm x 15cm x 10cm';
+
+    if (/ventosa|silicone|pvc|bucha|parafuso|cimento|areia|gesso|piso|madeira|mdf|tinta|fita|adesiv/i.test(norm)) {
+      category = 'Construção, Acabamento & Marcenaria';
+      ncm = '3926.90.90';
+      weight = '0.150 kg';
+      dimensions = '10cm x 10cm x 5cm';
+    } else if (/alicate|chave|serra|trena|parafusadeira|furadeira|ferramenta|nivel|torquimetro/i.test(norm)) {
+      category = 'Ferramentas & Instrumentos de Medição';
+      ncm = '8203.20.90';
+      weight = '0.450 kg';
+      dimensions = '22cm x 8cm x 4cm';
+    } else if (/cabo flex[ií]vel|disjuntor|tomada|interruptor|eletroduto|lumin[aá]ria|l[aâ]mpada|fio\s+\d/i.test(norm)) {
+      category = 'Elétrica & Iluminação Tática';
+      ncm = '8544.49.00';
+      weight = '1.000 kg';
+      dimensions = '25cm x 25cm x 10cm';
+    } else if (/switch|roteador|modem|patch cord|cabo de rede|keystone|fibra|telefonia/i.test(norm)) {
+      category = 'Redes, Conectividade & Telefonia';
+      ncm = '8517.62.59';
+      weight = '1.200 kg';
+    } else if (/papel|caneta|l[aá]pis|caderno|prancheta|envelope|pasta|grampeador|borracha/i.test(norm)) {
+      category = 'Papelaria, Artes & Material de Escritório';
+      ncm = '4820.10.00';
+      weight = '0.250 kg';
+    } else if (/etiqueta|rotulador|leitor de c[oó]digo|automa[çc][aã]o|t[eé]rmic[oa]|bobina/i.test(norm)) {
+      category = 'Impressão & Automação Comercial';
+      ncm = '8443.32.99';
+      weight = '1.500 kg';
+    } else if (/geladeira|frigobar|fog[aã]o|micro-ondas|cafeteira|chaleira|copa|garrafa t[eé]rmica/i.test(norm)) {
+      category = 'Eletrodomésticos, Refrigeração & Copa';
+      ncm = '8418.21.00';
+      weight = '15.000 kg';
+    } else if (/detergente|desinfetante|sab[aã]o|[aá]lcool|limpeza|papel toalha|papel higi[eê]nico|lixeira|dispenser/i.test(norm)) {
+      category = 'Limpeza, Higiene & Descartáveis';
+      ncm = '3402.20.00';
+      weight = '1.000 kg';
+    } else if (/ra[çc][aã]o|pet|c[aã]o|gato|veterin[aá]ri/i.test(norm)) {
+      category = 'Pet Shop & Veterinária';
+      ncm = '2309.10.00';
+      weight = '5.000 kg';
+    } else if (/nobreak|bateria|pilha|carregador|estabilizador/i.test(norm)) {
+      category = 'Energia, Nobreaks & Baterias';
+      ncm = '8504.40.40';
+      weight = '6.000 kg';
+    } else if (/projetor|webcam|c[aâ]mera|microfone|headset|fone|caixa de som|audiovisu/i.test(norm)) {
+      category = 'Áudio, Vídeo & Apresentação';
+      ncm = '8518.30.00';
+      weight = '0.400 kg';
+    } else if (/ssd|mem[oó]ria|teclado|mouse|computador|notebook|hd\b|processador|placa/i.test(norm)) {
+      category = 'Informática, Hardware & Periféricos';
+      ncm = '8471.70.40';
+      weight = '0.500 kg';
+    }
+
+    const stdName = sanitizeStandardizedProductName(
+      formatProductSentenceCase(normalizeSearchTerm(cleanQuery)),
+      category,
+      brand
+    );
+
+    return {
+      standardizedName: stdName,
+      brand,
+      manufacturer: brand !== 'Genérica' ? `${brand} do Brasil / Importado` : 'Fabricante Nacional / Importado',
+      model,
+      partNumber: pNumber,
+      category,
+      ncm,
+      weight,
+      dimensions,
+      suggestedPrice: 99.00,
+      costPrice: 65.00,
+      description: `${stdName} desenvolvido para atender demandas corporativas e comerciais com confiabilidade e qualidade técnica comprovadas.`,
+      specifications: [
+        { label: 'Produto', value: stdName },
+        { label: 'Marca / Fabricante', value: brand !== 'Genérica' ? brand : 'Nacional / Importado' },
+        { label: 'Categoria Oficial', value: category },
+        { label: 'Finalidade', value: 'Uso comercial, empresarial e corporativo' }
+      ],
+      quantity: quantity > 0 ? quantity : 1,
+      unit: 'Un.',
+      confidence: 'Alta - Ficha Técnica Estruturada'
+    };
+  }
+
+  // 6. Produto de arquétipo reconhecido (teclado, mouse, webcam, etc.)
+  const arch = ARCHETYPE_RULES[archKey];
+
+  // Constrói nome padronizado no formato de mercado sem duplicar o termo
   const cleanDetail = cleanQuery
     .replace(new RegExp(`\\b${brand}\\b`, 'gi'), '')
     .replace(new RegExp(`\\b${model}\\b`, 'gi'), '')
