@@ -316,7 +316,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
     setIsDiscoveringPhase1(true);
     setPhase1StatusMessage(
       attachedProductPhotos.length > 0 && batchRawInput.trim()
-        ? `Examinando ${attachedProductPhotos.length} foto(s) e descrições do texto para identificar todos os produtos...`
+        ? `Cruzando ${attachedProductPhotos.length} foto(s) com as especificações do texto para identificar o produto...`
         : attachedProductPhotos.length > 0
           ? `Examinando ${attachedProductPhotos.length} foto(s) com prioridade visual...`
           : 'Analisando características técnicas e buscando fotos reais...'

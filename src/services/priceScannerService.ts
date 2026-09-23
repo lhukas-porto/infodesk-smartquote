@@ -1315,34 +1315,40 @@ export async function phase1DiscoverProductsFromText(
     const models = MODERN_GEMINI_MODELS;
 
     const photoPrioritySection = imgDataList.length > 0 ? `
-🚨 REGRAS PARA ENTRADA COM FOTO(S):
-O comprador anexou ${imgDataList.length} FOTO(S) REAL(IS) DE PRODUTO(S) (Imagem 1 a Imagem ${imgDataList.length})!
-1. Para cada foto de produto recebida, analise com lupa: estrutura, chassi, acabamento, detalhes visíveis e formato real.
-2. Cada produto correspondente a uma foto deve ter "isFromPhoto": true e "photoIndex": índice da foto (0 para a primeira imagem, 1 para a segunda imagem, etc., até ${imgDataList.length - 1}).
-3. Não caia em pegadinhas de termos textuais genéricos para as fotos: formule "visualSearchQuery", "visualSearchQueryAlt" e "visualSearchQueryEn" com termos físicos precisos para localizar esse exato produto da foto no e-commerce brasileiro e global.
-4. Preencha "negativeKeywords" com palavras a evitar nas buscas (ex: madeira, compensado, pneumatica).
-5. Se uma imagem enviada for uma folha/print com o produto em uma área específica, indique "productBoundingBox": {"ymin": número, "xmin": número, "ymax": número, "xmax": número}.
+🚨 REGRAS PARA ENTRADA COM FOTO(S) (${imgDataList.length} FOTO(S) ANEXADA(S)):
+- O comprador anexou ${imgDataList.length} FOTO(S) de produto (Imagem 1 a Imagem ${imgDataList.length})!
+- Analise com lupa: estrutura, chassi, acabamento, detalhes visíveis, etiquetas, conectores e formato real.
+- PRINCÍPIO DE CONSOLIDAÇÃO VISUAL: Se as fotos enviadas forem DIFERENTES ÂNGULOS, COMPONENTES, DETALHES, PEÇAS OU EMBALAGEM DO MESMO PRODUTO, você DEVE retornar APENAS 1 PRODUTO no array "products"!
+- SÓ retorne produtos separados se as fotos mostrarem itens comprovadamente distintos e sem qualquer relação entre si.
+- Preencha "visualSearchQuery", "visualSearchQueryAlt" e "visualSearchQueryEn" com termos físicos e comerciais precisos para localizar o produto no e-commerce brasileiro e internacional.
+- Preencha "negativeKeywords" com termos a evitar.
 ` : '';
 
     const hybridRuleSection = (imgDataList.length > 0 && rawText.trim()) ? `
-🚨🚨🚨 REGRA CRÍTICA PARA ENTRADA MISTA (${imgDataList.length} FOTO(S) ANEXADA(S) + DESCRIÇÃO ESCRITA):
-O comprador enviou ${imgDataList.length} FOTO(S) e TAMBÉM DIGITOU/COLOU UM TEXTO DESCRITIVO.
-ATENÇÃO: O TEXTO PODE CONTER OUTROS PRODUTOS OU UMA LISTA DE MÚLTIPLOS ITENS!
-VOCÊ DEVE IDENTIFICAR E RETORNAR TODOS OS PRODUTOS NO ARRAY "products":
-1. O(s) produto(s) correspondente(s) a CADA UMA das ${imgDataList.length} FOTOS anexadas (defina "isFromPhoto": true, "photoIndex": índice da foto 0 a ${imgDataList.length - 1}).
-2. E CADA UM dos produtos descritos no TEXTO ESCRITO que forem itens adicionais ou distintos (defina "isFromPhoto": false, "photoIndex": -1).
-⚠️ NUNCA descarte os produtos do texto só porque há fotos! Se o texto contiver 1, 2, 5 ou mais produtos além das fotos, extraia e retorne TODOS os produtos do texto como itens separados em "products", cada um com suas próprias características, quantidades e especificações técnicas!
+🚨🚨🚨 REGRA DE OURO PARA ENTRADA COMBINADA (${imgDataList.length} FOTO(S) + TEXTO ESCRITO):
+O comprador digitou uma busca e TAMBÉM anexou ${imgDataList.length} foto(s) para fornecer o máximo de detalhes e precisão!
+1. PRINCÍPIO DA UNIFICAÇÃO (MÁXIMA PRIORIDADE):
+   Na imensa maioria das buscas (ex: texto "JOGO DE XADREZ GIGANTE 66x66CM- PEDAGÓGICO" com 3 fotos de xadrez), o comprador quer EXATAMENTE 1 PRODUTO!
+   Ele anexou fotos de diferentes ângulos, tabuleiro, peças, detalhes e caixa para alimentar o scanner com informações ricas para achar o produto correto.
+   PORTANTO, SE AS FOTOS E O TEXTO DIZEM RESPEITO AO MESMO TIPO/TEMA DE PRODUTO, RETORNE ESTRITAMENTE 1 ÚNICO PRODUTO no array "products"!
+   O produto único deve consolidar o nome, medidas e especificações do texto com todas as pistas visuais das fotos.
+2. EXCEÇÃO ÚNICA PARA MÚLTIPLOS PRODUTOS:
+   Você SÓ DEVE retornar mais de 1 produto se:
+   a) O texto for uma lista explícita com vários itens numerados ou separados (ex: "1. Xadrez gigante, 2. Jogo de Damas, 3. Dominó"); OU
+   b) As fotos anexadas forem comprovadamente de itens completamente diferentes e sem qualquer relação com o texto (ex: texto fala de xadrez, mas uma foto é de geladeira e outra de furadeira).
+   FORA DESSAS EXCEÇÕES EXPLÍCITAS, NUNCA crie produtos duplicados ou separe as fotos do texto! Retorne sempre 1 PRODUTO unificado!
 ` : '';
 
     const prompt = `Você é um engenheiro sênior especialista em suprimentos corporativos, equipamentos industriais, informática e catalogação da Infodesk Store e SmartQuote Brasil.
 Receberá uma solicitação de produtos (podendo conter ${imgDataList.length > 0 ? `${imgDataList.length} fotos reais de produtos anexadas` : 'nenhuma foto'} e/ou um texto descritivo do comprador com um ou vários itens).
 ${photoPrioritySection}
 ${hybridRuleSection}
-SUA MISSÃO NA FASE 1: DEDUZIR E ENRIQUECER TODOS OS PRODUTOS (TANTO DAS ${imgDataList.length} FOTO(S) QUANTO DOS ESCRITOS NO TEXTO) COM FICHA TÉCNICA 360° COMPLETA (SISTEMÁTICA INFODESK STORE):
+SUA MISSÃO NA FASE 1: DEDUZIR E ENRIQUECER O(S) PRODUTO(S) COM FICHA TÉCNICA 360° COMPLETA (SISTEMÁTICA INFODESK STORE).
+LEMBRE-SE: Se o comprador digitou um produto e enviou fotos complementares dele, RETORNE APENAS 1 PRODUTO CONSOLIDADO com todas as informações unificadas!
 
 DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
-- "isFromPhoto": Booleano (true se o produto corresponde a uma das fotos anexadas, false se for um produto descrito no texto escrito).
-- "photoIndex": Número inteiro (0 para a primeira foto, 1 para a segunda foto, etc., ou -1 se for produto apenas do texto escrito).
+- "isFromPhoto": Booleano (true se o produto corresponde ou foi enriquecido pelas fotos anexadas, false se for estritamente do texto sem fotos).
+- "photoIndex": Número inteiro (0 para foto principal ou -1 se não houver fotos).
 - "standardizedName": Nome comercial no padrão de mercado brasileiro: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
 - "brand": Marca comercial oficial ou "Genérica" se sem marca visível.
 - "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
@@ -1372,64 +1378,37 @@ ${rawText || 'Deduza o(s) produto(s) com base estritamente na(s) foto(s) anexada
 Retorne ESTRITAMENTE um JSON no formato:
 {
   "products": [
-    ${imgDataList.length > 0 ? `{
-      "isFromPhoto": true,
-      "photoIndex": 0,
-      "visualInspection": "Descrição física detalhada do produto que está na foto...",
-      "visualSearchQuery": "Termo de busca fiel ao produto da foto para achar preços reais",
+    {
+      "isFromPhoto": ${imgDataList.length > 0 ? 'true' : 'false'},
+      "photoIndex": ${imgDataList.length > 0 ? '0' : '-1'},
+      "visualInspection": "Descrição física detalhada do produto unificando as fotos e o texto...",
+      "visualSearchQuery": "Termo de busca comercial fiel ao produto para achar preços reais",
       "visualSearchQueryAlt": "Termo alternativo de alta precisão",
       "visualSearchQueryEn": "Termo em inglês para imagens de fabricantes",
-      "negativeKeywords": ["madeira", "compensado", "pneumatica", "pneu", "reboque"],
-      "productBoundingBox": {"ymin": 330, "xmin": 340, "ymax": 615, "xmax": 730},
-      "standardizedName": "Nome Comercial do Produto da Foto",
-      "brand": "Genérica",
-      "manufacturer": "Fabricante Nacional / Importado",
-      "model": "Modelo",
+      "negativeKeywords": ["palavra1", "palavra2"],
+      "standardizedName": "Nome Comercial Padronizado do Produto",
+      "brand": "Marca Oficial ou Genérica",
+      "manufacturer": "Fabricante Oficial",
+      "model": "Modelo Exato",
       "partNumber": "PartNumber",
-      "category": "Ferramentas",
-      "ncm": "8716.80.00",
+      "category": "Uma das categorias oficiais",
+      "ncm": "9504.90.90",
       "ean": "",
-      "weight": "14.500 kg",
-      "dimensions": "80cm x 60cm x 90cm",
+      "weight": "2.500 kg",
+      "dimensions": "66cm x 66cm x 8cm",
       "quantity": 1,
       "unit": "Un.",
-      "suggestedPrice": 349.90,
-      "costPrice": 220.00,
-      "confidence": "Alta - Identificado pela Foto",
+      "suggestedPrice": 249.90,
+      "costPrice": 160.00,
+      "confidence": "Alta - Identificado com Fotos e Descrição",
       "supplier": "Mercado Livre",
       "buyUrl": "",
-      "description": "Texto técnico e comercial...",
+      "description": "Texto técnico e comercial rico em 2 a 3 parágrafos...",
       "specifications": [
         { "label": "Característica", "value": "Valor" }
       ],
       "images": []
-    }${rawText.trim() ? ',' : ''}` : ''}
-    ${rawText.trim() ? `{
-      "isFromPhoto": false,
-      "photoIndex": -1,
-      "standardizedName": "Nome Comercial do Produto Descrito no Texto",
-      "brand": "Marca",
-      "manufacturer": "Fabricante",
-      "model": "Modelo",
-      "partNumber": "PartNumber",
-      "category": "Categoria",
-      "ncm": "8471.70.40",
-      "ean": "",
-      "weight": "0.500 kg",
-      "dimensions": "20cm x 15cm x 5cm",
-      "quantity": 1,
-      "unit": "Un.",
-      "suggestedPrice": 120.00,
-      "costPrice": 85.00,
-      "confidence": "Alta - Identificado do Texto Escrito",
-      "supplier": "Mercado Livre",
-      "buyUrl": "",
-      "description": "Texto técnico e comercial...",
-      "specifications": [
-        { "label": "Característica", "value": "Valor" }
-      ],
-      "images": []
-    }` : ''}
+    }
   ]
 }`;
 
@@ -1521,23 +1500,44 @@ Retorne ESTRITAMENTE um JSON no formato:
                 console.warn('[Image Search Warning]:', e);
               }
 
-              // Determina a foto exata correspondente enviada pelo cliente
+              // Determina as fotos correspondentes enviadas pelo cliente
+              let customerPhotoUrls: string[] = [];
               let customerPhotoUrl: string | null = null;
-              if (isFromPhoto && imgDataList.length > 0) {
-                let targetImg = imgDataList[0];
-                if (typeof item.photoIndex === 'number' && item.photoIndex >= 0 && item.photoIndex < imgDataList.length) {
-                  targetImg = imgDataList[item.photoIndex];
-                } else if (imgDataList.length > 1 && idx < imgDataList.length) {
-                  targetImg = imgDataList[idx];
-                }
 
-                customerPhotoUrl = `data:${targetImg.mimeType};base64,${targetImg.base64}`;
-                if (item.productBoundingBox) {
-                  try {
-                    customerPhotoUrl = await cropImageByBoundingBox(customerPhotoUrl, item.productBoundingBox);
-                  } catch (cropErr) {
-                    console.warn('[Crop Image Error]:', cropErr);
+              if (imgDataList.length > 0) {
+                if (list.length === 1) {
+                  // Quando 1 único produto consolidado foi identificado, TODAS as fotos enviadas entram na galeria dele!
+                  for (let i = 0; i < imgDataList.length; i++) {
+                    const img = imgDataList[i];
+                    let pUrl = `data:${img.mimeType};base64,${img.base64}`;
+                    if (i === 0 && item.productBoundingBox) {
+                      try {
+                        pUrl = await cropImageByBoundingBox(pUrl, item.productBoundingBox);
+                      } catch (cropErr) {
+                        console.warn('[Crop Image Error]:', cropErr);
+                      }
+                    }
+                    customerPhotoUrls.push(pUrl);
                   }
+                  customerPhotoUrl = customerPhotoUrls[0] || null;
+                } else if (isFromPhoto) {
+                  let targetImg = imgDataList[0];
+                  if (typeof item.photoIndex === 'number' && item.photoIndex >= 0 && item.photoIndex < imgDataList.length) {
+                    targetImg = imgDataList[item.photoIndex];
+                  } else if (imgDataList.length > 1 && idx < imgDataList.length) {
+                    targetImg = imgDataList[idx];
+                  }
+
+                  let pUrl = `data:${targetImg.mimeType};base64,${targetImg.base64}`;
+                  if (item.productBoundingBox) {
+                    try {
+                      pUrl = await cropImageByBoundingBox(pUrl, item.productBoundingBox);
+                    } catch (cropErr) {
+                      console.warn('[Crop Image Error]:', cropErr);
+                    }
+                  }
+                  customerPhotoUrls = [pUrl];
+                  customerPhotoUrl = pUrl;
                 }
               }
 
@@ -1545,9 +1545,9 @@ Retorne ESTRITAMENTE um JSON no formato:
                 ? realImages
                 : resolveGalleryImagesForProduct(stdName, category, brand, item.images);
 
-              // Para o item da foto, a foto do cliente assume o topo da galeria; para os itens do texto, usa fotos próprias encontradas na web
-              const gallery = customerPhotoUrl
-                ? [customerPhotoUrl, ...baseGallery.filter(u => u !== customerPhotoUrl)]
+              // As fotos do cliente assumem o topo da galeria do produto; complementadas por fotos encontradas na web
+              const gallery = customerPhotoUrls.length > 0
+                ? [...customerPhotoUrls, ...baseGallery.filter(u => !customerPhotoUrls.includes(u))]
                 : baseGallery;
 
               const directPurchase = buildDirectPurchaseUrl(stdName, item.buyUrl || item.sourceUrl);
