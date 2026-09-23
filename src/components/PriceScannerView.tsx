@@ -33,7 +33,8 @@ import {
   WordCaseStyle,
   buildCompleteProductDescription,
   buildDirectPurchaseUrl,
-  normalizeSearchText
+  normalizeSearchText,
+  normalizeToOfficialCategory
 } from '../utils/aiEmailParser';
 import {
   DiscoveredProduct,
@@ -596,7 +597,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
         ncm: cleanNcmCode(prod.ncm || ''),
         name: prod.standardizedName,
         description: fullDesc || prod.description || `Part Number: ${cleanAlphanumericCode(prod.partNumber || '')} | NCM: ${cleanNcmCode(prod.ncm || '')}`,
-        category: prod.category || 'Informática & Tecnologia',
+        category: normalizeToOfficialCategory(prod.category || 'Informática, Hardware & Periféricos'),
         costPrice: cost > 0 ? Number(cost.toFixed(2)) : Number(price.toFixed(2)),
         unit: prod.unit || 'Un.',
         supplier: prod.supplier || prod.brand || directInfo.store,
@@ -1903,7 +1904,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                     )}
                     <div className="flex justify-between">
                       <span className="text-slate-400">Categoria:</span>
-                      <span className="text-slate-700">{catalogConflictItem.existing.category || 'Geral'}</span>
+                      <span className="text-slate-700">{catalogConflictItem.existing.category || 'Diversos & Sazonais'}</span>
                     </div>
                   </div>
                 </div>

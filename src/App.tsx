@@ -570,7 +570,10 @@ export const App: React.FC = () => {
 
   const [currentQuote, setCurrentQuote] = useState<Quote>(() => {
     const draft = getCurrentDraftQuote();
-    if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+    if (draft && (
+      (Array.isArray(draft.items) && draft.items.length > 0) ||
+      (draft.clientCompany && draft.clientCompany.trim())
+    )) {
       return draft;
     }
     const existing = quotes.find(q => Array.isArray(q.items) && q.items.length > 0) || quotes[0];
@@ -1086,6 +1089,11 @@ export const App: React.FC = () => {
       return;
     }
 
+    if (!currentQuote.items || !Array.isArray(currentQuote.items) || currentQuote.items.length === 0) {
+      alert('Por favor, adicione ao menos um produto antes de salvar a proposta comercial.');
+      return;
+    }
+
     const updatedComps = registerOrUpdateClient(
       currentQuote.clientCompany,
       currentQuote.contactPerson,
@@ -1169,6 +1177,11 @@ export const App: React.FC = () => {
   const handleSaveAsNewQuote = async () => {
     if (!currentQuote.clientCompany || !currentQuote.clientCompany.trim()) {
       alert('Por favor, informe a empresa / cliente antes de salvar como nova cotação.');
+      return;
+    }
+
+    if (!currentQuote.items || !Array.isArray(currentQuote.items) || currentQuote.items.length === 0) {
+      alert('Por favor, adicione ao menos um produto antes de salvar como nova cotação.');
       return;
     }
 

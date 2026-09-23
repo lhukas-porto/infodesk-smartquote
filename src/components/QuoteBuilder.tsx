@@ -1327,7 +1327,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     // Buscar o item mais atualizado da cotação corrente para garantir que todas as edições feitas na tela sejam carregadas
     const freshItem = currentQuote.items.find(it => it.id === item.id) || item;
     const generatedSku = freshItem.partNumber ? freshItem.partNumber.trim() : (freshItem.productId || `INF-${Date.now().toString().slice(-4)}`);
-    const initialCategory = getCategoryFromNcm(freshItem.ncm, 'Geral');
+    const initialCategory = getCategoryFromNcm(freshItem.ncm, 'Diversos & Sazonais');
     const directInfo = buildDirectPurchaseUrl(freshItem.name, freshItem.sourceUrl);
 
     // Se a descrição estiver vazia no item da proposta, buscar do catálogo ou gerar das especificações

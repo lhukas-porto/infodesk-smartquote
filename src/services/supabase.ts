@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { deduplicateCompanyContacts } from '../utils/storage';
-import { extractStoreNameFromUrl, normalizeSearchText } from '../utils/aiEmailParser';
+import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory } from '../utils/aiEmailParser';
 
 const FALLBACK_SUPABASE_URL = 'https://dxhbjygtbcxpabflsijv.supabase.co';
 const FALLBACK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4aGJqeWd0YmN4cGFiZmxzaWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMTQ3MTIsImV4cCI6MjEwMzg5MDcxMn0.Bt9yCZDtPYCk8Cqa223MgReN2EmGfCl-41fR22GAucU';
@@ -447,7 +447,7 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
       ncm: p.ncm,
       name: p.name,
       description: p.description || '',
-      category: p.category || 'Informática & Tecnologia',
+      category: normalizeToOfficialCategory(p.category || 'Informática, Hardware & Periféricos'),
       costPrice: Number(p.cost_price),
       unit: p.unit || 'Un.',
       supplier: p.supplier || '',
@@ -482,7 +482,7 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
     ncm: product.ncm || null,
     name: cleanName,
     description: product.description || '',
-    category: product.category || 'Informática & Tecnologia',
+    category: normalizeToOfficialCategory(product.category || 'Informática, Hardware & Periféricos'),
     cost_price: Number(product.costPrice) || 0,
     unit: product.unit || 'Un.',
     supplier: product.supplier || null,

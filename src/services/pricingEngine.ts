@@ -133,7 +133,7 @@ export function recalculateSingleItem(
   options: PricingCalculationOptions = {}
 ): QuoteItem {
   const shipping = item.shippingCost ?? options.globalShipping ?? 0;
-  const markup = item.markupPercent ?? options.globalMarkup ?? 25;
+  const markup = item.markupPercent ?? options.globalMarkup ?? 23.5;
   const tax = item.taxPercent ?? options.globalTax ?? 9.1;
 
   const unitPrice = calculateCommercialUnitPrice(item.costPrice || 0, shipping, markup, tax);

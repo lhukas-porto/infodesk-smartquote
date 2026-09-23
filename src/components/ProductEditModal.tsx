@@ -22,7 +22,8 @@ import {
   applyCaseToRanges,
   WordCaseStyle,
   extractStoreNameFromUrl,
-  getCategoryFromNcm
+  getCategoryFromNcm,
+  normalizeToOfficialCategory
 } from '../utils/aiEmailParser';
 import { CreatableCombobox } from './CreatableCombobox';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
@@ -439,7 +440,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       ncm: (draft.ncm || '').trim(),
       name: draft.name.trim(),
       description: draft.description || '',
-      category: draft.category || 'Geral',
+      category: normalizeToOfficialCategory(draft.category || 'Diversos & Sazonais'),
       costPrice: parsedCost,
       dollarPrice: parsedDollar > 0 ? parsedDollar : undefined,
       unit: draft.unit || 'Un.',
@@ -766,7 +767,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       setDraft(prev => ({
                         ...prev,
                         ncm: formatted,
-                        category: autoCategory !== 'Geral' ? autoCategory : prev.category
+                        category: autoCategory ? normalizeToOfficialCategory(autoCategory) : prev.category
                       }));
                     }}
                     placeholder="Ex: 8517.62.54"
@@ -913,19 +914,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     Categoria
                   </label>
                   <CreatableCombobox
-                    value={draft.category || 'Geral'}
+                    value={draft.category || 'Diversos & Sazonais'}
                     onChange={(val) => {
-                      const finalVal = val.trim() || 'Geral';
+                      const finalVal = normalizeToOfficialCategory(val.trim() || 'Diversos & Sazonais');
                       setDraft(prev => ({ ...prev, category: finalVal }));
                       // onAddCategory só é chamado pelo onAddOption (ao confirmar a nova entrada)
                     }}
                     options={availableCategories}
                     onAddOption={(newCat) => {
-                      if (onAddCategory) onAddCategory(newCat);
+                      if (onAddCategory) onAddCategory(normalizeToOfficialCategory(newCat));
                     }}
-                    defaultValue="Geral"
+                    defaultValue="Diversos & Sazonais"
                     textAlign="left"
-                    placeholder="Geral"
+                    placeholder="Diversos & Sazonais"
                     inputClassName="h-10"
                   />
                 </div>

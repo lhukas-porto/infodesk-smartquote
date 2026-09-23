@@ -38,7 +38,7 @@ resetRegisteredCategories();
 resetRegisteredUnits();
 
 const initialCats = getRegisteredCategories();
-if (!initialCats.includes('Informática & TI') || !initialCats.includes('Geral')) {
+if (!initialCats.includes('Informática, Hardware & Periféricos') || !initialCats.includes('Diversos & Sazonais')) {
   throw new Error('Falha no Teste 1: Categorias padrão não foram carregadas corretamente.');
 }
 console.log('✓ Teste 1 aprovado: Categorias padrão carregadas com sucesso.');
@@ -94,7 +94,7 @@ console.log('✓ Teste 5 aprovado: Ciclo completo de unidades (criação, ediç�
 const bancoProdutosMock = [
   { category: 'Energia & Nobreaks', unit: 'M²' },
   { category: 'Equipamentos & Insumos Industriais', unit: 'Pote' },
-  { category: 'Informática & TI', unit: 'Un.' } // Já existente
+  { category: 'Informática, Hardware & Periféricos', unit: 'Un.' } // Já existente
 ];
 
 const mergedCategories = Array.from(new Set([

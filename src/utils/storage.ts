@@ -1,6 +1,6 @@
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
-import { normalizeSearchText } from './aiEmailParser';
+import { normalizeSearchText, normalizeToOfficialCategory } from './aiEmailParser';
 import { 
   syncRegisteredMetadataToSupabase, 
   syncClientCompaniesToSupabase,
@@ -338,7 +338,7 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
           imageUrl: existing.imageUrl || p.imageUrl,
           sourceUrl: existing.sourceUrl || p.sourceUrl,
           supplier: existing.supplier || p.supplier,
-          category: (existing.category && existing.category !== 'Informática & Tecnologia') ? existing.category : (p.category || existing.category),
+          category: normalizeToOfficialCategory(existing.category && existing.category !== 'Informática & Tecnologia' && existing.category !== 'Geral' ? existing.category : (p.category || existing.category)),
           costPrice: existing.costPrice > 0 ? existing.costPrice : (p.costPrice || 0),
           stock: Math.max(existing.stock || 0, p.stock || 0)
         };
@@ -351,7 +351,10 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
     if (rawSku) seenSkus.add(rawSku);
     if (normName && normName.length >= 3) seenNames.add(normName);
 
-    result.push(p);
+    result.push({
+      ...p,
+      category: normalizeToOfficialCategory(p.category)
+    });
   }
 
   return result;

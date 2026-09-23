@@ -44,6 +44,7 @@ import {
   syncBatchProductsToSupabase, 
   deleteProductFromSupabase 
 } from '../services/supabase';
+import { normalizeToOfficialCategory } from '../utils/aiEmailParser';
 import {
   normalizeSearchText
 } from '../utils/aiEmailParser';
@@ -117,7 +118,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const categoryCounts = React.useMemo(() => {
     const counts: Record<string, number> = { all: products.length };
     products.forEach(p => {
-      const cat = p.category || 'Geral';
+      const cat = normalizeToOfficialCategory(p.category || 'Diversos & Sazonais');
       counts[cat] = (counts[cat] || 0) + 1;
     });
     return counts;
@@ -217,7 +218,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           const partNumber = row.PartNumber || row.partNumber || row.Part_Number || row.Modelo || row.modelo || sku;
           const costPrice = parseFloat(String(row.Custo || row.PrecoCusto || row.cost || '0').replace(',', '.')) || 0;
           const description = row.Descricao || row.Especificacao || row.description || '';
-          const category = row.Categoria || row.category || 'Geral';
+          const category = normalizeToOfficialCategory(row.Categoria || row.category || 'Diversos & Sazonais');
           const unit = row.Unidade || row.Un || row.unit || 'Un.';
 
           parsed.push({
@@ -345,7 +346,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       partNumber: unifiedCode,
       name: cleanName,
       description: newProd.description?.trim() || '',
-      category: newProd.category || 'Geral',
+      category: normalizeToOfficialCategory(newProd.category || 'Diversos & Sazonais'),
       costPrice: Number(newProd.costPrice) || 0,
       shippingCost: shippingCost || 0,
       unit: newProd.unit || 'Un.',

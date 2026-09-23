@@ -250,9 +250,12 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     const now = new Date();
     const todayFormatted = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
+    // Descarta rascunhos fantasmas vazios (0 itens comerciais) que possam ter ficado na memória
+    const validQuotes = quotes.filter(q => (q.status && q.status !== 'draft') || (Array.isArray(q.items) && q.items.length > 0));
+
     // Se o estágio selecionado for especificamente 'draft', exibe todos os rascunhos para gestão completa
     if (selectedStageFilter === 'draft') {
-      return quotes
+      return validQuotes
         .filter(q => normalizeStatus(q) === 'draft')
         .map(q => {
           if (!isSameDay(parseQuoteTimestamp(q), now.getTime())) {
@@ -262,12 +265,12 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
         });
     }
 
-    if (dateFilter === 'all') return quotes;
+    if (dateFilter === 'all') return validQuotes;
 
     if (dateFilter === 'today') {
       const todayMs = now.getTime();
       // Sempre traz para o dia atual os orçamentos que estão no status rascunho, atualizando a data dele para a data atual
-      return quotes
+      return validQuotes
         .filter(q => isSameDay(parseQuoteTimestamp(q), todayMs) || normalizeStatus(q) === 'draft')
         .map(q => {
           if (normalizeStatus(q) === 'draft' && !isSameDay(parseQuoteTimestamp(q), todayMs)) {
@@ -281,42 +284,42 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
       const y = new Date(now);
       y.setDate(y.getDate() - 1);
       const yMs = y.getTime();
-      return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), yMs));
+      return validQuotes.filter(q => isSameDay(parseQuoteTimestamp(q), yMs));
     }
 
     if (dateFilter === '7days') {
       const past7d = now.getTime() - (7 * 24 * 60 * 60 * 1000);
-      return quotes.filter(q => parseQuoteTimestamp(q) >= past7d);
+      return validQuotes.filter(q => parseQuoteTimestamp(q) >= past7d);
     }
 
     if (dateFilter === 'thisMonth') {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
-      return quotes.filter(q => parseQuoteTimestamp(q) >= startOfMonth);
+      return validQuotes.filter(q => parseQuoteTimestamp(q) >= startOfMonth);
     }
 
     if (dateFilter === 'specificDate') {
-      if (!specificDate) return quotes;
+      if (!specificDate) return validQuotes;
       const parts = specificDate.split('-');
       if (parts.length === 3) {
         const y = parseInt(parts[0], 10);
         const m = parseInt(parts[1], 10) - 1;
         const d = parseInt(parts[2], 10);
         const targetTime = new Date(y, m, d, 12, 0, 0).getTime();
-        return quotes.filter(q => isSameDay(parseQuoteTimestamp(q), targetTime));
+        return validQuotes.filter(q => isSameDay(parseQuoteTimestamp(q), targetTime));
       }
-      return quotes;
+      return validQuotes;
     }
 
     if (dateFilter === 'customRange') {
       const startMs = customStartDate ? new Date(`${customStartDate}T00:00:00`).getTime() : 0;
       const endMs = customEndDate ? new Date(`${customEndDate}T23:59:59`).getTime() : Number.MAX_SAFE_INTEGER;
-      return quotes.filter(q => {
+      return validQuotes.filter(q => {
         const t = parseQuoteTimestamp(q);
         return t >= startMs && t <= endMs;
       });
     }
 
-    return quotes;
+    return validQuotes;
   }, [quotes, dateFilter, specificDate, customStartDate, customEndDate, selectedStageFilter]);
 
   // 2. Totais e métricas por estágio calculados sobre o período ativo

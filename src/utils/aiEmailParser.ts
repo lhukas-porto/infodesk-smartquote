@@ -1252,12 +1252,255 @@ export function isValidEan13(ean: string | undefined): boolean {
   return checkDigit === parseInt(digits[12], 10);
 }
 
+export const OFFICIAL_CATEGORIES = [
+  'Informática, Hardware & Periféricos',
+  'Redes, Conectividade & Telefonia',
+  'Áudio, Vídeo & Apresentação',
+  'Monitores, Displays & TVs',
+  'Energia, Nobreaks & Baterias',
+  'Impressão & Automação Comercial',
+  'Papelaria, Artes & Material de Escritório',
+  'Elétrica & Iluminação Tática',
+  'Construção, Acabamento & Marcenaria',
+  'Ferramentas & Instrumentos de Medição',
+  'Equipamentos & Insumos Industriais',
+  'Eletrodomésticos, Refrigeração & Copa',
+  'Limpeza, Higiene & Descartáveis',
+  'Pet Shop & Veterinária',
+  'Diversos & Sazonais'
+] as const;
+
+export type OfficialCategory = typeof OFFICIAL_CATEGORIES[number];
+
+/**
+ * Normaliza e enquadra rigorosamente qualquer categoria (legada, importada ou digitada)
+ * em um dos 15 macro-departamentos oficiais do Infodesk SmartQuote (Regra Oficial do Lucas).
+ */
+export function normalizeToOfficialCategory(rawCategory?: string): string {
+  if (!rawCategory || !rawCategory.trim()) return 'Diversos & Sazonais';
+  const clean = rawCategory.trim();
+  
+  // Se já for uma categoria oficial exata, retorna diretamente
+  if (OFFICIAL_CATEGORIES.includes(clean as any)) {
+    return clean;
+  }
+
+  const norm = clean.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // 1. Informática, Hardware & Periféricos
+  if (
+    norm.includes('informatica') || 
+    norm.includes('hardware') || 
+    norm.includes('periferico') || 
+    norm.includes('armazenamento') || 
+    norm.includes('ssd') || 
+    norm.includes('memoria') || 
+    norm.includes('teclado') || 
+    norm.includes('mouse') ||
+    norm.includes('computador') ||
+    norm.includes('notebook')
+  ) {
+    return 'Informática, Hardware & Periféricos';
+  }
+
+  // 2. Redes, Conectividade & Telefonia
+  if (
+    norm.includes('rede') || 
+    norm.includes('conectividade') || 
+    norm.includes('telefonia') || 
+    norm.includes('telefone') || 
+    norm.includes('switch') || 
+    norm.includes('roteador') || 
+    norm.includes('furukawa') || 
+    norm.includes('patch cord') || 
+    norm.includes('keystone') ||
+    norm.includes('cabo de rede')
+  ) {
+    return 'Redes, Conectividade & Telefonia';
+  }
+
+  // 3. Áudio, Vídeo & Apresentação
+  if (
+    norm.includes('audio') || 
+    norm.includes('som') || 
+    norm.includes('headset') || 
+    norm.includes('microfone') || 
+    norm.includes('webcam') || 
+    norm.includes('projetor') || 
+    norm.includes('apresentacao') ||
+    norm.includes('video')
+  ) {
+    return 'Áudio, Vídeo & Apresentação';
+  }
+
+  // 4. Monitores, Displays & TVs
+  if (
+    norm.includes('monitor') || 
+    norm.includes('display') || 
+    norm.includes('tv') || 
+    norm.includes('televis') || 
+    norm.includes('tela')
+  ) {
+    return 'Monitores, Displays & TVs';
+  }
+
+  // 5. Energia, Nobreaks & Baterias
+  if (
+    norm.includes('energia') || 
+    norm.includes('nobreak') || 
+    norm.includes('estabilizador') || 
+    norm.includes('bateria') || 
+    norm.includes('pilha') || 
+    norm.includes('carregador') ||
+    norm.includes('fonte')
+  ) {
+    return 'Energia, Nobreaks & Baterias';
+  }
+
+  // 6. Impressão & Automação Comercial
+  if (
+    norm.includes('impress') || 
+    norm.includes('toner') || 
+    norm.includes('cartucho') || 
+    norm.includes('rotulador') || 
+    norm.includes('etiqueta') || 
+    norm.includes('codigo de barra') || 
+    norm.includes('automacao') ||
+    norm.includes('leitor')
+  ) {
+    return 'Impressão & Automação Comercial';
+  }
+
+  // 7. Papelaria, Artes & Material de Escritório
+  if (
+    norm.includes('papelaria') || 
+    norm.includes('escritorio') || 
+    norm.includes('caneta') || 
+    norm.includes('lapis') || 
+    norm.includes('prancheta') || 
+    norm.includes('pasta') || 
+    norm.includes('arte')
+  ) {
+    return 'Papelaria, Artes & Material de Escritório';
+  }
+
+  // 8. Elétrica & Iluminação Tática
+  if (
+    norm.includes('eletrica') || 
+    norm.includes('iluminacao') || 
+    norm.includes('cabo flexivel') || 
+    norm.includes('eletroduto') || 
+    norm.includes('disjuntor') || 
+    norm.includes('lanterna') || 
+    norm.includes('lampada')
+  ) {
+    return 'Elétrica & Iluminação Tática';
+  }
+
+  // 9. Construção, Acabamento & Marcenaria
+  if (
+    norm.includes('construcao') || 
+    norm.includes('acabamento') || 
+    norm.includes('marcenaria') || 
+    norm.includes('cimento') || 
+    norm.includes('tinta') || 
+    norm.includes('piso') || 
+    norm.includes('parafuso') || 
+    norm.includes('bucha') || 
+    norm.includes('mdf') ||
+    norm.includes('vidro') ||
+    norm.includes('porta') ||
+    norm.includes('fechadura')
+  ) {
+    return 'Construção, Acabamento & Marcenaria';
+  }
+
+  // 10. Ferramentas & Instrumentos de Medição
+  if (
+    norm.includes('ferramenta') || 
+    norm.includes('medicao') || 
+    norm.includes('alicate') || 
+    norm.includes('chave') || 
+    norm.includes('parafusadeira') || 
+    norm.includes('trena') || 
+    norm.includes('termometro')
+  ) {
+    return 'Ferramentas & Instrumentos de Medição';
+  }
+
+  // 11. Equipamentos & Insumos Industriais
+  if (
+    norm.includes('industrial') || 
+    norm.includes('insumo') || 
+    norm.includes('valvula') || 
+    norm.includes('hidraulica') || 
+    norm.includes('conexao') || 
+    norm.includes('vedacao') || 
+    norm.includes('seringa') || 
+    norm.includes('laser')
+  ) {
+    return 'Equipamentos & Insumos Industriais';
+  }
+
+  // 12. Eletrodomésticos, Refrigeração & Copa
+  if (
+    norm.includes('eletrodomestico') || 
+    norm.includes('refrigeracao') || 
+    norm.includes('copa') || 
+    norm.includes('cozinha') || 
+    norm.includes('geladeira') || 
+    norm.includes('frigobar') || 
+    norm.includes('adega') || 
+    norm.includes('cervejeira') || 
+    norm.includes('microondas') || 
+    norm.includes('cooktop') || 
+    norm.includes('fogao') || 
+    norm.includes('purificador') || 
+    norm.includes('bebedouro') || 
+    norm.includes('cafeteira') || 
+    norm.includes('organizador de pia') ||
+    norm.includes('cumbuca') ||
+    norm.includes('utensilio')
+  ) {
+    return 'Eletrodomésticos, Refrigeração & Copa';
+  }
+
+  // 13. Limpeza, Higiene & Descartáveis
+  if (
+    norm.includes('limpeza') || 
+    norm.includes('higiene') || 
+    norm.includes('descartavel') || 
+    norm.includes('alcool') || 
+    norm.includes('dispenser') || 
+    norm.includes('papel toalha') || 
+    norm.includes('sabonete') || 
+    norm.includes('estopa')
+  ) {
+    return 'Limpeza, Higiene & Descartáveis';
+  }
+
+  // 14. Pet Shop & Veterinária
+  if (
+    norm.includes('pet') || 
+    norm.includes('veterinaria') || 
+    norm.includes('racao') || 
+    norm.includes('animal') || 
+    norm.includes('cachorro') || 
+    norm.includes('gato')
+  ) {
+    return 'Pet Shop & Veterinária';
+  }
+
+  // 15. Diversos & Sazonais (Fallback padrão seguro)
+  return 'Diversos & Sazonais';
+}
+
 /**
  * Identifica e padroniza a Categoria Comercial do produto com base no código NCM Fiscal oficial (8 dígitos).
  * O NCM é a Nomenclatura Comum do Mercosul, dividida em Capítulos (2 dígitos), Posições (4 dígitos) e Subposições.
  */
 export function getCategoryFromNcm(ncmCode: string | undefined, fallbackCategory?: string): string {
-  if (!ncmCode) return fallbackCategory || 'Geral';
+  if (!ncmCode) return fallbackCategory ? normalizeToOfficialCategory(fallbackCategory) : 'Diversos & Sazonais';
   const clean = ncmCode.replace(/\D/g, '').padEnd(8, '0');
   const cap = clean.slice(0, 2);
   const pos = clean.slice(0, 4);
@@ -1335,7 +1578,7 @@ export function getCategoryFromNcm(ncmCode: string | undefined, fallbackCategory
     return 'Equipamentos & Insumos Industriais';
   }
 
-  return fallbackCategory || 'Diversos & Sazonais';
+  return fallbackCategory ? normalizeToOfficialCategory(fallbackCategory) : 'Diversos & Sazonais';
 }
 
 /**
@@ -2339,81 +2582,81 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string, exist
     generatedPartNumber = pnMatch ? cleanAlphanumericCode(pnMatch[1]) : '';
   }
 
-  // Category, NCM, Cost & Image heuristics — Curadoria visual HD por categoria real
+  // Category, NCM, Cost & Image heuristics — Curadoria visual HD por categoria oficial
   let ncm = '';
-  let category = 'Geral';
+  let category = 'Diversos & Sazonais';
   let cost = 0;
   let defaultImage = resolveImageForDescription(cleanName);
   let supplier = '';
 
   if (query.includes('adega') || query.includes('vinho')) {
-    category = 'Eletrodomésticos & Refrigeração';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     ncm = '84185090';
     cost = 1890.00;
     defaultImage = 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Venax Oficial';
   } else if (query.includes('cervejeira') || query.includes('cerveja')) {
-    category = 'Refrigeração Comercial';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     ncm = '84185090';
     cost = 2150.00;
     defaultImage = 'https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Venax Brasil';
   } else if (query.includes('refrigerador') || query.includes('geladeira') || query.includes('frost free') || query.includes('bottom freez')) {
-    category = 'Eletrodomésticos & Refrigeração';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     ncm = '84181000';
     cost = 2890.00;
     defaultImage = 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Eletrolux & LG';
   } else if (query.includes('frigobar')) {
-    category = 'Eletrodomésticos & Refrigeração';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     ncm = '84182100';
     cost = 1450.00;
     defaultImage = 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Brastemp Loja Oficial';
   } else if (query.includes('coifa') || query.includes('depurador') || query.includes('exaustor')) {
-    category = 'Eletrodomésticos & Cozinha';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     ncm = '84146000';
     cost = 1680.00;
     defaultImage = 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Suggar Oficial';
   } else if (query.includes('cooktop') || query.includes('fogão') || query.includes('fogao')) {
-    category = 'Eletrodomésticos & Cozinha';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     ncm = '85166020';
     cost = 580.00;
     defaultImage = 'https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Philco & Fischer';
   } else if (query.includes('forno') || query.includes('microondas') || query.includes('micro-ondas')) {
-    category = 'Eletrodomésticos & Cozinha';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     ncm = query.includes('micro') ? '85165000' : '85166010';
     cost = 990.00;
     defaultImage = 'https://images.unsplash.com/photo-1585659722983-3a675dabf23d?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Eletrolux Store';
   } else if (query.includes('purificador') || query.includes('filtro') || query.includes('bebedouro')) {
-    category = 'Purificação & Tratamento de Água';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     ncm = '84212100';
     cost = 650.00;
     defaultImage = 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Eletrolux & IBBL';
   } else if (query.includes('smart tv') || query.includes('televis') || query.includes('polegadas') || query.includes('tv 65')) {
-    category = 'Áudio & Vídeo';
+    category = 'Monitores, Displays & TVs';
     ncm = '85287200';
     cost = 3490.00;
     defaultImage = 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Samsung & LG';
   } else if (query.includes('churrasqueira') || query.includes('grill') || query.includes('espetos')) {
-    category = 'Eletrodomésticos & Lazer';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     ncm = '85167990';
     cost = 1490.00;
     defaultImage = 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Fischer Oficial';
   } else if (query.includes('cirandinha') || query.includes('lavatório') || query.includes('lavatorio') || query.includes('poltrona') || query.includes('tulipa') || query.includes('salão') || query.includes('cabeçote')) {
-    category = 'Mobiliário Profissional & Beleza';
+    category = 'Construção, Acabamento & Marcenaria';
     ncm = '94021000';
     cost = 890.00;
     defaultImage = 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Móveis p/ Salão de Beleza';
   } else if (query.includes('kombi') || query.includes('direção') || query.includes('direcao') || query.includes('setor') || query.includes('veículo') || query.includes('carro') || query.includes('auto') || query.includes('motor') || query.includes('freio') || query.includes('suspensão') || query.includes('amortecedor') || query.includes('peça')) {
-    category = 'Autopeças & Mecânica';
+    category = 'Diversos & Sazonais';
     supplier = 'Mercado Livre / Distribuidora de Peças Automotivas';
     
     if (query.includes('direção') || query.includes('direcao') || query.includes('setor') || query.includes('caixa')) {
@@ -2438,55 +2681,55 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string, exist
     }
   } else if (query.includes('monitor') || query.includes('tela') || query.includes('display')) {
     ncm = '85285200';
-    category = 'Monitores';
+    category = 'Monitores, Displays & TVs';
     cost = 950.00;
     defaultImage = 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Distribuição Monitores';
   } else if (query.includes('impressora') || query.includes('toner') || query.includes('cartucho') || query.includes('multifuncional')) {
     ncm = '84433111';
-    category = 'Impressão';
+    category = 'Impressão & Automação Comercial';
     cost = 890.00;
     defaultImage = 'https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Fornecedores Oficiais';
   } else if (query.includes('ssd') || query.includes('disco') || query.includes('hd ') || query.includes('memória')) {
     ncm = '84717010';
-    category = 'Armazenamento';
+    category = 'Informática, Hardware & Periféricos';
     cost = 320.00;
     defaultImage = 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Kingston Brasil';
   } else if (query.includes('teclado') || query.includes('mouse') || query.includes('headset')) {
     ncm = '84716052';
-    category = 'Periféricos';
+    category = query.includes('headset') ? 'Áudio, Vídeo & Apresentação' : 'Informática, Hardware & Periféricos';
     cost = 180.00;
     defaultImage = 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Periféricos';
   } else if (query.includes('switch') || query.includes('roteador') || query.includes('cabo') || query.includes('rede')) {
     ncm = '85176239';
-    category = 'Redes';
+    category = 'Redes, Conectividade & Telefonia';
     cost = 650.00;
     defaultImage = 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Cisco & Mikrotik';
   } else if (query.includes('nobreak') || query.includes('estabilizador') || query.includes('fonte')) {
     ncm = '85044040';
-    category = 'Energia';
+    category = 'Energia, Nobreaks & Baterias';
     cost = 490.00;
     defaultImage = 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / APC & SMS';
   } else if (query.includes('organizador') || query.includes('suporte') || query.includes('mesa') || query.includes('cadeira')) {
     ncm = '39249000';
-    category = 'Mobiliário & Utensílios';
+    category = 'Eletrodomésticos, Refrigeração & Copa';
     cost = 95.00;
     defaultImage = 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=500&auto=format&fit=crop&q=80';
     supplier = 'Mercado Livre / Tramontina Store';
   } else if (query.includes('valvula') || query.includes('redutora') || query.includes('registro') || query.includes('bermad')) {
     ncm = '84811000';
-    category = 'Válvulas & Hidráulica Industrial';
+    category = 'Equipamentos & Insumos Industriais';
     cost = 1580.00;
     defaultImage = 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=500&auto=format&fit=crop&q=80';
     supplier = 'Distribuidor Especializado em Hidráulica';
   } else if (query.includes('junta') || query.includes('expansao') || query.includes('genebre') || query.includes('epdm')) {
     ncm = '40169990';
-    category = 'Conexões & Vedações Industriais';
+    category = 'Equipamentos & Insumos Industriais';
     cost = 480.00;
     defaultImage = 'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=500&auto=format&fit=crop&q=80';
     supplier = 'Distribuidor Genebre / Conexões';
@@ -2497,7 +2740,7 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string, exist
     partNumber: cleanAlphanumericCode(generatedPartNumber),
     ncm: cleanNcmCode(ncm),
     imageUrl: defaultImage,
-    category,
+    category: normalizeToOfficialCategory(category),
     estimatedCost: cost,
     supplier: '',
     sourceUrl: ''
