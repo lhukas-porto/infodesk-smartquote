@@ -48,6 +48,7 @@ import { normalizeToOfficialCategory } from '../utils/aiEmailParser';
 import {
   normalizeSearchText
 } from '../utils/aiEmailParser';
+import { exportContaAzulExcel } from '../utils/contaAzulExport';
 
 interface CatalogViewProps {
   products: Product[];
@@ -65,6 +66,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [isExportingContaAzul, setIsExportingContaAzul] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
 
   // Paginação e Ordenação (Padrão: Ordem Alfabética A-Z)
@@ -284,6 +286,20 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     });
   };
 
+  const handleExportContaAzul = async () => {
+    try {
+      setIsExportingContaAzul(true);
+      await exportContaAzulExcel(products);
+      setImportStatus('Planilha exportada com sucesso no formato oficial do Conta Azul!');
+      setTimeout(() => setImportStatus(null), 4000);
+    } catch (err: any) {
+      console.error('Erro ao exportar produtos para Conta Azul:', err);
+      alert('Erro ao exportar produtos: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setIsExportingContaAzul(false);
+    }
+  };
+
   const handleExportCSV = () => {
     const csv = Papa.unparse(products.map(p => ({
       Codigo: p.sku,
@@ -476,11 +492,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           </label>
 
           <button
-            onClick={handleExportCSV}
-            className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+            onClick={handleExportContaAzul}
+            disabled={isExportingContaAzul}
+            className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Exportar produtos no modelo oficial Conta Azul"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Exportar CSV</span>
+            <span>{isExportingContaAzul ? 'Exportando...' : 'Exportar XML'}</span>
           </button>
 
           <button
