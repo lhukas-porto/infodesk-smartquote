@@ -6,6 +6,7 @@ import {
   extractEmailFromText, 
   extractContactPersonFromText 
 } from '../utils/aiEmailParser';
+import { extractQuoteItemsWithAI } from './multiItemExtractorService';
 
 export interface ExtractedImageQuoteData {
   senderName: string;
@@ -108,7 +109,10 @@ function extractRef(text: string): string {
 
 function parseTableFormat(lines: string[]): ExtractedImageQuoteData['items'] {
   const items: ExtractedImageQuoteData['items'] = [];
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Padrão 1: linha com código, descrição, unidade e quantidade
     const rowMatch = line.match(
       /^(?:(\d{1,3})\s+)?(?:(\d{4,8})\s+)?([A-Za-z0-9À-ÿ\s/.,\-_()]{4,120}?)\s+(UN|PC|CX|PCT|KG|LT|MT|PAR|KIT|M)\s+([\d.,]+)/i
     );
@@ -126,6 +130,43 @@ function parseTableFormat(lines: string[]): ExtractedImageQuoteData['items'] {
           unit: unit.includes('CX') ? 'Cx.' : unit.includes('KG') ? 'Kg' : 'Un.',
           itemCode: code, partNumber: code, estimatedCost: 0
         });
+        continue;
+      }
+    }
+
+    // Padrão 2: linha de produto terminando com número de quantidade isolada (ex: "... Cores variadas 10")
+    const endNumMatch = line.match(/^([A-Za-z0-9À-ÿ\s/.,\-_()]{4,140}?)\s+(\d{1,4})$/);
+    if (endNumMatch) {
+      const desc = endNumMatch[1].trim();
+      const qty = parseInt(endNumMatch[2], 10) || 1;
+      if (desc.length >= 4 && !/^(total|subtotal|valor|p[aá]gina|item)/i.test(desc)) {
+        items.push({
+          name: desc,
+          description: '',
+          rawSearchQuery: desc,
+          quantity: qty,
+          unit: 'Un.',
+          estimatedCost: 0
+        });
+        continue;
+      }
+    }
+
+    // Padrão 3: linha de produto seguida na próxima linha por um número puro de quantidade
+    if (i + 1 < lines.length && /^\d{1,4}$/.test(lines[i + 1])) {
+      const desc = line.trim();
+      const qty = parseInt(lines[i + 1], 10) || 1;
+      if (desc.length >= 4 && !/^(total|subtotal|valor|p[aá]gina|item)/i.test(desc)) {
+        items.push({
+          name: desc,
+          description: '',
+          rawSearchQuery: desc,
+          quantity: qty,
+          unit: 'Un.',
+          estimatedCost: 0
+        });
+        i++; // Pula a linha com a quantidade já consumida
+        continue;
       }
     }
   }
@@ -155,6 +196,11 @@ function parseTableFormat(lines: string[]): ExtractedImageQuoteData['items'] {
 //   3. Extrair quantidade e referência do texto combinado
 
 function parseWhatsAppBlockFormat(rawText: string): ExtractedImageQuoteData['items'] {
+  // Guarda estrita: só processa como WhatsApp se contiver evidência real de chat (timestamps HH:MM)
+  if (!TIMESTAMP_RE.test(rawText) && !/\b\d{2}:\d{2}\b/.test(rawText)) {
+    return [];
+  }
+
   const items: ExtractedImageQuoteData['items'] = [];
 
   // Normalizar OCR: "ø" pode vir como "0", "O", "9", "o" em contexto de diâmetro
@@ -351,47 +397,56 @@ async function extractWithGeminiVision(
 
     const prompt = 
       'Você é um especialista sênior em cotações comerciais, suprimentos corporativos e compras públicas no Brasil.\n' +
-      'Analise a imagem desta cotação, pedido ou print com extrema precisão.\n\n' +
+      'Analise a imagem desta cotação, pedido, tabela ou print com extrema precisão e respeitando rigorosamente a separação por linhas e itens.\n\n' +
       'DIRETRIZES OBRIGATÓRIAS:\n' +
-      '0. SEPARAÇÃO EM LINHAS / BORDAS DE TABELA / PRINTS (MÁXIMA ATENÇÃO):\n' +
-      '   - Se a imagem for um print de tela, documento digital, tabela ou pedido de cotação com múltiplos itens:\n' +
-      '   - Observe com rigor as LINHAS HORIZONTAIS e BORDAS que separam os itens.\n' +
-      '   - Cada linha ou bloco delimitado por linhas horizontais representa UM ITEM SEPARADO.\n' +
-      '   - Se a descrição de um item for extensa e ocupar várias linhas verticais dentro da mesma linha/célula da tabela: agrupe todo esse texto na descrição DAQUELE ITEM ESPECÍFICO. NÃO fragmente em itens fictícios e NÃO ignore os outros produtos da tabela!\n' +
-      '   - Extraia TODOS os produtos presentes na tabela/print (ex: se houver 4 itens separados por linhas, você DEVE retornar exatamente os 4 itens no array "items").\n' +
-      '1. PRIORIDADE VISUAL DA FOTO DO PRODUTO: Se a imagem contiver uma foto real do produto físico (ex: carrinho plataforma, equipamento, máquina ou peça), ANALISE ATENTAMENTE A FOTO PRIMEIRO: formato do chassi, presença de grade (fixa ou móvel aramada), tipo exato de rodas/rodízios (pneumáticas com câmara vs borracha maciça), acabamento e cores. O nome e descrição DEVEM descrever fielmente o produto físico visível na foto com máxima especificidade comercial.\n' +
-      '2. NOMENCLATURA PADRONIZADA DE CATÁLOGO / FABRICANTE: Para cada produto, defina um nome canônico e profissional no padrão:\n' +
+      '0. TABELAS COM LINHAS HORIZONTAIS E BORDAS (PRIORIDADE MÁXIMA):\n' +
+      '   - Se a imagem contiver uma grade ou tabela separada por linhas horizontais (pretas ou cinzas):\n' +
+      '   - CADA LINHA DA TABELA REPRESENTA UM ITEM SEPARADO E INDEPENDENTE.\n' +
+      '   - Em cada linha da tabela:\n' +
+      '     * Se a célula de descrição tiver 2 ou mais linhas verticais de texto (ex: título e especificação), junte o texto DAQUELA CÉLULA como o nome/descrição daquele produto específico.\n' +
+      '     * A coluna da direita ou coluna numérica indica a QUANTIDADE EXATA DAQUELE PRODUTO.\n' +
+      '     * Exemplo prático de leitura correta:\n' +
+      '       Linha 1 da tabela com texto: "Feltro - 10 Metros 2 de cada" e "feltro artesanato estampa natalina Cores variadas", e na coluna de quantidade o número "10"\n' +
+      '       -> Item 1: Name: "Feltro Artesanato Estampa Natalina Cores Variadas 10 Metros", Quantity: 10, Unit: "Un."\n' +
+      '       Linha 2 da tabela com texto: "Linha Encanto Cor Ouro - Dourada - 128 Mts Circulo (04)" e "Linha Encanto Cor Dourada - 128 Mts Circulo (04)", e na coluna de quantidade o número "8"\n' +
+      '       -> Item 2: Name: "Linha Encanto Cor Ouro Dourada 128 Mts Círculo", Quantity: 8, Unit: "Un."\n' +
+      '   - É TERMINANTEMENTE PROIBIDO aglutinar produtos de linhas diferentes em uma única linha ou único item!\n' +
+      '   - Extraia TODOS os produtos presentes na tabela/print (se houver N linhas de itens na tabela, você DEVE retornar exatamente N itens no array "items").\n' +
+      '1. PRIORIDADE VISUAL DA FOTO DO PRODUTO: Se a imagem contiver uma foto real do produto físico, analise chassi, especificações e descreva fielmente.\n' +
+      '2. NOMENCLATURA PADRONIZADA: Para cada produto, defina um nome canônico e profissional no padrão:\n' +
       '   [Tipo do Produto] [Marca] [Linha Especificação Sabor] [Embalagem Gramatura Tamanho]\n' +
-      '   - REGRA DE OURO DE PONTUAÇÃO: NUNCA use vírgulas (,) no nome ou descrição dos produtos. Traços, hífens (-), barras e outros símbolos são totalmente permitidos quando fizerem parte do modelo, código, part number ou especificação.\n' +
-      '   - Exemplo CORRETO de Café: "Café Torrado e Moído Tradicional Vácuo 500g Café do Sítio"\n' +
-      '   - Exemplo CORRETO de Chá: "Chá Twinings Sabores Diversos Caixa com 100 Sachês"\n' +
-      '   - PROIBIDO inventar palavras desnecessárias (ex: não troque para "Chá Preto e Verde", use o termo canônico solicitado: "Chá Twinings Sabores Diversos Caixa com 100 Sachês").\n' +
-      '   - PROIBIDO nomes informais ou redundantes como "Kit de chá", "Kit de...", ou duplicar a descrição dentro do nome.\n' +
-      '3. QUANTIDADES: Identifique com precisão absoluta a quantidade solicitada (ex: se na linha ou tabela constar 500 pct, quantidade = 500, unit = "Pct"). Não deixe passar pedidos em lote.\n' +
-      '4. NCM FISCAL REAL: Sugira o NCM exato do produto (ex: café torrado = 0901.21.00; chá preto/aromatizado = 0902.30.00; eletrônicos = 84/85; utilidades plásticas = 3924.90.00).\n' +
-      '5. DADOS DO CLIENTE: Identifique órgão, empresa solicitante, comprador, e-mail, telefone e cidade de entrega se visíveis.\n\n' +
+      '   - REGRA DE PONTUAÇÃO: NUNCA use vírgulas (,) no nome dos produtos.\n' +
+      '3. QUANTIDADES: Identifique com precisão absoluta a quantidade solicitada (ex: se na linha constar 10, quantity = 10; se 8, quantity = 8).\n' +
+      '4. NCM FISCAL: Sugira o NCM aproximado do produto se identificável.\n' +
+      '5. DADOS DO CLIENTE: Identifique órgão, solicitante e local se visíveis.\n\n' +
       'Retorne ESTRITAMENTE um JSON com esta estrutura:\n' +
       '{\n' +
-      '  "senderCompany": "Nome da empresa ou órgão comprador",\n' +
-      '  "senderName": "Nome do comprador ou solicitante",\n' +
+      '  "senderCompany": "Nome da empresa se houver",\n' +
+      '  "senderName": "Nome do solicitante se houver",\n' +
       '  "senderEmail": "email se houver",\n' +
       '  "senderPhone": "telefone se houver",\n' +
-      '  "deliveryLocation": "Cidade/UF de entrega",\n' +
+      '  "deliveryLocation": "Cidade de entrega se houver",\n' +
       '  "subject": "Cotação de Materiais",\n' +
       '  "items": [\n' +
       '    {\n' +
-      '      "name": "Nome canônico do produto com ortografia e acentuação da língua portuguesa estritamente preservadas (ex: Lápis, Memória, Válvula, Café)",\n' +
-      '      "description": "Especificação técnica detalhada com acentuação correta",\n' +
-      '      "quantity": 500,\n' +
-      '      "unit": "Pct",\n' +
-      '      "partNumber": "código ou SKU do fabricante se houver",\n' +
-      '      "ncm": "0901.21.00",\n' +
-      '      "estimatedCost": 22.50\n' +
+      '      "name": "Nome do Produto",\n' +
+      '      "description": "Especificação técnica do item",\n' +
+      '      "quantity": 10,\n' +
+      '      "unit": "Un.",\n' +
+      '      "partNumber": "código se houver",\n' +
+      '      "ncm": "5602.29.00",\n' +
+      '      "estimatedCost": 0\n' +
       '    }\n' +
       '  ]\n' +
       '}';
 
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const modelsToTry = [
+      'gemini-flash-lite-latest',
+      'gemini-3.6-flash',
+      'gemini-flash-latest',
+      'gemini-3.1-flash-lite',
+      'gemini-3.5-flash'
+    ];
     for (const model of modelsToTry) {
       try {
         const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
@@ -513,21 +568,45 @@ export async function extractDataFromQuotationImage(
   const senderName = extractContactPersonFromText(ocrText);
   const deliveryLocation = extractDeliveryLocation(ocrText) || 'Brasília';
 
-  // Cascata de parsers
-  const lines = ocrText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  // ─── 2.1 Fallback inteligente: Estruturação do texto OCR com Gemini ─────────
   let items: ExtractedImageQuoteData['items'] = [];
-
-  // 1ª: Tabela estruturada (planilha/PDF)
-  items = parseTableFormat(lines);
-
-  // 2ª: Print de WhatsApp
-  if (items.length === 0) {
-    items = parseWhatsAppBlockFormat(ocrText);
+  if (geminiKey && ocrText.trim().length > 10) {
+    try {
+      onProgress?.(92, 'Gemini organizando linhas e quantidades do texto...');
+      const parsedAi = await extractQuoteItemsWithAI(ocrText, geminiKey);
+      if (parsedAi.items && parsedAi.items.length > 0) {
+        items = parsedAi.items.map(it => ({
+          name: it.name,
+          description: it.description || '',
+          rawSearchQuery: `${it.name} ${it.partNumber || ''}`.trim(),
+          quantity: Number(it.quantity) || 1,
+          unit: it.unit || 'Un.',
+          partNumber: it.partNumber,
+          itemCode: it.itemCode || it.partNumber,
+          estimatedCost: it.estimatedCost || 0
+        }));
+      }
+    } catch (errAi) {
+      console.warn('[imageQuoteParser] Fallback Gemini no texto OCR falhou:', errAi);
+    }
   }
 
-  // 3ª: Fallback liberal
+  // ─── 2.2 Fallback determinístico caso o Gemini não tenha retornado itens ──────
   if (items.length === 0) {
-    items = parseLiberalFallback(lines);
+    const lines = ocrText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+    // 1ª: Tabela estruturada (planilha/PDF/documento)
+    items = parseTableFormat(lines);
+
+    // 2ª: Print de WhatsApp (apenas se houver marcas de chat)
+    if (items.length === 0) {
+      items = parseWhatsAppBlockFormat(ocrText);
+    }
+
+    // 3ª: Fallback liberal
+    if (items.length === 0) {
+      items = parseLiberalFallback(lines);
+    }
   }
 
   onProgress?.(100, `Concluído! ${items.length} iten${items.length !== 1 ? 's' : ''} encontrado${items.length !== 1 ? 's' : ''}.`);

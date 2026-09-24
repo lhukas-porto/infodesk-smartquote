@@ -795,6 +795,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
           const combined = `${cleanName}${extraDesc}`
             .replace(/(?:\.º|\d+\s*\.º|º|\*\s*—|•|▪|→)/g, ' ')
             .replace(/,/g, ' ')
+            .replace(/\r?\n/g, ' ')
             .replace(/\s{2,}/g, ' ')
             .trim();
 
