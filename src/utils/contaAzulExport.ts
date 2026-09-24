@@ -209,12 +209,7 @@ export async function exportContaAzulExcel(products: Product[], defaultMarkup = 
     row.commit();
   });
 
-  // 3. Gerar arquivo e baixar
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const yy = String(now.getFullYear()).slice(-2);
-  const suggestedFilename = `[Conta Azul] Planilha modelo - Cadastro de produtos - PREENCHIDA_${dd}${mm}${yy}.xlsx`;
+  const suggestedFilename = 'Planilha de exportação para Conta Azul.xlsx';
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
