@@ -600,6 +600,27 @@ export const saveCompanyPrefixPreference = (id: string, name: string, prefix: '�
 };
 
 const DELETED_CONTACT_IDS_KEY = 'infodesk_deleted_contact_ids';
+const DELETED_COMPANY_IDS_KEY = 'infodesk_deleted_company_ids';
+
+export const getDeletedCompanyIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_COMPANY_IDS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch { /* noop */ }
+  return new Set();
+};
+
+export const recordDeletedCompanyId = (companyId: string): void => {
+  if (!companyId) return;
+  try {
+    const set = getDeletedCompanyIds();
+    set.add(companyId);
+    localStorage.setItem(DELETED_COMPANY_IDS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
 
 export const getDeletedContactIds = (): Set<string> => {
   try {
@@ -653,11 +674,18 @@ export const deduplicateCompanyContacts = (contacts: ClientContact[]): ClientCon
 export const getClientCompanies = (): ClientCompany[] => {
   try {
     const prefixMap = getCompanyPrefixesMap();
+    const deletedCompanyIds = getDeletedCompanyIds();
     const saved = localStorage.getItem(CLIENT_COMPANIES_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(c => {
+        return parsed
+          .filter(c => {
+            if (!c || !c.name) return false;
+            const lower = c.name.toLowerCase();
+            return !deletedCompanyIds.has(c.id) && !lower.includes('empresa teste') && !c.id?.startsWith('comp-test');
+          })
+          .map(c => {
           let locs = Array.isArray(c.locations) && c.locations.length > 0 
             ? c.locations 
             : (c.defaultDeliveryLocation ? [c.defaultDeliveryLocation] : ['Brasília']);
@@ -722,7 +750,13 @@ export const saveClientCompanies = (companies: ClientCompany[]): void => {
       localStorage.setItem(COMPANY_PREFIXES_KEY, JSON.stringify(prefixMap));
     } catch { /* noop */ }
 
+    const deletedCompanyIds = getDeletedCompanyIds();
     const normalized = companies
+      .filter(comp => {
+        if (!comp || !comp.name) return false;
+        const lower = comp.name.toLowerCase();
+        return !deletedCompanyIds.has(comp.id) && !lower.includes('empresa teste') && !comp.id?.startsWith('comp-test');
+      })
       .map(comp => {
         const clean = (comp.name || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
         const pref = comp.prefix || prefixMap[comp.id] || prefixMap[clean] || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
@@ -763,9 +797,12 @@ export const registerOrUpdateClient = (
 ): ClientCompany[] => {
   if (!companyName || !companyName.trim()) return getClientCompanies();
 
-  const companies = getClientCompanies();
   const cleanCompanyName = companyName.replace(/^(ao|à|a|para)\s+/i, '').trim();
+  if (cleanCompanyName.toLowerCase().includes('empresa teste')) {
+    return getClientCompanies();
+  }
   
+  const companies = getClientCompanies();
   let comp = companies.find(c => 
     c.name.toLowerCase() === cleanCompanyName.toLowerCase() ||
     c.name.toLowerCase().includes(cleanCompanyName.toLowerCase()) ||

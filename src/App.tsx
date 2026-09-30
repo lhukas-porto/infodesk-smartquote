@@ -54,7 +54,9 @@ import {
   saveRegisteredUnitsList,
   deduplicateCompanyContacts,
   getDeletedContactIds,
-  recordDeletedContactId
+  recordDeletedContactId,
+  getDeletedCompanyIds,
+  recordDeletedCompanyId
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -281,6 +283,7 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteCompany = async (companyId: string) => {
+    recordDeletedCompanyId(companyId);
     const updated = clientCompanies.filter(c => c.id !== companyId);
     setClientCompanies(updated);
     saveClientCompanies(updated);
@@ -497,6 +500,7 @@ export const App: React.FC = () => {
           const localById = new Map<string, ClientCompany>();
           const localByName = new Map<string, ClientCompany>();
           const deletedContactIds = getDeletedContactIds();
+          const deletedCompanyIds = getDeletedCompanyIds();
 
           localCompanies.forEach(c => {
             localById.set(c.id, c);
@@ -504,7 +508,14 @@ export const App: React.FC = () => {
             localByName.set(clean, c);
           });
 
-          const mergedCompanies = remoteCompanies.map(rc => {
+          // Filtra empresas remotas contra IDs excluídos e dados de teste
+          const sanitizedRemote = remoteCompanies.filter(rc => {
+            if (!rc || !rc.name) return false;
+            const lower = rc.name.toLowerCase();
+            return !deletedCompanyIds.has(rc.id) && !lower.includes('empresa teste') && !rc.id?.startsWith('comp-test');
+          });
+
+          const mergedCompanies = sanitizedRemote.map(rc => {
             const clean = rc.name.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
             const local = localById.get(rc.id) || localByName.get(clean);
 
@@ -536,16 +547,20 @@ export const App: React.FC = () => {
             };
           });
 
-          // Preservar novas empresas criadas localmente que ainda não estão no banco
-          const remoteIds = new Set(remoteCompanies.map(r => r.id));
-          const localOnlyCompanies = localCompanies.filter(lc => !remoteIds.has(lc.id));
+          // Preservar novas empresas criadas localmente que ainda não estão no banco (ignorando testes e deletadas)
+          const remoteIds = new Set(sanitizedRemote.map(r => r.id));
+          const localOnlyCompanies = localCompanies.filter(lc => {
+            if (!lc || !lc.name) return false;
+            const lower = lc.name.toLowerCase();
+            return !remoteIds.has(lc.id) && !deletedCompanyIds.has(lc.id) && !lower.includes('empresa teste') && !lc.id?.startsWith('comp-test');
+          });
           const finalCompanies = [...mergedCompanies, ...localOnlyCompanies];
 
           setClientCompanies(finalCompanies);
           saveClientCompanies(finalCompanies);
 
           // Sincroniza de volta para o Supabase apenas se houver empresas 100% novas locais
-          if (localOnlyCompanies.length > 0 || finalCompanies.some(c => c.website && !remoteCompanies.find(rc => rc.id === c.id)?.website)) {
+          if (localOnlyCompanies.length > 0 || finalCompanies.some(c => c.website && !sanitizedRemote.find(rc => rc.id === c.id)?.website)) {
             syncClientCompaniesToSupabase(finalCompanies).catch(() => {});
           }
         }

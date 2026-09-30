@@ -632,7 +632,13 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
       });
     });
 
-    return companiesData.map((c: any) => {
+    const validCompaniesData = companiesData.filter((c: any) => {
+      const lower = (c.name || '').toLowerCase();
+      if (lower.includes('empresa teste') || c.id?.startsWith('comp-test')) return false;
+      return true;
+    });
+
+    return validCompaniesData.map((c: any) => {
       const rawLocations: string[] = Array.isArray(c.locations) && c.locations.length > 0 
         ? c.locations 
         : [c.default_delivery_location || 'Brasília'];
@@ -687,9 +693,20 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
 
 export async function syncClientCompaniesToSupabase(companies: ClientCompany[]): Promise<void> {
   if (!supabase || !companies || companies.length === 0) return;
+  // Proteção contra poluição em ambiente de testes automatizados
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') return;
+
   try {
+    // Filtro contra empresas fictícias de teste
+    const validCompanies = companies.filter(comp => {
+      const lower = (comp.name || '').toLowerCase();
+      if (lower.includes('empresa teste') || comp.id?.startsWith('comp-test')) return false;
+      return true;
+    });
+    if (validCompanies.length === 0) return;
+
     // 1. Batch upsert de todas as empresas (com website e logo serializados de forma compatível)
-    const companiesPayload = companies.map(comp => {
+    const companiesPayload = validCompanies.map(comp => {
       const cleanLocs = (comp.locations || [comp.defaultDeliveryLocation || 'Brasília'])
         .map(l => String(l || '').trim())
         .filter(l => Boolean(l) && !l.toLowerCase().startsWith('website:') && !l.toLowerCase().startsWith('site:') && !l.toLowerCase().startsWith('logo:') && !l.startsWith('http://') && !l.startsWith('https://'));
