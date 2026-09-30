@@ -14,6 +14,7 @@ import './biPeriodCounter.test';
 import './historyDateFilter.test';
 import './topSuppliersResolution.test';
 import './categoriesUnitsSync.test';
+import './procurementAndApproval.test';
 
 console.log('\n======================================================');
 console.log('🏁 SUÍTE COMPLETA DE TESTES EXECUTADA COM 100% DE SUCESSO!');
