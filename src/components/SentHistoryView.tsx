@@ -26,11 +26,14 @@ import {
   Package,
   Calendar,
   CalendarDays,
-  Copy
+  Copy,
+  PackageCheck,
+  ShoppingCart
 } from 'lucide-react';
 import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
 import { parseQuoteTimestamp, isSameDay } from './DashboardView';
+import { QuoteApprovalModal } from './QuoteApprovalModal';
 
 interface SentHistoryViewProps {
   quotes: Quote[];
@@ -39,6 +42,8 @@ interface SentHistoryViewProps {
   onDuplicateQuote?: (quote: Quote) => void | Promise<void>;
   onDeleteQuote?: (quote: Quote) => void;
   onUpdateQuoteStatus?: (quoteId: string, newStatus: Quote['status']) => void;
+  onUpdateQuote?: (updatedQuote: Quote) => void;
+  onNavigateToPurchases?: () => void;
   initialStageFilter?: StageId | 'all';
   onStageFilterChange?: (stage: StageId | 'all') => void;
 }
@@ -118,9 +123,12 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   onDuplicateQuote,
   onDeleteQuote,
   onUpdateQuoteStatus,
+  onUpdateQuote,
+  onNavigateToPurchases,
   initialStageFilter = 'all',
   onStageFilterChange
 }) => {
+  const [quoteForApproval, setQuoteForApproval] = useState<Quote | null>(null);
   const [dateFilter, setDateFilter] = useState<HistoryDateFilter>(() => {
     const now = new Date();
     const hasTodayOrDraft = (quotes || []).some(q => 
@@ -847,7 +855,9 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                if (onUpdateQuoteStatus) {
+                                if (stage.id === 'approved') {
+                                  setQuoteForApproval(q);
+                                } else if (onUpdateQuoteStatus) {
                                   onUpdateQuoteStatus(q.id, stage.id);
                                 }
                               }}
@@ -868,6 +878,19 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                         );
                       })}
                     </div>
+
+                    {/* Botão de Gestão de Itens Aprovados quando a proposta está Ganha */}
+                    {currentStage === 'approved' && (
+                      <button
+                        type="button"
+                        onClick={() => setQuoteForApproval(q)}
+                        className="text-[11px] text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 font-bold px-2.5 py-1 rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="Ver e ajustar itens aprovados desta proposta"
+                      >
+                        <PackageCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Itens Aprovados</span>
+                      </button>
+                    )}
 
                     {/* Opção discreta de marcar como Perdida */}
                     {currentStage === 'lost' ? (
@@ -1026,6 +1049,23 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Confirmação e Seleção de Itens Aprovados */}
+      {quoteForApproval && (
+        <QuoteApprovalModal
+          quote={quoteForApproval}
+          isOpen={Boolean(quoteForApproval)}
+          onClose={() => setQuoteForApproval(null)}
+          onConfirmApproval={(updatedQuote) => {
+            if (onUpdateQuote) {
+              onUpdateQuote(updatedQuote);
+            } else if (onUpdateQuoteStatus) {
+              onUpdateQuoteStatus(updatedQuote.id, 'approved');
+            }
+            setQuoteForApproval(null);
+          }}
+        />
       )}
 
     </div>

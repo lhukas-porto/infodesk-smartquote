@@ -9,13 +9,14 @@ import {
   History,
   BarChart3,
   Clock,
-  Cloud
+  Cloud,
+  ShoppingCart
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 
 interface NavbarProps {
-  activeTab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard';
-  setActiveTab: (tab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard') => void;
+  activeTab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard' | 'purchases';
+  setActiveTab: (tab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard' | 'purchases') => void;
   unreadCount: number;
   openSettings: () => void;
   openWebSearch?: () => void;
@@ -25,6 +26,7 @@ interface NavbarProps {
   analysesCount?: number;
   isScannerOpen?: boolean;
   draftsCount?: number;
+  pendingPurchasesCount?: number;
   onOpenDraftsHistory?: () => void;
 }
 
@@ -40,6 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   analysesCount = 0,
   isScannerOpen = false,
   draftsCount = 0,
+  pendingPurchasesCount = 0,
   onOpenDraftsHistory
 }) => {
   return (
@@ -165,6 +168,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <History className="w-3.5 h-3.5 text-sky-600" />
                 <span>Histórico</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('purchases')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                  activeTab === 'purchases'
+                    ? 'bg-white text-emerald-700 border border-slate-200 shadow-xs font-semibold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+                title="Central de Compras & Conciliação de Lucro de Propostas Aprovadas"
+              >
+                <ShoppingCart className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Compras</span>
+                {pendingPurchasesCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white text-[10px] font-bold rounded-full animate-pulse">
+                    {pendingPurchasesCount}
+                  </span>
+                )}
               </button>
 
               <button

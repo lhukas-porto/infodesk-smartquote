@@ -446,3 +446,251 @@ export async function exportCostSheetToExcel(quote: Quote, dollarRate?: number):
     URL.revokeObjectURL(url);
   }, 1000);
 }
+
+/**
+ * Exporta a planilha de compras e conciliação de lucro no padrão idêntico
+ * à planilha oficial de Lucas Porto (Infodesk): "Compras 2026.xlsx".
+ */
+export async function exportPurchasesToExcel(
+  items: import('../types').ProcurementItem[],
+  selectedMonthName?: string,
+  year = new Date().getFullYear()
+): Promise<void> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Infodesk SmartQuote';
+  workbook.lastModifiedBy = 'Lucas Porto';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+
+  const monthNames = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril',
+    'Maio', 'Junho', 'Julho', 'Agosto',
+    'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+
+  // Agrupa os itens por mês (ou todos no mês selecionado)
+  const itemsByMonth: Record<string, import('../types').ProcurementItem[]> = {};
+  monthNames.forEach(m => { itemsByMonth[m] = []; });
+
+  items.forEach(it => {
+    const dateStr = it.purchasedAt || it.approvedAt || new Date().toISOString();
+    const d = new Date(dateStr);
+    const mIdx = isNaN(d.getTime()) ? new Date().getMonth() : d.getMonth();
+    const mName = monthNames[mIdx] || 'Janeiro';
+    if (!itemsByMonth[mName]) itemsByMonth[mName] = [];
+    itemsByMonth[mName].push(it);
+  });
+
+  const sheetsToCreate = selectedMonthName && selectedMonthName !== 'all'
+    ? [selectedMonthName]
+    : monthNames;
+
+  for (const monthName of sheetsToCreate) {
+    const monthItems = itemsByMonth[monthName] || [];
+    const worksheet = workbook.addWorksheet(monthName, {
+      views: [{ showGridLines: true }]
+    });
+
+    // Largura das colunas (Col A e B são margens; Col C a M são dados)
+    worksheet.columns = [
+      { key: 'colA', width: 4 },   // A
+      { key: 'colB', width: 4 },   // B
+      { key: 'colC', width: 14 },  // C: Data
+      { key: 'colD', width: 16 },  // D: Forma de pgto
+      { key: 'colE', width: 22 },  // E: Cliente
+      { key: 'colF', width: 50 },  // F: Produto
+      { key: 'colG', width: 18 },  // G: Fornecedor
+      { key: 'colH', width: 15 },  // H: Custo
+      { key: 'colI', width: 13 },  // I: Frete
+      { key: 'colJ', width: 15 },  // J: Venda
+      { key: 'colK', width: 14 },  // K: Imposto
+      { key: 'colL', width: 16 },  // L: Lucro Líquido
+      { key: 'colM', width: 14 }   // M: Porcentagem
+    ];
+
+    // Linha 1: Cabeçalho com Resumo do Mês
+    worksheet.getCell('N1').value = 'Mês';
+    worksheet.getCell('O1').value = 'Ano';
+    worksheet.getCell('P1').value = 'Média';
+    worksheet.getCell('Q1').value = '% Média';
+    worksheet.getRow(1).font = { name: 'Calibri', size: 10, bold: true };
+
+    // Linha 2: Cabeçalho das Colunas
+    worksheet.getCell('C2').value = 'Data';
+    worksheet.getCell('D2').value = 'Forma de pgto';
+    worksheet.getCell('E2').value = 'Cliente';
+    worksheet.getCell('F2').value = 'Produto';
+    worksheet.getCell('G2').value = 'Fornecedor';
+    worksheet.getCell('H2').value = 'Custo';
+    worksheet.getCell('I2').value = 'Frete';
+    worksheet.getCell('J2').value = 'Venda';
+    worksheet.getCell('K2').value = 'Imposto';
+    worksheet.getCell('L2').value = 'Lucro Líquido';
+    worksheet.getCell('M2').value = 'Porcentagem';
+
+    const headerRow = worksheet.getRow(2);
+    headerRow.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1E293B' } };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // Formatação de Cabeçalho com preenchimento sutil
+    ['C2', 'D2', 'E2', 'F2', 'G2', 'H2', 'I2', 'J2', 'K2', 'L2', 'M2'].forEach(cellRef => {
+      worksheet.getCell(cellRef).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' }
+      };
+      worksheet.getCell(cellRef).border = {
+        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        bottom: { style: 'medium', color: { argb: 'FF94A3B8' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+      };
+    });
+
+    let currentRow = 4; // Começa na linha 4, exatamente como no arquivo original
+
+    monthItems.forEach(item => {
+      const row = worksheet.getRow(currentRow);
+      const dateFormatted = (item.purchasedAt || item.approvedAt || '').split('T')[0];
+
+      // C: Data
+      row.getCell('C').value = dateFormatted || new Date().toISOString().split('T')[0];
+      row.getCell('C').alignment = { horizontal: 'center' };
+
+      // D: Forma de Pgto
+      row.getCell('D').value = item.paymentMethod || 'PIX';
+      row.getCell('D').alignment = { horizontal: 'center' };
+
+      // E: Cliente
+      row.getCell('E').value = item.clientCompany || '-';
+
+      // F: Produto (Quantidade + Nome)
+      row.getCell('F').value = `${item.quantity} ${item.name}`;
+
+      // G: Fornecedor
+      row.getCell('G').value = item.supplier || 'Mercado Livre';
+
+      // H: Custo (Total pago na mercadoria)
+      const costTotal = item.actualCostPrice !== undefined
+        ? item.actualCostPrice
+        : (item.quotedCostPrice * item.quantity);
+      row.getCell('H').value = Number(costTotal.toFixed(2));
+      row.getCell('H').numFmt = 'R$ #,##0.00';
+
+      // I: Frete
+      const frete = item.actualShippingCost !== undefined ? item.actualShippingCost : 0;
+      row.getCell('I').value = frete > 0 ? Number(frete.toFixed(2)) : null;
+      row.getCell('I').numFmt = 'R$ #,##0.00';
+
+      // J: Venda (Valor total cobrado do cliente)
+      const vendaTotal = item.quotedTotalPrice;
+      row.getCell('J').value = Number(vendaTotal.toFixed(2));
+      row.getCell('J').numFmt = 'R$ #,##0.00';
+
+      // K: Imposto (Fórmula: J*9.05%)
+      row.getCell('K').value = { formula: `J${currentRow}*9.05%` };
+      row.getCell('K').numFmt = 'R$ #,##0.00';
+
+      // L: Lucro Líquido (Fórmula: IF(H>0, J - K - IF(ISBLANK(I),0,I) - H, 0))
+      row.getCell('L').value = { formula: `IF(H${currentRow}>0, J${currentRow}-K${currentRow}-IF(ISBLANK(I${currentRow}),0,I${currentRow})-H${currentRow}, 0)` };
+      row.getCell('L').numFmt = 'R$ #,##0.00';
+
+      // M: Porcentagem ROI (Fórmula: J / (IF(ISBLANK(I),0,I) + H + K) - 1)
+      row.getCell('M').value = { formula: `IF((H${currentRow}+K${currentRow})>0, J${currentRow}/(IF(ISBLANK(I${currentRow}),0,I${currentRow})+H${currentRow}+K${currentRow})-1, 0)` };
+      row.getCell('M').numFmt = '0.00%';
+
+      // Formatação visual da linha
+      row.font = { name: 'Calibri', size: 10 };
+      ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'].forEach(col => {
+        row.getCell(col).border = {
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        };
+      });
+
+      currentRow++;
+    });
+
+    // Linha de Totais se houver itens
+    if (monthItems.length > 0) {
+      const lastItemRow = currentRow - 1;
+      const totalRow = worksheet.getRow(currentRow + 1);
+      totalRow.getCell('E').value = 'TOTAL:';
+      totalRow.getCell('E').font = { bold: true };
+      totalRow.getCell('E').alignment = { horizontal: 'right' };
+
+      totalRow.getCell('H').value = { formula: `SUM(H4:H${lastItemRow})` };
+      totalRow.getCell('H').numFmt = 'R$ #,##0.00';
+      totalRow.getCell('H').font = { bold: true };
+
+      totalRow.getCell('I').value = { formula: `SUM(I4:I${lastItemRow})` };
+      totalRow.getCell('I').numFmt = 'R$ #,##0.00';
+      totalRow.getCell('I').font = { bold: true };
+
+      totalRow.getCell('J').value = { formula: `SUM(J4:J${lastItemRow})` };
+      totalRow.getCell('J').numFmt = 'R$ #,##0.00';
+      totalRow.getCell('J').font = { bold: true, color: { argb: 'FF15803D' } };
+
+      totalRow.getCell('K').value = { formula: `SUM(K4:K${lastItemRow})` };
+      totalRow.getCell('K').numFmt = 'R$ #,##0.00';
+      totalRow.getCell('K').font = { bold: true };
+
+      totalRow.getCell('L').value = { formula: `SUM(L4:L${lastItemRow})` };
+      totalRow.getCell('L').numFmt = 'R$ #,##0.00';
+      totalRow.getCell('L').font = { bold: true, color: { argb: 'FF0369A1' } };
+
+      totalRow.getCell('M').value = { formula: `AVERAGE(M4:M${lastItemRow})` };
+      totalRow.getCell('M').numFmt = '0.00%';
+      totalRow.getCell('M').font = { bold: true };
+
+      ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'].forEach(col => {
+        totalRow.getCell(col).border = {
+          top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          bottom: { style: 'double', color: { argb: 'FF475569' } }
+        };
+      });
+    }
+  }
+
+  // Gera e faz o download do arquivo
+  const filename = `Compras ${year}.xlsx`;
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+
+  if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
+    try {
+      const fileHandle = await (window as any).showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          {
+            description: 'Planilha do Excel (*.xlsx)',
+            accept: {
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+            }
+          }
+        ]
+      });
+
+      const writableStream = await fileHandle.createWritable();
+      await writableStream.write(blob);
+      await writableStream.close();
+      return;
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      console.warn('showSaveFilePicker fallback:', err);
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
+

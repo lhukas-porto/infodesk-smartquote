@@ -10,6 +10,7 @@ import { EmailSendModal } from './components/EmailSendModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ClientManagementView } from './components/ClientManagementView';
 import { ManualAnalysesView } from './components/ManualAnalysesView';
+import { ProcurementView } from './components/ProcurementView';
 import { 
   DashboardView, 
   isSameDay, 
@@ -109,9 +110,9 @@ import {
   recalculateQuoteTotals 
 } from './services/pricingEngine';
 
-export type TabType = 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard';
+export type TabType = 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard' | 'purchases';
 
-const VALID_TABS: TabType[] = ['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients', 'dashboard'];
+const VALID_TABS: TabType[] = ['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients', 'dashboard', 'purchases'];
 
 const getTabFromHash = (): TabType | null => {
   if (typeof window === 'undefined') return null;
@@ -184,6 +185,21 @@ export const App: React.FC = () => {
     return updatedQuotes;
   });
   const [historyStageFilter, setHistoryStageFilter] = useState<'all' | 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost'>('all');
+
+  // Quantidade de produtos aprovados pendentes de compra para o badge na Navbar
+  const pendingPurchasesCount = useMemo(() => {
+    let count = 0;
+    (quotes || []).forEach(q => {
+      const isApproved = q.status === 'approved';
+      (q.items || []).forEach(it => {
+        const isItemApproved = it.approved === true || (isApproved && it.approved !== false);
+        if (isItemApproved && it.purchaseStatus !== 'purchased' && it.purchaseStatus !== 'delivered') {
+          count++;
+        }
+      });
+    });
+    return count;
+  }, [quotes]);
 
   // Garante que qualquer rascunho com data anterior seja atualizado para a data de hoje
   useEffect(() => {
@@ -1757,6 +1773,7 @@ export const App: React.FC = () => {
         onNewQuote={handleNewQuote}
         analysesCount={manualAnalyses.length}
         draftsCount={draftQuotesCount}
+        pendingPurchasesCount={pendingPurchasesCount}
         onOpenDraftsHistory={() => {
           setHistoryStageFilter('draft');
           setActiveTab('history');
@@ -1964,6 +1981,45 @@ export const App: React.FC = () => {
                 }
                 return next;
               });
+            }}
+            onUpdateQuote={(updatedQuote) => {
+              setQuotes(prev => {
+                const next = prev.map(q => q.id === updatedQuote.id ? updatedQuote : q);
+                saveQuotes(next);
+                syncQuoteToSupabase(updatedQuote).catch(err => console.warn('Aviso sync quote aprovado:', err));
+                return next;
+              });
+              if (currentQuote.id === updatedQuote.id || currentQuote.code === updatedQuote.code) {
+                setCurrentQuote(updatedQuote);
+                saveCurrentDraftQuote(updatedQuote);
+              }
+            }}
+            onNavigateToPurchases={() => setActiveTab('purchases')}
+          />
+        )}
+
+        {activeTab === 'purchases' && (
+          <ProcurementView
+            quotes={quotes}
+            onUpdateQuote={(updatedQuote) => {
+              setQuotes(prev => {
+                const next = prev.map(q => q.id === updatedQuote.id ? updatedQuote : q);
+                saveQuotes(next);
+                syncQuoteToSupabase(updatedQuote).catch(err => console.warn('Aviso sync compra:', err));
+                return next;
+              });
+              if (currentQuote.id === updatedQuote.id || currentQuote.code === updatedQuote.code) {
+                setCurrentQuote(updatedQuote);
+                saveCurrentDraftQuote(updatedQuote);
+              }
+            }}
+            onOpenQuote={async (q) => {
+              const matched = quotes.find(item => item.id === q.id || item.code === q.code);
+              const itemsToUse = await resolveQuoteItems(q, quotes);
+              const fullQuote = { ...matched, ...q, items: itemsToUse };
+              setCurrentQuote(fullQuote);
+              saveCurrentDraftQuote(fullQuote);
+              setActiveTab('preview');
             }}
           />
         )}

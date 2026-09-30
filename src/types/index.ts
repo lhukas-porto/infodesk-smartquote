@@ -51,6 +51,16 @@ export interface QuoteItem {
   supplier?: string;
   dollarPrice?: number;
   alternativeOffers?: SupplierOffer[];
+  // Campos de Aprovação Parcial e Central de Compras
+  approved?: boolean;
+  approvedQuantity?: number;
+  purchaseStatus?: 'pending' | 'purchased' | 'delivered';
+  actualCostPrice?: number;
+  actualShippingCost?: number;
+  paymentMethod?: string;
+  purchasedAt?: string;
+  purchaseNotes?: string;
+  actualTaxPercent?: number;
 }
 
 export interface Quote {
@@ -91,6 +101,40 @@ export interface Quote {
   followUpAt?: string;
   lastFollowUpSentAt?: string;
   notes?: string;
+  // Campos de aprovação e fechamento parcial
+  approvedTotalAmount?: number;
+  approvedAt?: string;
+}
+
+export interface ProcurementItem {
+  id: string; // unique item id
+  quoteId: string;
+  quoteCode: string;
+  clientCompany: string;
+  contactPerson?: string;
+  approvedAt?: string;
+  itemId: string;
+  name: string;
+  description?: string;
+  partNumber?: string;
+  ncm?: string;
+  imageUrl?: string;
+  quantity: number;
+  unit: string;
+  quotedCostPrice: number;
+  quotedUnitPrice: number;
+  quotedTotalPrice: number;
+  supplier?: string;
+  sourceUrl?: string;
+  
+  // Dados reais de compra
+  purchaseStatus: 'pending' | 'purchased' | 'delivered';
+  actualCostPrice?: number;
+  actualShippingCost?: number;
+  paymentMethod?: string;
+  purchasedAt?: string;
+  purchaseNotes?: string;
+  taxPercent: number; // padrão 9.05%
 }
 
 export interface IncomingEmail {
