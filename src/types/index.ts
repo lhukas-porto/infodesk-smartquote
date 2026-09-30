@@ -56,6 +56,8 @@ export interface QuoteItem {
   approvedQuantity?: number;
   purchaseStatus?: 'pending' | 'purchased' | 'delivered';
   actualCostPrice?: number;
+  actualUnitCostPrice?: number;
+  actualPurchaseUrl?: string;
   actualShippingCost?: number;
   paymentMethod?: string;
   purchasedAt?: string;
@@ -130,6 +132,8 @@ export interface ProcurementItem {
   // Dados reais de compra
   purchaseStatus: 'pending' | 'purchased' | 'delivered';
   actualCostPrice?: number;
+  actualUnitCostPrice?: number;
+  actualPurchaseUrl?: string;
   actualShippingCost?: number;
   paymentMethod?: string;
   purchasedAt?: string;

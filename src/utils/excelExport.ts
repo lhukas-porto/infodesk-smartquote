@@ -564,8 +564,16 @@ export async function exportPurchasesToExcel(
       // E: Cliente
       row.getCell('E').value = item.clientCompany || '-';
 
-      // F: Produto (Quantidade + Nome)
-      row.getCell('F').value = `${item.quantity} ${item.name}`;
+      // F: Produto (Quantidade + Nome + Hiperlink de Compra se disponível)
+      const purchaseLink = item.actualPurchaseUrl || item.sourceUrl;
+      if (purchaseLink && purchaseLink.startsWith('http')) {
+        row.getCell('F').value = {
+          text: `${item.quantity} ${item.name}`,
+          hyperlink: purchaseLink
+        };
+      } else {
+        row.getCell('F').value = `${item.quantity} ${item.name}`;
+      }
 
       // G: Fornecedor
       row.getCell('G').value = item.supplier || 'Mercado Livre';

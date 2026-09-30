@@ -16,13 +16,15 @@ import {
   RotateCcw,
   X,
   Search,
-  FileText
+  FileText,
+  CreditCard
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 import { 
   saveSettings, 
   getRegisteredUnits, 
   getRegisteredCategories,
+  getRegisteredPaymentMethods,
   saveRegisteredUnit,
   updateRegisteredUnit,
   deleteRegisteredUnit,
@@ -32,7 +34,12 @@ import {
   deleteRegisteredCategory,
   resetRegisteredCategories,
   saveRegisteredCategoriesList,
-  saveRegisteredUnitsList
+  saveRegisteredUnitsList,
+  saveRegisteredPaymentMethodsList,
+  saveRegisteredPaymentMethod,
+  updateRegisteredPaymentMethod,
+  deleteRegisteredPaymentMethod,
+  resetRegisteredPaymentMethods
 } from '../utils/storage';
 import { getStoredGeminiKey, saveStoredGeminiKey, getStoredSerpApiKey, saveStoredSerpApiKey } from '../services/priceScannerService';
 import { maskPhone } from '../utils/aiEmailParser';
@@ -50,7 +57,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onSaveSettings
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'catalog'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'catalog' | 'payments'>('general');
   const [form, setForm] = useState<CompanySettings>(() => {
     const s = { ...settings };
     if (s.email && s.email.includes('infodesk.com.br')) s.email = s.email.replace('@infodesk.com.br', '@infodesk.net.br');
@@ -82,6 +89,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [editCategoryVal, setEditCategoryVal] = useState('');
   const [editingUnit, setEditingUnit] = useState<string | null>(null);
   const [editUnitVal, setEditUnitVal] = useState('');
+
+  // Estados de Formas de Pagamento
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(() => getRegisteredPaymentMethods());
+  const [newPaymentMethodInput, setNewPaymentMethodInput] = useState('');
+  const [searchPaymentMethod, setSearchPaymentMethod] = useState('');
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState<string | null>(null);
+  const [editPaymentMethodVal, setEditPaymentMethodVal] = useState('');
+
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   const showFeedback = (msg: string) => {
@@ -99,12 +114,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     return [...units].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [units]);
 
+  const sortedPaymentMethods = React.useMemo(() => {
+    return [...paymentMethods].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [paymentMethods]);
+
   const filteredCategories = sortedCategories.filter(c => 
     c.toLowerCase().includes(searchCategory.toLowerCase())
   );
 
   const filteredUnits = sortedUnits.filter(u => 
     u.toLowerCase().includes(searchUnit.toLowerCase())
+  );
+
+  const filteredPaymentMethods = sortedPaymentMethods.filter(m =>
+    m.toLowerCase().includes(searchPaymentMethod.toLowerCase())
   );
 
   useEffect(() => {
@@ -123,10 +146,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setSerpApiKey(getStoredSerpApiKey());
       setCategories(getRegisteredCategories());
       setUnits(getRegisteredUnits());
+      setPaymentMethods(getRegisteredPaymentMethods());
       setEditingCategory(null);
       setEditingUnit(null);
+      setEditingPaymentMethod(null);
       setNewCategoryInput('');
       setNewUnitInput('');
+      setNewPaymentMethodInput('');
     }
     prevIsOpenRef.current = isOpen;
 
@@ -138,6 +164,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const handleMetaChanged = () => {
       setCategories(getRegisteredCategories());
       setUnits(getRegisteredUnits());
+      setPaymentMethods(getRegisteredPaymentMethods());
     };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('infodesk_metadata_changed', handleMetaChanged);
@@ -241,6 +268,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  // Handlers de Formas de Pagamento
+  const handleAddPaymentMethod = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = newPaymentMethodInput.trim();
+    if (!clean) return;
+    if (paymentMethods.some(m => m.toLowerCase() === clean.toLowerCase())) {
+      showFeedback('Esta forma de pagamento já está cadastrada.');
+      return;
+    }
+    const updated = saveRegisteredPaymentMethod(clean);
+    setPaymentMethods(updated);
+    setNewPaymentMethodInput('');
+    showFeedback(`Forma de pagamento "${clean}" adicionada com sucesso!`);
+  };
+
+  const handleStartEditPaymentMethod = (method: string) => {
+    setEditingPaymentMethod(method);
+    setEditPaymentMethodVal(method);
+  };
+
+  const handleSaveEditPaymentMethod = (oldMethod: string) => {
+    const cleanNew = editPaymentMethodVal.trim();
+    if (!cleanNew || cleanNew.toLowerCase() === oldMethod.toLowerCase()) {
+      setEditingPaymentMethod(null);
+      return;
+    }
+    const updated = updateRegisteredPaymentMethod(oldMethod, cleanNew);
+    setPaymentMethods(updated);
+    setEditingPaymentMethod(null);
+    showFeedback(`Forma de pagamento renomeada para "${cleanNew}".`);
+  };
+
+  const handleDeletePaymentMethod = (method: string) => {
+    const updated = deleteRegisteredPaymentMethod(method);
+    setPaymentMethods(updated);
+    if (editingPaymentMethod === method) setEditingPaymentMethod(null);
+    showFeedback(`Forma de pagamento "${method}" removida.`);
+  };
+
+  const handleResetPaymentMethods = () => {
+    if (window.confirm('Tem certeza que deseja restaurar as formas de pagamento padrão? Suas formas personalizadas serão redefinidas.')) {
+      const updated = resetRegisteredPaymentMethods();
+      setPaymentMethods(updated);
+      showFeedback('Formas de pagamento padrão restauradas com sucesso!');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -272,6 +346,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     saveStoredSerpApiKey(serpApiKey);
     saveRegisteredCategoriesList(categories);
     saveRegisteredUnitsList(units);
+    saveRegisteredPaymentMethodsList(paymentMethods);
     try {
       if (onSaveSettings) {
         await onSaveSettings(updatedForm);
@@ -342,6 +417,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <span>Categorias & Unidades</span>
             <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
               {categories.length + units.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('payments')}
+            className={`flex items-center gap-2 py-3 px-4 border-b-2 font-bold text-xs transition cursor-pointer ${
+              activeTab === 'payments'
+                ? 'border-sky-600 text-sky-700 bg-sky-50/60 rounded-t-xl'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-xl'
+            }`}
+          >
+            <CreditCard className="w-4 h-4 text-sky-600" />
+            <span>Formas de Pagamento</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              {paymentMethods.length}
             </span>
           </button>
         </div>
@@ -1087,6 +1178,165 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             </div>
 
+          </div>
+        )}
+
+        {/* Conteúdo da Aba Formas de Pagamento */}
+        {activeTab === 'payments' && (
+          <div className="p-6 overflow-y-auto space-y-4 flex-1">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col h-[520px]">
+              <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">Cartões, Contas & Formas de Pagamento</h4>
+                    <p className="text-xs text-slate-400">
+                      {paymentMethods.length} formas cadastradas • Usadas para conciliar as compras na Central de Compras
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetPaymentMethods}
+                  title="Restaurar lista de formas de pagamento padrão"
+                  className="text-xs font-semibold text-slate-500 hover:text-emerald-700 flex items-center gap-1.5 transition cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-slate-100"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Restaurar Padrão
+                </button>
+              </div>
+
+              {/* Form Adicionar Nova Forma de Pagamento */}
+              <form onSubmit={handleAddPaymentMethod} className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  placeholder="Ex: Cartão XP, Cartão Santander, Pix Itaú, Boleto 30 dias..."
+                  value={newPaymentMethodInput}
+                  onChange={(e) => setNewPaymentMethodInput(e.target.value)}
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-medium"
+                />
+                <button
+                  type="submit"
+                  disabled={!newPaymentMethodInput.trim()}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Adicionar Forma
+                </button>
+              </form>
+
+              {/* Busca Rápida */}
+              {paymentMethods.length > 5 && (
+                <div className="relative mb-3">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Filtrar cartões e formas de pagamento..."
+                    value={searchPaymentMethod}
+                    onChange={(e) => setSearchPaymentMethod(e.target.value)}
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-sky-500 font-medium"
+                  />
+                </div>
+              )}
+
+              {/* Lista com Rolagem */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                {filteredPaymentMethods.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-center p-6 text-slate-400 text-xs">
+                    Nenhuma forma de pagamento encontrada.
+                  </div>
+                ) : (
+                  filteredPaymentMethods.map((pm) => {
+                    const isEditing = editingPaymentMethod === pm;
+
+                    return (
+                      <div
+                        key={pm}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
+                          isEditing
+                            ? 'bg-sky-50 border-sky-300 ring-1 ring-sky-300'
+                            : 'bg-slate-50/70 hover:bg-slate-100/80 border-slate-200/80'
+                        }`}
+                      >
+                        {isEditing ? (
+                          <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editPaymentMethodVal}
+                              onChange={(e) => setEditPaymentMethodVal(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveEditPaymentMethod(pm);
+                                if (e.key === 'Escape') setEditingPaymentMethod(null);
+                              }}
+                              className="w-full bg-white border border-sky-400 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-semibold focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEditPaymentMethod(pm)}
+                              title="Salvar alteração"
+                              className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingPaymentMethod(null)}
+                              title="Cancelar"
+                              className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <span className="p-1 bg-white text-slate-500 rounded-md border border-slate-200 shadow-2xs">
+                                <CreditCard className="w-3.5 h-3.5 text-slate-600" />
+                              </span>
+                              <span className="font-semibold text-slate-800 text-xs">
+                                {pm}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 opacity-80 hover:opacity-100">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditPaymentMethod(pm)}
+                                title={`Editar "${pm}"`}
+                                className="p-1.5 hover:bg-white text-slate-500 hover:text-sky-600 rounded-lg transition border border-transparent hover:border-slate-200 cursor-pointer"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePaymentMethod(pm)}
+                                title={`Excluir "${pm}"`}
+                                className="p-1.5 hover:bg-white text-slate-400 hover:text-rose-600 rounded-lg transition border border-transparent hover:border-slate-200 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Rodapé da Aba de Formas de Pagamento */}
+            <div className="pt-3 flex justify-end border-t border-slate-200">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition cursor-pointer"
+              >
+                Concluído
+              </button>
+            </div>
           </div>
         )}
 

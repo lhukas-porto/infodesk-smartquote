@@ -1062,3 +1062,81 @@ export const resetRegisteredCategories = (): string[] => {
   return saveRegisteredCategoriesList(DEFAULT_REGISTERED_CATEGORIES);
 };
 
+export const DEFAULT_PAYMENT_METHODS: string[] = [
+  'PIX',
+  'Cartão Amazon',
+  'Cartão C6',
+  'Cartão Latam',
+  'Cartão Azul',
+  'Cartão Inter',
+  'Cartão XP',
+  'Cartão Nubank',
+  'Boleto Bancário',
+  'Boleto Faturado (28dd)',
+  'Dinheiro',
+  'Transferência Bancária',
+  'Outro'
+].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+
+export const getRegisteredPaymentMethods = (): string[] => {
+  try {
+    const saved = localStorage.getItem('infodesk_registered_payment_methods');
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed
+          .filter(Boolean)
+          .map((m: string) => m.trim())
+          .sort((a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao carregar formas de pagamento salvas:', e);
+  }
+  return DEFAULT_PAYMENT_METHODS;
+};
+
+export const saveRegisteredPaymentMethodsList = (methods: string[]): string[] => {
+  const cleanList = Array.from(new Set(methods.map(m => m.trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  try {
+    localStorage.setItem('infodesk_registered_payment_methods', JSON.stringify(cleanList));
+  } catch (e) {
+    console.warn('Erro ao salvar lista de formas de pagamento:', e);
+  }
+  notifyMetadataChanged();
+  return cleanList;
+};
+
+export const saveRegisteredPaymentMethod = (method: string): string[] => {
+  if (!method || !method.trim()) return getRegisteredPaymentMethods();
+  const clean = method.trim();
+  const current = getRegisteredPaymentMethods();
+  const exists = current.some(m => m.toLowerCase() === clean.toLowerCase());
+  if (!exists) {
+    const updated = [...current, clean];
+    return saveRegisteredPaymentMethodsList(updated);
+  }
+  return current;
+};
+
+export const updateRegisteredPaymentMethod = (oldMethod: string, newMethod: string): string[] => {
+  const cleanOld = oldMethod.trim();
+  const cleanNew = newMethod.trim();
+  if (!cleanNew) return getRegisteredPaymentMethods();
+  const current = getRegisteredPaymentMethods();
+  const updated = current.map(m => m.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : m);
+  return saveRegisteredPaymentMethodsList(updated);
+};
+
+export const deleteRegisteredPaymentMethod = (method: string): string[] => {
+  const clean = method.trim();
+  const current = getRegisteredPaymentMethods();
+  const updated = current.filter(m => m.trim() !== clean && m.trim().toLowerCase() !== clean.toLowerCase());
+  return saveRegisteredPaymentMethodsList(updated);
+};
+
+export const resetRegisteredPaymentMethods = (): string[] => {
+  return saveRegisteredPaymentMethodsList(DEFAULT_PAYMENT_METHODS);
+};
+
