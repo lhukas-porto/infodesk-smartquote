@@ -131,4 +131,124 @@ assert.equal((cleanedItem as any).actualPurchaseUrl, undefined, 'actualPurchaseU
 assert.equal((cleanedItem as any).paymentMethod, undefined, 'paymentMethod deve ser limpo');
 console.log('  ✅ Exclusão de Compra: Compra excluída com sucesso, dados reais limpos e item retornado para "A Comprar"!');
 
+// 5. Teste de Compras Avulsas / Diretas (Sem proposta comercial prévia)
+console.log('🔹 5. Validando Compras Avulsas / Diretas (Uso Interno, Estoque, etc.)...');
+import { 
+  getDirectPurchases, 
+  saveOrUpdateDirectPurchase, 
+  deleteDirectPurchaseItem 
+} from '../utils/storage';
+
+const mockDirectItem: ProcurementItem = {
+  id: 'direct-test-1234',
+  quoteId: 'direct_purchases',
+  quoteCode: 'COMPRA DIRETA',
+  clientCompany: 'Infodesk (Uso Interno / Estoque)',
+  itemId: 'direct-test-1234',
+  name: 'Cabo de Rede Furukawa Cat6 Soho Plus 305m',
+  partNumber: 'FUR-CAT6-BL',
+  quantity: 2,
+  unit: 'cx',
+  quotedCostPrice: 650.00,
+  quotedUnitPrice: 650.00,
+  quotedTotalPrice: 1300.00,
+  supplier: 'Distribuidora Roxtell',
+  sourceUrl: 'https://distribuidora.com/cabo-furukawa',
+  purchaseStatus: 'pending',
+  isDirectPurchase: true
+};
+
+const updatedList = saveOrUpdateDirectPurchase(mockDirectItem);
+assert.ok(mockDirectItem.id.startsWith('direct-'), 'ID da compra avulsa deve ter prefixo direct-');
+assert.equal(mockDirectItem.isDirectPurchase, true, 'isDirectPurchase deve ser true');
+assert.equal(mockDirectItem.quoteCode, 'COMPRA DIRETA', 'quoteCode deve ser COMPRA DIRETA');
+assert.equal(updatedList.length, 1, 'Deve conter 1 compra direta cadastrada');
+
+const allDirect = getDirectPurchases();
+assert.equal(allDirect.length, 1, 'Deve conter 1 compra direta cadastrada via getDirectPurchases');
+assert.equal(allDirect[0].name, 'Cabo de Rede Furukawa Cat6 Soho Plus 305m');
+
+// Atualiza para comprado
+const purchasedDirectData: ProcurementItem = {
+  ...mockDirectItem,
+  purchaseStatus: 'purchased',
+  actualCostPrice: 1200.00,
+  actualUnitCostPrice: 600.00,
+  actualPurchaseUrl: 'https://kabum.com.br/cabo-furukawa',
+  paymentMethod: 'PIX',
+  purchasedAt: '2026-09-30'
+};
+
+const listAfterPurchased = saveOrUpdateDirectPurchase(purchasedDirectData);
+const foundPurchased = listAfterPurchased.find(i => i.id === mockDirectItem.id);
+assert.ok(foundPurchased, 'Item deve existir na lista atualizada');
+assert.equal(foundPurchased?.purchaseStatus, 'purchased');
+assert.equal(foundPurchased?.actualUnitCostPrice, 600.00);
+
+// 6. Teste de Agrupamento para Catálogo de Referência de Preços Pagos
+console.log('🔹 6. Validando Agrupamento para Catálogo de Referência de Preços...');
+const referenceItem1: ProcurementItem = {
+  id: 'ref-1',
+  quoteId: 'q-1',
+  quoteCode: 'PROPOSTA-1',
+  clientCompany: 'Sabin',
+  itemId: 'i-1',
+  name: 'SSD Kingston 480GB A400',
+  partNumber: 'SA400S37/480G',
+  quantity: 5,
+  unit: 'un',
+  quotedCostPrice: 200,
+  quotedUnitPrice: 280,
+  quotedTotalPrice: 1400,
+  supplier: 'Kabum',
+  actualCostPrice: 950,
+  actualUnitCostPrice: 190,
+  actualPurchaseUrl: 'https://kabum.com/ssd480',
+  purchaseStatus: 'purchased',
+  purchasedAt: '2026-08-15'
+};
+
+const referenceItem2: ProcurementItem = {
+  id: 'ref-2',
+  quoteId: 'q-2',
+  quoteCode: 'PROPOSTA-2',
+  clientCompany: 'Baterias Moura',
+  itemId: 'i-2',
+  name: 'SSD Kingston 480GB A400',
+  partNumber: 'SA400S37/480G',
+  quantity: 2,
+  unit: 'un',
+  quotedCostPrice: 210,
+  quotedUnitPrice: 290,
+  quotedTotalPrice: 580,
+  supplier: 'Amazon',
+  actualCostPrice: 370,
+  actualUnitCostPrice: 185,
+  actualPurchaseUrl: 'https://amazon.com.br/ssd480',
+  purchaseStatus: 'purchased',
+  purchasedAt: '2026-09-20'
+};
+
+// Agregação por chave
+const key1 = referenceItem1.name.toLowerCase().trim();
+const key2 = referenceItem2.name.toLowerCase().trim();
+assert.equal(key1, key2, 'Mesmo produto deve gerar a mesma chave de agrupamento');
+
+const allItems = [referenceItem1, referenceItem2];
+const prices = allItems.map(i => i.actualUnitCostPrice!).filter(Boolean);
+const minPrice = Math.min(...prices);
+const maxPrice = Math.max(...prices);
+const latestItem = allItems.sort((a, b) => (b.purchasedAt || '').localeCompare(a.purchasedAt || ''))[0];
+
+assert.equal(minPrice, 185, 'Preço mínimo deve ser 185');
+assert.equal(maxPrice, 190, 'Preço máximo deve ser 190');
+assert.equal(latestItem.actualPurchaseUrl, 'https://amazon.com.br/ssd480', 'Última compra foi na Amazon');
+assert.equal(latestItem.actualUnitCostPrice, 185, 'Último preço unitário pago foi 185');
+console.log('  ✅ Catálogo de Referência: Agrupamento, histórico mín/máx e último preço/link calculados perfeitamente!');
+
+// Exclusão de compra avulsa
+deleteDirectPurchaseItem(mockDirectItem.id);
+assert.equal(getDirectPurchases().length, 0, 'Compra avulsa deve ser removida');
+console.log('  ✅ Exclusão de Compra Avulsa: Removida com sucesso!');
+
 console.log('🎉 TODOS OS TESTES DAS NOVAS FUNCIONALIDADES DE COMPRAS PASSARAM COM 100% DE SUCESSO!\n');

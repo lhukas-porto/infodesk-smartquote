@@ -1140,3 +1140,53 @@ export const resetRegisteredPaymentMethods = (): string[] => {
   return saveRegisteredPaymentMethodsList(DEFAULT_PAYMENT_METHODS);
 };
 
+// ==========================================
+// COMPRAS DIRETAS / AVULSAS (FORA DE PROPOSTA)
+// ==========================================
+const DIRECT_PURCHASES_KEY = 'infodesk_direct_purchases';
+
+export const getDirectPurchases = (): import('../types').ProcurementItem[] => {
+  try {
+    const raw = localStorage.getItem(DIRECT_PURCHASES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.warn('Erro ao carregar compras diretas:', e);
+  }
+  return [];
+};
+
+export const saveDirectPurchases = (items: import('../types').ProcurementItem[]): void => {
+  try {
+    localStorage.setItem(DIRECT_PURCHASES_KEY, JSON.stringify(items));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('infodesk_direct_purchases_changed', { detail: items }));
+    }
+  } catch (e) {
+    console.warn('Erro ao salvar compras diretas:', e);
+  }
+};
+
+export const saveOrUpdateDirectPurchase = (item: import('../types').ProcurementItem): import('../types').ProcurementItem[] => {
+  const current = getDirectPurchases();
+  const index = current.findIndex(i => i.id === item.id);
+  let updated: import('../types').ProcurementItem[];
+  if (index >= 0) {
+    updated = [...current];
+    updated[index] = item;
+  } else {
+    updated = [item, ...current];
+  }
+  saveDirectPurchases(updated);
+  return updated;
+};
+
+export const deleteDirectPurchaseItem = (itemId: string): import('../types').ProcurementItem[] => {
+  const current = getDirectPurchases();
+  const updated = current.filter(i => i.id !== itemId);
+  saveDirectPurchases(updated);
+  return updated;
+};
+

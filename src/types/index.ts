@@ -139,6 +139,7 @@ export interface ProcurementItem {
   purchasedAt?: string;
   purchaseNotes?: string;
   taxPercent: number; // padrão 9.05%
+  isDirectPurchase?: boolean;
 }
 
 export interface IncomingEmail {

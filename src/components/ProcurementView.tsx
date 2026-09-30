@@ -27,13 +27,22 @@ import {
   Layers,
   List,
   RotateCcw,
-  Trash2
+  Trash2,
+  History,
+  Copy,
+  Tag,
+  ArrowRight
 } from 'lucide-react';
 import { Quote, ProcurementItem } from '../types';
 import { exportPurchasesToExcel } from '../utils/excelExport';
 import { 
   getRegisteredPaymentMethods, 
-  saveRegisteredPaymentMethod 
+  saveRegisteredPaymentMethod,
+  getDirectPurchases,
+  saveOrUpdateDirectPurchase,
+  deleteDirectPurchaseItem,
+  getRegisteredUnits,
+  getClientCompanies
 } from '../utils/storage';
 
 interface ProcurementViewProps {
@@ -42,13 +51,38 @@ interface ProcurementViewProps {
   onOpenQuote?: (quote: Quote) => void;
 }
 
-const MONTH_NAMES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril',
-  'Maio', 'Junho', 'Julho', 'Agosto',
-  'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
-
 type PeriodOption = 'all' | 'today' | 'yesterday' | '7days' | '30days' | 'this_month' | 'last_month' | 'custom';
+type ViewModeOption = 'items' | 'quotes' | 'reference';
+
+interface ProductReferenceSummary {
+  normalizedKey: string;
+  name: string;
+  partNumber?: string;
+  ncm?: string;
+  imageUrl?: string;
+  unit: string;
+  lastPurchasedAt?: string;
+  lastUnitCost: number;
+  minUnitCost: number;
+  maxUnitCost: number;
+  lastSupplier?: string;
+  lastPurchaseUrl?: string;
+  lastPaymentMethod?: string;
+  lastClient?: string;
+  totalQuantity: number;
+  purchaseCount: number;
+  allPurchases: {
+    date: string;
+    unitCost: number;
+    totalCost: number;
+    quantity: number;
+    supplier?: string;
+    client: string;
+    purchaseUrl?: string;
+    paymentMethod?: string;
+    quoteCode: string;
+  }[];
+}
 
 export const ProcurementView: React.FC<ProcurementViewProps> = ({
   quotes,
@@ -65,27 +99,59 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // 2. Modo de Exibição: Itens Individuais vs Agrupado por Proposta / Pedido
-  const [viewMode, setViewMode] = useState<'items' | 'quotes'>('items');
+  // 2. Modos de Exibição: Itens Individuais, Agrupado por Proposta, ou Referência de Preços Pagos
+  const [viewMode, setViewMode] = useState<ViewModeOption>('items');
   const [collapsedQuotes, setCollapsedQuotes] = useState<Record<string, boolean>>({});
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
-  // 3. Formas de Pagamento Dinâmicas
+  // 3. Compras Diretas / Avulsas (independentes de orçamento)
+  const [directPurchases, setDirectPurchases] = useState<ProcurementItem[]>(() => getDirectPurchases());
+  const [isDirectPurchaseModalOpen, setIsDirectPurchaseModalOpen] = useState(false);
+  const [directPurchaseForm, setDirectPurchaseForm] = useState({
+    name: '',
+    partNumber: '',
+    ncm: '',
+    quantity: 1,
+    unit: 'un',
+    clientCompany: 'Infodesk (Uso Interno / Estoque)',
+    supplier: '',
+    costPrice: 0,
+    sourceUrl: '',
+    initialStatus: 'pending' as 'pending' | 'purchased',
+    // Campos caso já seja cadastrado como comprado
+    actualCost: 0,
+    paymentMethod: 'Cartão Amazon',
+    purchaseDate: new Date().toISOString().split('T')[0],
+    actualShipping: 0,
+    notes: ''
+  });
+
+  // 4. Formas de Pagamento Dinâmicas
   const [paymentMethodsList, setPaymentMethodsList] = useState<string[]>(() => getRegisteredPaymentMethods());
   const [isAddingNewPaymentMethod, setIsAddingNewPaymentMethod] = useState(false);
   const [newPaymentMethodName, setNewPaymentMethodName] = useState('');
 
-  // Sincroniza Formas de Pagamento se alteradas no Modal de Configurações
+  // Unidades e Clientes Cadastrados para Seleção
+  const registeredUnits = useMemo(() => getRegisteredUnits(), []);
+  const registeredClients = useMemo(() => getClientCompanies(), []);
+
+  // Sincroniza Formas de Pagamento e Compras Diretas se alteradas
   useEffect(() => {
     const handleMetaChanged = () => {
       setPaymentMethodsList(getRegisteredPaymentMethods());
     };
+    const handleDirectPurchasesChanged = () => {
+      setDirectPurchases(getDirectPurchases());
+    };
     window.addEventListener('infodesk_metadata_changed', handleMetaChanged);
+    window.addEventListener('infodesk_direct_purchases_changed', handleDirectPurchasesChanged);
     return () => {
       window.removeEventListener('infodesk_metadata_changed', handleMetaChanged);
+      window.removeEventListener('infodesk_direct_purchases_changed', handleDirectPurchasesChanged);
     };
   }, []);
 
-  // 4. Estado do Modal de Registro de Compra
+  // 5. Estado do Modal de Registro de Compra (para itens pendentes de propostas ou diretos)
   const [activeItemForPurchase, setActiveItemForPurchase] = useState<ProcurementItem | null>(null);
   const [purchaseForm, setPurchaseForm] = useState({
     actualUnitCost: 0,
@@ -98,10 +164,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     notes: ''
   });
 
-  // Extrai todos os itens de propostas aprovadas (ou com itens aprovados)
+  // Extrai e Unifica Todos os Itens: Propostas Aprovadas + Compras Diretas Avulsas
   const procurementItems = useMemo<ProcurementItem[]>(() => {
     const list: ProcurementItem[] = [];
 
+    // 1. Itens das propostas aprovadas
     (quotes || []).forEach(quote => {
       const isQuoteApproved = quote.status === 'approved';
 
@@ -145,14 +212,23 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             paymentMethod: item.paymentMethod,
             purchasedAt: item.purchasedAt,
             purchaseNotes: item.purchaseNotes,
-            taxPercent: item.actualTaxPercent ?? 9.05
+            taxPercent: item.actualTaxPercent ?? 9.05,
+            isDirectPurchase: false
           });
         }
       });
     });
 
+    // 2. Compras Diretas Avulsas
+    (directPurchases || []).forEach(dp => {
+      list.push({
+        ...dp,
+        isDirectPurchase: true
+      });
+    });
+
     return list;
-  }, [quotes]);
+  }, [quotes, directPurchases]);
 
   // Listas Dinâmicas para Dropdowns de Filtro
   const availableCompanies = useMemo(() => {
@@ -185,7 +261,88 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [paymentMethodsList, procurementItems]);
 
-  // Filtragem Robusta dos Itens
+  // Catálogo Agregado de Referência de Preços Pagos (para consulta rápida)
+  const purchasedReferenceCatalog = useMemo<ProductReferenceSummary[]>(() => {
+    const map = new Map<string, ProductReferenceSummary>();
+
+    procurementItems.forEach(item => {
+      if (item.purchaseStatus !== 'purchased') return;
+
+      const key = (item.partNumber?.trim() || item.name.trim()).toLowerCase();
+      const unitPaid = item.actualUnitCostPrice !== undefined 
+        ? item.actualUnitCostPrice 
+        : (item.actualCostPrice !== undefined && item.quantity > 0 ? item.actualCostPrice / item.quantity : item.quotedCostPrice);
+      const dateStr = (item.purchasedAt || item.approvedAt || '').split('T')[0];
+
+      let entry = map.get(key);
+      if (!entry) {
+        entry = {
+          normalizedKey: key,
+          name: item.name,
+          partNumber: item.partNumber,
+          ncm: item.ncm,
+          imageUrl: item.imageUrl,
+          unit: item.unit || 'un',
+          lastPurchasedAt: dateStr,
+          lastUnitCost: unitPaid,
+          minUnitCost: unitPaid,
+          maxUnitCost: unitPaid,
+          lastSupplier: item.supplier,
+          lastPurchaseUrl: item.actualPurchaseUrl || item.sourceUrl,
+          lastPaymentMethod: item.paymentMethod,
+          lastClient: item.clientCompany,
+          totalQuantity: 0,
+          purchaseCount: 0,
+          allPurchases: []
+        };
+        map.set(key, entry);
+      }
+
+      entry.totalQuantity += item.quantity;
+      entry.purchaseCount++;
+      if (unitPaid < entry.minUnitCost) entry.minUnitCost = unitPaid;
+      if (unitPaid > entry.maxUnitCost) entry.maxUnitCost = unitPaid;
+
+      if (dateStr && (!entry.lastPurchasedAt || dateStr >= entry.lastPurchasedAt)) {
+        entry.lastPurchasedAt = dateStr;
+        entry.lastUnitCost = unitPaid;
+        entry.lastSupplier = item.supplier || entry.lastSupplier;
+        entry.lastPurchaseUrl = item.actualPurchaseUrl || item.sourceUrl || entry.lastPurchaseUrl;
+        entry.lastPaymentMethod = item.paymentMethod || entry.lastPaymentMethod;
+        entry.lastClient = item.clientCompany || entry.lastClient;
+      }
+
+      entry.allPurchases.push({
+        date: dateStr,
+        unitCost: unitPaid,
+        totalCost: item.actualCostPrice !== undefined ? item.actualCostPrice : unitPaid * item.quantity,
+        quantity: item.quantity,
+        supplier: item.supplier,
+        client: item.clientCompany,
+        purchaseUrl: item.actualPurchaseUrl || item.sourceUrl,
+        paymentMethod: item.paymentMethod,
+        quoteCode: item.quoteCode
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      return (b.lastPurchasedAt || '').localeCompare(a.lastPurchasedAt || '');
+    });
+  }, [procurementItems]);
+
+  // Catálogo de Referência Filtrado por Busca
+  const filteredReferenceCatalog = useMemo(() => {
+    if (!searchTerm.trim()) return purchasedReferenceCatalog;
+    const q = searchTerm.toLowerCase();
+    return purchasedReferenceCatalog.filter(entry => 
+      entry.name.toLowerCase().includes(q) ||
+      (entry.partNumber || '').toLowerCase().includes(q) ||
+      (entry.lastSupplier || '').toLowerCase().includes(q) ||
+      (entry.lastClient || '').toLowerCase().includes(q)
+    );
+  }, [purchasedReferenceCatalog, searchTerm]);
+
+  // Filtragem dos Itens da Lista Regular
   const filteredItems = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -441,10 +598,30 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     }));
   };
 
-  // Salvar Registro de Compra no Quote correspondente
+  // Salvar Registro de Compra (seja de proposta ou compra direta)
   const handleSavePurchase = () => {
     if (!activeItemForPurchase) return;
 
+    if (activeItemForPurchase.isDirectPurchase) {
+      // Compra direta avulsa
+      const updatedDirectItem: ProcurementItem = {
+        ...activeItemForPurchase,
+        purchaseStatus: 'purchased',
+        actualCostPrice: Number(purchaseForm.actualCost),
+        actualUnitCostPrice: Number(purchaseForm.actualUnitCost),
+        actualPurchaseUrl: purchaseForm.actualPurchaseUrl?.trim() || undefined,
+        actualShippingCost: Number(purchaseForm.actualShipping),
+        paymentMethod: purchaseForm.paymentMethod,
+        purchasedAt: purchaseForm.purchaseDate,
+        taxPercent: Number(purchaseForm.taxPercent),
+        purchaseNotes: purchaseForm.notes?.trim() || undefined
+      };
+      saveOrUpdateDirectPurchase(updatedDirectItem);
+      setActiveItemForPurchase(null);
+      return;
+    }
+
+    // Compra vinculada a proposta comercial
     const targetQuote = quotes.find(q => q.id === activeItemForPurchase.quoteId);
     if (!targetQuote) return;
 
@@ -466,28 +643,31 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       return it;
     });
 
-    const updatedQuote: Quote = {
+    onUpdateQuote({
       ...targetQuote,
       items: updatedItems
-    };
-
-    onUpdateQuote(updatedQuote);
+    });
     setActiveItemForPurchase(null);
-  };
-
-  // Adição Rápida de Nova Forma de Pagamento no Modal
-  const handleQuickAddPaymentMethod = () => {
-    const clean = newPaymentMethodName.trim();
-    if (!clean) return;
-    const updated = saveRegisteredPaymentMethod(clean);
-    setPaymentMethodsList(updated);
-    setPurchaseForm(prev => ({ ...prev, paymentMethod: clean }));
-    setNewPaymentMethodName('');
-    setIsAddingNewPaymentMethod(false);
   };
 
   // Excluir Compra Realizada (retornando o item para o status 'A Comprar')
   const handleDeletePurchase = (item: ProcurementItem) => {
+    if (item.isDirectPurchase) {
+      // Compra direta: reverte para pending e limpa campos reais
+      const cleaned: ProcurementItem = { ...item };
+      cleaned.purchaseStatus = 'pending';
+      delete cleaned.actualCostPrice;
+      delete cleaned.actualUnitCostPrice;
+      delete cleaned.actualPurchaseUrl;
+      delete cleaned.actualShippingCost;
+      delete cleaned.paymentMethod;
+      delete cleaned.purchasedAt;
+      delete cleaned.purchaseNotes;
+      saveOrUpdateDirectPurchase(cleaned);
+      return;
+    }
+
+    // Compra de proposta: reverte para pending e limpa campos reais
     const targetQuote = quotes.find(q => q.id === item.quoteId);
     if (!targetQuote) return;
 
@@ -512,6 +692,101 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       ...targetQuote,
       items: updatedItems
     });
+  };
+
+  // Remover Item Avulso Definitivamente (apenas se for compra direta)
+  const handleRemoveDirectItemPermanently = (itemId: string) => {
+    if (window.confirm('Deseja remover este item avulso da Central de Compras?')) {
+      deleteDirectPurchaseItem(itemId);
+    }
+  };
+
+  // Adição Rápida de Nova Forma de Pagamento no Modal
+  const handleQuickAddPaymentMethod = () => {
+    const clean = newPaymentMethodName.trim();
+    if (!clean) return;
+    const updated = saveRegisteredPaymentMethod(clean);
+    setPaymentMethodsList(updated);
+    setPurchaseForm(prev => ({ ...prev, paymentMethod: clean }));
+    setNewPaymentMethodName('');
+    setIsAddingNewPaymentMethod(false);
+  };
+
+  // Abrir Modal de Nova Compra Avulsa
+  const handleOpenNewDirectPurchaseModal = (prefill?: Partial<typeof directPurchaseForm>) => {
+    setDirectPurchaseForm({
+      name: prefill?.name || '',
+      partNumber: prefill?.partNumber || '',
+      ncm: prefill?.ncm || '',
+      quantity: prefill?.quantity || 1,
+      unit: prefill?.unit || 'un',
+      clientCompany: prefill?.clientCompany || 'Infodesk (Uso Interno / Estoque)',
+      supplier: prefill?.supplier || '',
+      costPrice: prefill?.costPrice || 0,
+      sourceUrl: prefill?.sourceUrl || '',
+      initialStatus: prefill?.initialStatus || 'pending',
+      actualCost: prefill?.actualCost || 0,
+      paymentMethod: prefill?.paymentMethod || paymentMethodsList[0] || 'Cartão Amazon',
+      purchaseDate: new Date().toISOString().split('T')[0],
+      actualShipping: prefill?.actualShipping || 0,
+      notes: prefill?.notes || ''
+    });
+    setIsDirectPurchaseModalOpen(true);
+  };
+
+  // Salvar Nova Compra Avulsa
+  const handleSaveDirectPurchase = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = directPurchaseForm.name.trim();
+    if (!cleanName) return;
+
+    const qty = Math.max(1, Number(directPurchaseForm.quantity) || 1);
+    const cost = Number(directPurchaseForm.costPrice) || 0;
+    const id = `direct-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+    const newItem: ProcurementItem = {
+      id,
+      quoteId: 'direct_purchases',
+      quoteCode: 'COMPRA DIRETA',
+      clientCompany: directPurchaseForm.clientCompany.trim() || 'Infodesk (Uso Interno / Estoque)',
+      itemId: id,
+      name: cleanName,
+      partNumber: directPurchaseForm.partNumber.trim() || undefined,
+      ncm: directPurchaseForm.ncm.trim() || undefined,
+      quantity: qty,
+      unit: directPurchaseForm.unit || 'un',
+      quotedCostPrice: cost,
+      quotedUnitPrice: cost,
+      quotedTotalPrice: cost * qty,
+      supplier: directPurchaseForm.supplier.trim() || undefined,
+      sourceUrl: directPurchaseForm.sourceUrl.trim() || undefined,
+      purchaseStatus: directPurchaseForm.initialStatus,
+      taxPercent: 9.05,
+      isDirectPurchase: true,
+      approvedAt: new Date().toISOString()
+    };
+
+    if (directPurchaseForm.initialStatus === 'purchased') {
+      const realTotal = Number(directPurchaseForm.actualCost) || (cost * qty);
+      newItem.actualCostPrice = realTotal;
+      newItem.actualUnitCostPrice = qty > 0 ? Number((realTotal / qty).toFixed(2)) : cost;
+      newItem.actualPurchaseUrl = directPurchaseForm.sourceUrl.trim() || undefined;
+      newItem.actualShippingCost = Number(directPurchaseForm.actualShipping) || 0;
+      newItem.paymentMethod = directPurchaseForm.paymentMethod;
+      newItem.purchasedAt = directPurchaseForm.purchaseDate;
+      newItem.purchaseNotes = directPurchaseForm.notes.trim() || undefined;
+    }
+
+    saveOrUpdateDirectPurchase(newItem);
+    setIsDirectPurchaseModalOpen(false);
+  };
+
+  // Copiar link para o clipboard
+  const handleCopyLink = (url: string) => {
+    if (!url) return;
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(url);
+    setTimeout(() => setCopiedUrl(null), 2000);
   };
 
   // Alternar colapso de proposta no modo agrupado
@@ -564,11 +839,22 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             Central de Compras & Conciliação de Lucro
           </h1>
           <p className="text-xs text-slate-500">
-            Acompanhe pedidos aprovados, registre o valor unitário real, armazene o link de onde comprou e faça conciliação por forma de pagamento e cliente.
+            Acompanhe pedidos aprovados, cadastre compras avulsas, consulte referências de preços já pagos e concilie faturas por forma de pagamento.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          {/* Botão de Nova Compra Avulsa (Independente de Orçamento) */}
+          <button
+            type="button"
+            onClick={() => handleOpenNewDirectPurchaseModal()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
+            title="Cadastrar um item a comprar fora de proposta comercial (uso interno, insumo ou urgência)"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nova Compra Avulsa</span>
+          </button>
+
           {/* Alternador de Modo de Visualização */}
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
@@ -597,16 +883,29 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
               <Layers className="w-3.5 h-3.5" />
               <span>Por Proposta</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('reference')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'reference'
+                  ? 'bg-white text-emerald-800 shadow-2xs border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Consultar histórico de produtos já comprados e preços pagos como referência"
+            >
+              <History className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Referência de Preços ({purchasedReferenceCatalog.length})</span>
+            </button>
           </div>
 
           <button
             type="button"
             onClick={handleExportExcel}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl font-bold text-xs sm:text-sm shadow-2xs transition cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl font-bold text-xs sm:text-sm shadow-2xs transition cursor-pointer"
             title="Exportar planilha de compras com fórmulas idênticas a Compras 2026.xlsx"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>Exportar Excel (.xlsx)</span>
+            <span className="hidden sm:inline">Exportar Excel</span>
           </button>
         </div>
       </div>
@@ -764,7 +1063,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
               <Building2 className="w-3 h-3 text-slate-400" />
-              Cliente / Empresa
+              Cliente / Destino
             </label>
             <select
               value={selectedCompany}
@@ -850,7 +1149,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por produto, SKU/Part Number, cliente, proposta, fornecedor ou nota/rastreio..."
+            placeholder={
+              viewMode === 'reference'
+                ? "Buscar no catálogo de referência por produto, SKU, fornecedor ou cliente..."
+                : "Buscar por produto, SKU/Part Number, cliente, proposta, fornecedor ou nota/rastreio..."
+            }
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 transition"
           />
           {searchTerm && (
@@ -864,8 +1167,165 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         </div>
       </div>
 
-      {/* 4. Renderização dos Resultados (Modo Lista vs Modo Propostas) */}
-      {filteredItems.length === 0 ? (
+      {/* 4. Renderização do Conteúdo de Acordo com o Modo de Visualização */}
+
+      {/* MODO 1: REFERÊNCIA DE PREÇOS PAGOS (CATÁLOGO DE HISTÓRICO) */}
+      {viewMode === 'reference' ? (
+        <div className="space-y-4">
+          <div className="bg-sky-50/70 border border-sky-200 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-sky-100 text-sky-700 rounded-xl">
+                <History className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Catálogo de Referência de Compras Realizadas
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Consulte os preços unitários pagos, fornecedores e links reais onde comprou para usar como base para novas aquisições.
+                </p>
+              </div>
+            </div>
+
+            <span className="text-xs font-mono font-bold text-sky-800 bg-white px-3 py-1 rounded-xl border border-sky-200 shadow-2xs">
+              {filteredReferenceCatalog.length} produto(s) no histórico
+            </span>
+          </div>
+
+          {filteredReferenceCatalog.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center max-w-lg mx-auto shadow-xs space-y-3">
+              <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mx-auto border border-sky-100">
+                <History className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800">
+                Nenhum produto de referência encontrado
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                {searchTerm
+                  ? `Nenhum produto comprado coincide com o termo "${searchTerm}".`
+                  : 'Assim que você registrar as compras de produtos, eles formarão automaticamente seu catálogo de preços e fornecedores de referência.'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {filteredReferenceCatalog.map(item => (
+                <div
+                  key={item.normalizedKey}
+                  className="bg-white border border-slate-200 hover:border-sky-300 rounded-2xl p-4 shadow-xs transition hover:shadow-sm flex flex-col justify-between gap-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        {item.partNumber && (
+                          <span className="text-[10.5px] font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 inline-block mb-1">
+                            SKU: {item.partNumber}
+                          </span>
+                        )}
+                        <h4 className="text-sm font-bold text-slate-900 line-clamp-2">
+                          {item.name}
+                        </h4>
+                      </div>
+
+                      {/* Card Preço Referência */}
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] uppercase font-semibold text-slate-400 block">
+                          Último Unitário
+                        </span>
+                        <span className="text-base font-mono font-bold text-emerald-700">
+                          R$ {item.lastUnitCost.toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">
+                          /{item.unit}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Variação e Estatísticas */}
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs text-slate-600 flex-wrap gap-2">
+                      <span>
+                        Fornecedor: <strong className="text-slate-800">{item.lastSupplier || 'Não especificado'}</strong>
+                      </span>
+                      <span>
+                        Comprado: <strong className="text-slate-800">{item.purchaseCount}x</strong> ({item.totalQuantity} {item.unit})
+                      </span>
+                      {item.purchaseCount > 1 && item.minUnitCost !== item.maxUnitCost && (
+                        <span className="text-[11px] font-mono text-slate-500">
+                          Faixa: R$ {item.minUnitCost.toFixed(2)} ~ R$ {item.maxUnitCost.toFixed(2)}
+                        </span>
+                      )}
+                      {item.lastPurchasedAt && (
+                        <span className="text-slate-400 text-[11px]">
+                          Última em: {item.lastPurchasedAt} ({item.lastClient})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Ações Rápidas de Referência */}
+                  <div className="border-t border-slate-100 pt-2.5 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {item.lastPurchaseUrl && (
+                        <>
+                          <a
+                            href={item.lastPurchaseUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                            title="Abrir o link onde este produto foi comprado da última vez"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Abrir Link da Loja</span>
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink(item.lastPurchaseUrl!)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium transition cursor-pointer"
+                            title="Copiar URL para área de transferência"
+                          >
+                            {copiedUrl === item.lastPurchaseUrl ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="text-emerald-700 font-bold">Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copiar</span>
+                              </>
+                            )}
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Botão Comprar Novamente */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenNewDirectPurchaseModal({
+                        name: item.name,
+                        partNumber: item.partNumber || '',
+                        ncm: item.ncm || '',
+                        unit: item.unit,
+                        supplier: item.lastSupplier || '',
+                        costPrice: item.lastUnitCost,
+                        sourceUrl: item.lastPurchaseUrl || '',
+                        initialStatus: 'pending',
+                        clientCompany: item.lastClient || 'Infodesk (Uso Interno / Estoque)'
+                      })}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-2xs transition cursor-pointer"
+                      title="Abrir formulário de nova compra com estes dados pré-preenchidos"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Comprar Novamente</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : filteredItems.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center max-w-lg mx-auto shadow-xs space-y-3">
           <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mx-auto border border-sky-100">
             <ShoppingCart className="w-6 h-6" />
@@ -895,6 +1355,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         <div className="space-y-4">
           {groupedByQuote.map(group => {
             const isCollapsed = Boolean(collapsedQuotes[group.quoteId]);
+            const isDirectGroup = group.quoteId === 'direct_purchases';
 
             return (
               <div 
@@ -908,7 +1369,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 >
                   <div className="space-y-1.5 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
+                      <span className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-lg border ${
+                        isDirectGroup 
+                          ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                          : 'bg-sky-50 text-sky-700 border-sky-200'
+                      }`}>
                         {group.quoteCode}
                       </span>
                       <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
@@ -1006,7 +1471,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                   {activeItemForPurchase.name}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Qtd Aprovada: <strong className="text-slate-800 font-mono">{activeItemForPurchase.quantity} {activeItemForPurchase.unit}</strong> • Cliente: {activeItemForPurchase.clientCompany} • Proposta: {activeItemForPurchase.quoteCode}
+                  Qtd: <strong className="text-slate-800 font-mono">{activeItemForPurchase.quantity} {activeItemForPurchase.unit}</strong> • Cliente/Destino: {activeItemForPurchase.clientCompany} • Origem: {activeItemForPurchase.quoteCode}
                 </p>
               </div>
 
@@ -1321,6 +1786,290 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* 6. Modal de Nova Compra Avulsa / Direta (Independente de Orçamento) */}
+      {isDirectPurchaseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div 
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-scaleIn max-h-[92vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3 bg-gradient-to-r from-slate-50 to-white shrink-0">
+              <div>
+                <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
+                  COMPRA AVULSA / DIRETA
+                </span>
+                <h3 className="text-base font-bold text-slate-900 mt-1">
+                  Adicionar Item de Compra Direta
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Cadastre um produto para comprar sem necessidade de ter passado por uma proposta comercial.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsDirectPurchaseModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveDirectPurchase} className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* Nome do Produto */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Nome do Produto / Descrição *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: SSD Kingston 480GB A400, Cabo Furukawa Cat6 305m..."
+                  value={directPurchaseForm.name}
+                  onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, name: e.target.value })}
+                  className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900 font-medium"
+                />
+              </div>
+
+              {/* Part Number e NCM */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">
+                    Part Number / SKU (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: SA400S37/480G"
+                    value={directPurchaseForm.partNumber}
+                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, partNumber: e.target.value })}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">
+                    NCM Fiscal (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 8523.51.90"
+                    value={directPurchaseForm.ncm}
+                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, ncm: e.target.value })}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Quantidade, Unidade e Custo Estimado */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Quantidade *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={directPurchaseForm.quantity}
+                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Unidade
+                  </label>
+                  <select
+                    value={directPurchaseForm.unit}
+                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, unit: e.target.value })}
+                    className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 font-medium"
+                  >
+                    {registeredUnits.map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Custo Unit. Estimado (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={directPurchaseForm.costPrice || ''}
+                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, costPrice: parseFloat(e.target.value) || 0 })}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Cliente / Destino e Fornecedor */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Cliente / Destino da Compra
+                  </label>
+                  <select
+                    value={directPurchaseForm.clientCompany}
+                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, clientCompany: e.target.value })}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 font-medium"
+                  >
+                    <option value="Infodesk (Uso Interno / Estoque)">Infodesk (Uso Interno / Estoque)</option>
+                    {registeredClients.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Fornecedor / Loja
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Amazon, Mercado Livre, Kabum..."
+                    value={directPurchaseForm.supplier}
+                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, supplier: e.target.value })}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Link do Produto / Compra */}
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Link do Produto / Loja (URL)
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={directPurchaseForm.sourceUrl}
+                  onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, sourceUrl: e.target.value })}
+                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900"
+                />
+              </div>
+
+              {/* Status Inicial da Compra */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <span className="block text-[11px] font-bold text-slate-700 uppercase">
+                  Status Desta Compra
+                </span>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
+                    <input
+                      type="radio"
+                      name="initialStatus"
+                      checked={directPurchaseForm.initialStatus === 'pending'}
+                      onChange={() => setDirectPurchaseForm({ ...directPurchaseForm, initialStatus: 'pending' })}
+                      className="text-amber-600 focus:ring-amber-500"
+                    />
+                    <span>A Comprar (Deixar na Fila de Pendentes)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800">
+                    <input
+                      type="radio"
+                      name="initialStatus"
+                      checked={directPurchaseForm.initialStatus === 'purchased'}
+                      onChange={() => setDirectPurchaseForm({ 
+                        ...directPurchaseForm, 
+                        initialStatus: 'purchased',
+                        actualCost: directPurchaseForm.actualCost || (directPurchaseForm.costPrice * directPurchaseForm.quantity)
+                      })}
+                      className="text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>Já Comprado (Registrar Imediatamente)</span>
+                  </label>
+                </div>
+
+                {/* Campos adicionais se já foi comprado */}
+                {directPurchaseForm.initialStatus === 'purchased' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-200/60 animate-fadeIn">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                        Custo Total Pago (R$) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={directPurchaseForm.actualCost || ''}
+                        onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, actualCost: parseFloat(e.target.value) || 0 })}
+                        className="w-full h-8 px-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                        Forma de Pagamento
+                      </label>
+                      <select
+                        value={directPurchaseForm.paymentMethod}
+                        onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, paymentMethod: e.target.value })}
+                        className="w-full h-8 px-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900"
+                      >
+                        {paymentMethodsList.map(pm => (
+                          <option key={pm} value={pm}>{pm}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                        Data da Compra
+                      </label>
+                      <input
+                        type="date"
+                        value={directPurchaseForm.purchaseDate}
+                        onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, purchaseDate: e.target.value })}
+                        className="w-full h-8 px-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Observações / Rastreio / NF (opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: compra urgente para o rack da recepção"
+                  value={directPurchaseForm.notes}
+                  onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, notes: e.target.value })}
+                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900"
+                />
+              </div>
+
+              {/* Footer */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsDirectPurchaseModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Salvar Compra Avulsa</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1376,18 +2125,24 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                   {item.quantity} {item.unit}
                 </span>
 
-                {/* Tag da Proposta */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const q = quotes.find(quote => quote.id === item.quoteId);
-                    if (q && onOpenQuote) onOpenQuote(q);
-                  }}
-                  className="text-[11px] font-mono font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md border border-slate-200/80 transition cursor-pointer"
-                  title="Ver proposta original"
-                >
-                  {item.quoteCode}
-                </button>
+                {/* Tag de Origem / Proposta / Compra Direta */}
+                {item.isDirectPurchase ? (
+                  <span className="text-[11px] font-mono font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-md border border-purple-200">
+                    COMPRA AVULSA
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const q = quotes.find(quote => quote.id === item.quoteId);
+                      if (q && onOpenQuote) onOpenQuote(q);
+                    }}
+                    className="text-[11px] font-mono font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md border border-slate-200/80 transition cursor-pointer"
+                    title="Ver proposta original"
+                  >
+                    {item.quoteCode}
+                  </button>
+                )}
 
                 {/* Status de Compra */}
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border ${
@@ -1431,7 +2186,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           {/* Financeiro do Card */}
           <div className="sm:text-right shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
             <div className="text-right">
-              <span className="text-xs text-slate-400 block">Venda Faturada</span>
+              <span className="text-xs text-slate-400 block">
+                {item.isDirectPurchase ? 'Valor Previsto / Venda' : 'Venda Faturada'}
+              </span>
               <span className="text-base sm:text-lg font-mono font-bold text-slate-900 block">
                 R$ {revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
@@ -1542,14 +2299,28 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => handleOpenPurchaseModal(item)}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Registrar Compra</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleOpenPurchaseModal(item)}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Registrar Compra</span>
+                </button>
+
+                {/* Se for item avulso e estiver pendente, pode remover da fila */}
+                {item.isDirectPurchase && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDirectItemPermanently(item.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                    title="Remover item avulso da fila de compras"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
