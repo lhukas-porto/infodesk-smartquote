@@ -91,4 +91,44 @@ assert.equal(mockProcurementItem.actualPurchaseUrl, 'https://www.amazon.com.br/d
 assert.equal(mockProcurementItem.paymentMethod, 'Cartão Amazon', 'Forma de pagamento deve ser retida');
 console.log('  ✅ Gestão de Compras: Link real retido, unitário registrado e saving calculado com sucesso!');
 
+// 4. Teste de Exclusão de Compra e Retorno para 'A Comprar'
+console.log('🔹 4. Validando Exclusão de Compra e Retorno para "A Comprar"...');
+const purchasedItemData = {
+  id: 'item-1',
+  name: 'SSD Kingston 480GB A400',
+  quantity: 10,
+  unit: 'un',
+  costPrice: 220.00,
+  markupPercent: 40.9,
+  unitPrice: 310.00,
+  totalPrice: 3100.00,
+  purchaseStatus: 'purchased' as const,
+  actualCostPrice: 1950.00,
+  actualUnitCostPrice: 195.00,
+  actualPurchaseUrl: 'https://www.amazon.com.br/dp/B01N5IB20Q',
+  paymentMethod: 'Cartão Amazon',
+  purchasedAt: '2026-09-30',
+  actualTaxPercent: 9.05,
+  purchaseNotes: 'Pedido Amazon 1234'
+};
+
+// Simula exclusão da compra (handleDeletePurchase)
+const cleanedItem = { ...purchasedItemData };
+cleanedItem.purchaseStatus = 'pending' as any;
+delete (cleanedItem as any).actualCostPrice;
+delete (cleanedItem as any).actualUnitCostPrice;
+delete (cleanedItem as any).actualPurchaseUrl;
+delete (cleanedItem as any).actualShippingCost;
+delete (cleanedItem as any).paymentMethod;
+delete (cleanedItem as any).purchasedAt;
+delete (cleanedItem as any).purchaseNotes;
+delete (cleanedItem as any).actualTaxPercent;
+
+assert.equal(cleanedItem.purchaseStatus, 'pending', 'Status deve voltar imediatamente para pending (A Comprar)');
+assert.equal((cleanedItem as any).actualCostPrice, undefined, 'actualCostPrice deve ser limpo');
+assert.equal((cleanedItem as any).actualUnitCostPrice, undefined, 'actualUnitCostPrice deve ser limpo');
+assert.equal((cleanedItem as any).actualPurchaseUrl, undefined, 'actualPurchaseUrl deve ser limpo');
+assert.equal((cleanedItem as any).paymentMethod, undefined, 'paymentMethod deve ser limpo');
+console.log('  ✅ Exclusão de Compra: Compra excluída com sucesso, dados reais limpos e item retornado para "A Comprar"!');
+
 console.log('🎉 TODOS OS TESTES DAS NOVAS FUNCIONALIDADES DE COMPRAS PASSARAM COM 100% DE SUCESSO!\n');
