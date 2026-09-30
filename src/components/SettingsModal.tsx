@@ -454,7 +454,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         )}
 
         {/* Conteúdo da Aba Geral */}
-        {activeTab === 'general' ? (
+        {activeTab === 'general' && (
           <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs flex-1">
             
             <h3 className="font-bold text-sky-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-1">
@@ -873,8 +873,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             </div>
           </form>
-        ) : (
-          /* Conteúdo da Aba Categorias & Unidades */
+        )}
+
+        {/* Conteúdo da Aba Categorias & Unidades */}
+        {activeTab === 'catalog' && (
           <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
             
             <div className="bg-sky-50/70 border border-sky-200/80 rounded-2xl p-4 flex items-start gap-3">

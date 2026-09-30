@@ -155,6 +155,7 @@ const mockDirectItem: ProcurementItem = {
   supplier: 'Distribuidora Roxtell',
   sourceUrl: 'https://distribuidora.com/cabo-furukawa',
   purchaseStatus: 'pending',
+  taxPercent: 9.05,
   isDirectPurchase: true
 };
 
@@ -205,6 +206,7 @@ const referenceItem1: ProcurementItem = {
   actualUnitCostPrice: 190,
   actualPurchaseUrl: 'https://kabum.com/ssd480',
   purchaseStatus: 'purchased',
+  taxPercent: 9.05,
   purchasedAt: '2026-08-15'
 };
 
@@ -226,6 +228,7 @@ const referenceItem2: ProcurementItem = {
   actualUnitCostPrice: 185,
   actualPurchaseUrl: 'https://amazon.com.br/ssd480',
   purchaseStatus: 'purchased',
+  taxPercent: 9.05,
   purchasedAt: '2026-09-20'
 };
 
