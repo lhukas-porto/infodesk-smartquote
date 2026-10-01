@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   ShoppingCart, 
   Search, 
@@ -31,9 +31,12 @@ import {
   History,
   Copy,
   Tag,
-  ArrowRight
+  ArrowRight,
+  AlertCircle,
+  AlertTriangle,
+  Boxes
 } from 'lucide-react';
-import { Quote, ProcurementItem } from '../types';
+import { Quote, ProcurementItem, Product } from '../types';
 import { exportPurchasesToExcel } from '../utils/excelExport';
 import { 
   getRegisteredPaymentMethods, 
@@ -42,8 +45,10 @@ import {
   saveOrUpdateDirectPurchase,
   deleteDirectPurchaseItem,
   getRegisteredUnits,
-  getClientCompanies
+  getClientCompanies,
+  getProducts
 } from '../utils/storage';
+import { normalizeSearchText } from '../utils/aiEmailParser';
 
 interface ProcurementViewProps {
   quotes: Quote[];
@@ -107,7 +112,13 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   // 3. Compras Diretas / Avulsas (independentes de orçamento)
   const [directPurchases, setDirectPurchases] = useState<ProcurementItem[]>(() => getDirectPurchases());
   const [isDirectPurchaseModalOpen, setIsDirectPurchaseModalOpen] = useState(false);
+  const [stockProducts, setStockProducts] = useState<Product[]>(() => getProducts());
+  const [selectedStockProduct, setSelectedStockProduct] = useState<Product | null>(null);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
   const [directPurchaseForm, setDirectPurchaseForm] = useState({
+    productId: '' as string | undefined,
     name: '',
     partNumber: '',
     ncm: '',
@@ -150,6 +161,37 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       window.removeEventListener('infodesk_direct_purchases_changed', handleDirectPurchasesChanged);
     };
   }, []);
+
+  // Filtro em tempo real de produtos do estoque para autocomplete
+  const filteredStockProducts = useMemo(() => {
+    if (!productSearchTerm.trim()) {
+      return stockProducts.slice(0, 10);
+    }
+    const term = normalizeSearchText(productSearchTerm);
+    return stockProducts.filter(p => {
+      const nameMatch = normalizeSearchText(p.name).includes(term);
+      const pnMatch = p.partNumber ? normalizeSearchText(p.partNumber).includes(term) : false;
+      const skuMatch = p.sku ? normalizeSearchText(p.sku).includes(term) : false;
+      const ncmMatch = p.ncm ? normalizeSearchText(p.ncm).includes(term) : false;
+      const supMatch = p.supplier ? normalizeSearchText(p.supplier).includes(term) : false;
+      return nameMatch || pnMatch || skuMatch || ncmMatch || supMatch;
+    }).slice(0, 15);
+  }, [stockProducts, productSearchTerm]);
+
+  // Fechar dropdown de produto ao clicar fora
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (productDropdownRef.current && !productDropdownRef.current.contains(event.target as Node)) {
+        setIsProductDropdownOpen(false);
+      }
+    }
+    if (isProductDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProductDropdownOpen]);
 
   // 5. Estado do Modal de Registro de Compra (para itens pendentes de propostas ou diretos)
   const [activeItemForPurchase, setActiveItemForPurchase] = useState<ProcurementItem | null>(null);
@@ -712,18 +754,82 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     setIsAddingNewPaymentMethod(false);
   };
 
+  // Selecionar Produto do Estoque
+  const handleSelectStockProduct = (product: Product) => {
+    setSelectedStockProduct(product);
+    setProductSearchTerm(product.name);
+    setIsProductDropdownOpen(false);
+    setDirectPurchaseForm(prev => ({
+      ...prev,
+      productId: product.id,
+      name: product.name,
+      partNumber: product.partNumber || product.sku || '',
+      ncm: product.ncm || '',
+      unit: product.unit || prev.unit || 'un',
+      costPrice: product.costPrice || prev.costPrice || 0,
+      supplier: product.supplier || prev.supplier || '',
+      sourceUrl: product.sourceUrl || prev.sourceUrl || ''
+    }));
+  };
+
+  // Limpar Produto Selecionado para permitir nova busca
+  const handleClearSelectedProduct = () => {
+    setSelectedStockProduct(null);
+    setProductSearchTerm('');
+    setIsProductDropdownOpen(true);
+    setDirectPurchaseForm(prev => ({
+      ...prev,
+      productId: undefined,
+      name: '',
+      partNumber: '',
+      ncm: '',
+      costPrice: 0,
+      supplier: '',
+      sourceUrl: ''
+    }));
+  };
+
   // Abrir Modal de Nova Compra Avulsa
   const handleOpenNewDirectPurchaseModal = (prefill?: Partial<typeof directPurchaseForm>) => {
+    const freshProducts = getProducts();
+    setStockProducts(freshProducts);
+
+    // Tenta encontrar o produto no estoque pelo prefill (por ID, partNumber ou nome)
+    let matchingProduct: Product | null = null;
+    if (prefill?.productId) {
+      matchingProduct = freshProducts.find(p => p.id === prefill.productId) || null;
+    }
+    if (!matchingProduct && prefill?.name) {
+      const normPrefillName = normalizeSearchText(prefill.name);
+      matchingProduct = freshProducts.find(p => {
+        if (prefill.partNumber && p.partNumber && normalizeSearchText(p.partNumber) === normalizeSearchText(prefill.partNumber)) {
+          return true;
+        }
+        return normalizeSearchText(p.name) === normPrefillName;
+      }) || null;
+    }
+
+    if (matchingProduct) {
+      setSelectedStockProduct(matchingProduct);
+      setProductSearchTerm(matchingProduct.name);
+    } else {
+      setSelectedStockProduct(null);
+      setProductSearchTerm(prefill?.name || '');
+    }
+
+    setIsProductDropdownOpen(false);
+
     setDirectPurchaseForm({
-      name: prefill?.name || '',
-      partNumber: prefill?.partNumber || '',
-      ncm: prefill?.ncm || '',
+      productId: matchingProduct?.id,
+      name: matchingProduct?.name || prefill?.name || '',
+      partNumber: matchingProduct?.partNumber || matchingProduct?.sku || prefill?.partNumber || '',
+      ncm: matchingProduct?.ncm || prefill?.ncm || '',
       quantity: prefill?.quantity || 1,
-      unit: prefill?.unit || 'un',
+      unit: matchingProduct?.unit || prefill?.unit || 'un',
       clientCompany: prefill?.clientCompany || 'Infodesk (Uso Interno / Estoque)',
-      supplier: prefill?.supplier || '',
-      costPrice: prefill?.costPrice || 0,
-      sourceUrl: prefill?.sourceUrl || '',
+      supplier: matchingProduct?.supplier || prefill?.supplier || '',
+      costPrice: matchingProduct?.costPrice || prefill?.costPrice || 0,
+      sourceUrl: matchingProduct?.sourceUrl || prefill?.sourceUrl || '',
       initialStatus: prefill?.initialStatus || 'pending',
       actualCost: prefill?.actualCost || 0,
       paymentMethod: prefill?.paymentMethod || paymentMethodsList[0] || 'Cartão Amazon',
@@ -734,14 +840,17 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     setIsDirectPurchaseModalOpen(true);
   };
 
-  // Salvar Nova Compra Avulsa
+  // Salvar Nova Compra Avulsa (Regra: Apenas produtos cadastrados no estoque)
   const handleSaveDirectPurchase = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = directPurchaseForm.name.trim();
-    if (!cleanName) return;
+    if (!selectedStockProduct) {
+      alert('Atenção: A compra avulsa só pode ser realizada para um produto previamente cadastrado no estoque.');
+      return;
+    }
 
+    const cleanName = selectedStockProduct.name;
     const qty = Math.max(1, Number(directPurchaseForm.quantity) || 1);
-    const cost = Number(directPurchaseForm.costPrice) || 0;
+    const cost = Number(directPurchaseForm.costPrice) || selectedStockProduct.costPrice || 0;
     const id = `direct-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
     const newItem: ProcurementItem = {
@@ -750,16 +859,17 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       quoteCode: 'COMPRA DIRETA',
       clientCompany: directPurchaseForm.clientCompany.trim() || 'Infodesk (Uso Interno / Estoque)',
       itemId: id,
+      productId: selectedStockProduct.id,
       name: cleanName,
-      partNumber: directPurchaseForm.partNumber.trim() || undefined,
-      ncm: directPurchaseForm.ncm.trim() || undefined,
+      partNumber: selectedStockProduct.partNumber || directPurchaseForm.partNumber.trim() || undefined,
+      ncm: selectedStockProduct.ncm || directPurchaseForm.ncm.trim() || undefined,
       quantity: qty,
-      unit: directPurchaseForm.unit || 'un',
+      unit: directPurchaseForm.unit || selectedStockProduct.unit || 'un',
       quotedCostPrice: cost,
       quotedUnitPrice: cost,
       quotedTotalPrice: cost * qty,
-      supplier: directPurchaseForm.supplier.trim() || undefined,
-      sourceUrl: directPurchaseForm.sourceUrl.trim() || undefined,
+      supplier: directPurchaseForm.supplier.trim() || selectedStockProduct.supplier || undefined,
+      sourceUrl: directPurchaseForm.sourceUrl.trim() || selectedStockProduct.sourceUrl || undefined,
       purchaseStatus: directPurchaseForm.initialStatus,
       taxPercent: 9.05,
       isDirectPurchase: true,
@@ -770,7 +880,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       const realTotal = Number(directPurchaseForm.actualCost) || (cost * qty);
       newItem.actualCostPrice = realTotal;
       newItem.actualUnitCostPrice = qty > 0 ? Number((realTotal / qty).toFixed(2)) : cost;
-      newItem.actualPurchaseUrl = directPurchaseForm.sourceUrl.trim() || undefined;
+      newItem.actualPurchaseUrl = directPurchaseForm.sourceUrl.trim() || selectedStockProduct.sourceUrl || undefined;
       newItem.actualShippingCost = Number(directPurchaseForm.actualShipping) || 0;
       newItem.paymentMethod = directPurchaseForm.paymentMethod;
       newItem.purchasedAt = directPurchaseForm.purchaseDate;
@@ -836,7 +946,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             </span>
           </div>
           <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            Central de Compras & Conciliação de Lucro
+            Central de Compras & Gestão de Lucro
           </h1>
           <p className="text-xs text-slate-500">
             Acompanhe pedidos aprovados, cadastre compras avulsas, consulte referências de preços já pagos e concilie faturas por forma de pagamento.
@@ -852,7 +962,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             title="Cadastrar um item a comprar fora de proposta comercial (uso interno, insumo ou urgência)"
           >
             <Plus className="w-4 h-4" />
-            <span>Nova Compra Avulsa</span>
+            <span>Nova Compra</span>
           </button>
 
           {/* Alternador de Modo de Visualização */}
@@ -1798,14 +1908,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3 bg-gradient-to-r from-slate-50 to-white shrink-0">
               <div>
                 <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
-                  COMPRA AVULSA / DIRETA
+                  NOVA COMPRA
                 </span>
                 <h3 className="text-base font-bold text-slate-900 mt-1">
-                  Adicionar Item de Compra Direta
+                  Adicionar Item da Nova Compra
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Cadastre um produto para comprar sem necessidade de ter passado por uma proposta comercial.
-                </p>
               </div>
 
               <button
@@ -1819,19 +1926,140 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
             {/* Form */}
             <form onSubmit={handleSaveDirectPurchase} className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
-              {/* Nome do Produto */}
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Nome do Produto / Descrição *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: SSD Kingston 480GB A400, Cabo Furukawa Cat6 305m..."
-                  value={directPurchaseForm.name}
-                  onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, name: e.target.value })}
-                  className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900 font-medium"
-                />
+              {/* Seletor de Produto do Estoque com Autocomplete */}
+              <div ref={productDropdownRef} className="relative">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Boxes className="w-3.5 h-3.5 text-sky-600" />
+                    <span>Produto do Estoque Cadastrado *</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {stockProducts.length} produtos cadastrados
+                  </span>
+                </div>
+
+                {selectedStockProduct ? (
+                  /* Card do Produto Selecionado com Validação Positiva */
+                  <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-xl mt-0.5 shrink-0">
+                        <Check className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                            {selectedStockProduct.name}
+                          </span>
+                          {(selectedStockProduct.partNumber || selectedStockProduct.sku) && (
+                            <span className="px-2 py-0.5 bg-white border border-emerald-200 text-emerald-800 font-mono text-[10px] font-bold rounded-md">
+                              PN: {selectedStockProduct.partNumber || selectedStockProduct.sku}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-slate-600 mt-1 flex-wrap">
+                          <span>
+                            Estoque atual: <strong className="text-slate-900">{selectedStockProduct.stock ?? 0} {selectedStockProduct.unit}</strong>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            Custo ref.: <strong className="text-slate-900">R$ {Number(selectedStockProduct.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                          </span>
+                          {selectedStockProduct.supplier && (
+                            <>
+                              <span>•</span>
+                              <span>Fornecedor: <strong className="text-slate-900">{selectedStockProduct.supplier}</strong></span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleClearSelectedProduct}
+                      className="px-2.5 py-1 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-bold transition shrink-0 cursor-pointer"
+                    >
+                      Trocar Produto
+                    </button>
+                  </div>
+                ) : (
+                  /* Campo de Busca Interativo */
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Digite o nome, part number ou SKU do produto no estoque..."
+                        value={productSearchTerm}
+                        onChange={(e) => {
+                          setProductSearchTerm(e.target.value);
+                          setIsProductDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsProductDropdownOpen(true)}
+                        className="w-full h-10 pl-9 pr-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900 font-medium"
+                      />
+                    </div>
+
+                    {/* Aviso de Obrigatório */}
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>
+                        Regra: A compra avulsa só pode ser realizada para produtos já cadastrados no estoque.
+                      </span>
+                    </div>
+
+                    {/* Dropdown de Sugestões do Estoque */}
+                    {isProductDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-64 overflow-y-auto divide-y divide-slate-100">
+                        {filteredStockProducts.length > 0 ? (
+                          filteredStockProducts.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => handleSelectStockProduct(p)}
+                              className="w-full text-left p-3 hover:bg-sky-50/70 transition flex items-center justify-between gap-3 group cursor-pointer"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-slate-900 group-hover:text-sky-700 text-xs">
+                                    {p.name}
+                                  </span>
+                                  {(p.partNumber || p.sku) && (
+                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[10px] font-bold rounded">
+                                      {p.partNumber || p.sku}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5 flex-wrap">
+                                  <span>{p.category}</span>
+                                  {p.supplier && <span>• {p.supplier}</span>}
+                                  <span>• Estoque: <strong className="text-slate-700">{p.stock ?? 0} {p.unit}</strong></span>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <div className="text-xs font-mono font-bold text-slate-900">
+                                  R$ {Number(p.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </div>
+                                <span className="text-[10px] text-sky-600 font-bold group-hover:underline">
+                                  Selecionar
+                                </span>
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-4 text-center">
+                            <AlertCircle className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                            <p className="font-bold text-slate-700 text-xs">Nenhum produto encontrado no estoque</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Para comprar este item, cadastre-o primeiro na aba <strong>Base de Produtos</strong>.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Part Number e NCM */}
@@ -2060,7 +2288,13 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  disabled={!selectedStockProduct}
+                  className={`px-5 py-2 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 ${
+                    selectedStockProduct 
+                      ? 'bg-sky-600 hover:bg-sky-700 text-white cursor-pointer' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                  }`}
+                  title={!selectedStockProduct ? "Selecione um produto do estoque para continuar" : "Salvar Compra Avulsa"}
                 >
                   <Check className="w-4 h-4" />
                   <span>Salvar Compra Avulsa</span>

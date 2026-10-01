@@ -116,6 +116,7 @@ export interface ProcurementItem {
   contactPerson?: string;
   approvedAt?: string;
   itemId: string;
+  productId?: string;
   name: string;
   description?: string;
   partNumber?: string;
