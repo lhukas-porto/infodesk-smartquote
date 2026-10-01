@@ -110,7 +110,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-0 print:m-0 print:p-0">
       
       {/* Top Action Toolbar (Hidden during Print) */}
       <div className="no-print bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -203,7 +203,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       </div>
 
       {/* Visual Proposal Page (Identical replica of Infodesk's official document) */}
-      <div className="flex justify-center">
+      <div className="flex justify-center print:block print:w-full print:m-0 print:p-0">
         <div 
           ref={documentRef}
           className="print-page bg-white text-black w-full shadow-2xl rounded-sm border border-slate-200 flex flex-col justify-between"

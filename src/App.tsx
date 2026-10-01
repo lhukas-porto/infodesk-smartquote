@@ -1868,35 +1868,37 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans print:bg-white print:min-h-0">
       
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        unreadCount={emails.filter(e => e.unread).length}
-        openSettings={() => setIsSettingsOpen(true)}
-        openWebSearch={() => {
-          if (activeTab !== 'builder') {
-            setActiveTab('builder');
-            handleToggleScanner(true);
-          } else {
-            handleToggleScanner();
-          }
-        }}
-        isScannerOpen={isScannerOpen}
-        openClientsModal={() => setActiveTab('clients')}
-        settings={settings}
-        onNewQuote={handleNewQuote}
-        analysesCount={manualAnalyses.length}
-        draftsCount={draftQuotesCount}
-        pendingPurchasesCount={pendingPurchasesCount}
-        onOpenDraftsHistory={() => {
-          setHistoryStageFilter('draft');
-          setActiveTab('history');
-        }}
-      />
+      <div className="no-print">
+        <Navbar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          unreadCount={emails.filter(e => e.unread).length}
+          openSettings={() => setIsSettingsOpen(true)}
+          openWebSearch={() => {
+            if (activeTab !== 'builder') {
+              setActiveTab('builder');
+              handleToggleScanner(true);
+            } else {
+              handleToggleScanner();
+            }
+          }}
+          isScannerOpen={isScannerOpen}
+          openClientsModal={() => setActiveTab('clients')}
+          settings={settings}
+          onNewQuote={handleNewQuote}
+          analysesCount={manualAnalyses.length}
+          draftsCount={draftQuotesCount}
+          pendingPurchasesCount={pendingPurchasesCount}
+          onOpenDraftsHistory={() => {
+            setHistoryStageFilter('draft');
+            setActiveTab('history');
+          }}
+        />
+      </div>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 lg:pb-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 lg:pb-8 print:p-0 print:m-0 print:max-w-none print:w-full">
         {activeTab === 'inbox' && (
           <InboxView
             emails={emails}
