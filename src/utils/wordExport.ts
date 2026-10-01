@@ -8,6 +8,7 @@ import {
   TableCell,
   WidthType,
   AlignmentType,
+  VerticalAlign,
   BorderStyle,
   Footer,
   UnderlineType,
@@ -165,6 +166,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
         width: { size: colWidths[0], type: WidthType.DXA },
         borders: cellBorders,
         margins: cellMargins,
+        verticalAlign: VerticalAlign.CENTER,
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
@@ -176,6 +178,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
         width: { size: colWidths[1], type: WidthType.DXA },
         borders: cellBorders,
         margins: cellMargins,
+        verticalAlign: VerticalAlign.CENTER,
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
@@ -187,6 +190,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
         width: { size: colWidths[2], type: WidthType.DXA },
         borders: cellBorders,
         margins: cellMargins,
+        verticalAlign: VerticalAlign.CENTER,
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
@@ -198,6 +202,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
         width: { size: colWidths[3], type: WidthType.DXA },
         borders: cellBorders,
         margins: cellMargins,
+        verticalAlign: VerticalAlign.CENTER,
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
@@ -209,6 +214,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
         width: { size: colWidths[4], type: WidthType.DXA },
         borders: cellBorders,
         margins: cellMargins,
+        verticalAlign: VerticalAlign.CENTER,
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
@@ -220,6 +226,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
         width: { size: colWidths[5], type: WidthType.DXA },
         borders: cellBorders,
         margins: cellMargins,
+        verticalAlign: VerticalAlign.CENTER,
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
@@ -289,6 +296,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
             width: { size: colWidths[0], type: WidthType.DXA },
             borders: cellBorders,
             margins: cellMargins,
+            verticalAlign: VerticalAlign.CENTER,
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
@@ -300,12 +308,14 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
             width: { size: colWidths[1], type: WidthType.DXA },
             borders: cellBorders,
             margins: cellMargins,
+            verticalAlign: VerticalAlign.CENTER,
             children: descChildren
           }),
           new TableCell({
             width: { size: colWidths[2], type: WidthType.DXA },
             borders: cellBorders,
             margins: cellMargins,
+            verticalAlign: VerticalAlign.CENTER,
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
@@ -317,6 +327,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
             width: { size: colWidths[3], type: WidthType.DXA },
             borders: cellBorders,
             margins: cellMargins,
+            verticalAlign: VerticalAlign.CENTER,
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
@@ -328,6 +339,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
             width: { size: colWidths[4], type: WidthType.DXA },
             borders: cellBorders,
             margins: cellMargins,
+            verticalAlign: VerticalAlign.CENTER,
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,
@@ -344,6 +356,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
             width: { size: colWidths[5], type: WidthType.DXA },
             borders: cellBorders,
             margins: cellMargins,
+            verticalAlign: VerticalAlign.CENTER,
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER,

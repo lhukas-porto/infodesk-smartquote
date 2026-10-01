@@ -294,10 +294,10 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                     const isException = excDetails.hasException && excDetails.itemNumbers.includes(item.itemNumber);
                     return (
                     <tr key={item.id}>
-                      <td className="p-1.5 text-center" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
+                      <td className="p-1.5 text-center align-middle" style={{ fontSize: '10pt', border: '0.5pt solid #000000', verticalAlign: 'middle' }}>
                         {item.itemNumber}
                       </td>
-                      <td className="p-1.5 text-left" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
+                      <td className="p-1.5 text-left align-middle" style={{ fontSize: '10pt', border: '0.5pt solid #000000', verticalAlign: 'middle' }}>
                         <div className="flex items-start justify-between gap-2">
                           <span className="font-medium">{item.name}</span>
                           {isException && (
@@ -323,16 +323,16 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                           </div>
                         )}
                       </td>
-                      <td className="p-1.5 text-center" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
+                      <td className="p-1.5 text-center align-middle" style={{ fontSize: '10pt', border: '0.5pt solid #000000', verticalAlign: 'middle' }}>
                         {item.quantity}
                       </td>
-                      <td className="p-1.5 text-center" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
+                      <td className="p-1.5 text-center align-middle" style={{ fontSize: '10pt', border: '0.5pt solid #000000', verticalAlign: 'middle' }}>
                         {item.unit || 'Un.'}
                       </td>
-                      <td className="p-1.5 text-center whitespace-nowrap" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
+                      <td className="p-1.5 text-center whitespace-nowrap align-middle" style={{ fontSize: '10pt', border: '0.5pt solid #000000', verticalAlign: 'middle' }}>
                         R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      <td className="p-1.5 text-center whitespace-nowrap" style={{ fontSize: '10pt', border: '0.5pt solid #000000' }}>
+                      <td className="p-1.5 text-center whitespace-nowrap align-middle" style={{ fontSize: '10pt', border: '0.5pt solid #000000', verticalAlign: 'middle' }}>
                         R$ {item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>

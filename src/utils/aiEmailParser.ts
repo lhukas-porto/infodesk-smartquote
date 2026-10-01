@@ -3235,10 +3235,10 @@ export function generateProposalEmailHtml(
 
     return `
       <tr style="page-break-inside: avoid;">
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.itemNumber)}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: left; vertical-align: middle; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           <div style="font-weight: normal; color: #000000;">
             ${safeItemName}
             ${isException ? `<span style="font-size: 8pt; color: #b45309; font-weight: bold; margin-left: 6px;">(Prazo diferenciado: ${escapeHtml(excDetails.days)} dias úteis)</span>` : ''}
@@ -3246,23 +3246,23 @@ export function generateProposalEmailHtml(
           ${hasImage ? `
             <table border="0" cellpadding="0" cellspacing="0" width="130" style="width: 130px; max-width: 130px; margin-top: 6px; margin-bottom: 4px; border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; page-break-inside: avoid;">
               <tr>
-                <td width="130" align="left" valign="top" style="width: 130px; max-width: 130px; padding: 0; margin: 0; line-height: 0;">
+                <td width="130" align="left" valign="middle" style="width: 130px; max-width: 130px; padding: 0; margin: 0; line-height: 0; vertical-align: middle;">
                   <img src="${safeImageUrl}" alt="${safeItemName}" width="130" border="0" style="width: 130px; max-width: 130px; height: auto; max-height: 95px; object-fit: contain; display: block; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;" />
                 </td>
               </tr>
             </table>
           ` : ''}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.quantity)}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.unit || 'Un.')}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           R$ ${Number(item.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: top; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           R$ ${Number(item.totalPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </td>
       </tr>
