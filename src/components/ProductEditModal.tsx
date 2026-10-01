@@ -430,7 +430,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const handleSearchSpecificationsOnline = async () => {
     const productName = (draft.name || '').trim();
     if (!productName) {
-      alert('Por favor, informe ao menos o Nome Padronizado do produto antes de buscar as especificações na web.');
+      alert('Por favor, informe ao menos o Nome Padronizado do produto antes de buscar as especificações com IA.');
       return;
     }
 
@@ -447,23 +447,29 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       setDraft(prev => ({
         ...prev,
         description: result.description || prev.description,
-        ncm: prev.ncm || result.ncm || '',
-        partNumber: prev.partNumber || result.partNumber || '',
-        sku: prev.sku || result.partNumber || prev.sku || ''
+        ncm: (prev.ncm && prev.ncm.trim().length >= 8) ? prev.ncm : (result.ncm || prev.ncm || ''),
+        partNumber: prev.partNumber?.trim() ? prev.partNumber : (result.partNumber || ''),
+        sku: prev.sku?.trim() ? prev.sku : (result.partNumber || prev.sku || ''),
+        category: (!prev.category || prev.category === 'Diversos & Sazonais') && result.category
+          ? normalizeToOfficialCategory(result.category)
+          : prev.category,
+        supplier: (!prev.supplier || !prev.supplier.trim()) && result.brand
+          ? result.brand
+          : prev.supplier
       }));
 
       setSpecsMessage({
-        text: 'Especificações técnicas localizadas na internet e aplicadas com sucesso!',
+        text: 'Ficha técnica 360° gerada com sucesso pela IA (especificações ricas, NCM e categoria)!',
         type: 'success'
       });
-      setTimeout(() => setSpecsMessage(null), 4000);
+      setTimeout(() => setSpecsMessage(null), 5000);
     } catch (err: any) {
       console.warn('Erro ao buscar especificações técnicas na web:', err);
       setSpecsMessage({
-        text: err?.message || 'Não foi possível encontrar especificações na web neste momento.',
+        text: err?.message || 'Não foi possível consultar as especificações com IA neste momento.',
         type: 'error'
       });
-      setTimeout(() => setSpecsMessage(null), 5000);
+      setTimeout(() => setSpecsMessage(null), 6000);
     } finally {
       setIsSearchingSpecs(false);
     }
@@ -610,7 +616,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-[11px] font-bold text-slate-700">
-                      Nome Padronizado Comercial *
+                      Nome Padronizado *
                     </label>
                     <div className="flex items-center gap-2">
                       <div className="relative inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 hover:border-sky-300 shadow-2xs">
@@ -766,18 +772,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     type="button"
                     onClick={handleSearchSpecificationsOnline}
                     disabled={isSearchingSpecs || !draft.name?.trim()}
-                    title="Pesquisar especificações técnicas oficiais na internet a partir do nome do produto"
-                    className="px-2 py-0.5 rounded text-[9.5px] font-semibold bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 shadow-2xs flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                    title="Consultar a IA para gerar a ficha técnica completa 360° do produto (mesma riqueza de informações do Scanner IA)"
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 shadow-2xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
                   >
                     {isSearchingSpecs ? (
                       <>
-                        <Loader2 className="w-3 h-3 animate-spin text-sky-600" />
-                        <span>Buscando na Web...</span>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600" />
+                        <span>Gerando Ficha Técnica...</span>
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-3 h-3 text-sky-600" />
-                        <span>Buscar Especificações</span>
+                        <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Buscar Especificações (IA)</span>
                       </>
                     )}
                   </button>

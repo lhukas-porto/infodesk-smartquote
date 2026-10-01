@@ -102,7 +102,7 @@ export function resetGeminiCircuitBreaker(): void {
  * Executa requisição para a API Gemini com timeout estrito via AbortController.
  * Não trava todos os modelos se apenas 1 deles tiver cota esgotada (429).
  */
-async function fetchGeminiWithTimeout(
+export async function fetchGeminiWithTimeout(
   endpoint: string,
   body: any,
   timeoutMs: number = 25000

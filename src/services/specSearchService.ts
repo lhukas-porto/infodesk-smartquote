@@ -1,5 +1,10 @@
-import { getStoredGeminiKey } from './priceScannerService';
-import { cleanAlphanumericCode, cleanNcmCode } from '../utils/aiEmailParser';
+import { getStoredGeminiKey, MODERN_GEMINI_MODELS, fetchGeminiWithTimeout, isGeminiCircuitBreakerActive } from './priceScannerService';
+import {
+  cleanAlphanumericCode,
+  cleanNcmCode,
+  normalizeToOfficialCategory,
+  buildCompleteProductDescription
+} from '../utils/aiEmailParser';
 
 export interface SpecSearchParams {
   productName: string;
@@ -10,132 +15,146 @@ export interface SpecSearchParams {
 }
 
 export interface SpecSearchResult {
+  /** Descrição técnica completa formatada com parágrafos e tópicos de especificações (padrão Scanner IA) */
   description: string;
+  /** Parágrafos comerciais e técnicos originais */
+  summaryDescription?: string;
+  /** Lista estruturada de atributos e valores */
+  specifications: Array<{ label: string; value: string }>;
+  /** NCM oficial de 8 dígitos formatado */
   ncm?: string;
+  /** Part Number ou SKU autêntico do fabricante (se identificado com certeza) */
   partNumber?: string;
+  /** Marca comercial autêntica */
   brand?: string;
+  /** Fabricante ou Razão Social oficial */
+  manufacturer?: string;
+  /** Modelo oficial */
   model?: string;
+  /** Categoria oficial padronizada do sistema */
+  category?: string;
+  /** Peso aproximado da embalagem em kg */
+  weight?: string;
+  /** Dimensões aproximadas no formato CxLxA cm */
+  dimensions?: string;
+  /** Nome comercial padronizado e conciso sugerido */
+  standardizedName?: string;
 }
 
-const SPEC_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro'
-];
-
 /**
- * Busca na web as especificações técnicas oficiais e ficha técnica do fabricante a partir do nome do produto.
+ * Consulta a IA do Google Gemini para realizar uma varredura técnica profunda do produto,
+ * trazendo a mesma riqueza de informações e detalhes que a Fase 1 do Scanner IA produz:
+ * - Parágrafos comerciais e técnicos fluídos e persuasivos
+ * - Lista minuciosa de especificações técnicas (conectividade, dimensões, potência, material, normas)
+ * - NCM Fiscal oficial de 8 dígitos
+ * - Part number autêntico do fabricante (sem inventar códigos fictícios)
+ * - Categoria oficial padronizada
+ * - Peso e dimensões para frete
  */
 export async function fetchProductSpecsOnline(params: SpecSearchParams): Promise<SpecSearchResult> {
   const query = (params.productName || '').trim();
   if (!query) {
-    throw new Error('Nome do produto não informado para pesquisa.');
+    throw new Error('Por favor, informe o nome do produto antes de buscar especificações.');
   }
 
   const apiKey = params.geminiApiKey || getStoredGeminiKey();
   if (!apiKey) {
-    throw new Error('Chave de API do Gemini não configurada. Configure em Configurações.');
+    throw new Error('Chave de API do Gemini não configurada. Configure sua chave em Configurações > Chave Gemini.');
   }
 
-  const prompt = `Você é um engenheiro sênior especialista em catalogação e ficha técnica de produtos da Infodesk Store e SmartQuote Brasil.
-Pesquise na internet as especificações técnicas oficiais e folha de dados (datasheet) deste produto:
-- Nome do Produto: "${query}"
-${params.brand ? `- Marca/Fabricante: "${params.brand}"` : ''}
-${params.partNumber ? `- Part Number / Código: "${params.partNumber}"` : ''}
-${params.category ? `- Categoria: "${params.category}"` : ''}
+  if (isGeminiCircuitBreakerActive()) {
+    throw new Error('O serviço de IA está em resfriamento rápido de cota. Tente novamente em 15 segundos.');
+  }
 
-SUA MISSÃO:
-1. Realize uma busca profunda no Google pelas especificações técnicas reais do modelo oficial.
-2. Escreva uma descrição técnica e comercial impecável em português do Brasil com acentuação e cedilhas completas:
-   - 1 a 2 parágrafos objetivos descrevendo o produto, suas principais utilidades, benefícios e aplicação prática. NUNCA use vírgulas para separar atributos técnicos.
-   - Uma seção clara de especificações técnicas iniciada por "Especificações Técnicas:" com marcadores em bullet point ("• "):
-     Exemplo de estrutura:
-     [Parágrafo de introdução comercial e técnica do produto com diferenciais e materiais...]
+  const prompt = `Você é um engenheiro sênior especialista em suprimentos corporativos, equipamentos industriais, tecnologia, materiais e catalogação da Infodesk Store e SmartQuote Brasil.
+Sua missão é enriquecer o produto abaixo com FICHA TÉCNICA 360° COMPLETA (SISTEMÁTICA INFODESK STORE), trazendo a MÁXIMA RIQUEZA de detalhes técnicos, comerciais e fiscais, com o mesmo padrão aprofundado do Scanner IA.
 
-     Especificações Técnicas:
-     • Característica 1: Valor
-     • Característica 2: Valor
-     • Conectividade: ...
-     • Dimensões / Peso: ...
-     • Conteúdo da Embalagem: ...
+DADOS FORNECIDOS PELO USUÁRIO:
+- Nome/Referência do Produto: "${query}"
+${params.brand ? `- Marca informada: "${params.brand}"` : ''}
+${params.partNumber ? `- Part Number / Código informado: "${params.partNumber}"` : ''}
+${params.category ? `- Categoria informada: "${params.category}"` : ''}
 
-3. DIRETRIZES DE FIDELIDADE (REGRA DE OURO):
-   - "partNumber": Part Number oficial APENAS se constar explicitamente do catálogo ou site do fabricante. Se não tiver certeza absoluta direta do fabricante, retorne string vazia "". NUNCA invente Part Numbers!
-   - "model": Modelo oficial APENAS se constar do fabricante, senão "".
-   - "ncm": Código NCM oficial de 8 dígitos para classificação fiscal brasileira (ex: 8471.70.40, 8528.52.00).
-   - "brand": Marca oficial autêntica do produto.
+DIRETRIZES DE ENRIQUECIMENTO (MÁXIMA RIQUEZA E PROFUNDIDADE):
+1. "standardizedName": TÍTULO COMERCIAL PADRONIZADO E CONCISO (máximo 5 a 15 palavras). Padrão: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. Use acentuação e cedilhas completas da língua portuguesa. NUNCA use vírgulas no nome.
+2. "brand": Marca comercial autêntica do produto (ex: "Intelbras", "Dell", "Furukawa", "Logitech", "HP", "Aquário", etc.) ou "Genérica".
+3. "manufacturer": Fabricante ou Razão Social oficial da marca.
+4. "model": Modelo oficial autêntico do fabricante APENAS se constar explicitamente do catálogo oficial. REGRA DE OURO: Se não encontrar o modelo real divulgado oficialmente pelo fabricante, deixe ESTRITAMENTE VAZIO "" (NUNCA invente siglas ou modelos aleatórios!).
+5. "partNumber": Part Number / Código SKU oficial do fabricante APENAS se constar explicitamente do fabricante. REGRA DE OURO: Se não achar o Part Number oficial, deixe ESTRITAMENTE VAZIO "" para o usuário preencher manualmente (NUNCA invente Part Numbers fictícios!).
+6. "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as categorias oficiais do sistema:
+   ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"].
+7. "ncm": NCM oficial do Brasil formatado com 8 dígitos (ex: 8471.70.40, 8528.52.00, 8517.62.54).
+8. "weight": Peso aproximado da embalagem para frete em kg (ex: "0.350 kg", "1.500 kg").
+9. "dimensions": Dimensões aproximadas no formato "CxLxA cm" (ex: "25cm x 18cm x 5cm").
+10. "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, em português gramaticalmente perfeito com acentuação e cedilhas preservadas, destacando utilidades, materiais, durabilidade, estrutura, ergonomia, resistência e diferenciais de qualidade. NUNCA use vírgulas para separar atributos.
+11. "specifications": Array rico de 6 a 12 especificações técnicas detalhadas no formato [{"label": "Nome da Característica", "value": "Valor"}], cobrindo minuciosamente:
+    - Capacidade / Potência / Resolução / Velocidade / Desempenho
+    - Conectividade / Interfaces / Entradas e Saídas / Padrão de Comunicação
+    - Alimentação / Voltagem / Consumo Energético (se aplicável)
+    - Estrutura / Material de Construção / Acabamento / Cor
+    - Normas / Certificações / Homologações (ex: Anatel, Inmetro, ISO)
+    - Compatibilidade de Ambientes ou Sistemas Operacionais
+    - Conteúdo da Embalagem / Acessórios Inclusos
 
-Retorne ESTRITAMENTE um JSON válido no formato:
+Retorne ESTRITAMENTE um JSON no seguinte formato:
 {
-  "description": "Texto completo dos parágrafos e da seção de Especificações Técnicas com marcadores • ...",
-  "partNumber": "",
+  "standardizedName": "Nome Comercial Padronizado",
+  "brand": "Marca Oficial",
+  "manufacturer": "Fabricante Oficial",
   "model": "",
-  "ncm": "",
-  "brand": ""
+  "partNumber": "",
+  "category": "Uma das 15 categorias oficiais",
+  "ncm": "8471.70.40",
+  "weight": "0.450 kg",
+  "dimensions": "20cm x 15cm x 4cm",
+  "description": "Texto técnico e comercial persuasivo em 2 a 3 parágrafos fluídos...",
+  "specifications": [
+    { "label": "Capacidade", "value": "..." },
+    { "label": "Conectividade", "value": "..." },
+    { "label": "Material", "value": "..." },
+    { "label": "Compatibilidade", "value": "..." },
+    { "label": "Alimentação", "value": "..." },
+    { "label": "Conteúdo da Embalagem", "value": "..." }
+  ]
 }`;
 
-  for (const model of SPEC_MODELS) {
+  for (const model of MODERN_GEMINI_MODELS) {
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      
+
       const requestBody = {
         contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ google_search: {} }],
         generationConfig: {
           temperature: 0.1,
           responseMimeType: 'application/json'
         }
       };
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      const callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 25000);
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        // Tenta sem grounding se falhar por suporte a tools
-        const fallbackRes = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.15,
-              responseMimeType: 'application/json'
-            }
-          })
-        });
-        if (!fallbackRes.ok) continue;
-        const fallbackData = await fallbackRes.json();
-        const text = fallbackData?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          const parsed = parseSpecJson(text);
-          if (parsed && parsed.description) return parsed;
-        }
+      if (callRes.rateLimited) {
+        console.warn(`[fetchProductSpecsOnline][${model}] Rate limit (429), tentando próximo modelo da cascata...`);
         continue;
       }
 
-      const data = await res.json();
-      const textOutput = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!textOutput) continue;
+      if (!callRes.ok || !callRes.data) {
+        console.warn(`[fetchProductSpecsOnline][${model}] Falha HTTP ${callRes.status}:`, callRes.errorText?.slice(0, 200));
+        continue;
+      }
 
-      const parsed = parseSpecJson(textOutput);
-      if (parsed && parsed.description) {
+      const rawOutput = callRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawOutput) continue;
+
+      const parsed = parseSpecJson(rawOutput);
+      if (parsed && (parsed.description || parsed.specifications.length > 0)) {
         return parsed;
       }
     } catch (err) {
-      console.warn(`[fetchProductSpecsOnline] Falha no modelo ${model}:`, err);
+      console.warn(`[fetchProductSpecsOnline] Erro no modelo ${model}:`, err);
     }
   }
 
-  throw new Error('Não foi possível obter as especificações na web no momento. Tente novamente em instantes.');
+  throw new Error('Não foi possível obter as especificações completas com IA neste momento. Verifique sua conexão e tente novamente em instantes.');
 }
 
 function parseSpecJson(raw: string): SpecSearchResult | null {
@@ -143,16 +162,58 @@ function parseSpecJson(raw: string): SpecSearchResult | null {
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const obj = JSON.parse(match[0]);
-    if (!obj.description || typeof obj.description !== 'string') return null;
+
+    const specsList: Array<{ label: string; value: string }> = [];
+    if (Array.isArray(obj.specifications)) {
+      obj.specifications.forEach((s: any) => {
+        if (s && (s.label || s.key || s.caracteristica) && (s.value || s.val || s.valor)) {
+          specsList.push({
+            label: String(s.label || s.key || s.caracteristica).trim(),
+            value: String(s.value || s.val || s.valor).trim()
+          });
+        }
+      });
+    }
+
+    const ncmClean = cleanNcmCode(obj.ncm || '');
+    const partClean = cleanAlphanumericCode(obj.partNumber || '');
+    const brandClean = obj.brand ? String(obj.brand).trim() : undefined;
+    const modelClean = obj.model ? String(obj.model).trim() : undefined;
+    const manufacturerClean = obj.manufacturer ? String(obj.manufacturer).trim() : undefined;
+    const weightClean = obj.weight ? String(obj.weight).trim() : undefined;
+    const dimensionsClean = obj.dimensions ? String(obj.dimensions).trim() : undefined;
+    const categoryClean = obj.category ? normalizeToOfficialCategory(String(obj.category)) : undefined;
+    const summaryText = typeof obj.description === 'string' ? obj.description.trim() : '';
+
+    // Gera a descrição consolidada completa no mesmo formato nobre do Scanner IA
+    const richDescription = buildCompleteProductDescription({
+      description: summaryText,
+      specifications: specsList,
+      weight: weightClean,
+      dimensions: dimensionsClean,
+      brand: brandClean,
+      model: modelClean,
+      partNumber: partClean,
+      ncm: ncmClean,
+      category: categoryClean
+    });
 
     return {
-      description: obj.description.trim(),
-      ncm: cleanNcmCode(obj.ncm || ''),
-      partNumber: cleanAlphanumericCode(obj.partNumber || ''),
-      brand: obj.brand ? String(obj.brand).trim() : undefined,
-      model: obj.model ? String(obj.model).trim() : undefined
+      description: richDescription || summaryText,
+      summaryDescription: summaryText,
+      specifications: specsList,
+      ncm: ncmClean,
+      partNumber: partClean,
+      brand: brandClean,
+      manufacturer: manufacturerClean,
+      model: modelClean,
+      category: categoryClean,
+      weight: weightClean,
+      dimensions: dimensionsClean,
+      standardizedName: obj.standardizedName ? String(obj.standardizedName).trim() : undefined
     };
-  } catch {
+  } catch (e) {
+    console.warn('[parseSpecJson] Falha ao parsear JSON:', e);
     return null;
   }
 }

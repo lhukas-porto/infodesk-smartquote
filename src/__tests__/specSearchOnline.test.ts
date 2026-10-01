@@ -52,4 +52,53 @@ for (const nc of ncmCases) {
 }
 console.log('✓ Teste 3 aprovado: NCMs são validados e formatados com 8 dígitos fiscais.');
 
+// 4. Testa consolidação de ficha técnica 360° no padrão Scanner IA
+import { buildCompleteProductDescription, normalizeToOfficialCategory } from '../utils/aiEmailParser';
+
+const mockScannerStyleData = {
+  description: 'O Teclado Sem Fio Logitech K380 oferece digitação confortável e silenciosa em qualquer dispositivo. Equipado com conexão Bluetooth multidispositivo, permite alternar instantaneamente entre computadores, tablets e smartphones.',
+  specifications: [
+    { label: 'Conectividade', value: 'Bluetooth Low Energy (BLE)' },
+    { label: 'Alcance sem fio', value: 'Até 10 metros' },
+    { label: 'Alimentação', value: '2 pilhas AAA inclusas' },
+    { label: 'Autonomia', value: 'Até 24 meses de bateria' },
+    { label: 'Compatibilidade', value: 'Windows, macOS, iPadOS, Android, ChromeOS' }
+  ],
+  brand: 'Logitech',
+  model: 'K380',
+  partNumber: '920-009599',
+  ncm: '8471.60.52',
+  category: 'Informática, Hardware & Periféricos',
+  weight: '0.423 kg',
+  dimensions: '27.9cm x 12.4cm x 1.6cm'
+};
+
+const consolidatedSpecs = buildCompleteProductDescription(mockScannerStyleData);
+
+if (!consolidatedSpecs.includes('Logitech K380 oferece digitação confortável')) {
+  throw new Error('Falha: descrição inicial não foi preservada na consolidação');
+}
+if (!consolidatedSpecs.includes('• Conectividade: Bluetooth Low Energy (BLE)')) {
+  throw new Error('Falha: especificação de conectividade não foi incluída');
+}
+if (!consolidatedSpecs.includes('• Marca: Logitech')) {
+  throw new Error('Falha: marca não foi incluída nas especificações');
+}
+if (!consolidatedSpecs.includes('• Part Number / SKU: 920-009599')) {
+  throw new Error('Falha: part number não foi incluído');
+}
+if (!consolidatedSpecs.includes('• NCM Fiscal: 8471.60.52')) {
+  throw new Error('Falha: NCM fiscal não foi incluído');
+}
+if (!consolidatedSpecs.includes('• Peso aproximado: 0.423 kg')) {
+  throw new Error('Falha: peso não foi incluído');
+}
+
+const officialCat = normalizeToOfficialCategory(mockScannerStyleData.category);
+if (officialCat !== 'Informática, Hardware & Periféricos') {
+  throw new Error(`Falha: categoria oficial incorreta "${officialCat}"`);
+}
+
+console.log('✓ Teste 4 aprovado: Consolidação de Ficha Técnica 360° no padrão Scanner IA validada com máxima fidelidade!');
+
 console.log('🎉 TODOS OS TESTES DE ESPECIFICAÇÕES TÉCNICAS ONLINE PASSARAM COM SUCESSO!\n');
