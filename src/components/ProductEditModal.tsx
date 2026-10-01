@@ -435,8 +435,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
     const finalProd: Product = {
       id: draft.id || `prod-${Date.now()}`,
-      sku: unifiedCode || draft.sku || `INF-${Date.now().toString().slice(-4)}`,
-      partNumber: unifiedCode,
+      sku: unifiedCode || draft.sku || '',
+      partNumber: unifiedCode || draft.partNumber || '',
       ncm: (draft.ncm || '').trim(),
       name: draft.name.trim(),
       description: draft.description || '',

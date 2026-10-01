@@ -2370,8 +2370,8 @@ DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
   4. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
 - "brand": Marca comercial oficial ou "Genérica" se sem marca visível.
 - "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
-- "model": Modelo exato do produto (ex: CPG-300).
-- "partNumber": Part Number oficial ou código alfanumérico.
+- "model": Modelo oficial do fabricante APENAS se constar explicitamente do catálogo ou site oficial do fabricante. REGRA DE OURO: Se você não encontrar o modelo real divulgado oficialmente pelo fabricante, deixe ESTRITAMENTE VAZIO "" (NUNCA invente códigos, siglas ou modelos aleatórios!).
+- "partNumber": Part Number / Código SKU oficial do fabricante APENAS se constar explicitamente do fabricante. REGRA DE OURO: Se não achar o Part Number diretamente do fabricante, deixe ESTRITAMENTE VAZIO "" para o usuário preencher manualmente (NUNCA invente Part Numbers ou códigos alfanuméricos fictícios!).
 - "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. ATENÇÃO: Ventosas, fixadores, buchas e suportes pertencem a "Construção, Acabamento & Marcenaria" ou "Equipamentos & Insumos Industriais", NUNCA a "Monitores, Displays & TVs"! NUNCA crie categorias fora desta lista.
 - "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40).
 - "ean": Código de barras EAN se conhecido, senão "".
@@ -2410,8 +2410,8 @@ Retorne ESTRITAMENTE um JSON no formato:
       "standardizedName": "Nome Comercial Padronizado do Produto",
       "brand": "Marca Oficial ou Genérica",
       "manufacturer": "Fabricante Oficial",
-      "model": "Modelo Exato",
-      "partNumber": "PartNumber",
+      "model": "",
+      "partNumber": "",
       "category": "Uma das categorias oficiais",
       "ncm": "9504.90.90",
       "ean": "",
@@ -2889,6 +2889,8 @@ SUA MISSÃO NA FASE 2:
 1. ENRIQUECIMENTO TÉCNICO E COMERCIAL COMPLETO (METODOLOGIA INFODESK STORE):
    - "standardizedName": Nome comercial em português do Brasil, PRESERVANDO estritamente a acentuação correta e cedilhas (ex: "Lápis", "Memória", "Válvula", "Elétrica", "Proteção"). NUNCA desacentue termos em português!
    - "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, ideal para a proposta comercial do cliente, em português do Brasil com acentuação e cedilhas impecáveis, destacando diferenciais técnicos, durabilidade, tecnologia empregada e cenários de uso recomendados. NUNCA use vírgulas para separar atributos (use pontos, traços ou quebras de linha).
+   - "model": Modelo oficial do fabricante APENAS se for o modelo real e exato comprovado do fabricante. Se não constar do fabricante, retorne estritamente string vazia "". NUNCA invente modelos fictícios!
+   - "partNumber": Part Number oficial do fabricante APENAS se for o código/SKU real e autêntico do fabricante. Se não achar diretamente do fabricante, retorne estritamente string vazia "" para preenchimento manual do usuário. NUNCA invente códigos fictícios!
    - "specifications": Array com 4 a 8 especificações técnicas reais do produto no formato [{"label": "...", "value": "..."}] ou objeto {"Característica": "Valor"}.
    - "ncm": Código NCM oficial de 8 dígitos para classificação fiscal brasileira (ex: 8443.32.31, 8542.31.90, 8471.70.40, 8544.42.00).
    - "ean": Código de barras EAN/GTIN de 13 dígitos numéricos se conhecido no Brasil, senão string vazia "".

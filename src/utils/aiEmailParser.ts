@@ -1221,10 +1221,20 @@ export function extractWarrantyMonthsNumber(text: string | undefined): number {
 
 /**
  * Strips out dots, spaces, slashes and special chars from Part Number and NCM (as requested by Lucas)
+ * Se não for código real ou for placeholder genérico, retorna string vazia para preenchimento manual.
  */
 export function cleanAlphanumericCode(code: string | undefined): string {
   if (!code) return '';
-  return code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const cleaned = code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const genericPlaceholders = new Set([
+    'PARTNUMBER', 'PN', 'MODELO', 'MODEL', 'GENERICO', 'GENERICA', 'GENERIC', 
+    'NA', 'ND', 'SN', 'SEMNUMERO', 'SEMPARTNUMBER', 'SEMCODIGO', 'UNKNOWN', 
+    'NONE', 'AUTO', 'DEFAULT', 'NENHUM', 'NULL', 'UNDEFINED', 'BRANCO', 'VAZIO'
+  ]);
+  if (genericPlaceholders.has(cleaned)) {
+    return '';
+  }
+  return cleaned;
 }
 
 export function cleanNcmCode(ncm: string | undefined): string {

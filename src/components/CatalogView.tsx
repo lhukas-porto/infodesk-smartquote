@@ -689,7 +689,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 paginatedProducts.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50 transition">
                     <td className="p-3 font-mono font-semibold text-sky-700 text-xs">
-                      {p.sku}
+                      {p.sku || p.partNumber || <span className="text-slate-300 font-normal italic">-</span>}
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-3">

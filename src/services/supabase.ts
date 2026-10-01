@@ -442,9 +442,9 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
 
     return uniqueRows.map((p: any) => ({
       id: p.id,
-      sku: p.sku,
-      partNumber: p.part_number,
-      ncm: p.ncm,
+      sku: (p.sku && !p.sku.toLowerCase().startsWith('inf-auto-') && !p.sku.toLowerCase().startsWith('sku-auto-')) ? p.sku : (p.part_number || ''),
+      partNumber: p.part_number || '',
+      ncm: p.ncm || '',
       name: p.name,
       description: p.description || '',
       category: normalizeToOfficialCategory(p.category || 'Informática, Hardware & Periféricos'),

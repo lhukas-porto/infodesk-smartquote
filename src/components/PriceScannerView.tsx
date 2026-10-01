@@ -586,17 +586,17 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
       showToast(`Ficha técnica do produto "${existing.name}" atualizada com sucesso no catálogo!`);
     } else {
       const isDuplicate = Boolean(existing);
-      const newSku = isDuplicate
-        ? `INF-${Date.now().toString().slice(-6)}`
-        : cleanAlphanumericCode(prod.partNumber || '') || `INF-${Date.now().toString().slice(-4)}`;
+      const realPn = cleanAlphanumericCode(prod.partNumber || '');
+      // Se não achar Part Number ou SKU diretamente do fabricante, deixa em branco para o Lucas preencher manualmente
+      const newSku = realPn || '';
 
       const newProd: Product = {
         id: `prod-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         sku: newSku,
-        partNumber: cleanAlphanumericCode(prod.partNumber || ''),
+        partNumber: realPn,
         ncm: cleanNcmCode(prod.ncm || ''),
         name: prod.standardizedName,
-        description: fullDesc || prod.description || `Part Number: ${cleanAlphanumericCode(prod.partNumber || '')} | NCM: ${cleanNcmCode(prod.ncm || '')}`,
+        description: fullDesc || prod.description || '',
         category: normalizeToOfficialCategory(prod.category || 'Informática, Hardware & Periféricos'),
         costPrice: cost > 0 ? Number(cost.toFixed(2)) : Number(price.toFixed(2)),
         unit: prod.unit || 'Un.',
@@ -610,7 +610,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
       setCatalogConflictItem(null);
       setSavedInSessionIds(prev => new Set(prev).add(prod.id));
       showToast(isDuplicate 
-        ? `Novo registro cadastrado no catálogo com código ${newSku}!` 
+        ? `Novo registro cadastrado no catálogo${newSku ? ` com código ${newSku}` : ''}!` 
         : 'Produto salvo no catálogo com ficha técnica completa!');
     }
   };
