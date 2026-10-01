@@ -1174,7 +1174,7 @@ export const App: React.FC = () => {
     setActiveTab('builder');
   };
 
-  const handleSaveProductToCatalog = (p: Product) => {
+  const handleSaveProductToCatalog = async (p: Product) => {
     let savedProduct = p;
     setProducts(prev => {
       const normName = normalizeSearchText(p.name);
@@ -1211,7 +1211,7 @@ export const App: React.FC = () => {
       saveProducts(deduped);
       return deduped;
     });
-    syncProductToSupabase(savedProduct);
+    await syncProductToSupabase(savedProduct);
   };
 
   const handleSaveQuote = async () => {

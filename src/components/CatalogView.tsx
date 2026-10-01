@@ -455,7 +455,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     setEditingProduct({ ...product });
   };
 
-  const handleSaveEditedProductFromModal = (updated: Product, shippingCost: number) => {
+  const handleSaveEditedProductFromModal = async (updated: Product, shippingCost: number) => {
     const unifiedCode = (updated.sku || updated.partNumber || '').trim();
     const finalProd: Product = {
       ...updated,
@@ -484,7 +484,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     });
 
     unrecordDeletedProduct(finalProd);
-    syncProductToSupabase(finalProd);
+    await syncProductToSupabase(finalProd);
     setEditingProduct(null);
     setImportStatus(`Produto "${finalProd.name}" atualizado com sucesso!`);
     setTimeout(() => setImportStatus(null), 4000);

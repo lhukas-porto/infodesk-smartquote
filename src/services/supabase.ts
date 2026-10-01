@@ -547,8 +547,8 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
   };
 
   try {
-    // 1. Procura por ID direto se fornecido
-    if (product.id) {
+    // 1. Procura por ID direto se fornecido e for UUID válido
+    if (product.id && isValidUuid(product.id)) {
       const { data: byId } = await supabase.from('products').select('id').eq('id', product.id).limit(1);
       if (byId && byId.length > 0) {
         await supabase.from('products').update(payload).eq('id', product.id);
@@ -570,8 +570,8 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
       }
     }
 
-    // 3. Procura por SKU oficial
-    if (rawSku && !rawSku.startsWith('INF-') && !rawSku.startsWith('SKU-')) {
+    // 3. Procura por SKU oficial/existente
+    if (rawSku && rawSku.length >= 3) {
       const { data: bySku } = await supabase.from('products').select('id').eq('sku', rawSku);
       if (bySku && bySku.length > 0) {
         const primaryId = bySku[0].id;
@@ -584,7 +584,7 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
       }
     }
 
-    // 4. Procura por Nome similar/idêntico
+    // 4. Procura por Nome idêntico/similar
     const { data: byName } = await supabase.from('products').select('id').ilike('name', cleanName);
     if (byName && byName.length > 0) {
       const primaryId = byName[0].id;

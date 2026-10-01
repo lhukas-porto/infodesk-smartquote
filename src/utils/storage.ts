@@ -424,14 +424,34 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
       const existing = result[existingIdx];
       result[existingIdx] = {
         ...existing,
-        partNumber: existing.partNumber || p.partNumber,
-        ncm: existing.ncm || p.ncm,
-        imageUrl: existing.imageUrl || p.imageUrl,
-        sourceUrl: existing.sourceUrl || p.sourceUrl,
-        supplier: existing.supplier || p.supplier,
+        ...p,
+        name: (p.name || existing.name || '').trim(),
+        description: (p.description !== undefined && p.description !== null && p.description.trim() !== '') 
+          ? p.description.trim() 
+          : (existing.description || ''),
+        partNumber: (p.partNumber !== undefined && p.partNumber !== null && p.partNumber.trim() !== '')
+          ? p.partNumber.trim()
+          : (existing.partNumber || ''),
+        sku: (p.sku !== undefined && p.sku !== null && p.sku.trim() !== '')
+          ? p.sku.trim()
+          : (existing.sku || ''),
+        ncm: (p.ncm !== undefined && p.ncm !== null && p.ncm.trim() !== '')
+          ? p.ncm.trim()
+          : (existing.ncm || ''),
+        imageUrl: (p.imageUrl !== undefined && p.imageUrl !== null && p.imageUrl.trim() !== '')
+          ? p.imageUrl.trim()
+          : (existing.imageUrl || ''),
+        sourceUrl: (p.sourceUrl !== undefined && p.sourceUrl !== null && p.sourceUrl.trim() !== '')
+          ? p.sourceUrl.trim()
+          : (existing.sourceUrl || ''),
+        supplier: (p.supplier !== undefined && p.supplier !== null && p.supplier.trim() !== '')
+          ? p.supplier.trim()
+          : (existing.supplier || ''),
         category: normalizeToOfficialCategory(p.category || existing.category || 'Diversos & Sazonais'),
-        costPrice: p.costPrice > 0 ? p.costPrice : (existing.costPrice || 0),
-        stock: p.stock !== undefined ? p.stock : (existing.stock || 0)
+        costPrice: Number(p.costPrice) > 0 ? Number(p.costPrice) : (Number(existing.costPrice) || 0),
+        unit: p.unit || existing.unit || 'Un.',
+        stock: p.stock !== undefined ? Number(p.stock) : (existing.stock ?? 10),
+        lastUpdated: new Date().toISOString().split('T')[0]
       };
       continue;
     }
