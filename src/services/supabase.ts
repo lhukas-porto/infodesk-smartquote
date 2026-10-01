@@ -3,21 +3,30 @@ import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, 
 import { deduplicateCompanyContacts } from '../utils/storage';
 import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory } from '../utils/aiEmailParser';
 
-const FALLBACK_SUPABASE_URL = 'https://dxhbjygtbcxpabflsijv.supabase.co';
-const FALLBACK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4aGJqeWd0YmN4cGFiZmxzaWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMTQ3MTIsImV4cCI6MjEwMzg5MDcxMn0.Bt9yCZDtPYCk8Cqa223MgReN2EmGfCl-41fR22GAucU';
+// Chaves de conexão com o Supabase da Infodesk
+// (A chave anon é pública por design do Supabase; a segurança estrita é garantida pelo Row Level Security)
+const DEFAULT_SUPABASE_URL = 'https://dxhbjygtbcxpabflsijv.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4aGJqeWd0YmN4cGFiZmxzaWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMTQ3MTIsImV4cCI6MjEwMzg5MDcxMn0.Bt9yCZDtPYCk8Cqa223MgReN2EmGfCl-41fR22GAucU';
 
-const supabaseUrl = (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_URL) 
-  || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : '') 
-  || FALLBACK_SUPABASE_URL;
+// Acesso estático direto às variáveis de ambiente do Vite (essencial para substituição no build)
+const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) 
+  ? import.meta.env.VITE_SUPABASE_URL 
+  : DEFAULT_SUPABASE_URL;
 
-const supabaseAnonKey = (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY) 
-  || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : '') 
-  || FALLBACK_SUPABASE_ANON_KEY;
+const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) 
+  ? import.meta.env.VITE_SUPABASE_ANON_KEY 
+  : DEFAULT_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 export const supabase = isSupabaseConfigured 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    }) 
   : null;
 
 // ==============================================================================
@@ -406,30 +415,49 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       return;
     }
 
-    // Upsert direto protegido na tabela quotes
-    const { data: savedQuote, error: quoteError } = await supabase
-      .from('quotes')
-      .upsert(sanitizedQuotePayload, { onConflict: 'code' })
-      .select()
-      .single();
-
-    if (quoteError || !savedQuote) {
-      console.error('Erro ao salvar quote no Supabase:', quoteError);
-      throw new Error(`Falha no banco Supabase: ${quoteError?.message || 'registro não retornado'}`);
+    // 1. Tentar persistência atômica via Stored Procedure RPC save_quote_atomic
+    // Isso garante que quotes e quote_items sejam gravados numa única transação PostgreSQL (sem risco de perda de itens)
+    let rpcSuccess = false;
+    try {
+      const { error: rpcError } = await supabase.rpc('save_quote_atomic', {
+        p_quote: sanitizedQuotePayload,
+        p_items: uniqueItemsPayload
+      });
+      if (!rpcError) {
+        rpcSuccess = true;
+      } else {
+        console.warn('[Supabase] RPC save_quote_atomic não pôde ser concluída, acionando fallback controlado:', rpcError.message);
+      }
+    } catch (rpcErr) {
+      console.warn('[Supabase] Falha ao invocar RPC save_quote_atomic:', rpcErr);
     }
 
-    // Limpar itens anteriores e recriar com itens rigorosamente únicos
-    await supabase.from('quote_items').delete().eq('quote_id', savedQuote.id);
+    // 2. Fallback de segurança caso a RPC não esteja instalada no banco
+    if (!rpcSuccess) {
+      const { data: savedQuote, error: quoteError } = await supabase
+        .from('quotes')
+        .upsert(sanitizedQuotePayload, { onConflict: 'code' })
+        .select()
+        .single();
 
-    const itemsToInsert = uniqueItemsPayload.map(it => ({
-      ...it,
-      quote_id: savedQuote.id
-    }));
+      if (quoteError || !savedQuote) {
+        console.error('Erro ao salvar quote no Supabase:', quoteError);
+        throw new Error(`Falha no banco Supabase: ${quoteError?.message || 'registro não retornado'}`);
+      }
 
-    const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
-    if (itemsInsertError) {
-      console.error('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
-      throw new Error(`Falha ao gravar itens no banco: ${itemsInsertError.message}`);
+      // Limpar itens anteriores e recriar com itens rigorosamente únicos
+      await supabase.from('quote_items').delete().eq('quote_id', savedQuote.id);
+
+      const itemsToInsert = uniqueItemsPayload.map(it => ({
+        ...it,
+        quote_id: savedQuote.id
+      }));
+
+      const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
+      if (itemsInsertError) {
+        console.error('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
+        throw new Error(`Falha ao gravar itens no banco: ${itemsInsertError.message}`);
+      }
     }
   } finally {
     if (quoteKey) activeSyncQuoteLocks.delete(quoteKey);
@@ -594,6 +622,17 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
         await supabase.from('products').delete().in('id', extraIds);
       }
       return;
+    }
+
+    // 4.1 Busca aproximada por palavras-chave centrais do nome (evita criar duplicata desatualizada)
+    const significantWords = cleanName.split(/\s+/).filter(w => w.length >= 4);
+    if (significantWords.length >= 2) {
+      const termPattern = `%${significantWords[0]}%${significantWords[1]}%`;
+      const { data: byPattern } = await supabase.from('products').select('id').ilike('name', termPattern).limit(1);
+      if (byPattern && byPattern.length > 0) {
+        await supabase.from('products').update(payload).eq('id', byPattern[0].id);
+        return;
+      }
     }
 
     // 5. Se não existe, insere como novo produto
@@ -1336,5 +1375,63 @@ export async function deleteDirectPurchaseFromSupabase(itemId: string): Promise<
     console.warn('Erro ao deletar compra direta no Supabase:', err);
   }
 }
+
+// ==============================================================================
+// 10. AUTENTICAÇÃO CORPORATIVA (Supabase Auth)
+// ==============================================================================
+export async function signInCorporateUser(email: string, password: string) {
+  if (!supabase) throw new Error('Supabase não configurado.');
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function signUpCorporateUser(email: string, password: string) {
+  if (!supabase) throw new Error('Supabase não configurado.');
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: {
+      data: {
+        name: 'Lucas Porto',
+        role: 'admin'
+      }
+    }
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function signOutCorporateUser(): Promise<void> {
+  if (!supabase) return;
+  await supabase.auth.signOut();
+}
+
+export async function getCorporateSession() {
+  if (!supabase) return null;
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session) return null;
+  return session;
+}
+
+export async function sendPasswordResetCorporate(email: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase não configurado.');
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: window.location.origin
+  });
+  if (error) throw error;
+}
+
+export function onCorporateAuthStateChange(callback: (session: any) => void) {
+  if (!supabase) return { unsubscribe: () => {} };
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    callback(session);
+  });
+  return subscription;
+}
+
 
 

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
 import { generateProposalEmailHtml } from '../utils/aiEmailParser';
+import DOMPurify from 'dompurify';
 
 function extractEmailString(val: any): string {
   if (!val) return '';
@@ -324,7 +325,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 <div className="p-4 max-h-72 overflow-y-auto bg-white">
                   <div 
                     className="prose prose-xs max-w-none text-slate-900 pointer-events-none select-none text-[11px]"
-                    dangerouslySetInnerHTML={{ __html: proposalHtml }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(proposalHtml) }}
                   />
                 </div>
               </div>

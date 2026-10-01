@@ -478,9 +478,32 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     }
 
     setProducts(prev => {
-      const next = prev.map(p => p.id === finalProd.id ? finalProd : p);
-      saveProducts(next);
-      return next;
+      const normName = normalizeSearchText(finalProd.name);
+      const normPn = (finalProd.partNumber || '').trim().toLowerCase();
+      const normSku = (finalProd.sku || '').trim().toLowerCase();
+
+      const next = prev.map(p => {
+        const isSameId = p.id === finalProd.id;
+        const isSamePn = Boolean(normPn && normPn.length >= 3 && (p.partNumber || '').trim().toLowerCase() === normPn);
+        const isSameSku = Boolean(normSku && !normSku.startsWith('inf-auto-') && (p.sku || '').trim().toLowerCase() === normSku);
+        const isSameName = Boolean(normName && normName.length >= 3 && normalizeSearchText(p.name) === normName);
+
+        if (isSameId || isSamePn || isSameSku || isSameName) {
+          return {
+            ...p,
+            ...finalProd,
+            category: finalProd.category,
+            lastUpdated: finalProd.lastUpdated,
+            id: p.id
+          };
+        }
+        return p;
+      });
+
+      const alreadyIncluded = next.some(p => p.id === finalProd.id);
+      const finalNext = alreadyIncluded ? next : [finalProd, ...next];
+      saveProducts(finalNext);
+      return finalNext;
     });
 
     unrecordDeletedProduct(finalProd);

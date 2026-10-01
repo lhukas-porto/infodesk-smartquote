@@ -53,14 +53,14 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // CORS flexível para chamadas do frontend
+  // CORS restrito e seguro para origens oficiais
   const origin = (req.headers?.origin as string) || '';
   const isAllowedOrigin = 
     !origin || 
-    origin.includes('localhost') || 
-    origin.includes('127.0.0.1') || 
-    origin.includes('vercel.app') || 
-    origin.includes('infodesk');
+    origin.startsWith('http://localhost:') || 
+    origin.startsWith('http://127.0.0.1:') || 
+    origin === 'https://infodesk-smartquote.vercel.app' || 
+    (/^https:\/\/infodesk-smartquote[a-z0-9-]*\.vercel\.app$/.test(origin));
 
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', isAllowedOrigin ? (origin || '*') : 'null');

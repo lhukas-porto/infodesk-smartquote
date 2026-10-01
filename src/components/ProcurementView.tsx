@@ -109,6 +109,14 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   const [viewMode, setViewMode] = useState<ViewModeOption>('items');
   const [collapsedQuotes, setCollapsedQuotes] = useState<Record<string, boolean>>({});
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 2800);
+  };
 
   // 3. Compras Diretas / Avulsas (independentes de orçamento)
   const [directPurchases, setDirectPurchases] = useState<ProcurementItem[]>(() => getDirectPurchases());
@@ -407,7 +415,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   }, [purchasedReferenceCatalog, searchTerm]);
 
   // Filtragem dos Itens da Lista Regular
-  const filteredItems = useMemo(() => {
+  // 1. Filtragem contextual (Cliente, Forma de Pagamento, Fornecedor, Período e Busca Textual)
+  // IMPORTANTE: NÃO filtra por status aqui para que as abas e métricas reflitam todos os itens do contexto!
+  const contextItems = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
 
@@ -422,27 +432,22 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     return procurementItems.filter(item => {
-      // 1. Filtro de Status
-      if (statusFilter !== 'all' && item.purchaseStatus !== statusFilter) {
-        return false;
-      }
-
-      // 2. Filtro de Cliente / Empresa
+      // 1. Filtro de Cliente / Empresa
       if (selectedCompany !== 'all' && item.clientCompany !== selectedCompany) {
         return false;
       }
 
-      // 3. Filtro de Forma de Pagamento
+      // 2. Filtro de Forma de Pagamento
       if (selectedPaymentMethod !== 'all' && item.paymentMethod !== selectedPaymentMethod) {
         return false;
       }
 
-      // 4. Filtro de Fornecedor
+      // 3. Filtro de Fornecedor
       if (selectedSupplier !== 'all' && item.supplier !== selectedSupplier) {
         return false;
       }
 
-      // 5. Filtro de Período
+      // 4. Filtro de Período
       if (periodFilter !== 'all') {
         const dateStr = item.purchasedAt || item.approvedAt;
         if (!dateStr) return false;
@@ -472,7 +477,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         }
       }
 
-      // 6. Busca textual unificada
+      // 5. Busca textual unificada
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
         const matchName = (item.name || '').toLowerCase().includes(query);
@@ -493,7 +498,6 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     });
   }, [
     procurementItems, 
-    statusFilter, 
     selectedCompany, 
     selectedPaymentMethod, 
     selectedSupplier, 
@@ -502,6 +506,22 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     customEndDate, 
     searchTerm
   ]);
+
+  // Separação garantida por status dentro do contexto atual
+  const pendingItems = useMemo(() => {
+    return contextItems.filter(item => (item.purchaseStatus || 'pending') !== 'purchased');
+  }, [contextItems]);
+
+  const purchasedItems = useMemo(() => {
+    return contextItems.filter(item => item.purchaseStatus === 'purchased');
+  }, [contextItems]);
+
+  // Itens da lista regular conforme aba ativa
+  const filteredItems = useMemo(() => {
+    if (statusFilter === 'pending') return pendingItems;
+    if (statusFilter === 'purchased') return purchasedItems;
+    return contextItems;
+  }, [statusFilter, pendingItems, purchasedItems, contextItems]);
 
   // Agrupamento por Proposta Comercial
   const groupedByQuote = useMemo(() => {
@@ -560,35 +580,33 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     return groups;
   }, [filteredItems]);
 
-  // Métricas do Topo baseadas na seleção / filtro atual
+  // Métricas do Topo calculadas de forma desacoplada da aba ativa (sempre refletem o total real do contexto)
   const stats = useMemo(() => {
-    let pendingCount = 0;
+    const pendingCount = pendingItems.length;
     let pendingCost = 0;
-    let purchasedCount = 0;
+    pendingItems.forEach(item => {
+      pendingCost += item.quotedCostPrice * item.quantity;
+    });
+
+    const purchasedCount = purchasedItems.length;
     let purchasedCost = 0;
     let purchasedQuotedCost = 0;
     let purchasedRevenue = 0;
     let purchasedTax = 0;
     let purchasedShipping = 0;
 
-    filteredItems.forEach(item => {
-      if (item.purchaseStatus === 'pending') {
-        pendingCount++;
-        pendingCost += item.quotedCostPrice * item.quantity;
-      } else {
-        purchasedCount++;
-        const cost = item.actualCostPrice !== undefined ? item.actualCostPrice : (item.quotedCostPrice * item.quantity);
-        const quotedCost = item.quotedCostPrice * item.quantity;
-        const shipping = item.actualShippingCost || 0;
-        const rev = item.quotedTotalPrice;
-        const tax = rev * (item.taxPercent / 100);
+    purchasedItems.forEach(item => {
+      const cost = item.actualCostPrice !== undefined ? item.actualCostPrice : (item.quotedCostPrice * item.quantity);
+      const quotedCost = item.quotedCostPrice * item.quantity;
+      const shipping = item.actualShippingCost || 0;
+      const rev = item.quotedTotalPrice;
+      const tax = rev * (item.taxPercent / 100);
 
-        purchasedCost += cost;
-        purchasedQuotedCost += quotedCost;
-        purchasedShipping += shipping;
-        purchasedRevenue += rev;
-        purchasedTax += tax;
-      }
+      purchasedCost += cost;
+      purchasedQuotedCost += quotedCost;
+      purchasedShipping += shipping;
+      purchasedRevenue += rev;
+      purchasedTax += tax;
     });
 
     const netProfit = purchasedRevenue - purchasedCost - purchasedShipping - purchasedTax;
@@ -604,10 +622,12 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       purchasedQuotedCost,
       saving,
       purchasedRevenue,
+      purchasedTax,
+      purchasedShipping,
       netProfit,
       roiMargin
     };
-  }, [filteredItems]);
+  }, [pendingItems, purchasedItems]);
 
   // Abrir Modal de Registro de Compra com valores unitários e links reais
   const handleOpenPurchaseModal = (item: ProcurementItem) => {
@@ -714,7 +734,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     setActiveItemForPurchase(null);
   };
 
-  // Excluir Compra Realizada (retornando o item para o status 'A Comprar')
+  // 1. Desfazer Compra Realizada (retornando o item para o status 'A Comprar')
   const handleDeletePurchase = (item: ProcurementItem) => {
     if (item.isDirectPurchase) {
       // Compra direta: reverte para pending e limpa campos reais
@@ -727,7 +747,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       delete cleaned.paymentMethod;
       delete cleaned.purchasedAt;
       delete cleaned.purchaseNotes;
-      saveOrUpdateDirectPurchase(cleaned);
+      const updated = saveOrUpdateDirectPurchase(cleaned);
+      setDirectPurchases(updated);
+      showToast(`Registro de compra de "${item.name}" desfeito. Item retornou para "A Comprar".`);
       return;
     }
 
@@ -738,7 +760,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     const updatedItems = (targetQuote.items || []).map(it => {
       if (it.id === item.itemId) {
         const cleaned = { ...it };
-        cleaned.purchaseStatus = 'pending';
+        cleaned.purchaseStatus = 'pending' as const;
         delete cleaned.actualCostPrice;
         delete cleaned.actualUnitCostPrice;
         delete cleaned.actualPurchaseUrl;
@@ -756,15 +778,45 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       ...targetQuote,
       items: updatedItems
     });
+    showToast(`Registro de compra de "${item.name}" desfeito. Item retornou para "A Comprar".`);
   };
 
-  // Remover Item Avulso Definitivamente (apenas se for compra direta)
-  const handleRemoveDirectItemPermanently = (itemId: string) => {
-    if (window.confirm('Deseja remover este item avulso definitivamente da Central de Compras?')) {
-      // 1. Atualização Otimista Imediata no React State
-      setDirectPurchases(prev => prev.filter(i => i.id !== itemId && i.itemId !== itemId));
-      // 2. Remoção do Storage local e Supabase
-      deleteDirectPurchaseItem(itemId);
+  // 2. Remover Item Definitivamente da Central de Compras (avulso OU de proposta)
+  const handleRemoveItemPermanently = (item: ProcurementItem) => {
+    const isDirect = item.isDirectPurchase;
+    const msg = isDirect
+      ? `Deseja excluir "${item.name}" definitivamente da Central de Compras?\n\nO item será removido permanentemente e não voltará mais ao recarregar a página.`
+      : `Deseja remover "${item.name}" definitivamente da Central de Compras?\n\nO item será desvinculado da lista de compras da proposta ${item.quoteCode}.`;
+
+    if (window.confirm(msg)) {
+      if (isDirect) {
+        // 1. Atualização Otimista Imediata no React State
+        setDirectPurchases(prev => prev.filter(i => i.id !== item.id && i.itemId !== item.id));
+        // 2. Remoção do Storage local (com registro em blacklist) e Supabase
+        deleteDirectPurchaseItem(item.id);
+        showToast(`Item "${item.name}" excluído definitivamente!`);
+      } else {
+        // Item de proposta: desaprova para compras e atualiza proposta no Supabase/localStorage
+        const targetQuote = quotes.find(q => q.id === item.quoteId);
+        if (!targetQuote) return;
+
+        const updatedItems = (targetQuote.items || []).map(it => {
+          if (it.id === item.itemId) {
+            return {
+              ...it,
+              approved: false, // Retira da fila da Central de Compras
+              purchaseStatus: 'pending' as const
+            };
+          }
+          return it;
+        });
+
+        onUpdateQuote({
+          ...targetQuote,
+          items: updatedItems
+        });
+        showToast(`Item "${item.name}" removido da Central de Compras!`);
+      }
     }
   };
 
@@ -1145,7 +1197,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>Todos ({procurementItems.length})</span>
+              <span>Todos ({contextItems.length})</span>
             </button>
           </div>
 
@@ -1872,24 +1924,37 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
             {/* Footer do Modal */}
             <div className="p-4 sm:p-5 border-t border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-              {activeItemForPurchase.purchaseStatus === 'purchased' ? (
+              <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                {activeItemForPurchase.purchaseStatus === 'purchased' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Deseja desfazer o registro de compra de "${activeItemForPurchase.name}"?\n\nO item retornará para a fila "A Comprar".`)) {
+                        handleDeletePurchase(activeItemForPurchase);
+                        setActiveItemForPurchase(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-amber-700 hover:text-amber-800 hover:bg-amber-50 border border-amber-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                    title="Desfazer o registro de compra e manter o item na fila de A Comprar"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Desfazer Compra</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm(`Tem certeza que deseja excluir o registro de compra de "${activeItemForPurchase.name}"?\n\nO item retornará imediatamente para o status "A Comprar".`)) {
-                      handleDeletePurchase(activeItemForPurchase);
-                      setActiveItemForPurchase(null);
-                    }
+                    handleRemoveItemPermanently(activeItemForPurchase);
+                    setActiveItemForPurchase(null);
                   }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200/80 rounded-xl text-xs font-bold transition cursor-pointer self-start sm:self-auto"
-                  title="Excluir este registro e retornar o produto para a lista de A Comprar"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200/80 rounded-xl text-xs font-bold transition cursor-pointer"
+                  title="Excluir este item definitivamente da Central de Compras"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Excluir Compra (Voltar p/ A Comprar)</span>
+                  <span>Excluir da Central de Compras</span>
                 </button>
-              ) : (
-                <div />
-              )}
+              </div>
 
               <div className="flex items-center gap-2.5 self-end sm:self-auto">
                 <button
@@ -2292,6 +2357,13 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           </div>
         </div>
       )}
+
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[9999] bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-bold flex items-center gap-2 animate-fadeIn border border-slate-700">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 
@@ -2509,31 +2581,26 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const confirmMsg = item.isDirectPurchase
-                      ? `Deseja desfazer o registro de compra de "${item.name}" e retorná-lo para "A Comprar"?\n\n(Dica: Para remover este item avulso definitivamente da lista, use o ícone de lixeira vermelha ao lado).`
-                      : `Tem certeza que deseja excluir a compra de "${item.name}"?\n\nO item retornará imediatamente para o status "A Comprar".`;
-                    if (window.confirm(confirmMsg)) {
+                    if (window.confirm(`Deseja desfazer o registro de compra de "${item.name}"?\n\nO item retornará para o status "A Comprar".`)) {
                       handleDeletePurchase(item);
                     }
                   }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200/80 rounded-xl text-xs font-bold transition cursor-pointer"
-                  title={item.isDirectPurchase ? "Desfazer registro de compra e retornar para 'A Comprar'" : "Excluir o registro desta compra e voltar o item para o status A Comprar"}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-amber-700 hover:text-amber-800 hover:bg-amber-50 border border-amber-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                  title="Desfazer o registro desta compra e voltar o item para o status A Comprar"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>{item.isDirectPurchase ? 'Desfazer Compra' : 'Excluir Compra'}</span>
+                  <span>Desfazer Compra</span>
                 </button>
 
-                {/* Se for item avulso e estiver comprado, permitir também exclusão permanente definitiva */}
-                {item.isDirectPurchase && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveDirectItemPermanently(item.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
-                    title="Remover item avulso definitivamente da Central de Compras"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                {/* Exclusão permanente definitiva para qualquer item */}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveItemPermanently(item)}
+                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                  title="Remover este item definitivamente da Central de Compras"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
@@ -2546,17 +2613,15 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                   <span>Registrar Compra</span>
                 </button>
 
-                {/* Se for item avulso e estiver pendente, pode remover definitivamente da fila */}
-                {item.isDirectPurchase && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveDirectItemPermanently(item.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
-                    title="Remover item avulso definitivamente da Central de Compras"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                {/* Exclusão permanente definitiva para qualquer item pendente */}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveItemPermanently(item)}
+                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                  title="Remover este item definitivamente da Central de Compras"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
           </div>

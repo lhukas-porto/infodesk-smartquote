@@ -52,18 +52,48 @@ import {
 } from '../services/priceCacheService';
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
 
+export interface CatalogMatchInfo {
+  product: Product;
+  score: number; // 0 a 100
+  reason: 'part_number' | 'sku' | 'exact_name' | 'high_similarity' | 'moderate_similarity';
+  details: string;
+}
+
+// Lista rica e categorizada de marcas das 15 categorias oficiais
+const KNOWN_BRANDS = [
+  // Redes, Conectividade & TI
+  'intelbras', 'furukawa', 'sohoplus', 'nexans', 'logitech', 'dell', 'lenovo', 'hp', 'samsung', 'lg',
+  'tp-link', 'tplink', 'ubiquiti', 'mikrotik', 'd-link', 'dlink', 'cisco', 'huawei', 'aruba',
+  'kingston', 'sandisk', 'seagate', 'western digital', 'wd', 'adata', 'corsair', 'crucial', 'lexar',
+  'apple', 'motorola', 'xiaomi', 'asus', 'acer', 'multilaser', 'fortrek', 'redragon', 'aquario', 'aquário',
+  // Energia & Nobreaks
+  'sms', 'ragtech', 'ts shara', 'apc', 'lacerda', 'mcm', 'duracell', 'rayovac',
+  // Impressão & Automação Comercial
+  'zebra', 'argox', 'elgin', 'bematech', 'honeywell', 'datalogic', 'brother', 'epson', 'canon', 'gertec', 'dymo',
+  // Eletrodomésticos, Refrigeração & Copa
+  'wolff', 'rojemac', 'brinox', 'mondial', 'britania', 'britânia', 'oster', 'philco', 'electrolux', 'consul',
+  'cadence', 'invicta', 'sanremo', 'coza', 'marinex', 'nadir', 'oxford', 'tramontina', 'dako', 'atlas', 'fame',
+  'arno', 'panasonic', 'walita', 'midea', 'brastemp', 'sugar', 'colormaq',
+  // Ferramentas & Instrumentos de Medição
+  'bosch', 'makita', 'dewalt', 'vonder', 'gedore', 'irwin', 'stanley', 'dwt', 'minipa', 'fluke', 'western',
+  'fertak', 'sparta', 'worker', 'starrett', 'sata', 'belzer', 'rocast',
+  // Elétrica & Iluminação
+  'schneider', 'siemens', 'weg', 'abb', 'pial', 'legrand', 'steck', 'corfio', 'sil', 'prysmian', 'lorenzetti',
+  'ourolux', 'taschibra', 'osram', 'philips', 'avant', 'g-light', 'blumenau',
+  // Construção, Acabamento & Marcenaria
+  'quartzolit', 'votoran', 'ciser', 'tigre', 'amanco', 'krona', 'deca', 'docol', 'coral', 'suvinil',
+  'sherwin williams', 'anjo', 'placo', 'knauf', 'barbieri', 'tarkett', '3m', 'norton',
+  // Papelaria, Artes & Escritório
+  'acrilex', 'faber-castell', 'faber castell', 'bic', 'compactor', 'pilot', 'chamex', 'suzano', 'report',
+  'tilibra', 'spiral', 'molin', 'cis', 'stabilo', 'pentel', 'post-it',
+  // Limpeza, Higiene & Descartáveis
+  'kimberly-clark', 'kimberly', 'premis', 'elite', 'ype', 'ypê', 'veja', 'lysoform', 'bombril', 'bettanin', 'santher'
+];
+
 function extractBrandToken(text: string): string {
   if (!text) return '';
   const lower = text.toLowerCase();
-  const knownBrands = [
-    'intelbras', 'aquario', 'aquário', 'furukawa', 'nexans', 'sohoplus', 'logitech', 'dell', 'lenovo', 'hp', 'samsung', 'lg',
-    'acrilex', 'faber-castell', 'faber castell', 'bic', 'compactor', 'pilot', 'chamex', 'suzano', 'report',
-    '3m', 'norton', 'tramontina', 'tigre', 'krona', 'deca', 'docol', 'lorenzetti', 'corfio', 'sil', 'prysmian',
-    'ciser', 'placo', 'knauf', 'barbieri', 'coral', 'suvinil', 'quimisa', 'anjo', 'tarkett', 'starrett',
-    'multilaser', 'fortrek', 'redragon', 'kingston', 'sandisk', 'seagate', 'western digital', 'wd',
-    'apple', 'motorola', 'xiaomi', 'asus', 'acer', 'brother', 'epson', 'canon', 'elgin', 'bematech'
-  ];
-  for (const b of knownBrands) {
+  for (const b of KNOWN_BRANDS) {
     const cleanB = b.replace('-', '[- ]?');
     if (new RegExp(`\\b${cleanB}\\b`, 'i').test(lower)) {
       return b.replace(/[^a-z0-9]/gi, '');
@@ -72,80 +102,303 @@ function extractBrandToken(text: string): string {
   return '';
 }
 
-export function findExistingCatalogProduct(
+function normalizeMatchingString(text: string): string {
+  if (!text) return '';
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[–—_/-]/g, ' ')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const PRODUCT_STOPWORDS = new Set([
+  'de', 'do', 'da', 'dos', 'das', 'com', 'em', 'para', 'por', 'sem', 'sob', 'sobre',
+  'e', 'ou', 'um', 'uma', 'uns', 'umas', 'o', 'a', 'os', 'as', 'no', 'na', 'nos', 'nas',
+  'ao', 'aos', 'pelo', 'pela', 'pelos', 'pelas', 'pro', 'pra', 'pros', 'pras',
+  'tipo', 'modelo', 'mod', 'ref', 'referencia', 'linha', 'serie',
+  'un', 'uni', 'unid', 'unidade', 'unidades', 'kit', 'cx', 'caixa', 'pct', 'pacote',
+  'peca', 'pecas', 'novo', 'nova', 'original', 'profissional', 'padrao', 'item', 'marca'
+]);
+
+function canonicalizeToken(token: string): string {
+  if (token === 'aco' || token === 'acoinox') return 'inox';
+  if (token === 'wireless' || token === 'semfio') return 'semfio';
+  if (token === 'bivolts' || token === '110v220v' || token === '127v220v') return 'bivolt';
+  if (token === 'mililitros' || token === 'mililitro' || token === 'mls') return 'ml';
+  if (token === 'litros' || token === 'litro' || token === 'lts') return 'l';
+  if (token === 'gramas' || token === 'grama' || token === 'grs' || token === 'gr') return 'g';
+  if (token === 'quilos' || token === 'quilo' || token === 'kilos' || token === 'kilo') return 'kg';
+  if (token === 'gigabytes' || token === 'gigabyte') return 'gb';
+  if (token === 'terabytes' || token === 'terabyte') return 'tb';
+  if (token === 'portas' || token === 'porta') return 'p';
+  if (token === 'polegadas' || token === 'polegada') return 'pol';
+  return token;
+}
+
+function tokenizeProductText(text: string): string[] {
+  const norm = normalizeMatchingString(text);
+  const treated = norm
+    .replace(/\baco inox\b/g, 'inox')
+    .replace(/\bsem fio\b/g, 'semfio')
+    .replace(/\b(\d+)\s*(ml|l|g|kg|gb|tb|mb|p|portas|pol|v|w|a|mah)\b/g, '$1$2');
+
+  const words = treated.split(/\s+/).filter(w => w.length >= 2);
+  const result: string[] = [];
+  for (const w of words) {
+    if (!PRODUCT_STOPWORDS.has(w)) {
+      result.push(canonicalizeToken(w));
+    }
+  }
+  return result;
+}
+
+function extractTechnicalSpecs(tokens: string[]): {
+  volume?: string;
+  storage?: string;
+  voltage?: string;
+  ports?: string;
+} {
+  const specs: { volume?: string; storage?: string; voltage?: string; ports?: string } = {};
+  for (const t of tokens) {
+    if (/^\d+(?:\.\d+)?(ml|l)$/.test(t)) {
+      specs.volume = t;
+    } else if (/^\d+(gb|tb|mb)$/.test(t)) {
+      specs.storage = t;
+    } else if (/^(110v|127v|220v|bivolt|12v|24v)$/.test(t)) {
+      specs.voltage = t;
+    } else if (/^\d+p$/.test(t)) {
+      specs.ports = t;
+    }
+  }
+  return specs;
+}
+
+function extractCoreNoun(tokens: string[], brand: string): string {
+  const brandClean = brand.toLowerCase().replace(/[^a-z0-9]/g, '');
+  for (const t of tokens) {
+    if (brandClean && t.includes(brandClean)) continue;
+    if (/^\d+/.test(t)) continue;
+    if (/^(preto|preta|branco|branca|inox|azul|cinza|transparente|fosco|fosca|claro|escuro|aco)$/.test(t)) continue;
+    return t;
+  }
+  return tokens[0] || '';
+}
+
+export function findCatalogMatchDetails(
   prod: { 
     partNumber?: string; 
     sku?: string; 
     standardizedName?: string; 
     name?: string; 
-    ncm?: string;
-    brand?: string;
-    manufacturer?: string;
-    model?: string;
+    ncm?: string; 
+    brand?: string; 
+    manufacturer?: string; 
+    model?: string; 
+    description?: string; 
   },
   catalog: Product[] = []
-): Product | null {
+): CatalogMatchInfo | null {
   if (!catalog || catalog.length === 0) return null;
 
   const targetPn = cleanAlphanumericCode(prod.partNumber || '');
   const targetSku = cleanAlphanumericCode(prod.sku || '');
-  const targetName = normalizeSearchText(prod.standardizedName || prod.name || '');
-  const targetBrand = (prod.brand || prod.manufacturer || extractBrandToken(prod.standardizedName || prod.name || '')).trim().toLowerCase();
+  const targetRawName = prod.standardizedName || prod.name || '';
+  const targetNameNorm = normalizeSearchText(targetRawName);
+  const targetBrand = (prod.brand || prod.manufacturer || extractBrandToken(targetRawName)).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const targetTokens = tokenizeProductText(targetRawName);
+  const targetSpecs = extractTechnicalSpecs(targetTokens);
+  const targetCoreNoun = extractCoreNoun(targetTokens, targetBrand);
 
-  // Códigos genéricos conhecidos que NUNCA devem ser usados para casar produtos automaticamente
   const isGenericCode = (code: string) => /^(antint|prod|item|peca|un|kit|cx|pct|01|02|03|1234|ref|padrao|default)$/i.test(code);
 
-  // 1. Part Number do Fabricante (ex: 4142031, 09112, ST61102ST)
+  // 1. Part Number do Fabricante Exato (100% de precisão)
   if (targetPn && targetPn.length >= 4 && !isGenericCode(targetPn)) {
     const byPn = catalog.find(p => {
       const pPn = cleanAlphanumericCode(p.partNumber || '');
       const pSku = cleanAlphanumericCode(p.sku || '');
       const codeMatches = (pPn && pPn === targetPn) || (pSku && pSku === targetPn);
       if (!codeMatches) return false;
-
-      // Se ambos tiverem marca, elas NÃO podem divergir!
-      const pBrand = extractBrandToken(p.name + ' ' + (p.supplier || '') + ' ' + (p.description || ''));
-      if (targetBrand && pBrand && targetBrand !== pBrand) {
-        return false; // Marcas diferentes -> NUNCA é o mesmo produto!
+      const pBrand = (p.supplier || extractBrandToken(p.name + ' ' + (p.description || ''))).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (targetBrand && pBrand && targetBrand !== pBrand && targetBrand.length > 2 && pBrand.length > 2) {
+        return false;
       }
       return true;
     });
-    if (byPn) return byPn;
+    if (byPn) {
+      return {
+        product: byPn,
+        score: 100,
+        reason: 'part_number',
+        details: `Part Number idêntico: ${targetPn}`
+      };
+    }
   }
 
-  // 2. SKU do Catálogo (ex: se o produto foi salvo com um SKU específico)
+  // 2. SKU do Catálogo Exato (100% de precisão)
   if (targetSku && targetSku.length >= 4 && !isGenericCode(targetSku)) {
     const bySku = catalog.find(p => {
       const pSku = cleanAlphanumericCode(p.sku || '');
       const pPn = cleanAlphanumericCode(p.partNumber || '');
       const skuMatches = (pSku && pSku === targetSku) || (pPn && pPn === targetSku);
       if (!skuMatches) return false;
-
-      const pBrand = extractBrandToken(p.name + ' ' + (p.supplier || '') + ' ' + (p.description || ''));
-      if (targetBrand && pBrand && targetBrand !== pBrand) {
+      const pBrand = (p.supplier || extractBrandToken(p.name + ' ' + (p.description || ''))).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (targetBrand && pBrand && targetBrand !== pBrand && targetBrand.length > 2 && pBrand.length > 2) {
         return false;
       }
       return true;
     });
-    if (bySku) return bySku;
+    if (bySku) {
+      return {
+        product: bySku,
+        score: 100,
+        reason: 'sku',
+        details: `Código SKU idêntico: ${targetSku}`
+      };
+    }
   }
 
-  // 3. Nome completo normalizado EXATO (com checagem de marca)
-  if (targetName && targetName.length > 8) {
-    const byName = catalog.find(p => {
-      const pName = normalizeSearchText(p.name);
-      if (pName !== targetName) return false;
-
-      const pBrand = extractBrandToken(p.name + ' ' + (p.supplier || '') + ' ' + (p.description || ''));
-      if (targetBrand && pBrand && targetBrand !== pBrand) {
-        return false; // Marcas diferentes -> não é o mesmo produto
+  // 3. Nome Completo Normalizado Idêntico (100% de precisão)
+  if (targetNameNorm && targetNameNorm.length > 6) {
+    const byExactName = catalog.find(p => {
+      const pNameNorm = normalizeSearchText(p.name);
+      if (pNameNorm !== targetNameNorm) return false;
+      const pBrand = (p.supplier || extractBrandToken(p.name + ' ' + (p.description || ''))).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (targetBrand && pBrand && targetBrand !== pBrand && targetBrand.length > 2 && pBrand.length > 2) {
+        return false;
       }
       return true;
     });
-    if (byName) return byName;
+    if (byExactName) {
+      return {
+        product: byExactName,
+        score: 100,
+        reason: 'exact_name',
+        details: 'Título do produto 100% idêntico'
+      };
+    }
+  }
+
+  // 4. Comparador Semântico Avançado por Similaridade Ponderada
+  if (targetTokens.length < 2) return null;
+
+  let bestMatch: { product: Product; score: number; details: string } | null = null;
+
+  for (const catProd of catalog) {
+    const catTokens = tokenizeProductText(catProd.name + ' ' + (catProd.description || ''));
+    if (catTokens.length < 2) continue;
+
+    const catBrand = (catProd.supplier || extractBrandToken(catProd.name + ' ' + (catProd.description || ''))).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const catSpecs = extractTechnicalSpecs(catTokens);
+    const catCoreNoun = extractCoreNoun(catTokens, catBrand);
+
+    // Regra Eliminatória 1: Conflito de Marcas Conhecidas
+    if (targetBrand && catBrand && targetBrand.length > 2 && catBrand.length > 2 && targetBrand !== catBrand) {
+      continue;
+    }
+
+    // Regra Eliminatória 2: Conflito de Especificação Crítica
+    let hasSpecConflict = false;
+    if (targetSpecs.volume && catSpecs.volume && targetSpecs.volume !== catSpecs.volume) hasSpecConflict = true;
+    if (targetSpecs.storage && catSpecs.storage && targetSpecs.storage !== catSpecs.storage) hasSpecConflict = true;
+    if (targetSpecs.ports && catSpecs.ports && targetSpecs.ports !== catSpecs.ports) hasSpecConflict = true;
+    if (targetSpecs.voltage && catSpecs.voltage && targetSpecs.voltage !== 'bivolt' && catSpecs.voltage !== 'bivolt' && targetSpecs.voltage !== catSpecs.voltage) hasSpecConflict = true;
+    if (hasSpecConflict) continue;
+
+    // Regra Eliminatória 3: Conflito de Núcleo (Substantivo principal)
+    if (targetCoreNoun && catCoreNoun && targetCoreNoun.length >= 4 && catCoreNoun.length >= 4 && targetCoreNoun !== catCoreNoun) {
+      if (!targetCoreNoun.includes(catCoreNoun) && !catCoreNoun.includes(targetCoreNoun)) {
+        continue;
+      }
+    }
+
+    // CÁLCULO DE SCORE
+    let score = 0;
+    const matchReasons: string[] = [];
+
+    // A. Pontuação de Marca (até 35 pts)
+    if (targetBrand && catBrand && targetBrand === catBrand) {
+      score += 35;
+      matchReasons.push(`Marca ${catBrand.toUpperCase()}`);
+    } else if (!targetBrand || !catBrand) {
+      score += 15;
+    }
+
+    // B. Pontuação de Núcleo (até 25 pts)
+    if (targetCoreNoun && catCoreNoun && (targetCoreNoun === catCoreNoun || targetCoreNoun.includes(catCoreNoun) || catCoreNoun.includes(targetCoreNoun))) {
+      score += 25;
+      matchReasons.push(`Núcleo "${targetCoreNoun}"`);
+    } else {
+      score += 10;
+    }
+
+    // C. Pontuação de Especificação Coincidente (até 15 pts)
+    if (targetSpecs.volume && catSpecs.volume && targetSpecs.volume === catSpecs.volume) {
+      score += 15;
+      matchReasons.push(`Vol: ${targetSpecs.volume}`);
+    } else if (targetSpecs.storage && catSpecs.storage && targetSpecs.storage === catSpecs.storage) {
+      score += 15;
+      matchReasons.push(`Cap: ${targetSpecs.storage}`);
+    } else if (targetSpecs.ports && catSpecs.ports && targetSpecs.ports === catSpecs.ports) {
+      score += 15;
+      matchReasons.push(`Portas: ${targetSpecs.ports}`);
+    } else if (!targetSpecs.volume && !targetSpecs.storage && !targetSpecs.ports) {
+      score += 10;
+    }
+
+    // D. Cobertura de Tokens do Catálogo no Alvo (até 25 pts)
+    const catNameTokens = tokenizeProductText(catProd.name);
+    const sharedTokens = catNameTokens.filter(t => targetTokens.includes(t));
+    const coverageRatio = catNameTokens.length > 0 ? (sharedTokens.length / catNameTokens.length) : 0;
+    
+    score += Math.round(coverageRatio * 25);
+    if (coverageRatio >= 0.75) {
+      matchReasons.push('Alta sobreposição');
+    }
+
+    const finalScore = Math.min(98, Math.max(0, score));
+
+    if (finalScore >= 60) {
+      if (!bestMatch || finalScore > bestMatch.score) {
+        bestMatch = {
+          product: catProd,
+          score: finalScore,
+          details: `${finalScore}% similar (${matchReasons.join(' + ')})`
+        };
+      }
+    }
+  }
+
+  if (bestMatch) {
+    return {
+      product: bestMatch.product,
+      score: bestMatch.score,
+      reason: bestMatch.score >= 75 ? 'high_similarity' : 'moderate_similarity',
+      details: bestMatch.details
+    };
   }
 
   return null;
+}
+
+export function findExistingCatalogProduct(
+  prod: { 
+    partNumber?: string; 
+    sku?: string; 
+    standardizedName?: string; 
+    name?: string; 
+    ncm?: string; 
+    brand?: string; 
+    manufacturer?: string; 
+    model?: string; 
+    description?: string;
+  },
+  catalog: Product[] = []
+): Product | null {
+  const match = findCatalogMatchDetails(prod, catalog);
+  return match && match.score >= 60 ? match.product : null;
 }
 
 interface PriceScannerViewProps {
@@ -238,6 +491,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
   const [catalogConflictItem, setCatalogConflictItem] = useState<{
     discovered: DiscoveredProduct;
     existing: Product;
+    matchInfo?: CatalogMatchInfo;
   } | null>(null);
 
   // Itens salvos ou atualizados nesta sessão (para feedback imediato)
@@ -546,9 +800,13 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
   };
 
   // Salvar ou atualizar produto no catálogo com confirmação se já existe
-  const handleRequestSaveOrUpdate = (prod: DiscoveredProduct, existing: Product | null) => {
+  const handleRequestSaveOrUpdate = (
+    prod: DiscoveredProduct,
+    existing: Product | null,
+    matchInfo?: CatalogMatchInfo
+  ) => {
     if (existing) {
-      setCatalogConflictItem({ discovered: prod, existing });
+      setCatalogConflictItem({ discovered: prod, existing, matchInfo });
     } else {
       executeSaveProductToCatalog(prod, null, 'create_new');
     }
@@ -1173,7 +1431,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               </div>
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-                  Fase 1: Produtos Identificados e Catalogados 360°
+                  Fase 1: Produtos Identificados e Catalogados
                   <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs rounded-full font-extrabold">
                     {discoveredProducts.length} item(ns)
                   </span>
@@ -1214,7 +1472,8 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               const images = prod.images && prod.images.length > 0 ? prod.images : [prod.imageUrl || ''];
               const activeImgIndex = prod.selectedImageIndex ?? 0;
               const currentImg = images[activeImgIndex] || images[0] || '';
-              const existingInCatalog = findExistingCatalogProduct(prod, products);
+              const catalogMatch = findCatalogMatchDetails(prod, products);
+              const existingInCatalog = catalogMatch ? catalogMatch.product : null;
               const isJustSavedInSession = savedInSessionIds.has(prod.id);
 
               return (
@@ -1241,10 +1500,17 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                           <span>Cadastrado no Catálogo com Sucesso (Código: {existingInCatalog?.sku || prod.partNumber || 'OK'})</span>
                         </span>
                       ) : existingInCatalog ? (
-                        <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-sky-100 text-sky-900 border border-sky-300 rounded-full text-xs font-bold shadow-2xs">
-                          <Database className="w-3.5 h-3.5 text-sky-700" />
-                          <span>Produto já Cadastrado no Catálogo (Código: {existingInCatalog.sku || existingInCatalog.partNumber})</span>
-                        </span>
+                        catalogMatch && catalogMatch.score >= 80 ? (
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-sky-100 text-sky-900 border border-sky-300 rounded-full text-xs font-bold shadow-2xs">
+                            <Database className="w-3.5 h-3.5 text-sky-700" />
+                            <span>Produto no Catálogo ({catalogMatch.score}% similar · Cód: {existingInCatalog.sku || existingInCatalog.partNumber})</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-xs font-bold shadow-2xs">
+                            <Database className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Item Similar no Catálogo ({catalogMatch?.score || 70}% compatível)</span>
+                          </span>
+                        )
                       ) : (
                         <span className="inline-flex items-center px-3.5 py-1 bg-[#fef3c7] text-[#b45309] border border-amber-200/80 rounded-full text-xs font-bold">
                           Novo Produto / Pronto para Cadastrar
@@ -1383,16 +1649,34 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
 
                         {/* Comparativo de Catálogo quando já existe */}
                         {existingInCatalog && (
-                          <div className="mb-2.5 px-3.5 py-2 bg-sky-50/90 border border-sky-200/90 rounded-xl flex items-center justify-between text-xs text-sky-900 shadow-2xs">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
-                              <span className="truncate">
-                                <strong>Comparativo:</strong> Item encontrado no catálogo como <em>"{existingInCatalog.name}"</em> · Custo atual: <strong>R$ {(existingInCatalog.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
-                              </span>
+                          <div className="mb-2.5 px-3.5 py-2.5 bg-sky-50/90 border border-sky-200/90 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-sky-900 shadow-2xs">
+                            <div className="flex items-start sm:items-center gap-2 min-w-0">
+                              <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0 mt-0.5 sm:mt-0" />
+                              <div className="min-w-0">
+                                <div>
+                                  <strong>Comparativo com o Catálogo:</strong> Identificado como <em>"{existingInCatalog.name}"</em> · Custo atual: <strong>R$ {(existingInCatalog.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                                </div>
+                                {catalogMatch?.details && (
+                                  <div className="text-[11px] text-sky-700 font-medium mt-0.5 flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-sky-600 shrink-0" />
+                                    <span>{catalogMatch.details}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            <span className="shrink-0 ml-2 text-[10.5px] font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2 py-0.5 rounded-md font-mono">
-                              SKU: {existingInCatalog.sku || existingInCatalog.partNumber}
-                            </span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[10.5px] font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2 py-0.5 rounded-md font-mono">
+                                SKU: {existingInCatalog.sku || existingInCatalog.partNumber}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRequestSaveOrUpdate(prod, existingInCatalog, catalogMatch || undefined)}
+                                className="text-[11px] font-bold text-sky-700 hover:text-sky-900 underline ml-1 cursor-pointer"
+                                title="Ver comparativo lado a lado e decidir se atualiza ou cria novo"
+                              >
+                                Comparar lado a lado
+                              </button>
+                            </div>
                           </div>
                         )}
 
@@ -1478,7 +1762,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
                             <div className="flex items-center gap-2 flex-wrap">
                               <button
                                 type="button"
-                                onClick={() => handleRequestSaveOrUpdate(prod, existingInCatalog)}
+                                onClick={() => handleRequestSaveOrUpdate(prod, existingInCatalog, catalogMatch || undefined)}
                                 className="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                                 title="Atualizar dados, fotos e custos desta ficha no catálogo"
                               >
@@ -1852,6 +2136,20 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
             </div>
 
             <div className="p-6 flex-1 overflow-y-auto space-y-4">
+              {catalogConflictItem.matchInfo && (
+                <div className="px-4 py-2.5 bg-sky-50 border border-sky-200/90 rounded-2xl flex items-center justify-between text-xs text-sky-950 shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
+                    <span className="truncate">
+                      <strong>Identificação por Similaridade:</strong> {catalogConflictItem.matchInfo.details}
+                    </span>
+                  </div>
+                  <span className="shrink-0 ml-2 font-mono font-bold px-2.5 py-0.5 bg-sky-100 text-sky-800 border border-sky-300 rounded-lg text-xs">
+                    {catalogConflictItem.matchInfo.score}% match
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Registro Atual no Catálogo */}
                 <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-2.5">

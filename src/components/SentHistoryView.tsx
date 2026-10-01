@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
-import { parseQuoteTimestamp, isSameDay } from './DashboardView';
+import { parseQuoteTimestamp, isSameDay } from '../utils/dateUtils';
 import { QuoteApprovalModal } from './QuoteApprovalModal';
 
 interface SentHistoryViewProps {

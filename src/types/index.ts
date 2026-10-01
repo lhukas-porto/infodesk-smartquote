@@ -35,6 +35,7 @@ export interface QuoteItem {
   name: string;
   description: string;
   rawSearchQuery?: string;
+  category?: string;
   partNumber?: string;
   ncm?: string;
   imageUrl?: string;

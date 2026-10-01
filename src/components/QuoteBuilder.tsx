@@ -1336,7 +1336,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     );
 
     const generatedSku = (freshItem.partNumber || matchedCatalogProd?.sku || '').trim();
-    const initialCategory = matchedCatalogProd?.category 
+    const initialCategory = freshItem.category
+      ? normalizeToOfficialCategory(freshItem.category)
+      : matchedCatalogProd?.category 
       ? normalizeToOfficialCategory(matchedCatalogProd.category)
       : getCategoryFromNcm(freshItem.ncm, 'Diversos & Sazonais');
     const directInfo = buildDirectPurchaseUrl(freshItem.name, freshItem.sourceUrl);
@@ -1409,6 +1411,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         updatedItems[itemIdx] = {
           ...currentItem,
           productId: finalProd.id,
+          category: finalProd.category,
           name: finalProd.name,
           description: finalProd.description,
           imageUrl: finalProd.imageUrl,

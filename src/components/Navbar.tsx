@@ -9,7 +9,8 @@ import {
   History,
   BarChart3,
   Clock,
-  ShoppingCart
+  ShoppingCart,
+  LogOut
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 
@@ -27,6 +28,8 @@ interface NavbarProps {
   draftsCount?: number;
   pendingPurchasesCount?: number;
   onOpenDraftsHistory?: () => void;
+  authenticatedUserEmail?: string | null;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -42,7 +45,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   isScannerOpen = false,
   draftsCount = 0,
   pendingPurchasesCount = 0,
-  onOpenDraftsHistory
+  onOpenDraftsHistory,
+  authenticatedUserEmail,
+  onLogout
 }) => {
   return (
     <header className="no-print sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 shadow-xs">
@@ -240,6 +245,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Settings className="w-4 h-4" />
             </button>
+
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-slate-600 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl transition shadow-xs text-xs font-semibold shrink-0 cursor-pointer"
+                title={`Sessão ativa: ${authenticatedUserEmail || 'Lucas'}. Clique para desconectar com segurança.`}
+              >
+                <LogOut className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden sm:inline">Sair</span>
+              </button>
+            )}
           </div>
 
         </div>

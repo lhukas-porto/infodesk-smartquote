@@ -1,22 +1,34 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { AlertCircle, X } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { InboxView } from './components/InboxView';
 import { QuoteBuilder } from './components/QuoteBuilder';
 import { QuotePreview } from './components/QuotePreview';
-import { CatalogView } from './components/CatalogView';
-import { SentHistoryView } from './components/SentHistoryView';
-import { PriceScannerView } from './components/PriceScannerView';
 import { EmailSendModal } from './components/EmailSendModal';
 import { SettingsModal } from './components/SettingsModal';
-import { ClientManagementView } from './components/ClientManagementView';
-import { ManualAnalysesView } from './components/ManualAnalysesView';
-import { ProcurementView } from './components/ProcurementView';
+import { LoginView } from './components/LoginView';
 import { 
-  DashboardView, 
   isSameDay, 
   parseQuoteTimestamp, 
   updateDraftQuotesToToday 
-} from './components/DashboardView';
+} from './utils/dateUtils';
+
+// Code-Splitting dinâmico com React.lazy para reduzir o bundle inicial do app
+const CatalogView = React.lazy(() => import('./components/CatalogView').then(m => ({ default: m.CatalogView })));
+const SentHistoryView = React.lazy(() => import('./components/SentHistoryView').then(m => ({ default: m.SentHistoryView })));
+const PriceScannerView = React.lazy(() => import('./components/PriceScannerView').then(m => ({ default: m.PriceScannerView })));
+const ClientManagementView = React.lazy(() => import('./components/ClientManagementView').then(m => ({ default: m.ClientManagementView })));
+const ManualAnalysesView = React.lazy(() => import('./components/ManualAnalysesView').then(m => ({ default: m.ManualAnalysesView })));
+const ProcurementView = React.lazy(() => import('./components/ProcurementView').then(m => ({ default: m.ProcurementView })));
+const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+
+const TabLoadingFallback: React.FC = () => (
+  <div className="flex flex-col items-center justify-center min-h-[45vh] p-8 text-center animate-in fade-in duration-150">
+    <div className="w-9 h-9 border-3 border-sky-100 border-t-sky-600 rounded-full animate-spin mb-3 shadow-xs" />
+    <span className="text-xs font-semibold text-slate-700 tracking-wide uppercase">Carregando Módulo</span>
+    <span className="text-[11px] text-slate-400 mt-0.5">Infodesk SmartQuote</span>
+  </div>
+);
 import { 
   CompanySettings, 
   IncomingEmail, 
@@ -62,6 +74,7 @@ import {
   saveRegisteredPaymentMethodsList,
   getDirectPurchases,
   saveDirectPurchases,
+  getDeletedDirectPurchaseIds,
   getDeletedCategories,
   getDeletedUnits,
   getDeletedPaymentMethods,
@@ -121,10 +134,14 @@ import {
   syncPaymentMethodsToSupabase,
   fetchDirectPurchasesFromSupabase,
   syncDirectPurchasesToSupabase,
+  deleteDirectPurchaseFromSupabase,
   deleteCategoryFromSupabase,
   deleteUnitFromSupabase,
   deletePaymentMethodFromSupabase,
-  deleteProductFromSupabase
+  deleteProductFromSupabase,
+  getCorporateSession,
+  signOutCorporateUser,
+  onCorporateAuthStateChange
 } from './services/supabase';
 import { 
   calculateCommercialUnitPrice, 
@@ -208,6 +225,66 @@ export const App: React.FC = () => {
   });
   const [historyStageFilter, setHistoryStageFilter] = useState<'all' | 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost'>('all');
   const [previewSourceTab, setPreviewSourceTab] = useState<'builder' | 'history' | 'purchases'>('builder');
+  const [syncNotice, setSyncNotice] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
+  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('infodesk_auth_user') || null;
+    } catch {
+      return null;
+    }
+  });
+  const [isCheckingAuth, setIsCheckingAuth] = useState(() => !localStorage.getItem('infodesk_auth_user'));
+
+  useEffect(() => {
+    let mounted = true;
+    getCorporateSession().then(session => {
+      if (mounted) {
+        if (session?.user?.email) {
+          setAuthenticatedUserEmail(session.user.email);
+          try { localStorage.setItem('infodesk_auth_user', session.user.email); } catch {}
+        }
+        setIsCheckingAuth(false);
+      }
+    }).catch(() => {
+      if (mounted) setIsCheckingAuth(false);
+    });
+
+    const subscription = onCorporateAuthStateChange((session) => {
+      if (mounted) {
+        const email = session?.user?.email || null;
+        setAuthenticatedUserEmail(email);
+        try {
+          if (email) localStorage.setItem('infodesk_auth_user', email);
+          else localStorage.removeItem('infodesk_auth_user');
+        } catch {}
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (subscription && typeof (subscription as any).unsubscribe === 'function') {
+        (subscription as any).unsubscribe();
+      }
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    try { localStorage.removeItem('infodesk_auth_user'); } catch {}
+    await signOutCorporateUser();
+    setAuthenticatedUserEmail(null);
+  };
+
+  const handleLoginSuccess = (userEmail: string) => {
+    try { localStorage.setItem('infodesk_auth_user', userEmail); } catch {}
+    setAuthenticatedUserEmail(userEmail);
+  };
+
+  const notifySync = useCallback((message: string, type: 'success' | 'warning' = 'warning') => {
+    setSyncNotice({ message, type });
+    setTimeout(() => {
+      setSyncNotice(prev => (prev?.message === message ? null : prev));
+    }, 6000);
+  }, []);
 
   // Quantidade de produtos aprovados pendentes de compra para o badge na Navbar
   const pendingPurchasesCount = useMemo(() => {
@@ -453,12 +530,23 @@ export const App: React.FC = () => {
 
         // Sincronização e unificação de Compras Avulsas / Diretas com Supabase
         try {
-          const localDirectPurchases = getDirectPurchases();
+          const deletedDirectIds = getDeletedDirectPurchaseIds();
+          const localDirectPurchases = getDirectPurchases().filter(item => !deletedDirectIds.has(item.id) && !deletedDirectIds.has(item.itemId || ''));
+          
           if (remoteDirectPurchases && remoteDirectPurchases.length > 0) {
             const map = new Map<string, typeof remoteDirectPurchases[0]>();
-            remoteDirectPurchases.forEach(item => map.set(item.id, item));
+            
+            // Filtra e expurga do Supabase qualquer item que o usuário já tenha deletado
+            remoteDirectPurchases.forEach(item => {
+              if (deletedDirectIds.has(item.id) || deletedDirectIds.has(item.itemId || '')) {
+                deleteDirectPurchaseFromSupabase(item.id).catch(() => {});
+              } else {
+                map.set(item.id, item);
+              }
+            });
+
             localDirectPurchases.forEach(item => {
-              if (!map.has(item.id)) {
+              if (!deletedDirectIds.has(item.id) && !map.has(item.id)) {
                 map.set(item.id, item);
                 syncDirectPurchasesToSupabase([item]).catch(() => {});
               }
@@ -1867,6 +1955,21 @@ export const App: React.FC = () => {
     return Array.isArray(q.items) ? q.items : [];
   };
 
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 border-3 border-sky-400 border-t-white rounded-full animate-spin mb-4" />
+        <p className="text-xs font-semibold text-slate-300 tracking-wider uppercase font-mono">Validando Acesso Seguro</p>
+      </div>
+    );
+  }
+
+  if (!authenticatedUserEmail) {
+    return (
+      <LoginView onLoginSuccess={handleLoginSuccess} />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans print:bg-white print:min-h-0">
       
@@ -1876,6 +1979,8 @@ export const App: React.FC = () => {
           setActiveTab={setActiveTab}
           unreadCount={emails.filter(e => e.unread).length}
           openSettings={() => setIsSettingsOpen(true)}
+          authenticatedUserEmail={authenticatedUserEmail}
+          onLogout={handleLogout}
           openWebSearch={() => {
             if (activeTab !== 'builder') {
               setActiveTab('builder');
@@ -1899,6 +2004,7 @@ export const App: React.FC = () => {
       </div>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 lg:pb-8 print:p-0 print:m-0 print:max-w-none print:w-full">
+        <React.Suspense fallback={<TabLoadingFallback />}>
         {activeTab === 'inbox' && (
           <InboxView
             emails={emails}
@@ -2101,7 +2207,10 @@ export const App: React.FC = () => {
                     setCurrentQuote(updated);
                     saveCurrentDraftQuote(updated);
                   }
-                  syncQuoteToSupabase(updated).catch(err => console.warn('Aviso sync status:', err));
+                  syncQuoteToSupabase(updated).catch(err => {
+                    console.warn('Aviso sync status:', err);
+                    notifySync(`Status de "${updated.code}" salvo no navegador. Sincronização com o banco será retomada ao restabelecer a conexão.`);
+                  });
                 }
                 return next;
               });
@@ -2110,7 +2219,10 @@ export const App: React.FC = () => {
               setQuotes(prev => {
                 const next = prev.map(q => q.id === updatedQuote.id ? updatedQuote : q);
                 saveQuotes(next);
-                syncQuoteToSupabase(updatedQuote).catch(err => console.warn('Aviso sync quote aprovado:', err));
+                syncQuoteToSupabase(updatedQuote).catch(err => {
+                  console.warn('Aviso sync quote aprovado:', err);
+                  notifySync(`Aprovação de "${updatedQuote.code}" salva localmente. Sincronização na nuvem pendente.`);
+                });
                 return next;
               });
               if (currentQuote.id === updatedQuote.id || currentQuote.code === updatedQuote.code) {
@@ -2129,7 +2241,10 @@ export const App: React.FC = () => {
               setQuotes(prev => {
                 const next = prev.map(q => q.id === updatedQuote.id ? updatedQuote : q);
                 saveQuotes(next);
-                syncQuoteToSupabase(updatedQuote).catch(err => console.warn('Aviso sync compra:', err));
+                syncQuoteToSupabase(updatedQuote).catch(err => {
+                  console.warn('Aviso sync compra:', err);
+                  notifySync(`Compra de "${updatedQuote.code}" salva no dispositivo. Sincronização na nuvem pendente.`);
+                });
                 return next;
               });
               if (currentQuote.id === updatedQuote.id || currentQuote.code === updatedQuote.code) {
@@ -2222,6 +2337,7 @@ export const App: React.FC = () => {
             }}
           />
         )}
+        </React.Suspense>
       </main>
 
       <EmailSendModal
@@ -2240,6 +2356,28 @@ export const App: React.FC = () => {
         settings={settings}
         onSaveSettings={handleSaveSettings}
       />
+
+      {syncNotice && (
+        <div 
+          role="status"
+          className={`fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-md text-xs font-medium transition-all duration-300 animate-in fade-in slide-in-from-bottom-3 ${
+            syncNotice.type === 'warning'
+              ? 'bg-amber-50/95 border-amber-200 text-amber-900 shadow-amber-500/10'
+              : 'bg-emerald-50/95 border-emerald-200 text-emerald-900 shadow-emerald-500/10'
+          }`}
+        >
+          <AlertCircle className={`w-4 h-4 shrink-0 ${syncNotice.type === 'warning' ? 'text-amber-600' : 'text-emerald-600'}`} />
+          <span className="max-w-xs sm:max-w-md leading-relaxed">{syncNotice.message}</span>
+          <button 
+            type="button" 
+            onClick={() => setSyncNotice(null)} 
+            className="p-1 rounded-lg hover:bg-black/5 text-slate-500 hover:text-slate-800 transition-colors"
+            title="Fechar aviso"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
     </div>
   );

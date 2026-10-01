@@ -160,15 +160,30 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     return list.sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [availableCategories]);
 
-  // Sincroniza estado inicial sempre que o modal abre ou o produto fornecido muda
+  const wasOpenRef = useRef<boolean>(false);
+  const lastOpenedProductIdRef = useRef<string | null>(null);
+
+  // Sincroniza estado inicial APENAS quando o modal abre pela primeira vez ou quando o produto selecionado realmente mudar
   useEffect(() => {
-    if (isOpen && product) {
-      const initialCat = product.category ? normalizeToOfficialCategory(product.category) : 'Diversos & Sazonais';
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      return;
+    }
+
+    const currentProdId = product?.id || product?.sku || product?.name || null;
+    const isFirstOpen = !wasOpenRef.current;
+    const isDifferentProduct = currentProdId !== lastOpenedProductIdRef.current;
+
+    if (isFirstOpen || isDifferentProduct) {
+      wasOpenRef.current = true;
+      lastOpenedProductIdRef.current = currentProdId;
+
+      const initialCat = product?.category ? normalizeToOfficialCategory(product.category) : 'Diversos & Sazonais';
       setDraft({
-        ...product,
+        ...(product || {}),
         category: initialCat
       });
-      const initialCost = product.costPrice !== undefined ? product.costPrice : 0;
+      const initialCost = product?.costPrice !== undefined ? product.costPrice : 0;
       setCostInput(initialCost > 0 ? formatCurrencyPtBr(initialCost) : '0,00');
 
       const initialDollar = (product as any)?.dollarPrice;
@@ -176,7 +191,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
       const resolvedShipping = initialShippingCost !== undefined && initialShippingCost > 0
         ? initialShippingCost
-        : (product.shippingCost || 0);
+        : (product?.shippingCost || 0);
       setShippingInput(resolvedShipping > 0 ? formatCurrencyPtBr(resolvedShipping) : '0,00');
 
       setZoomedImage(null);

@@ -447,11 +447,17 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
         supplier: (p.supplier !== undefined && p.supplier !== null && p.supplier.trim() !== '')
           ? p.supplier.trim()
           : (existing.supplier || ''),
-        category: normalizeToOfficialCategory(p.category || existing.category || 'Diversos & Sazonais'),
+        category: (p.lastUpdated && existing.lastUpdated && p.lastUpdated > existing.lastUpdated && p.category)
+          ? normalizeToOfficialCategory(p.category)
+          : (existing.category && existing.lastUpdated && p.lastUpdated && existing.lastUpdated > p.lastUpdated)
+          ? normalizeToOfficialCategory(existing.category)
+          : normalizeToOfficialCategory(p.category || existing.category || 'Diversos & Sazonais'),
         costPrice: Number(p.costPrice) > 0 ? Number(p.costPrice) : (Number(existing.costPrice) || 0),
         unit: p.unit || existing.unit || 'Un.',
         stock: p.stock !== undefined ? Number(p.stock) : (existing.stock ?? 10),
-        lastUpdated: new Date().toISOString().split('T')[0]
+        lastUpdated: (p.lastUpdated && existing.lastUpdated && p.lastUpdated > existing.lastUpdated)
+          ? p.lastUpdated
+          : (existing.lastUpdated || new Date().toISOString().split('T')[0])
       };
       continue;
     }
@@ -1516,6 +1522,30 @@ export const saveDirectPurchases = (items: import('../types').ProcurementItem[])
   });
 };
 
+const DELETED_DIRECT_PURCHASE_IDS_KEY = 'infodesk_deleted_direct_purchase_ids';
+
+export const getDeletedDirectPurchaseIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_DIRECT_PURCHASE_IDS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return new Set(arr.map((id: string) => String(id).trim()));
+      }
+    }
+  } catch { /* noop */ }
+  return new Set<string>();
+};
+
+export const recordDeletedDirectPurchaseId = (id: string): void => {
+  if (!id) return;
+  try {
+    const set = getDeletedDirectPurchaseIds();
+    set.add(String(id).trim());
+    localStorage.setItem(DELETED_DIRECT_PURCHASE_IDS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
 export const saveOrUpdateDirectPurchase = (item: import('../types').ProcurementItem): import('../types').ProcurementItem[] => {
   const current = getDirectPurchases();
   const index = current.findIndex(i => i.id === item.id);
@@ -1531,6 +1561,7 @@ export const saveOrUpdateDirectPurchase = (item: import('../types').ProcurementI
 };
 
 export const deleteDirectPurchaseItem = (itemId: string): import('../types').ProcurementItem[] => {
+  recordDeletedDirectPurchaseId(itemId);
   const current = getDirectPurchases();
   const updated = current.filter(i => i.id !== itemId && i.itemId !== itemId);
   saveDirectPurchases(updated);

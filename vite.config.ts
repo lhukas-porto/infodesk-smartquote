@@ -93,6 +93,9 @@ export default defineConfig({
           if (id.includes('node_modules')) {
             if (id.includes('docx')) return 'vendor-docx';
             if (id.includes('exceljs')) return 'vendor-exceljs';
+            if (id.includes('tesseract.js')) return 'vendor-tesseract';
+            if (id.includes('papaparse')) return 'vendor-papaparse';
+            if (id.includes('dompurify')) return 'vendor-dompurify';
             if (id.includes('@supabase')) return 'vendor-supabase';
             if (id.includes('lucide-react')) return 'vendor-icons';
             if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
