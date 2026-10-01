@@ -160,8 +160,17 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
     }
 
     const itemsByQuoteId: Record<string, QuoteItem[]> = {};
+    const seenSignatures = new Set<string>();
+
     (itemsData || []).forEach((row: any) => {
       const qKey = row.quote_id;
+      // Blindagem contra registros duplicados no banco
+      const sig = `${qKey}:::${row.item_number}:::${(row.name || '').trim().toLowerCase()}:::${Number(row.unit_price)}:::${Number(row.quantity)}`;
+      if (seenSignatures.has(sig)) {
+        return; // Ignora clone
+      }
+      seenSignatures.add(sig);
+
       if (!itemsByQuoteId[qKey]) {
         itemsByQuoteId[qKey] = [];
       }
@@ -278,6 +287,9 @@ export async function fetchQuoteItemsByQuoteId(quoteId: string): Promise<QuoteIt
   }
 }
 
+// Trava contra concorrência por cotação (impede disparos simultâneos de sync da mesma proposta)
+const activeSyncQuoteLocks = new Set<string>();
+
 export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
   if (!supabase) return;
 
@@ -287,89 +299,112 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     return;
   }
 
-  const cleanCompany = (quote.clientCompany || '').trim() || 'Cliente';
-  const cleanContact = (quote.contactPerson || '').trim() || 'A/C Compras';
-  const cleanEmail = (quote.clientEmail || '').trim() || 'contato@cliente.com.br';
-  const cleanPhone = (quote.clientPhone || '').trim() || null;
-  const cleanSubject = (quote.subject || '').trim() || `Fornecimento de produtos para informática — ${cleanCompany}`;
-  const cleanCity = (quote.city || '').trim() || 'Brasília';
-  const cleanDate = (quote.date || '').trim() || new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-  const cleanValidity = (quote.validityDays || '').trim() || '03 (três) dias';
-  const cleanPayment = (quote.paymentTerms || '').trim() || 'Faturado.';
-  const cleanDelivery = (quote.deliveryDays || '').trim() || 'em até 10 dias úteis';
-  const cleanWarranty = (quote.warrantyTerms || '').trim() || '06 meses';
-  const cleanDeliveryLocation = (quote.deliveryLocation || '').trim() || 'Brasília';
-  const cleanShippingTerms = (quote.shippingTerms || '').trim() || `Frete incluso p/ ${cleanDeliveryLocation}.`;
-  const cleanOpeningText = (quote.openingText || '').trim() || 'Em atenção à solicitação de Vossa Senhoria, formulamos a seguinte proposta comercial:';
-
-  const sanitizedQuotePayload = {
-    code: quote.code,
-    client_company: cleanCompany,
-    contact_person: cleanContact,
-    client_email: cleanEmail,
-    client_phone: cleanPhone,
-    subject: cleanSubject,
-    city: cleanCity,
-    date: cleanDate,
-    validity_days: cleanValidity,
-    payment_terms: cleanPayment,
-    delivery_days: cleanDelivery,
-    warranty_terms: cleanWarranty,
-    delivery_location: cleanDeliveryLocation,
-    shipping_terms: cleanShippingTerms,
-    opening_text: cleanOpeningText,
-    show_product_images: Boolean(quote.showProductImages),
-    total_cost: Number(quote.totalCost || 0),
-    total_shipping: Number(quote.totalShipping || 0),
-    total_taxes: Number(quote.totalTaxes || 0),
-    total_profit: Number(quote.totalProfit || 0),
-    total_amount: Number(quote.totalAmount || 0),
-    average_margin: Number(quote.averageMargin || 35),
-    global_tax_percent: Number(quote.globalTaxPercent ?? 6),
-    global_shipping: Number(quote.globalShipping ?? 0),
-    status: (quote.sentAt && (!quote.status || quote.status === 'draft')) || (quote.code && quote.code.trim().toUpperCase() === 'CNC 210926-3') ? 'sent' : (quote.status || 'draft'),
-    sent_at: quote.sentAt || ((quote.status === 'sent' || (quote.code && quote.code.trim().toUpperCase() === 'CNC 210926-3')) ? new Date().toISOString() : null),
-    updated_at: new Date().toISOString()
-  };
-
-  const itemsPayload = (quote.items || []).map((item, idx) => ({
-    item_number: item.itemNumber || idx + 1,
-    product_id: isValidUuid(item.productId) ? item.productId : null,
-    name: (item.name || '').trim() || `Item ${idx + 1}`,
-    description: item.description || '',
-    raw_search_query: item.rawSearchQuery || item.name || '',
-    part_number: item.partNumber || null,
-    ncm: item.ncm || null,
-    image_url: item.imageUrl || null,
-    show_image: Boolean(item.showImage),
-    quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
-    unit: item.unit || 'Un.',
-    cost_price: Number(item.costPrice || 0),
-    shipping_cost: Number(item.shippingCost || 0),
-    tax_percent: Number(item.taxPercent ?? 6),
-    markup_percent: Number(item.markupPercent || 35),
-    unit_price: Number(item.unitPrice || 0),
-    total_price: Number(item.totalPrice || 0),
-    source_url: item.sourceUrl || null
-  }));
-
-  // Upsert direto protegido na tabela quotes
-  const { data: savedQuote, error: quoteError } = await supabase
-    .from('quotes')
-    .upsert(sanitizedQuotePayload, { onConflict: 'code' })
-    .select()
-    .single();
-
-  if (quoteError || !savedQuote) {
-    console.error('Erro ao salvar quote no Supabase:', quoteError);
-    throw new Error(`Falha no banco Supabase: ${quoteError?.message || 'registro não retornado'}`);
+  const quoteKey = (quote.code || quote.id || '').trim().toUpperCase();
+  if (quoteKey && activeSyncQuoteLocks.has(quoteKey)) {
+    console.log(`[Supabase] Sincronização em andamento para ${quoteKey}, ignorando disparo concorrente.`);
+    return;
   }
+  if (quoteKey) activeSyncQuoteLocks.add(quoteKey);
 
-  // Limpar itens anteriores e recriar para manter consistência absoluta
-  await supabase.from('quote_items').delete().eq('quote_id', savedQuote.id);
+  try {
+    const cleanCompany = (quote.clientCompany || '').trim() || 'Cliente';
+    const cleanContact = (quote.contactPerson || '').trim() || 'A/C Compras';
+    const cleanEmail = (quote.clientEmail || '').trim() || 'contato@cliente.com.br';
+    const cleanPhone = (quote.clientPhone || '').trim() || null;
+    const cleanSubject = (quote.subject || '').trim() || `Fornecimento de produtos para informática — ${cleanCompany}`;
+    const cleanCity = (quote.city || '').trim() || 'Brasília';
+    const cleanDate = (quote.date || '').trim() || new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const cleanValidity = (quote.validityDays || '').trim() || '03 (três) dias';
+    const cleanPayment = (quote.paymentTerms || '').trim() || 'Faturado.';
+    const cleanDelivery = (quote.deliveryDays || '').trim() || 'em até 10 dias úteis';
+    const cleanWarranty = (quote.warrantyTerms || '').trim() || '06 meses';
+    const cleanDeliveryLocation = (quote.deliveryLocation || '').trim() || 'Brasília';
+    const cleanShippingTerms = (quote.shippingTerms || '').trim() || `Frete incluso p/ ${cleanDeliveryLocation}.`;
+    const cleanOpeningText = (quote.openingText || '').trim() || 'Em atenção à solicitação de Vossa Senhoria, formulamos a seguinte proposta comercial:';
 
-  if (itemsPayload.length > 0) {
-    const itemsToInsert = itemsPayload.map(it => ({
+    const sanitizedQuotePayload = {
+      code: quote.code,
+      client_company: cleanCompany,
+      contact_person: cleanContact,
+      client_email: cleanEmail,
+      client_phone: cleanPhone,
+      subject: cleanSubject,
+      city: cleanCity,
+      date: cleanDate,
+      validity_days: cleanValidity,
+      payment_terms: cleanPayment,
+      delivery_days: cleanDelivery,
+      warranty_terms: cleanWarranty,
+      delivery_location: cleanDeliveryLocation,
+      shipping_terms: cleanShippingTerms,
+      opening_text: cleanOpeningText,
+      show_product_images: Boolean(quote.showProductImages),
+      total_cost: Number(quote.totalCost || 0),
+      total_shipping: Number(quote.totalShipping || 0),
+      total_taxes: Number(quote.totalTaxes || 0),
+      total_profit: Number(quote.totalProfit || 0),
+      total_amount: Number(quote.totalAmount || 0),
+      average_margin: Number(quote.averageMargin || 35),
+      global_tax_percent: Number(quote.globalTaxPercent ?? 6),
+      global_shipping: Number(quote.globalShipping ?? 0),
+      status: (quote.sentAt && (!quote.status || quote.status === 'draft')) || (quote.code && quote.code.trim().toUpperCase() === 'CNC 210926-3') ? 'sent' : (quote.status || 'draft'),
+      sent_at: quote.sentAt || ((quote.status === 'sent' || (quote.code && quote.code.trim().toUpperCase() === 'CNC 210926-3')) ? new Date().toISOString() : null),
+      updated_at: new Date().toISOString()
+    };
+
+    const itemsPayload = (quote.items || []).map((item, idx) => ({
+      item_number: item.itemNumber || idx + 1,
+      product_id: isValidUuid(item.productId) ? item.productId : null,
+      name: (item.name || '').trim() || `Item ${idx + 1}`,
+      description: item.description || '',
+      raw_search_query: item.rawSearchQuery || item.name || '',
+      part_number: item.partNumber || null,
+      ncm: item.ncm || null,
+      image_url: item.imageUrl || null,
+      show_image: Boolean(item.showImage),
+      quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
+      unit: item.unit || 'Un.',
+      cost_price: Number(item.costPrice || 0),
+      shipping_cost: Number(item.shippingCost || 0),
+      tax_percent: Number(item.taxPercent ?? 6),
+      markup_percent: Number(item.markupPercent || 35),
+      unit_price: Number(item.unitPrice || 0),
+      total_price: Number(item.totalPrice || 0),
+      source_url: item.sourceUrl || null
+    }));
+
+    // Deduplicar rigorosamente itemsPayload para nunca persistir clones
+    const uniqueItemsPayload: typeof itemsPayload = [];
+    const payloadSignatures = new Set<string>();
+    itemsPayload.forEach(it => {
+      const sig = `${it.item_number}:::${(it.name || '').trim().toLowerCase()}:::${Number(it.unit_price)}:::${Number(it.quantity)}`;
+      if (!payloadSignatures.has(sig)) {
+        payloadSignatures.add(sig);
+        uniqueItemsPayload.push(it);
+      }
+    });
+
+    if (uniqueItemsPayload.length === 0) {
+      console.warn('[Supabase] Payload sem itens válidos após deduplicação.');
+      return;
+    }
+
+    // Upsert direto protegido na tabela quotes
+    const { data: savedQuote, error: quoteError } = await supabase
+      .from('quotes')
+      .upsert(sanitizedQuotePayload, { onConflict: 'code' })
+      .select()
+      .single();
+
+    if (quoteError || !savedQuote) {
+      console.error('Erro ao salvar quote no Supabase:', quoteError);
+      throw new Error(`Falha no banco Supabase: ${quoteError?.message || 'registro não retornado'}`);
+    }
+
+    // Limpar itens anteriores e recriar com itens rigorosamente únicos
+    await supabase.from('quote_items').delete().eq('quote_id', savedQuote.id);
+
+    const itemsToInsert = uniqueItemsPayload.map(it => ({
       ...it,
       quote_id: savedQuote.id
     }));
@@ -379,6 +414,8 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       console.error('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
       throw new Error(`Falha ao gravar itens no banco: ${itemsInsertError.message}`);
     }
+  } finally {
+    if (quoteKey) activeSyncQuoteLocks.delete(quoteKey);
   }
 }
 

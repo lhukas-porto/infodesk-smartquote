@@ -85,7 +85,7 @@ const qTodayPt: Quote = {
   id: 'q-2',
   code: 'COT-002',
   createdAt: undefined,
-  date: `${new Date().getDate()} de setembro de ${new Date().getFullYear()}`
+  date: `${new Date().getDate()} de ${new Date().toLocaleDateString('pt-BR', { month: 'long' })} de ${new Date().getFullYear()}`
 };
 
 const qOld: Quote = {
