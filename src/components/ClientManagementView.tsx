@@ -663,8 +663,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="sq-page-title">Empresas &amp; Compradores</h1>
-            <span className="sq-badge-code">CADASTROS ATIVOS</span>
-            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold rounded-lg">CRM Comercial</span>
           </div>
           <p className="sq-page-subtitle">Gestão centralizada de clientes, compradores e locais de entrega.</p>
         </div>
