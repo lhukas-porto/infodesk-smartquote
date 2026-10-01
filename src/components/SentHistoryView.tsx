@@ -129,13 +129,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   onStageFilterChange
 }) => {
   const [quoteForApproval, setQuoteForApproval] = useState<Quote | null>(null);
-  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>(() => {
-    const now = new Date();
-    const hasTodayOrDraft = (quotes || []).some(q => 
-      isSameDay(parseQuoteTimestamp(q), now.getTime()) || normalizeStatus(q) === 'draft'
-    );
-    return hasTodayOrDraft ? 'today' : 'all';
-  });
+  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('all');
   const [specificDate, setSpecificDate] = useState<string>(() => {
     const d = new Date();
     const year = d.getFullYear();
@@ -253,25 +247,13 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     return diffHours >= 48;
   };
 
-  // 1. Filtra as cotações por DATA / PERÍODO (Padrão: Hoje / Dia Corrente)
+  // 1. Filtra as cotações por DATA / PERÍODO (Padrão: Histórico Completo)
   const dateFilteredQuotes = useMemo(() => {
     const now = new Date();
     const todayFormatted = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
     // Descarta rascunhos fantasmas vazios (0 itens comerciais) que possam ter ficado na memória
     const validQuotes = quotes.filter(q => (q.status && q.status !== 'draft') || (Array.isArray(q.items) && q.items.length > 0));
-
-    // Se o estágio selecionado for especificamente 'draft', exibe todos os rascunhos para gestão completa
-    if (selectedStageFilter === 'draft') {
-      return validQuotes
-        .filter(q => normalizeStatus(q) === 'draft')
-        .map(q => {
-          if (!isSameDay(parseQuoteTimestamp(q), now.getTime())) {
-            return { ...q, date: todayFormatted };
-          }
-          return q;
-        });
-    }
 
     if (dateFilter === 'all') return validQuotes;
 
@@ -328,7 +310,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     }
 
     return validQuotes;
-  }, [quotes, dateFilter, specificDate, customStartDate, customEndDate, selectedStageFilter]);
+  }, [quotes, dateFilter, specificDate, customStartDate, customEndDate]);
 
   // 2. Totais e métricas por estágio calculados sobre o período ativo
   const stageStats = useMemo(() => {
@@ -358,7 +340,17 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
 
   // 3. Lista final filtrada por estágio, busca textual e ordenada
   const filteredQuotes = useMemo(() => {
-    return dateFilteredQuotes
+    // Se o usuário clicou no filtro 'draft', garante a exibição de todos os rascunhos válidos
+    let sourceList = dateFilteredQuotes;
+    if (selectedStageFilter === 'draft') {
+      const allDrafts = quotes.filter(q => normalizeStatus(q) === 'draft' && (Array.isArray(q.items) && q.items.length > 0));
+      const map = new Map<string, Quote>();
+      sourceList.forEach(q => map.set(q.id, q));
+      allDrafts.forEach(q => map.set(q.id, q));
+      sourceList = Array.from(map.values());
+    }
+
+    return sourceList
       .filter(q => {
         const norm = normalizeStatus(q);
         if (selectedStageFilter !== 'all' && norm !== selectedStageFilter) return false;
