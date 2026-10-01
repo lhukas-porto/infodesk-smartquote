@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Package, 
   Upload, 
@@ -25,14 +25,14 @@ import {
   ArrowDown,
   DollarSign,
   SlidersHorizontal,
-  Tag,
-  RefreshCw
+  Tag
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Product } from '../types';
 import { 
   saveProducts, 
   deduplicateProductsList,
+  isProductDeleted,
   getRegisteredUnits, 
   saveRegisteredUnit, 
   getRegisteredCategories, 
@@ -314,29 +314,42 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     document.body.removeChild(link);
   };
 
-  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  // 🔄 Sincronização Contínua Automática com a Nuvem (Supabase)
+  useEffect(() => {
+    let isMounted = true;
 
-  const handleSyncFromCloud = async () => {
-    try {
-      setIsSyncingCloud(true);
-      const remote = await fetchProductsFromSupabase();
-      if (remote && Array.isArray(remote) && remote.length > 0) {
-        const clean = deduplicateProductsList(remote);
-        setProducts(clean);
-        saveProducts(clean);
-        setImportStatus(`✅ Catálogo 100% alinhado com a Nuvem! ${clean.length} produtos carregados.`);
-        setTimeout(() => setImportStatus(null), 4000);
-      } else {
-        setImportStatus('Nenhum produto novo retornado pelo Supabase.');
-        setTimeout(() => setImportStatus(null), 3000);
+    const autoSyncFromCloud = async () => {
+      try {
+        const remote = await fetchProductsFromSupabase();
+        if (isMounted && remote && Array.isArray(remote) && remote.length > 0) {
+          const sanitized = remote.filter(p => !isProductDeleted(p));
+          const clean = deduplicateProductsList(sanitized);
+          setProducts(clean);
+          saveProducts(clean);
+        }
+      } catch (err) {
+        console.warn('[AutoSync Catálogo] Sincronização em background:', err);
       }
-    } catch (err: any) {
-      console.error('Erro ao sincronizar com nuvem:', err);
-      alert('Erro ao sincronizar com nuvem: ' + (err.message || 'Erro de rede'));
-    } finally {
-      setIsSyncingCloud(false);
-    }
-  };
+    };
+
+    // Sincroniza imediatamente ao abrir a tela de catálogo
+    autoSyncFromCloud();
+
+    // Sincroniza automaticamente quando a janela ganha foco
+    const handleFocus = () => {
+      autoSyncFromCloud();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Mantém sincronização periódica a cada 60 segundos enquanto estiver na tela
+    const interval = setInterval(autoSyncFromCloud, 60000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [setProducts]);
 
   const handleSaveNewProductFromModal = (newProd: Product, shippingCost: number) => {
     const cleanName = newProd.name.trim();
@@ -517,15 +530,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
           </label>
 
-          <button
-            onClick={handleSyncFromCloud}
-            disabled={isSyncingCloud}
-            className="px-3.5 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
-            title="Sincronizar catálogo diretamente da nuvem Supabase"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isSyncingCloud ? 'animate-spin' : ''}`} />
-            <span>{isSyncingCloud ? 'Sincronizando...' : 'Sincronizar Nuvem'}</span>
-          </button>
 
           <button
             onClick={handleExportContaAzul}
