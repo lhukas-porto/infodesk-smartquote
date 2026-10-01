@@ -65,7 +65,10 @@ import {
   getDeletedCategories,
   getDeletedUnits,
   getDeletedPaymentMethods,
-  isProductDeleted
+  isProductDeleted,
+  isBlockedOrTestQuote,
+  getDeletedQuoteCodes,
+  recordDeletedQuoteCode
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -455,14 +458,26 @@ export const App: React.FC = () => {
         // 2. Orçamentos
         const remoteQuotes = await fetchQuotesFromSupabase();
         if (remoteQuotes && remoteQuotes.length > 0) {
-          // Descarta rascunhos fantasmas vazios que possam ter sido gravados no banco
+          const deletedCodes = getDeletedQuoteCodes();
+
+          // Descarta rascunhos fantasmas vazios e propostas de teste ou já deletadas
           const validRemoteQuotes = remoteQuotes.filter(rq => {
+            if (isBlockedOrTestQuote(rq) || deletedCodes.has((rq.code || '').trim().toUpperCase())) {
+              return false;
+            }
             const hasItems = Array.isArray(rq.items) && rq.items.length > 0;
             const hasAmount = Number(rq.totalAmount || 0) > 0;
             if ((rq.status || 'draft') === 'draft' && !hasItems && !hasAmount) {
               return false;
             }
             return true;
+          });
+
+          // Se veio alguma proposta de teste no Supabase durante a leitura, expurga imediatamente do banco
+          remoteQuotes.forEach(rq => {
+            if ((isBlockedOrTestQuote(rq) || deletedCodes.has((rq.code || '').trim().toUpperCase())) && rq.code) {
+              deleteQuoteFromSupabase(rq.code).catch(() => {});
+            }
           });
 
           // Merge seguro: se o banco retornar a cotação sem itens, preserva os itens salvos localmente ou do backup
@@ -518,14 +533,21 @@ export const App: React.FC = () => {
             });
 
             // Preserva propostas que existem apenas localmente (evita perda de dados locais)
+            // FILTRA E BLOQUEIA RIGOROSAMENTE QUALQUER PROPOSTA DE TESTE OU DELETADA
             const localOnlyQuotes = prevQuotes.filter(lq => 
+              !isBlockedOrTestQuote(lq) &&
+              !deletedCodes.has((lq.code || '').trim().toUpperCase()) &&
               !mergedRemote.some(rq => rq.id === lq.id || (rq.code && lq.code && rq.code.trim().toUpperCase() === lq.code.trim().toUpperCase()))
             );
 
             // Sincroniza para o Supabase apenas propostas com itens reais e valor comercial
             if (localOnlyQuotes.length > 0) {
               localOnlyQuotes.forEach(lq => {
-                if (lq.items && lq.items.length > 0 && Number(lq.totalAmount || 0) > 0) {
+                if (
+                  !isBlockedOrTestQuote(lq) &&
+                  !deletedCodes.has((lq.code || '').trim().toUpperCase()) &&
+                  lq.items && lq.items.length > 0 && Number(lq.totalAmount || 0) > 0
+                ) {
                   syncQuoteToSupabase(lq).catch(err => {
                     console.warn('Aviso ao sincronizar proposta pendente para Supabase:', err);
                   });
@@ -533,7 +555,9 @@ export const App: React.FC = () => {
               });
             }
 
-            const combined = [...mergedRemote, ...localOnlyQuotes];
+            const combined = [...mergedRemote, ...localOnlyQuotes].filter(q => 
+              !isBlockedOrTestQuote(q) && !deletedCodes.has((q.code || '').trim().toUpperCase())
+            );
             const { updatedQuotes: normalizedMerged } = updateDraftQuotesToToday(combined);
             saveQuotes(normalizedMerged);
             return normalizedMerged;
@@ -541,11 +565,11 @@ export const App: React.FC = () => {
 
           setCurrentQuote(prev => {
             const draft = getCurrentDraftQuote();
-            // Apenas restaura rascunho ativo se ele possuir itens reais
+            // Apenas restaura rascunho ativo se ele possuir itens reais e não for teste
             let chosen: Quote = prev;
-            if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+            if (draft && Array.isArray(draft.items) && draft.items.length > 0 && !isBlockedOrTestQuote(draft)) {
               chosen = draft;
-            } else if (prev.code === 'CNC 280826' && validRemoteQuotes[0]) {
+            } else if ((isBlockedOrTestQuote(prev) || deletedCodes.has((prev.code || '').trim().toUpperCase())) && validRemoteQuotes[0]) {
               chosen = validRemoteQuotes[0];
             }
             if (!chosen.openingText || chosen.openingText.trim() === 'Em atenção...' || chosen.openingText.trim() === 'Em atenção') {
@@ -677,48 +701,35 @@ export const App: React.FC = () => {
 
   const [currentQuote, setCurrentQuote] = useState<Quote>(() => {
     const draft = getCurrentDraftQuote();
-    if (draft && (
+    if (draft && !isBlockedOrTestQuote(draft) && (
       (Array.isArray(draft.items) && draft.items.length > 0) ||
       (draft.clientCompany && draft.clientCompany.trim())
     )) {
       return draft;
     }
-    const existing = quotes.find(q => Array.isArray(q.items) && q.items.length > 0) || quotes[0];
+    const existing = quotes.find(q => !isBlockedOrTestQuote(q) && Array.isArray(q.items) && q.items.length > 0) || quotes.find(q => !isBlockedOrTestQuote(q));
     if (existing) return existing;
     return {
       id: `quote-${Date.now()}`,
-      code: 'CNC 280826',
-      clientCompany: 'CNC — Confederação Nacional do Comércio',
-      contactPerson: 'Srta. Alexandra',
-      clientEmail: 'alexandraoliveira@cnc.org.br',
+      code: '',
+      clientCompany: '',
+      contactPerson: '',
+      clientEmail: '',
       clientPhone: '',
       subject: 'Fornecimento de produtos para informática',
       city: 'Brasília',
-      date: '28 de agosto de 2026',
+      date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
       validityDays: settings.defaultValidityDays,
       paymentTerms: settings.defaultPaymentTerms,
       deliveryDays: settings.defaultDeliveryDays,
       warrantyTerms: settings.defaultWarrantyTerms,
       openingText: settings.defaultOpeningText,
-      items: [
-        {
-          id: 'item-1',
-          itemNumber: 1,
-          productId: 'prod-1',
-          name: 'Organizador de pia Tramontina Plurale',
-          description: 'Organizador de pia Tramontina Plurale em plástico e aço inox',
-          quantity: 3,
-          unit: 'Un.',
-          costPrice: 78.50,
-          markupPercent: 40.12,
-          unitPrice: 110.00,
-          totalPrice: 330.00
-        }
-      ],
-      totalCost: 235.50,
-      totalProfit: 94.50,
-      totalAmount: 330.00,
-      averageMargin: 40.12,
+      items: [],
+      totalCost: 0,
+      totalProfit: 0,
+      totalAmount: 0,
+      averageMargin: settings.defaultMarkupPercent ?? 23.5,
+      globalMarkupPercent: settings.defaultMarkupPercent ?? 23.5,
       status: 'draft',
       createdAt: new Date().toISOString()
     };
@@ -1414,6 +1425,7 @@ export const App: React.FC = () => {
     }
 
     if (quoteToDelete.code) {
+      recordDeletedQuoteCode(quoteToDelete.code);
       await deleteQuoteFromSupabase(quoteToDelete.code);
     }
   };

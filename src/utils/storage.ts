@@ -24,6 +24,51 @@ const CLIENT_COMPANIES_KEY = 'infodesk_client_companies';
 const CURRENT_DRAFT_QUOTE_KEY = 'infodesk_current_draft_quote';
 const ACTIVE_TAB_KEY = 'infodesk_active_tab';
 const MANUAL_ANALYSES_KEY = 'infodesk_manual_analyses';
+const DELETED_QUOTE_CODES_KEY = 'infodesk_deleted_quote_codes';
+
+export const isBlockedOrTestQuote = (q: { code?: string; clientCompany?: string; id?: string } | null | undefined): boolean => {
+  if (!q) return true;
+  const code = (q.code || '').trim().toLowerCase();
+  const comp = (q.clientCompany || '').trim().toLowerCase();
+  
+  if (code.includes('empresa teste') || comp.includes('empresa teste')) return true;
+  if (code.includes('teste alpha') || code.includes('teste beta')) return true;
+  if (code === 'interativa 240826' || code === 'cnc 280826') return true;
+  if (q.id === 'quote-interativa-01' || q.id === 'quote-cnc-01') return true;
+  return false;
+};
+
+export const getDeletedQuoteCodes = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_QUOTE_CODES_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        const set = new Set(arr.map((c: string) => String(c).trim().toUpperCase()));
+        set.add('EMPRESA TESTE ALPHA 190926');
+        set.add('EMPRESA TESTE BETA 190926');
+        set.add('INTERATIVA 240826');
+        set.add('CNC 280826');
+        return set;
+      }
+    }
+  } catch { /* noop */ }
+  const defaultSet = new Set<string>();
+  defaultSet.add('EMPRESA TESTE ALPHA 190926');
+  defaultSet.add('EMPRESA TESTE BETA 190926');
+  defaultSet.add('INTERATIVA 240826');
+  defaultSet.add('CNC 280826');
+  return defaultSet;
+};
+
+export const recordDeletedQuoteCode = (quoteCode: string): void => {
+  if (!quoteCode) return;
+  try {
+    const set = getDeletedQuoteCodes();
+    set.add(quoteCode.trim().toUpperCase());
+    localStorage.setItem(DELETED_QUOTE_CODES_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
 
 /**
  * Limpeza preventiva inteligente para evitar QuotaExceededError no localStorage.
@@ -53,10 +98,16 @@ export const getCurrentDraftQuote = (): Quote | null => {
     const saved = localStorage.getItem(CURRENT_DRAFT_QUOTE_KEY) || sessionStorage.getItem(CURRENT_DRAFT_QUOTE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
-        if (!parsed.openingText || parsed.openingText.trim() === 'Em atenção...' || parsed.openingText.trim() === 'Em atenção' || parsed.openingText.trim().startsWith('Em atenção ao que foi solicitado')) {
-          parsed.openingText = defaultCompanySettings.defaultOpeningText;
+      if (parsed && typeof parsed === 'object') {
+        if (isBlockedOrTestQuote(parsed) || getDeletedQuoteCodes().has((parsed.code || '').trim().toUpperCase())) {
+          localStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
+          sessionStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
+          return null;
         }
+        if (Array.isArray(parsed.items)) {
+          if (!parsed.openingText || parsed.openingText.trim() === 'Em atenção...' || parsed.openingText.trim() === 'Em atenção' || parsed.openingText.trim().startsWith('Em atenção ao que foi solicitado')) {
+            parsed.openingText = defaultCompanySettings.defaultOpeningText;
+          }
         if (!parsed.paymentTerms || parsed.paymentTerms.trim() === '30 dias' || parsed.paymentTerms.trim() === '30 dias.') {
           parsed.paymentTerms = 'Faturado.';
         }
@@ -66,7 +117,8 @@ export const getCurrentDraftQuote = (): Quote | null => {
         if (parsed.globalMarkupPercent === undefined || parsed.globalMarkupPercent === 35 || parsed.globalMarkupPercent === 20 || parsed.globalMarkupPercent === 25) {
           parsed.globalMarkupPercent = 23.5;
         }
-        return parsed;
+          return parsed;
+        }
       }
     }
   } catch (e) {
@@ -84,7 +136,7 @@ export const syncDraftQuoteDebounced = (_quote: Quote): void => {
 };
 
 export const saveCurrentDraftQuote = (quote: Quote | null): void => {
-  if (!quote) {
+  if (!quote || isBlockedOrTestQuote(quote) || getDeletedQuoteCodes().has((quote.code || '').trim().toUpperCase())) {
     try {
       localStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
       sessionStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
@@ -602,14 +654,18 @@ export const saveEmails = (emails: IncomingEmail[]): void => {
 
 export const getQuotes = (): Quote[] => {
   try {
+    const deletedCodes = getDeletedQuoteCodes();
     const saved = localStorage.getItem(QUOTES_KEY);
     if (saved) {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(q => !isBlockedOrTestQuote(q) && !deletedCodes.has((q.code || '').trim().toUpperCase()));
+      }
     }
   } catch (e) {
     console.error(e);
   }
-  return initialSentQuotes;
+  return [];
 };
 
 function safeEmailString(val: any): string | undefined {
@@ -627,12 +683,15 @@ function safeEmailString(val: any): string | undefined {
 
 export const saveQuotes = (quotes: Quote[]): void => {
   try {
-    const normalized = quotes.map(q => ({
-      ...q,
-      clientEmail: (q.clientEmail || '').toLowerCase().trim(),
-      recipientEmails: safeEmailString(q.recipientEmails),
-      ccEmails: safeEmailString(q.ccEmails)
-    }));
+    const deletedCodes = getDeletedQuoteCodes();
+    const normalized = quotes
+      .filter(q => !isBlockedOrTestQuote(q) && !deletedCodes.has((q.code || '').trim().toUpperCase()))
+      .map(q => ({
+        ...q,
+        clientEmail: (q.clientEmail || '').toLowerCase().trim(),
+        recipientEmails: safeEmailString(q.recipientEmails),
+        ccEmails: safeEmailString(q.ccEmails)
+      }));
     try {
       localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));
     } catch (quotaErr) {

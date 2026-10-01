@@ -299,6 +299,23 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     return;
   }
 
+  // REGRA DE SEGURANÇA: NUNCA ressuscitar propostas de teste ou mocks excluídos
+  const codeUpper = (quote.code || '').trim().toUpperCase();
+  const compUpper = (quote.clientCompany || '').trim().toUpperCase();
+  if (
+    codeUpper.includes('EMPRESA TESTE') ||
+    compUpper.includes('EMPRESA TESTE') ||
+    codeUpper.includes('TESTE ALPHA') ||
+    codeUpper.includes('TESTE BETA') ||
+    codeUpper === 'INTERATIVA 240826' ||
+    codeUpper === 'CNC 280826' ||
+    quote.id === 'quote-interativa-01' ||
+    quote.id === 'quote-cnc-01'
+  ) {
+    console.warn('[Supabase] Bloqueado envio de proposta de teste/mock para o banco:', quote.code);
+    return;
+  }
+
   const quoteKey = (quote.code || quote.id || '').trim().toUpperCase();
   if (quoteKey && activeSyncQuoteLocks.has(quoteKey)) {
     console.log(`[Supabase] Sincronização em andamento para ${quoteKey}, ignorando disparo concorrente.`);

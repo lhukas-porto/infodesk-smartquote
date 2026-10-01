@@ -2441,10 +2441,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center justify-between">
               <span className="flex items-center gap-1.5 font-bold text-slate-700">
                 <Mail className="w-3.5 h-3.5 text-sky-600" />
-                Assunto do E-mail da Proposta
-              </span>
-              <span className="text-[11px] text-slate-400 font-normal">
-                Personalize como o assunto aparecerá para o cliente no envio do e-mail
+                Assunto do E-mail
               </span>
             </label>
             <input
@@ -3892,7 +3889,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               disabled={currentQuote.showShippingInProposal === false}
               value={currentQuote.shippingTerms || `Frete incluso p/ ${currentQuote.deliveryLocation || 'Brasília'}.`}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, shippingTerms: e.target.value }))}
-              placeholder="Ex: Frete incluso p/ São Paulo."
+              placeholder=""
               className={`w-full border rounded-xl px-3 py-2 font-medium text-xs transition ${
                 currentQuote.showShippingInProposal === false
                   ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
@@ -3930,7 +3927,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   notes: val
                 }));
               }}
-              placeholder="Ex: Faturamento direto da fábrica.&#10;Impostos inclusos no valor total.&#10;Garantia on-site com atendimento nacional."
+              placeholder=""
               className="w-full min-h-[85px] bg-slate-50 border border-slate-300 hover:border-slate-400 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl px-3.5 py-2.5 text-slate-900 font-medium text-xs leading-relaxed transition resize-y"
             />
           </div>
