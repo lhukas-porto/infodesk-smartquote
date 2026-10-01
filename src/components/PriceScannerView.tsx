@@ -897,14 +897,11 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                Scanner Inteligente de Preços & Ofertas 360°
+                Scanner IA de produtos
               </h1>
-              <span className="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs rounded-full font-bold">
-                IA & Web Search
-              </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Pesquise produtos com fotos reais do e-commerce, menor preço de mercado e insira diretamente na sua cotação.
+              Pesquise produtos com fotos reais do e-commerce e insira diretamente na sua cotação.
             </p>
           </div>
         </div>
@@ -1058,7 +1055,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
             value={batchRawInput}
             onChange={(e) => setBatchRawInput(e.target.value)}
             onPaste={handleBatchAreaPaste}
-            placeholder="Exemplo: Carrinho Plataforma Com Grade Móvel Profissional 300kg Preto... Você também pode dar CTRL+V de fotos ou prints direto aqui!"
+            placeholder="Digite ou cole aqui as descrições dos produtos ou números de peça (SKU/PN) que deseja pesquisar. Você também pode colar imagens ou prints diretamente nesta área — o sistema extrairá os produtos automaticamente."
             className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-4 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono leading-relaxed resize-y"
           />
 
