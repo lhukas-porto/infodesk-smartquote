@@ -901,7 +901,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Pesquise produtos com fotos reais do e-commerce e insira diretamente na sua cotação.
+              Pesquise produtos pela descrição ou pela foto e insira diretamente na sua cotação.
             </p>
           </div>
         </div>
