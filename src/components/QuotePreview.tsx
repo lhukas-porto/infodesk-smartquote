@@ -280,12 +280,12 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
               >
                 <thead>
                   <tr className="font-bold text-black">
-                    <th className="p-1.5 text-center w-12 font-bold" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000' }}>Item</th>
-                    <th className="p-1.5 text-center font-bold" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000' }}>Descrição do Produto</th>
-                    <th className="p-1.5 text-center w-12 font-bold" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000' }}>Qtd.</th>
-                    <th className="p-1.5 text-center w-12 font-bold" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000' }}>Un.</th>
-                    <th className="p-1.5 text-center w-28 font-bold" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000' }}>Preço unit.</th>
-                    <th className="p-1.5 text-center w-28 font-bold" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000' }}>Preço total</th>
+                    <th className="p-1.5 text-center font-bold whitespace-nowrap" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000', width: '6%' }}>Item</th>
+                    <th className="p-1.5 text-center font-bold" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000', width: '46%' }}>Descrição do Produto</th>
+                    <th className="p-1.5 text-center font-bold whitespace-nowrap" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000', width: '6%' }}>Qtd.</th>
+                    <th className="p-1.5 text-center font-bold whitespace-nowrap" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000', width: '6%' }}>Un.</th>
+                    <th className="p-1.5 text-center font-bold whitespace-nowrap" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000', width: '18%' }}>Preço unit.</th>
+                    <th className="p-1.5 text-center font-bold whitespace-nowrap" style={{ fontSize: '10pt', fontWeight: 'bold', border: '0.5pt solid #000000', width: '18%' }}>Preço total</th>
                   </tr>
                 </thead>
                 <tbody>

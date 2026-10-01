@@ -3235,10 +3235,10 @@ export function generateProposalEmailHtml(
 
     return `
       <tr style="page-break-inside: avoid;">
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 4px; width: 6%; text-align: center; vertical-align: middle; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.itemNumber)}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: left; vertical-align: middle; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 8px; width: 46%; text-align: left; vertical-align: middle; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           <div style="font-weight: normal; color: #000000;">
             ${safeItemName}
             ${isException ? `<span style="font-size: 8pt; color: #b45309; font-weight: bold; margin-left: 6px;">(Prazo diferenciado: ${escapeHtml(excDetails.days)} dias úteis)</span>` : ''}
@@ -3253,16 +3253,16 @@ export function generateProposalEmailHtml(
             </table>
           ` : ''}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 4px; width: 6%; text-align: center; vertical-align: middle; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.quantity)}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 4px; width: 6%; text-align: center; vertical-align: middle; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           ${escapeHtml(item.unit || 'Un.')}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 6px; width: 18%; text-align: center; vertical-align: middle; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           R$ ${Number(item.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </td>
-        <td style="border: 0.5pt solid #000000; padding: 6px 8px; text-align: center; vertical-align: middle; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+        <td style="border: 0.5pt solid #000000; padding: 6px 6px; width: 18%; text-align: center; vertical-align: middle; white-space: nowrap; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
           R$ ${Number(item.totalPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </td>
       </tr>
@@ -3313,12 +3313,12 @@ export function generateProposalEmailHtml(
     <table style="width: 100%; max-width: 18.52cm; border-collapse: collapse; margin-bottom: 20px; font-family: Verdana, Geneva, sans-serif; font-size: 10pt;">
       <thead>
         <tr style="background-color: #ffffff;">
-          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 7%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Item</th>
-          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 49%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Descrição do Produto</th>
-          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 8%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Qtd.</th>
-          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 8%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Un.</th>
-          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 14%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Preço unit.</th>
-          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 14%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Preço total</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 4px; width: 6%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000; white-space: nowrap;">Item</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 8px; width: 46%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000;">Descrição do Produto</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 4px; width: 6%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000; white-space: nowrap;">Qtd.</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 4px; width: 6%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000; white-space: nowrap;">Un.</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 6px; width: 18%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000; white-space: nowrap;">Preço unit.</th>
+          <th style="border: 0.5pt solid #000000; padding: 6px 6px; width: 18%; text-align: center; font-weight: bold; font-size: 10pt; color: #000000; white-space: nowrap;">Preço total</th>
         </tr>
       </thead>
       <tbody>

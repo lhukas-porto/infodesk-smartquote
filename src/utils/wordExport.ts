@@ -147,14 +147,15 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
   };
 
   // Largura total da tabela: 176.8 mm (~18.52 cm em proporcional)
-  // Divisão: Item (8%), Descrição (48%), Qtd (8%), Un (8%), Preço Unit (14%), Preço Total (14%)
+  // Divisão otimizada: Item (6.2%), Descrição (46.3%), Qtd (6.2%), Un (6.2%), Preço Unit (17.5%), Preço Total (17.5%)
+  // Garante que "Preço unit." e "Preço total" fiquem 100% em 1 linha sem quebra
   const colWidths = [
-    convertMillimetersToTwip(14.1),
-    convertMillimetersToTwip(84.8),
-    convertMillimetersToTwip(14.1),
-    convertMillimetersToTwip(14.1),
-    convertMillimetersToTwip(24.8),
-    convertMillimetersToTwip(24.8)
+    convertMillimetersToTwip(11.0),
+    convertMillimetersToTwip(81.8),
+    convertMillimetersToTwip(11.0),
+    convertMillimetersToTwip(11.0),
+    convertMillimetersToTwip(31.0),
+    convertMillimetersToTwip(31.0)
   ];
 
   // Linha de Cabeçalho da Tabela
