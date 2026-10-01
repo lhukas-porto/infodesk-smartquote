@@ -1007,29 +1007,11 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                             </a>
                           )}
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1 py-0.2 rounded text-[10px]">
-                            {selectedCompany.prefix || (selectedCompany.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À')}
-                          </span>
-                          <span>Cliente cadastrado no sistema comercial</span>
-                        </p>
                       </div>
                     </div>
 
-                    {/* Right: Status Pills + Actions */}
+                    {/* Right: Actions */}
                     <div className="flex items-center gap-3 self-end sm:self-center flex-wrap">
-                      <div className="hidden sm:flex flex-col items-end">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Status</span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                            Ativo
-                          </span>
-                          <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-lg text-xs font-bold font-mono">
-                            CRM Master
-                          </span>
-                        </div>
-                      </div>
 
                       <div className="flex items-center gap-2">
                         <button

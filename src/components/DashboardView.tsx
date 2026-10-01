@@ -7,13 +7,10 @@ import {
   Clock, 
   Percent, 
   Building2, 
-  Package, 
-  Store, 
   Filter, 
   Calendar, 
   CalendarDays,
   FileText,
-  Sparkles, 
   ArrowUpRight
 } from 'lucide-react';
 import { Quote, ClientCompany, Product } from '../types';
@@ -522,8 +519,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* Cards de Métricas Superiores (Padrão Oficial AGENTS.md - 6 Cards com Contador Destacado) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+      {/* Cards de Métricas Superiores (Padrão Oficial AGENTS.md - 5 Cards com Contador Destacado) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
         
         {/* Card 1 (DESTACADO): Total de Orçamentos no Período Selecionado */}
         <div className="bg-white border-2 border-sky-500/40 p-4 rounded-2xl shadow-xs relative overflow-hidden bg-gradient-to-br from-white via-white to-sky-50/50">
@@ -595,23 +592,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Card 5: Ticket Médio */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Ticket Médio
-            </span>
-            <Package className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="text-base font-bold text-slate-900 font-mono mt-1">
-            R$ {stats.averageTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
-            Média por proposta
-          </div>
-        </div>
-
-        {/* Card 6: Margem Média Realizada */}
+        {/* Card 5: Margem Média Realizada */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -671,17 +652,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               );
             })}
           </div>
-
-          {/* Dica de Inteligência Comercial */}
-          <div className="p-3.5 bg-sky-50/70 border border-sky-100 rounded-xl text-xs text-sky-900 flex items-start gap-2.5 mt-4">
-            <Sparkles className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
-            <p className="leading-relaxed">
-              <strong>Dica de Fechamento:</strong> Propostas em negociação têm probabilidade 3x maior de conversão quando o follow-up ocorre antes de 48 horas após o envio do documento formal.
-            </p>
-          </div>
         </div>
 
-        {/* Coluna Direita: Top Clientes & Top Fornecedores (5 cols) */}
+        {/* Coluna Direita: Top Clientes por Volume (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
           
           {/* Top Clientes */}
@@ -703,32 +676,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                     <div className="text-right shrink-0 font-mono font-bold text-slate-900">
                       R$ {c.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Top Fornecedores mais Cotados */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
-            <h2 className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
-              <Store className="w-4 h-4 text-emerald-600" />
-              <span>Top 5 Fornecedores em Custo</span>
-            </h2>
-
-            {stats.topSuppliers.length === 0 ? (
-              <p className="text-xs text-slate-400 py-4 text-center">Nenhum dado de fornecedor disponível</p>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {stats.topSuppliers.map(s => (
-                  <div key={s.supplier} className="py-2.5 flex items-center justify-between text-xs">
-                    <div className="min-w-0 flex-1 pr-2">
-                      <p className="font-bold text-slate-800 truncate">{s.supplier}</p>
-                      <p className="text-[10px] text-slate-400">{s.itemCount} unidade(s) cotada(s)</p>
-                    </div>
-                    <div className="text-right shrink-0 font-mono font-bold text-emerald-700">
-                      R$ {s.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   </div>
                 ))}

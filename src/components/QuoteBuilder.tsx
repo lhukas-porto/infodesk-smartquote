@@ -2257,7 +2257,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">E-mail para Retorno</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">E-mail</label>
             <input
               type="email"
               value={currentQuote.clientEmail}
@@ -2909,8 +2909,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     Margem %
                   </span>
                 </th>
-                <th className="py-2 px-1 w-24 min-w-[78px] text-center">Preço Unit. (R$)</th>
-                <th className="py-2 px-1 w-24 min-w-[84px] text-center">Preço Total (R$)</th>
+                <th className="py-2 px-1 w-24 min-w-[78px] text-center">Preço Un. (R$)</th>
+                <th className="py-2 px-1 w-24 min-w-[84px] text-center">Total (R$)</th>
                 <th className="py-2 px-1 w-14 min-w-[56px] text-center">Ações</th>
               </tr>
             </thead>
