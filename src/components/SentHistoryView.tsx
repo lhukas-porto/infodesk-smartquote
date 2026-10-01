@@ -11,7 +11,6 @@ import {
   Trash2,
   AlertTriangle,
   X,
-  Flame,
   MessageSquare,
   TrendingUp,
   DollarSign,
@@ -469,42 +468,6 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
         })}
       </div>
 
-      {/* Alerta de Follow-up Inteligente (+48h) */}
-      {followUpRequiredQuotes.length > 0 && (
-        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center shrink-0">
-              <Flame className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-xs font-bold text-amber-950">
-                  Atenção de Vendas: Follow-up Recomendado
-                </h4>
-                <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full text-[10px] font-mono font-bold">
-                  {followUpRequiredQuotes.length} proposta(s) sem retorno (+48h)
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-800 mt-0.5">
-                Propostas formais enviadas que ainda não foram convertidas em negociação ou fechamento.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setOnlyFollowUpDue(prev => !prev)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              onlyFollowUpDue
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>{onlyFollowUpDue ? 'Exibindo Apenas +48h (Remover Filtro)' : 'Filtrar Propostas +48h'}</span>
-          </button>
-        </div>
-      )}
 
       {/* Barra de Filtro de Datas & Períodos (Padrão: Hoje / Dia Corrente) */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -793,9 +756,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
             return (
               <div
                 key={q.id}
-                className={`bg-white border rounded-2xl p-4 shadow-xs transition hover:shadow-sm flex flex-col gap-3 group ${
-                  isDue ? 'border-amber-300/80 bg-amber-50/10' : 'border-slate-200 hover:border-sky-300'
-                }`}
+                className="bg-white border border-slate-200 hover:border-sky-300 rounded-2xl p-4 shadow-xs transition hover:shadow-sm flex flex-col gap-3 group"
               >
                 {/* 1. Nível Superior: Identificação da Proposta & Cliente à esquerda, Financeiro à direita */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -830,15 +791,6 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                             >
                               <Clock className="w-2.5 h-2.5 text-amber-600" />
                               Rascunho
-                            </span>
-                          )}
-                          {isDue && (
-                            <span 
-                              className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1 animate-pulse"
-                              title="Enviada há mais de 48h sem resposta do cliente"
-                            >
-                              <Flame className="w-2.5 h-2.5 text-amber-600" />
-                              +48h sem retorno
                             </span>
                           )}
                         </div>
