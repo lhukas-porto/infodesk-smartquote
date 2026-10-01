@@ -70,10 +70,10 @@ const KNOWN_BRANDS = [
   'sms', 'ragtech', 'ts shara', 'apc', 'lacerda', 'mcm', 'duracell', 'rayovac',
   // Impressão & Automação Comercial
   'zebra', 'argox', 'elgin', 'bematech', 'honeywell', 'datalogic', 'brother', 'epson', 'canon', 'gertec', 'dymo',
-  // Eletrodomésticos, Refrigeração & Copa
-  'wolff', 'rojemac', 'brinox', 'mondial', 'britania', 'britânia', 'oster', 'philco', 'electrolux', 'consul',
+  // Eletrodomésticos, Refrigeração, Beleza & Copa
+  'wolff', 'rojemac', 'brinox', 'mondial', 'taiff', 'gama', 'ga.ma', 'lizze', 'britania', 'britânia', 'oster', 'philco', 'electrolux', 'consul',
   'cadence', 'invicta', 'sanremo', 'coza', 'marinex', 'nadir', 'oxford', 'tramontina', 'dako', 'atlas', 'fame',
-  'arno', 'panasonic', 'walita', 'midea', 'brastemp', 'sugar', 'colormaq',
+  'arno', 'panasonic', 'walita', 'midea', 'brastemp', 'sugar', 'colormaq', 'conair', 'babyliss', 'mallory',
   // Ferramentas & Instrumentos de Medição
   'bosch', 'makita', 'dewalt', 'vonder', 'gedore', 'irwin', 'stanley', 'dwt', 'minipa', 'fluke', 'western',
   'fertak', 'sparta', 'worker', 'starrett', 'sata', 'belzer', 'rocast',
@@ -99,6 +99,41 @@ function extractBrandToken(text: string): string {
       return b.replace(/[^a-z0-9]/gi, '');
     }
   }
+  return '';
+}
+
+export function resolveBrand(
+  brandField?: string,
+  name?: string,
+  description?: string,
+  supplierField?: string,
+  manufacturerField?: string
+): string {
+  // 1. Marca conhecida detectada no nome do produto (fonte de maior precisão e confiabilidade)
+  const brandInName = extractBrandToken(name || '');
+  if (brandInName) return brandInName;
+
+  // 2. Campo brand direto, verificando se contém marca conhecida ou nome limpo
+  if (brandField && brandField.trim()) {
+    const knownInBrand = extractBrandToken(brandField);
+    if (knownInBrand) return knownInBrand;
+    const cleanBrand = brandField.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (cleanBrand.length >= 3 && !/^(generico|importado|fabricante|fornecedor|padrao|marca|diversos|distribuidora)$/i.test(cleanBrand)) {
+      return cleanBrand;
+    }
+  }
+
+  // 3. Marca conhecida na descrição
+  const brandInDesc = extractBrandToken(description || '');
+  if (brandInDesc) return brandInDesc;
+
+  // 4. Marca conhecida no fabricante ou fornecedor
+  const brandInManuf = extractBrandToken(manufacturerField || '');
+  if (brandInManuf) return brandInManuf;
+
+  const brandInSupplier = extractBrandToken(supplierField || '');
+  if (brandInSupplier) return brandInSupplier;
+
   return '';
 }
 
@@ -143,7 +178,7 @@ function tokenizeProductText(text: string): string[] {
   const treated = norm
     .replace(/\baco inox\b/g, 'inox')
     .replace(/\bsem fio\b/g, 'semfio')
-    .replace(/\b(\d+)\s*(ml|l|g|kg|gb|tb|mb|p|portas|pol|v|w|a|mah)\b/g, '$1$2');
+    .replace(/\b(\d+)\s*(ml|l|g|kg|gb|tb|mb|p|portas|pol|v|w|watts|watt|a|mah)\b/g, '$1$2');
 
   const words = treated.split(/\s+/).filter(w => w.length >= 2);
   const result: string[] = [];
@@ -159,9 +194,10 @@ function extractTechnicalSpecs(tokens: string[]): {
   volume?: string;
   storage?: string;
   voltage?: string;
+  power?: string;
   ports?: string;
 } {
-  const specs: { volume?: string; storage?: string; voltage?: string; ports?: string } = {};
+  const specs: { volume?: string; storage?: string; voltage?: string; power?: string; ports?: string } = {};
   for (const t of tokens) {
     if (/^\d+(?:\.\d+)?(ml|l)$/.test(t)) {
       specs.volume = t;
@@ -169,6 +205,8 @@ function extractTechnicalSpecs(tokens: string[]): {
       specs.storage = t;
     } else if (/^(110v|127v|220v|bivolt|12v|24v)$/.test(t)) {
       specs.voltage = t;
+    } else if (/^\d+w$/.test(t)) {
+      specs.power = t;
     } else if (/^\d+p$/.test(t)) {
       specs.ports = t;
     }
@@ -207,7 +245,7 @@ export function findCatalogMatchDetails(
   const targetSku = cleanAlphanumericCode(prod.sku || '');
   const targetRawName = prod.standardizedName || prod.name || '';
   const targetNameNorm = normalizeSearchText(targetRawName);
-  const targetBrand = (prod.brand || prod.manufacturer || extractBrandToken(targetRawName)).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const targetBrand = resolveBrand(prod.brand, targetRawName, prod.description, undefined, prod.manufacturer);
   const targetTokens = tokenizeProductText(targetRawName);
   const targetSpecs = extractTechnicalSpecs(targetTokens);
   const targetCoreNoun = extractCoreNoun(targetTokens, targetBrand);
@@ -221,7 +259,7 @@ export function findCatalogMatchDetails(
       const pSku = cleanAlphanumericCode(p.sku || '');
       const codeMatches = (pPn && pPn === targetPn) || (pSku && pSku === targetPn);
       if (!codeMatches) return false;
-      const pBrand = (p.supplier || extractBrandToken(p.name + ' ' + (p.description || ''))).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const pBrand = resolveBrand(undefined, p.name, p.description, p.supplier);
       if (targetBrand && pBrand && targetBrand !== pBrand && targetBrand.length > 2 && pBrand.length > 2) {
         return false;
       }
@@ -244,7 +282,7 @@ export function findCatalogMatchDetails(
       const pPn = cleanAlphanumericCode(p.partNumber || '');
       const skuMatches = (pSku && pSku === targetSku) || (pPn && pPn === targetSku);
       if (!skuMatches) return false;
-      const pBrand = (p.supplier || extractBrandToken(p.name + ' ' + (p.description || ''))).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const pBrand = resolveBrand(undefined, p.name, p.description, p.supplier);
       if (targetBrand && pBrand && targetBrand !== pBrand && targetBrand.length > 2 && pBrand.length > 2) {
         return false;
       }
@@ -265,7 +303,7 @@ export function findCatalogMatchDetails(
     const byExactName = catalog.find(p => {
       const pNameNorm = normalizeSearchText(p.name);
       if (pNameNorm !== targetNameNorm) return false;
-      const pBrand = (p.supplier || extractBrandToken(p.name + ' ' + (p.description || ''))).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const pBrand = resolveBrand(undefined, p.name, p.description, p.supplier);
       if (targetBrand && pBrand && targetBrand !== pBrand && targetBrand.length > 2 && pBrand.length > 2) {
         return false;
       }
@@ -290,13 +328,19 @@ export function findCatalogMatchDetails(
     const catTokens = tokenizeProductText(catProd.name + ' ' + (catProd.description || ''));
     if (catTokens.length < 2) continue;
 
-    const catBrand = (catProd.supplier || extractBrandToken(catProd.name + ' ' + (catProd.description || ''))).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const catBrand = resolveBrand(undefined, catProd.name, catProd.description, catProd.supplier);
     const catSpecs = extractTechnicalSpecs(catTokens);
     const catCoreNoun = extractCoreNoun(catTokens, catBrand);
 
     // Regra Eliminatória 1: Conflito de Marcas Conhecidas
-    if (targetBrand && catBrand && targetBrand.length > 2 && catBrand.length > 2 && targetBrand !== catBrand) {
-      continue;
+    // Só descarta se AMBAS forem marcas válidas identificadas e manifestamente distintas
+    if (targetBrand && catBrand && targetBrand.length >= 3 && catBrand.length >= 3 && targetBrand !== catBrand) {
+      const catTextNorm = normalizeMatchingString(catProd.name + ' ' + (catProd.description || ''));
+      const targetTextNorm = normalizeMatchingString(targetRawName + ' ' + (prod.description || ''));
+      // Se um dos textos citar a marca do outro, não é conflito
+      if (!catTextNorm.includes(targetBrand) && !targetTextNorm.includes(catBrand)) {
+        continue;
+      }
     }
 
     // Regra Eliminatória 2: Conflito de Especificação Crítica
@@ -304,7 +348,14 @@ export function findCatalogMatchDetails(
     if (targetSpecs.volume && catSpecs.volume && targetSpecs.volume !== catSpecs.volume) hasSpecConflict = true;
     if (targetSpecs.storage && catSpecs.storage && targetSpecs.storage !== catSpecs.storage) hasSpecConflict = true;
     if (targetSpecs.ports && catSpecs.ports && targetSpecs.ports !== catSpecs.ports) hasSpecConflict = true;
-    if (targetSpecs.voltage && catSpecs.voltage && targetSpecs.voltage !== 'bivolt' && catSpecs.voltage !== 'bivolt' && targetSpecs.voltage !== catSpecs.voltage) hasSpecConflict = true;
+    if (targetSpecs.power && catSpecs.power && targetSpecs.power !== catSpecs.power) hasSpecConflict = true;
+    if (targetSpecs.voltage && catSpecs.voltage) {
+      const isTargetBivolt = targetSpecs.voltage === 'bivolt';
+      const isCatBivolt = catSpecs.voltage === 'bivolt';
+      if (!isTargetBivolt && !isCatBivolt && targetSpecs.voltage !== catSpecs.voltage) {
+        hasSpecConflict = true;
+      }
+    }
     if (hasSpecConflict) continue;
 
     // Regra Eliminatória 3: Conflito de Núcleo (Substantivo principal)
@@ -319,9 +370,15 @@ export function findCatalogMatchDetails(
     const matchReasons: string[] = [];
 
     // A. Pontuação de Marca (até 35 pts)
-    if (targetBrand && catBrand && targetBrand === catBrand) {
+    const catTextNorm = normalizeMatchingString(catProd.name + ' ' + (catProd.description || ''));
+    const targetTextNorm = normalizeMatchingString(targetRawName + ' ' + (prod.description || ''));
+    const brandsMatch = (targetBrand && catBrand && targetBrand === catBrand) || 
+                        (targetBrand && catTextNorm.includes(targetBrand)) ||
+                        (catBrand && targetTextNorm.includes(catBrand));
+
+    if (brandsMatch) {
       score += 35;
-      matchReasons.push(`Marca ${catBrand.toUpperCase()}`);
+      matchReasons.push(`Marca ${(targetBrand || catBrand).toUpperCase()}`);
     } else if (!targetBrand || !catBrand) {
       score += 15;
     }
@@ -334,19 +391,32 @@ export function findCatalogMatchDetails(
       score += 10;
     }
 
-    // C. Pontuação de Especificação Coincidente (até 15 pts)
+    // C. Pontuação de Especificações Coincidentes (até 15 pts)
+    let specBonus = 0;
     if (targetSpecs.volume && catSpecs.volume && targetSpecs.volume === catSpecs.volume) {
-      score += 15;
+      specBonus += 10;
       matchReasons.push(`Vol: ${targetSpecs.volume}`);
-    } else if (targetSpecs.storage && catSpecs.storage && targetSpecs.storage === catSpecs.storage) {
-      score += 15;
-      matchReasons.push(`Cap: ${targetSpecs.storage}`);
-    } else if (targetSpecs.ports && catSpecs.ports && targetSpecs.ports === catSpecs.ports) {
-      score += 15;
-      matchReasons.push(`Portas: ${targetSpecs.ports}`);
-    } else if (!targetSpecs.volume && !targetSpecs.storage && !targetSpecs.ports) {
-      score += 10;
     }
+    if (targetSpecs.storage && catSpecs.storage && targetSpecs.storage === catSpecs.storage) {
+      specBonus += 10;
+      matchReasons.push(`Cap: ${targetSpecs.storage}`);
+    }
+    if (targetSpecs.ports && catSpecs.ports && targetSpecs.ports === catSpecs.ports) {
+      specBonus += 10;
+      matchReasons.push(`Portas: ${targetSpecs.ports}`);
+    }
+    if (targetSpecs.power && catSpecs.power && targetSpecs.power === catSpecs.power) {
+      specBonus += 10;
+      matchReasons.push(`Potência: ${targetSpecs.power}`);
+    }
+    if (targetSpecs.voltage && catSpecs.voltage && (targetSpecs.voltage === catSpecs.voltage || targetSpecs.voltage === 'bivolt' || catSpecs.voltage === 'bivolt')) {
+      specBonus += 10;
+      matchReasons.push(`Tensão: ${targetSpecs.voltage}`);
+    }
+    if (specBonus === 0 && !targetSpecs.volume && !targetSpecs.storage && !targetSpecs.ports && !targetSpecs.power && !targetSpecs.voltage) {
+      specBonus = 10;
+    }
+    score += Math.min(15, specBonus);
 
     // D. Cobertura de Tokens do Catálogo no Alvo (até 25 pts)
     const catNameTokens = tokenizeProductText(catProd.name);
@@ -623,7 +693,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
         'Identificando itens e marcas comerciais...',
         'Diferenciando especificações técnicas e NCM oficial do Brasil...',
         'Buscando fotos reais e referências de fornecedores...',
-        'Montando fichas técnicas completas no padrão 360° Infodesk Store...'
+        'Montando fichas técnicas completas...'
       ];
       stepTimer = setInterval(() => {
         stepCount++;
@@ -769,19 +839,25 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
     const fullDesc = buildCompleteProductDescription(prod);
     const directInfo = buildDirectPurchaseUrl(prod.standardizedName, prod.sourceUrl);
 
+    // Cruzar com catálogo existente para vincular automaticamente
+    const catalogMatch = findCatalogMatchDetails(prod, products);
+    const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
+
     const itemData: Partial<QuoteItem> = {
-      name: prod.standardizedName,
-      description: fullDesc || prod.description || '',
-      partNumber: cleanAlphanumericCode(prod.partNumber || ''),
-      ncm: cleanNcmCode(prod.ncm || ''),
-      imageUrl: chosenImage,
-      showImage: !!chosenImage,
-      costPrice: cost > 0 ? cost : price,
+      productId: existingInCatalog ? existingInCatalog.id : undefined,
+      name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
+      description: fullDesc || prod.description || existingInCatalog?.description || '',
+      partNumber: existingInCatalog?.partNumber || cleanAlphanumericCode(prod.partNumber || ''),
+      ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
+      category: existingInCatalog?.category || prod.category,
+      imageUrl: chosenImage || existingInCatalog?.imageUrl,
+      showImage: !!(chosenImage || existingInCatalog?.imageUrl),
+      costPrice: existingInCatalog && existingInCatalog.costPrice > 0 ? existingInCatalog.costPrice : (cost > 0 ? cost : price),
       unitPrice: price > 0 ? price : undefined,
       quantity: prod.quantity || 1,
-      unit: prod.unit || 'Un.',
-      supplier: prod.supplier || directInfo.store,
-      sourceUrl: prod.sourceUrl || directInfo.url
+      unit: prod.unit || existingInCatalog?.unit || 'Un.',
+      supplier: existingInCatalog?.supplier || prod.supplier || directInfo.store,
+      sourceUrl: prod.sourceUrl || directInfo.url || existingInCatalog?.sourceUrl
     };
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
@@ -790,11 +866,15 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
       onNavigateToQuote?.();
     } else if (onStartNewQuoteWithItems) {
       onStartNewQuoteWithItems([itemData]);
-      showToast('Novo orçamento criado com o produto e especificações completas!');
+      showToast(existingInCatalog 
+        ? `Novo orçamento criado e vinculado ao item "${existingInCatalog.name}" do catálogo!`
+        : 'Novo orçamento criado com o produto e especificações completas!');
       onNavigateToQuote?.();
     } else {
       onAddToQuote(itemData);
-      showToast('Item inserido na sua cotação com ficha técnica completa!');
+      showToast(existingInCatalog 
+        ? `Item vinculado a "${existingInCatalog.name}" (Cód: ${existingInCatalog.sku || existingInCatalog.partNumber}) e inserido na cotação!`
+        : 'Item inserido na sua cotação com ficha técnica completa!');
       onNavigateToQuote?.();
     }
   };
@@ -805,8 +885,12 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
     existing: Product | null,
     matchInfo?: CatalogMatchInfo
   ) => {
-    if (existing) {
-      setCatalogConflictItem({ discovered: prod, existing, matchInfo });
+    // Se existing não foi passado explicitamente, checa pelo matching inteligente do catálogo
+    const actualExisting = existing || (findCatalogMatchDetails(prod, products)?.product || null);
+    const actualMatch = matchInfo || (actualExisting ? (findCatalogMatchDetails(prod, products) || undefined) : undefined);
+
+    if (actualExisting) {
+      setCatalogConflictItem({ discovered: prod, existing: actualExisting, matchInfo: actualMatch });
     } else {
       executeSaveProductToCatalog(prod, null, 'create_new');
     }
@@ -884,19 +968,24 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
       const fullDesc = buildCompleteProductDescription(prod);
       const directInfo = buildDirectPurchaseUrl(prod.standardizedName, prod.sourceUrl);
 
+      const catalogMatch = findCatalogMatchDetails(prod, products);
+      const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
+
       return {
-        name: prod.standardizedName,
-        description: fullDesc || prod.description || '',
-        partNumber: cleanAlphanumericCode(prod.partNumber || ''),
-        ncm: cleanNcmCode(prod.ncm || ''),
-        imageUrl: chosenImage,
-        showImage: !!chosenImage,
-        costPrice: cost > 0 ? cost : price,
+        productId: existingInCatalog ? existingInCatalog.id : undefined,
+        name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
+        description: fullDesc || prod.description || existingInCatalog?.description || '',
+        partNumber: existingInCatalog?.partNumber || cleanAlphanumericCode(prod.partNumber || ''),
+        ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
+        category: existingInCatalog?.category || prod.category,
+        imageUrl: chosenImage || existingInCatalog?.imageUrl,
+        showImage: !!(chosenImage || existingInCatalog?.imageUrl),
+        costPrice: existingInCatalog && existingInCatalog.costPrice > 0 ? existingInCatalog.costPrice : (cost > 0 ? cost : price),
         unitPrice: price > 0 ? price : undefined,
         quantity: prod.quantity || 1,
-        unit: prod.unit || 'Un.',
-        supplier: prod.supplier || directInfo.store,
-        sourceUrl: prod.sourceUrl || directInfo.url
+        unit: prod.unit || existingInCatalog?.unit || 'Un.',
+        supplier: existingInCatalog?.supplier || prod.supplier || directInfo.store,
+        sourceUrl: prod.sourceUrl || directInfo.url || existingInCatalog?.sourceUrl
       };
     });
 
