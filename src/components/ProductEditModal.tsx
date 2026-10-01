@@ -130,7 +130,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   onAddUnit,
   availableCategories,
   onAddCategory,
-  title = 'Verificação Geral do Produto',
+  title = 'Dados do Produto',
   subtitle = 'Revise os dados comerciais, foto e descrição. Depois de salvar o produto já entrará na base de dados.',
   badgeText = 'Proposta & Produtos',
   initialShippingCost = 0,

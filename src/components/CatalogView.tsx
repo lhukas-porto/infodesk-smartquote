@@ -35,7 +35,9 @@ import {
   getRegisteredUnits, 
   saveRegisteredUnit, 
   getRegisteredCategories, 
-  saveRegisteredCategory 
+  saveRegisteredCategory,
+  recordDeletedProduct,
+  unrecordDeletedProduct
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { ProductEditModal } from './ProductEditModal';
@@ -402,6 +404,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       saveProducts(deduped);
       return deduped;
     });
+    unrecordDeletedProduct(finalCreated);
     syncProductToSupabase(finalCreated);
 
     setIsAddModalOpen(false);
@@ -441,6 +444,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       return next;
     });
 
+    unrecordDeletedProduct(finalProd);
     syncProductToSupabase(finalProd);
     setEditingProduct(null);
     setImportStatus(`Produto "${finalProd.name}" atualizado com sucesso!`);
@@ -449,7 +453,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
   const handleDeleteProduct = (id: string) => {
     const toDelete = products.find(p => p.id === id);
-    deleteProductFromSupabase(id, toDelete?.sku, toDelete?.partNumber);
+    if (toDelete) {
+      recordDeletedProduct(toDelete);
+      deleteProductFromSupabase(id, toDelete.sku, toDelete.partNumber, toDelete.name);
+    } else {
+      recordDeletedProduct({ id });
+      deleteProductFromSupabase(id);
+    }
     setProducts(prev => {
       const next = prev.filter(p => p.id !== id);
       saveProducts(next);
@@ -935,11 +945,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             saveRegisteredCategory(cat);
             setRegisteredCategories(getRegisteredCategories());
           }}
-          title="Verificação Geral do Produto"
+          title="Dados do Produto"
           subtitle="Revise os dados comerciais, foto e descrição. Depois de salvar o produto já entrará na base de dados."
-          badgeText="Catálogo Oficial"
-          saveButtonText="Salvar Produto"
-          saveButtonTitle="Salva as alterações do produto na base de Produtos"
+          saveButtonText="Salvar"
+          saveButtonTitle="Salva na base de Produtos"
         />
       )}
 

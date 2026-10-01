@@ -4208,7 +4208,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             saveRegisteredCategory(newCat);
             setRegisteredCategories(getRegisteredCategories());
           }}
-          title="Verificação Geral do Produto"
+          title="Dados do Produto"
           subtitle="Revise os dados comerciais, foto e descrição. Depois de salvar o produto já entrará na base de dados."
           badgeText="Proposta & Produtos"
           saveButtonText="Salvar"

@@ -417,7 +417,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
               </h1>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Gerencie cada proposta na régua de estágios, acompanhe valores em negociação e controle os prazos de follow-up.
+              Gerencie as propostas, acompanhe valores em negociação e controle os prazos de follow-up.
             </p>
           </div>
         </div>

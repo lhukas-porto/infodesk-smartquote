@@ -579,18 +579,37 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
   }
 }
 
-export async function deleteProductFromSupabase(productIdOrSku: string, extraSku?: string, extraPn?: string): Promise<void> {
+export async function deleteProductFromSupabase(
+  productIdOrSku: string, 
+  extraSku?: string, 
+  extraPn?: string,
+  extraName?: string
+): Promise<void> {
   if (!supabase || !productIdOrSku) return;
   try {
-    // Exclui por ID
-    await supabase.from('products').delete().eq('id', productIdOrSku);
-    // Exclui por SKU se coincidir
-    await supabase.from('products').delete().eq('sku', productIdOrSku);
-    if (extraSku && extraSku !== productIdOrSku) {
-      await supabase.from('products').delete().eq('sku', extraSku);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(productIdOrSku);
+
+    // 1. Exclui por UUID se for UUID válido
+    if (isUuid) {
+      await supabase.from('products').delete().eq('id', productIdOrSku);
+    } else {
+      // Se não for UUID, tenta excluir por SKU com esse valor
+      await supabase.from('products').delete().eq('sku', productIdOrSku);
     }
-    if (extraPn && extraPn.length >= 3) {
-      await supabase.from('products').delete().ilike('part_number', extraPn);
+
+    // 2. Exclui por SKU se fornecido
+    if (extraSku && extraSku.trim()) {
+      await supabase.from('products').delete().eq('sku', extraSku.trim());
+    }
+
+    // 3. Exclui por Part Number se fornecido
+    if (extraPn && extraPn.trim().length >= 3) {
+      await supabase.from('products').delete().ilike('part_number', extraPn.trim());
+    }
+
+    // 4. Exclui por Nome exato/similar se fornecido
+    if (extraName && extraName.trim().length >= 3) {
+      await supabase.from('products').delete().ilike('name', extraName.trim());
     }
   } catch (err) {
     console.warn('Erro ao excluir produto no Supabase:', err);

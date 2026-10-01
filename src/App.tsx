@@ -63,7 +63,8 @@ import {
   saveDirectPurchases,
   getDeletedCategories,
   getDeletedUnits,
-  getDeletedPaymentMethods
+  getDeletedPaymentMethods,
+  isProductDeleted
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -118,7 +119,8 @@ import {
   syncDirectPurchasesToSupabase,
   deleteCategoryFromSupabase,
   deleteUnitFromSupabase,
-  deletePaymentMethodFromSupabase
+  deletePaymentMethodFromSupabase,
+  deleteProductFromSupabase
 } from './services/supabase';
 import { 
   calculateCommercialUnitPrice, 
@@ -558,7 +560,12 @@ export const App: React.FC = () => {
         // 3. Catálogo de Produtos
         const remoteProducts = await fetchProductsFromSupabase();
         if (remoteProducts && remoteProducts.length > 0) {
-          const cleanRemote = deduplicateProductsList(remoteProducts);
+          const sanitizedRemote = remoteProducts.filter(p => !isProductDeleted(p));
+          const ghostProducts = remoteProducts.filter(p => isProductDeleted(p));
+          for (const gp of ghostProducts) {
+            deleteProductFromSupabase(gp.id, gp.sku, gp.partNumber, gp.name).catch(() => {});
+          }
+          const cleanRemote = deduplicateProductsList(sanitizedRemote);
           setProducts(cleanRemote);
           saveProducts(cleanRemote);
         }

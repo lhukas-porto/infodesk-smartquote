@@ -366,13 +366,80 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
   return result;
 };
 
+// ==========================================
+// CONTROLE DE PRODUTOS DELETADOS (TOMBSTONES)
+// ==========================================
+const DELETED_PRODUCTS_KEY = 'infodesk_deleted_products';
+
+export const getDeletedProductIdentifiers = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_PRODUCTS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr.map((s: string) => String(s).toLowerCase().trim()));
+    }
+  } catch { /* noop */ }
+  return new Set();
+};
+
+export const recordDeletedProduct = (product: Product | { id?: string; name?: string; sku?: string; partNumber?: string }): void => {
+  if (!product) return;
+  try {
+    const set = getDeletedProductIdentifiers();
+    if (product.id) set.add(product.id.toLowerCase().trim());
+    if (product.sku) set.add(product.sku.toLowerCase().trim());
+    if (product.partNumber) set.add(product.partNumber.toLowerCase().trim());
+    if (product.name) {
+      set.add(product.name.toLowerCase().trim());
+      set.add(normalizeSearchText(product.name));
+    }
+    localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const unrecordDeletedProduct = (product: Product | { id?: string; name?: string; sku?: string; partNumber?: string }): void => {
+  if (!product) return;
+  try {
+    const set = getDeletedProductIdentifiers();
+    if (product.id) set.delete(product.id.toLowerCase().trim());
+    if (product.sku) set.delete(product.sku.toLowerCase().trim());
+    if (product.partNumber) set.delete(product.partNumber.toLowerCase().trim());
+    if (product.name) {
+      set.delete(product.name.toLowerCase().trim());
+      set.delete(normalizeSearchText(product.name));
+    }
+    localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const isProductDeleted = (product: Product): boolean => {
+  if (!product) return false;
+  const set = getDeletedProductIdentifiers();
+  if (set.size === 0) return false;
+
+  if (product.id && set.has(product.id.toLowerCase().trim())) return true;
+  if (product.sku && set.has(product.sku.toLowerCase().trim())) return true;
+  if (product.partNumber && set.has(product.partNumber.toLowerCase().trim())) return true;
+  if (product.name) {
+    if (set.has(product.name.toLowerCase().trim())) return true;
+    if (set.has(normalizeSearchText(product.name))) return true;
+  }
+  return false;
+};
+
+export const clearDeletedProducts = (): void => {
+  try {
+    localStorage.removeItem(DELETED_PRODUCTS_KEY);
+  } catch { /* noop */ }
+};
+
 export const getProducts = (): Product[] => {
   const saved = localStorage.getItem(PRODUCTS_KEY);
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
-        return deduplicateProductsList(parsed);
+        return deduplicateProductsList(parsed).filter(p => !isProductDeleted(p));
       }
     } catch (e) { console.error(e); }
   }
@@ -382,7 +449,7 @@ export const getProducts = (): Product[] => {
 export const saveProducts = (products: Product[]): void => {
   if (!products || !Array.isArray(products)) return;
 
-  const deduped = deduplicateProductsList(products);
+  const deduped = deduplicateProductsList(products).filter(p => !isProductDeleted(p));
 
   try {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(deduped));

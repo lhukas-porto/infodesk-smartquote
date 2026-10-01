@@ -125,7 +125,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
-                title="Scanner de Produtos com Inteligência Artificial"
+                title="Scanner de Produtos com IA"
               >
                 <Search className="w-3.5 h-3.5 text-sky-600" />
                 <span>Scanner IA</span>
@@ -153,7 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Cadastro e Gestão de Empresas e Compradores"
               >
                 <Users className="w-3.5 h-3.5 text-sky-600" />
-                <span>Empresas & Compradores</span>
+                <span>Empresas</span>
               </button>
 
               <button
@@ -213,7 +213,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ? 'bg-sky-600 text-white'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
               }`}
-              title="Empresas & Compradores"
+              title="Empresas"
             >
               <Users className="w-3.5 h-3.5" />
               <span>Empresas</span>
