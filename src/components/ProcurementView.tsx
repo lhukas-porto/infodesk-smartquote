@@ -936,20 +936,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       {/* 1. Header Oficial do Sistema */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="space-y-1">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
-              SUPRIMENTOS & COMPRAS
-            </span>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-              <ShoppingCart className="w-3.5 h-3.5 text-emerald-600" />
-              Gestão de Aquisições
-            </span>
-          </div>
           <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             Central de Compras & Gestão de Lucro
           </h1>
           <p className="text-xs text-slate-500">
-            Acompanhe pedidos aprovados, cadastre compras avulsas, consulte referências de preços já pagos e concilie faturas por forma de pagamento.
+            Acompanhe compras aprovadas, cadastre novas compras, consulte referências de preços já pagos e concilie faturas por forma de pagamento.
           </p>
         </div>
 
@@ -1955,6 +1946,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                               PN: {selectedStockProduct.partNumber || selectedStockProduct.sku}
                             </span>
                           )}
+                          {selectedStockProduct.ncm && (
+                            <span className="px-2 py-0.5 bg-white border border-emerald-200 text-slate-700 font-mono text-[10px] font-medium rounded-md">
+                              NCM: {selectedStockProduct.ncm}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-3 text-[11px] text-slate-600 mt-1 flex-wrap">
                           <span>
@@ -1999,15 +1995,6 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                         className="w-full h-10 pl-9 pr-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900 font-medium"
                       />
                     </div>
-
-                    {/* Aviso de Obrigatório */}
-                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>
-                        Regra: A compra avulsa só pode ser realizada para produtos já cadastrados no estoque.
-                      </span>
-                    </div>
-
                     {/* Dropdown de Sugestões do Estoque */}
                     {isProductDropdownOpen && (
                       <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-64 overflow-y-auto divide-y divide-slate-100">
@@ -2027,6 +2014,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                                   {(p.partNumber || p.sku) && (
                                     <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[10px] font-bold rounded">
                                       {p.partNumber || p.sku}
+                                    </span>
+                                  )}
+                                  {p.ncm && (
+                                    <span className="px-1.5 py-0.5 bg-slate-50 text-slate-500 font-mono text-[10px] rounded">
+                                      NCM: {p.ncm}
                                     </span>
                                   )}
                                 </div>
@@ -2060,35 +2052,6 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                     )}
                   </div>
                 )}
-              </div>
-
-              {/* Part Number e NCM */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">
-                    Part Number / SKU (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: SA400S37/480G"
-                    value={directPurchaseForm.partNumber}
-                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, partNumber: e.target.value })}
-                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">
-                    NCM Fiscal (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 8523.51.90"
-                    value={directPurchaseForm.ncm}
-                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, ncm: e.target.value })}
-                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900"
-                  />
-                </div>
               </div>
 
               {/* Quantidade, Unidade e Custo Estimado */}
