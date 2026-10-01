@@ -2882,9 +2882,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-800">
-            <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
+            <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 whitespace-nowrap">
               <tr>
-                <th className="py-2 px-1.5 w-12 min-w-[44px] text-center">
+                <th className="py-2.5 px-1.5 w-12 min-w-[44px] text-center whitespace-nowrap">
                   <div className="flex items-center justify-center gap-1">
                     <input
                       type="checkbox"
@@ -2896,19 +2896,19 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     <span>Item</span>
                   </div>
                 </th>
-                <th className="py-2 px-2 min-w-[180px]">Descrição Detalhada do Produto</th>
-                <th className="py-2 px-1 w-12 min-w-[48px] text-center">Qtd.</th>
-                <th className="py-2 px-1 w-12 min-w-[48px] text-center">Un.</th>
-                <th className="py-2 px-1 w-20 min-w-[74px] text-center">Custo (R$)</th>
-                <th className="py-2 px-1 w-20 min-w-[74px] text-center">Frete (R$)</th>
-                <th className="py-2 px-1 w-16 min-w-[62px] text-center">
-                  <span title="Margem de Lucro (%) individual deste item sobre o custo">
+                <th className="py-2.5 px-2 min-w-[180px] whitespace-nowrap">Descrição Detalhada do Produto</th>
+                <th className="py-2.5 px-1 w-14 min-w-[56px] text-center whitespace-nowrap">Qtd.</th>
+                <th className="py-2.5 px-1 w-14 min-w-[52px] text-center whitespace-nowrap">Un.</th>
+                <th className="py-2.5 px-1 w-20 min-w-[80px] text-center whitespace-nowrap">Custo (R$)</th>
+                <th className="py-2.5 px-1 w-20 min-w-[80px] text-center whitespace-nowrap">Frete (R$)</th>
+                <th className="py-2.5 px-1 w-24 min-w-[88px] text-center whitespace-nowrap">
+                  <span title="Margem de Lucro (%) individual deste item sobre o custo" className="whitespace-nowrap">
                     Margem %
                   </span>
                 </th>
-                <th className="py-2 px-1 w-24 min-w-[78px] text-center">Preço Un. (R$)</th>
-                <th className="py-2 px-1 w-24 min-w-[84px] text-center">Total (R$)</th>
-                <th className="py-2 px-1 w-14 min-w-[56px] text-center">Ações</th>
+                <th className="py-2.5 px-1 w-28 min-w-[96px] text-center whitespace-nowrap">Preço Un. (R$)</th>
+                <th className="py-2.5 px-1 w-26 min-w-[90px] text-center whitespace-nowrap">Total (R$)</th>
+                <th className="py-2.5 px-1 w-14 min-w-[56px] text-center whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -3116,18 +3116,18 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     </td>
 
                     {/* Qtd */}
-                    <td className="py-2 px-1 w-12 min-w-[48px] text-center">
+                    <td className="py-2 px-1 w-14 min-w-[56px] text-center">
                       <input
                         type="number"
                         min="1"
                         value={item.quantity}
                         onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                        className="w-full h-8 min-w-[42px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-bold text-slate-900 focus:outline-none focus:border-sky-500 font-mono leading-none"
+                        className="w-full h-8 min-w-[48px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-bold text-slate-900 focus:outline-none focus:border-sky-500 font-mono leading-none"
                       />
                     </td>
 
                     {/* Unidade */}
-                    <td className="py-2 px-1 w-12 min-w-[48px] text-center">
+                    <td className="py-2 px-1 w-14 min-w-[52px] text-center">
                       <input
                         type="text"
                         list="quote-registered-units"
@@ -3146,12 +3146,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                           }
                         }}
                         placeholder="Un."
-                        className="w-full h-8 min-w-[44px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center text-slate-700 focus:outline-none focus:border-sky-500 font-medium leading-none"
+                        className="w-full h-8 min-w-[46px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center text-slate-700 focus:outline-none focus:border-sky-500 font-medium leading-none"
                       />
                     </td>
 
                     {/* Custo Unitário */}
-                    <td className="py-2 px-1 w-20 min-w-[74px] text-center">
+                    <td className="py-2 px-1 w-20 min-w-[80px] text-center">
                       <input
                         type="text"
                         value={
@@ -3193,7 +3193,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     </td>
 
                     {/* Frete Unitário por Item */}
-                    <td className="py-2 px-1 w-20 min-w-[74px] text-center">
+                    <td className="py-2 px-1 w-20 min-w-[80px] text-center">
                       <input
                         type="text"
                         value={
@@ -3232,12 +3232,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         }}
                         placeholder="0,00"
                         title="Frete unitário deste item (R$)"
-                        className="w-full h-8 min-w-[68px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-mono text-amber-700 font-semibold focus:outline-none focus:border-amber-500 focus:bg-white leading-none"
+                        className="w-full h-8 min-w-[72px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-mono text-amber-700 font-semibold focus:outline-none focus:border-amber-500 focus:bg-white leading-none"
                       />
                     </td>
 
                     {/* Margem Lucro */}
-                    <td className="py-2 px-1 w-16 min-w-[62px] text-center">
+                    <td className="py-2 px-1 w-24 min-w-[88px] text-center">
                       <input
                         type="text"
                         value={
@@ -3282,12 +3282,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         }}
                         placeholder="0,0"
                         title="Margem de lucro % sobre o custo"
-                        className="w-full h-8 min-w-[56px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-bold text-sky-700 focus:outline-none focus:border-sky-500 focus:bg-white leading-none"
+                        className="w-full h-8 min-w-[68px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-bold text-sky-700 focus:outline-none focus:border-sky-500 focus:bg-white leading-none"
                       />
                     </td>
 
                     {/* Preço Unitário */}
-                    <td className="py-2 px-1 w-24 min-w-[78px] text-center">
+                    <td className="py-2 px-1 w-28 min-w-[96px] text-center">
                       <input
                         type="text"
                         value={
@@ -3329,12 +3329,12 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                           }
                         }}
                         placeholder="0,00"
-                        className="w-full h-8 min-w-[72px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-bold text-slate-900 font-mono focus:outline-none focus:border-sky-500 focus:bg-white leading-none"
+                        className="w-full h-8 min-w-[80px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-bold text-slate-900 font-mono focus:outline-none focus:border-sky-500 focus:bg-white leading-none"
                       />
                     </td>
 
                     {/* Preço Total do Item */}
-                    <td className="py-2 px-1 w-24 min-w-[84px] text-center font-bold text-emerald-700 font-mono text-xs whitespace-nowrap pt-4">
+                    <td className="py-2 px-1 w-26 min-w-[90px] text-center font-bold text-emerald-700 font-mono text-xs whitespace-nowrap pt-4">
                       R$ {formatCurrencyPtBr(Number(((item.unitPrice || 0) * (item.quantity || 1)).toFixed(2)))}
                     </td>
 
