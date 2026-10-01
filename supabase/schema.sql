@@ -553,3 +553,150 @@ BEGIN
 END;
 $$;
 
+-- ==============================================================================
+-- 14. TABELAS NORMALIZADAS DE COMPRAS, FORNECEDORES E PAGAMENTOS
+-- ==============================================================================
+
+-- 14.1 TABELA: payment_methods (Formas de Pagamento e Cartões)
+CREATE TABLE IF NOT EXISTS payment_methods (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  type TEXT DEFAULT 'credit_card',
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  display_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 14.2 TABELA: suppliers (Distribuidores e Fornecedores Oficiais)
+CREATE TABLE IF NOT EXISTS suppliers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  trade_name TEXT,
+  cnpj TEXT,
+  contact_name TEXT,
+  email TEXT,
+  phone TEXT,
+  whatsapp TEXT,
+  website TEXT,
+  payment_terms_default TEXT DEFAULT 'Faturado 28D',
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 14.3 TABELA: procurement_items (Central de Compras, Compras Avulsas e Registro Real)
+CREATE TABLE IF NOT EXISTS procurement_items (
+  id TEXT PRIMARY KEY,
+  quote_id UUID REFERENCES quotes(id) ON DELETE SET NULL,
+  quote_code TEXT NOT NULL DEFAULT 'COMPRA DIRETA',
+  client_company TEXT NOT NULL DEFAULT 'Infodesk (Uso Interno / Estoque)',
+  contact_person TEXT,
+  item_id TEXT,
+  product_id UUID REFERENCES products(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  part_number TEXT,
+  ncm TEXT,
+  image_url TEXT,
+  quantity NUMERIC(10,2) NOT NULL DEFAULT 1,
+  unit TEXT NOT NULL DEFAULT 'un',
+  quoted_cost_price NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  quoted_unit_price NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  quoted_total_price NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  supplier TEXT,
+  supplier_id TEXT REFERENCES suppliers(id) ON DELETE SET NULL,
+  source_url TEXT,
+  purchase_status TEXT NOT NULL DEFAULT 'pending',
+  tax_percent NUMERIC(6,2) NOT NULL DEFAULT 9.05,
+  is_direct_purchase BOOLEAN NOT NULL DEFAULT true,
+  actual_cost_price NUMERIC(12,2),
+  actual_unit_cost_price NUMERIC(12,2),
+  actual_purchase_url TEXT,
+  actual_shipping_cost NUMERIC(10,2) DEFAULT 0.00,
+  payment_method TEXT,
+  payment_method_id TEXT REFERENCES payment_methods(id) ON DELETE SET NULL,
+  purchased_at TEXT,
+  purchase_notes TEXT,
+  approved_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 14.4 TABELA: product_categories (Macro-Departamentos Oficiais da Infodesk)
+CREATE TABLE IF NOT EXISTS product_categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  is_official BOOLEAN NOT NULL DEFAULT true,
+  display_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 14.5 TABELA: measurement_units (Unidades de Medida Padronizadas)
+CREATE TABLE IF NOT EXISTS measurement_units (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  symbol TEXT,
+  display_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Índices adicionais
+CREATE INDEX IF NOT EXISTS idx_procurement_purchase_status ON procurement_items(purchase_status);
+CREATE INDEX IF NOT EXISTS idx_procurement_is_direct ON procurement_items(is_direct_purchase);
+CREATE INDEX IF NOT EXISTS idx_procurement_quote_id ON procurement_items(quote_id);
+CREATE INDEX IF NOT EXISTS idx_procurement_product_id ON procurement_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
+CREATE INDEX IF NOT EXISTS idx_payment_methods_name ON payment_methods(name);
+
+-- Triggers de timestamp
+DROP TRIGGER IF EXISTS set_timestamp_payment_methods ON payment_methods;
+CREATE TRIGGER set_timestamp_payment_methods
+BEFORE UPDATE ON payment_methods
+FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+DROP TRIGGER IF EXISTS set_timestamp_suppliers ON suppliers;
+CREATE TRIGGER set_timestamp_suppliers
+BEFORE UPDATE ON suppliers
+FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+DROP TRIGGER IF EXISTS set_timestamp_procurement_items ON procurement_items;
+CREATE TRIGGER set_timestamp_procurement_items
+BEFORE UPDATE ON procurement_items
+FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+DROP TRIGGER IF EXISTS set_timestamp_product_categories ON product_categories;
+CREATE TRIGGER set_timestamp_product_categories
+BEFORE UPDATE ON product_categories
+FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+DROP TRIGGER IF EXISTS set_timestamp_measurement_units ON measurement_units;
+CREATE TRIGGER set_timestamp_measurement_units
+BEFORE UPDATE ON measurement_units
+FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+-- RLS
+ALTER TABLE payment_methods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE procurement_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE measurement_units ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow manage payment_methods" ON payment_methods;
+CREATE POLICY "Allow manage payment_methods" ON payment_methods FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow manage suppliers" ON suppliers;
+CREATE POLICY "Allow manage suppliers" ON suppliers FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow manage procurement_items" ON procurement_items;
+CREATE POLICY "Allow manage procurement_items" ON procurement_items FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow manage product_categories" ON product_categories;
+CREATE POLICY "Allow manage product_categories" ON product_categories FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow manage measurement_units" ON measurement_units;
+CREATE POLICY "Allow manage measurement_units" ON measurement_units FOR ALL USING (true) WITH CHECK (true);
+
+

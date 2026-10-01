@@ -969,3 +969,151 @@ export async function syncRegisteredMetadataToSupabase(categories: string[], uni
   }
 }
 
+// ==============================================================================
+// 7. FORMAS DE PAGAMENTO (payment_methods)
+// ==============================================================================
+export async function fetchPaymentMethodsFromSupabase(): Promise<string[] | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('payment_methods')
+      .select('name')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
+
+    if (error || !data || data.length === 0) return null;
+    return data.map(d => d.name).filter(Boolean);
+  } catch (err) {
+    console.warn('Erro ao consultar payment_methods no Supabase:', err);
+    return null;
+  }
+}
+
+export async function syncPaymentMethodsToSupabase(methods: string[]): Promise<void> {
+  if (!supabase || !methods || methods.length === 0) return;
+  try {
+    const cleanMethods = Array.from(new Set(methods.map(m => m.trim()).filter(Boolean)));
+    const records = cleanMethods.map((m, idx) => ({
+      id: `pm-${m.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+      name: m,
+      display_order: idx + 1,
+      is_active: true,
+      updated_at: new Date().toISOString()
+    }));
+
+    await supabase.from('payment_methods').upsert(records, { onConflict: 'name' });
+  } catch (err) {
+    console.warn('Erro silencioso ao sincronizar formas de pagamento no Supabase:', err);
+  }
+}
+
+// ==============================================================================
+// 8. CENTRAL DE COMPRAS E COMPRAS AVULSAS (procurement_items)
+// ==============================================================================
+export async function fetchDirectPurchasesFromSupabase(): Promise<import('../types').ProcurementItem[] | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('procurement_items')
+      .select('*')
+      .eq('is_direct_purchase', true)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return null;
+
+    return data.map((d: any) => ({
+      id: d.id,
+      quoteId: d.quote_id || 'direct_purchases',
+      quoteCode: d.quote_code || 'COMPRA DIRETA',
+      clientCompany: d.client_company || 'Infodesk (Uso Interno / Estoque)',
+      contactPerson: d.contact_person || undefined,
+      itemId: d.item_id || d.id,
+      productId: d.product_id || undefined,
+      name: d.name,
+      description: d.description || undefined,
+      partNumber: d.part_number || undefined,
+      ncm: d.ncm || undefined,
+      imageUrl: d.image_url || undefined,
+      quantity: Number(d.quantity) || 1,
+      unit: d.unit || 'un',
+      quotedCostPrice: Number(d.quoted_cost_price) || 0,
+      quotedUnitPrice: Number(d.quoted_unit_price) || 0,
+      quotedTotalPrice: Number(d.quoted_total_price) || 0,
+      supplier: d.supplier || undefined,
+      sourceUrl: d.source_url || undefined,
+      purchaseStatus: d.purchase_status || 'pending',
+      taxPercent: Number(d.tax_percent) || 9.05,
+      isDirectPurchase: true,
+      actualCostPrice: d.actual_cost_price !== null ? Number(d.actual_cost_price) : undefined,
+      actualUnitCostPrice: d.actual_unit_cost_price !== null ? Number(d.actual_unit_cost_price) : undefined,
+      actualPurchaseUrl: d.actual_purchase_url || undefined,
+      actualShippingCost: d.actual_shipping_cost !== null ? Number(d.actual_shipping_cost) : undefined,
+      paymentMethod: d.payment_method || undefined,
+      purchasedAt: d.purchased_at || undefined,
+      purchaseNotes: d.purchase_notes || undefined,
+      approvedAt: d.approved_at || undefined
+    }));
+  } catch (err) {
+    console.warn('Erro ao consultar procurement_items no Supabase:', err);
+    return null;
+  }
+}
+
+export async function syncDirectPurchasesToSupabase(items: import('../types').ProcurementItem[]): Promise<void> {
+  if (!supabase || !items) return;
+  try {
+    const records = items.map(item => ({
+      id: item.id,
+      quote_id: (item.quoteId && item.quoteId !== 'direct_purchases' && item.quoteId.length === 36) ? item.quoteId : null,
+      quote_code: item.quoteCode || 'COMPRA DIRETA',
+      client_company: item.clientCompany || 'Infodesk (Uso Interno / Estoque)',
+      contact_person: item.contactPerson || null,
+      item_id: item.itemId || item.id,
+      product_id: (item.productId && item.productId.length === 36) ? item.productId : null,
+      name: item.name,
+      description: item.description || null,
+      part_number: item.partNumber || null,
+      ncm: item.ncm || null,
+      image_url: item.imageUrl || null,
+      quantity: item.quantity,
+      unit: item.unit || 'un',
+      quoted_cost_price: item.quotedCostPrice,
+      quoted_unit_price: item.quotedUnitPrice,
+      quoted_total_price: item.quotedTotalPrice,
+      supplier: item.supplier || null,
+      source_url: item.sourceUrl || null,
+      purchase_status: item.purchaseStatus || 'pending',
+      tax_percent: item.taxPercent || 9.05,
+      is_direct_purchase: true,
+      actual_cost_price: item.actualCostPrice ?? null,
+      actual_unit_cost_price: item.actualUnitCostPrice ?? null,
+      actual_purchase_url: item.actualPurchaseUrl || null,
+      actual_shipping_cost: item.actualShippingCost ?? 0,
+      payment_method: item.paymentMethod || null,
+      purchased_at: item.purchasedAt || null,
+      purchase_notes: item.purchaseNotes || null,
+      approved_at: item.approvedAt || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+
+    if (records.length > 0) {
+      const { error } = await supabase.from('procurement_items').upsert(records, { onConflict: 'id' });
+      if (error) {
+        console.warn('Aviso ao sincronizar compras diretas no Supabase (requer aplicação do migration_normalized_tables.sql):', error.message);
+      }
+    }
+  } catch (err) {
+    console.warn('Erro silencioso ao sincronizar procurement_items no Supabase:', err);
+  }
+}
+
+export async function deleteDirectPurchaseFromSupabase(itemId: string): Promise<void> {
+  if (!supabase || !itemId) return;
+  try {
+    await supabase.from('procurement_items').delete().eq('id', itemId);
+  } catch (err) {
+    console.warn('Erro ao deletar compra direta no Supabase:', err);
+  }
+}
+
+

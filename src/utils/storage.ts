@@ -7,7 +7,10 @@ import {
   syncCompanySettingsToSupabase,
   syncBatchProductsToSupabase,
   syncIncomingEmailsToSupabase,
-  syncQuoteToSupabase
+  syncQuoteToSupabase,
+  syncDirectPurchasesToSupabase,
+  deleteDirectPurchaseFromSupabase,
+  syncPaymentMethodsToSupabase
 } from '../services/supabase';
 
 const SETTINGS_KEY = 'infodesk_settings';
@@ -1105,6 +1108,10 @@ export const saveRegisteredPaymentMethodsList = (methods: string[]): string[] =>
     console.warn('Erro ao salvar lista de formas de pagamento:', e);
   }
   notifyMetadataChanged();
+  // Sincroniza em nuvem no Supabase
+  syncPaymentMethodsToSupabase(cleanList).catch(err => {
+    console.warn('[Storage] Erro ao sincronizar payment_methods no Supabase:', err);
+  });
   return cleanList;
 };
 
@@ -1167,6 +1174,10 @@ export const saveDirectPurchases = (items: import('../types').ProcurementItem[])
   } catch (e) {
     console.warn('Erro ao salvar compras diretas:', e);
   }
+  // Sincroniza em nuvem no Supabase
+  syncDirectPurchasesToSupabase(items).catch(err => {
+    console.warn('[Storage] Erro ao sincronizar compras diretas com Supabase:', err);
+  });
 };
 
 export const saveOrUpdateDirectPurchase = (item: import('../types').ProcurementItem): import('../types').ProcurementItem[] => {
@@ -1187,6 +1198,9 @@ export const deleteDirectPurchaseItem = (itemId: string): import('../types').Pro
   const current = getDirectPurchases();
   const updated = current.filter(i => i.id !== itemId);
   saveDirectPurchases(updated);
+  deleteDirectPurchaseFromSupabase(itemId).catch(err => {
+    console.warn('[Storage] Erro ao deletar compra direta no Supabase:', err);
+  });
   return updated;
 };
 
