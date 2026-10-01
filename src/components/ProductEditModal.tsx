@@ -18,7 +18,8 @@ import { Product } from '../types';
 import {
   extractStoreNameFromUrl,
   getCategoryFromNcm,
-  normalizeToOfficialCategory
+  normalizeToOfficialCategory,
+  OFFICIAL_CATEGORIES
 } from '../utils/aiEmailParser';
 import { CreatableCombobox } from './CreatableCombobox';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
@@ -150,10 +151,23 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   const effectiveDollarRate = Number(dailyDollarRate) > 0 ? Number(dailyDollarRate) : (getSettings().dailyDollarRate || 5.60);
 
+  // Garante que todas as 15 categorias oficiais do Infodesk SmartQuote estejam sempre disponíveis
+  const allCategoryOptions = React.useMemo(() => {
+    const list = Array.from(new Set([
+      ...OFFICIAL_CATEGORIES,
+      ...(availableCategories || [])
+    ])).filter(Boolean);
+    return list.sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [availableCategories]);
+
   // Sincroniza estado inicial sempre que o modal abre ou o produto fornecido muda
   useEffect(() => {
     if (isOpen && product) {
-      setDraft({ ...product });
+      const initialCat = product.category ? normalizeToOfficialCategory(product.category) : 'Diversos & Sazonais';
+      setDraft({
+        ...product,
+        category: initialCat
+      });
       const initialCost = product.costPrice !== undefined ? product.costPrice : 0;
       setCostInput(initialCost > 0 ? formatCurrencyPtBr(initialCost) : '0,00');
 
@@ -561,7 +575,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       setDraft(prev => ({
                         ...prev,
                         ncm: formatted,
-                        category: autoCategory ? normalizeToOfficialCategory(autoCategory) : prev.category
+                        // Só infere categoria automaticamente a partir do NCM se o usuário ainda não tiver escolhido uma categoria específica
+                        category: (!prev.category || prev.category === 'Diversos & Sazonais' || prev.category === 'Geral') && autoCategory
+                          ? normalizeToOfficialCategory(autoCategory)
+                          : prev.category
                       }));
                     }}
                     placeholder="Ex: 8517.62.54"
@@ -710,17 +727,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   <CreatableCombobox
                     value={draft.category || 'Diversos & Sazonais'}
                     onChange={(val) => {
-                      const finalVal = normalizeToOfficialCategory(val.trim() || 'Diversos & Sazonais');
-                      setDraft(prev => ({ ...prev, category: finalVal }));
-                      // onAddCategory só é chamado pelo onAddOption (ao confirmar a nova entrada)
+                      setDraft(prev => ({ ...prev, category: val }));
                     }}
-                    options={availableCategories}
+                    options={allCategoryOptions}
                     onAddOption={(newCat) => {
-                      if (onAddCategory) onAddCategory(normalizeToOfficialCategory(newCat));
+                      const finalCat = normalizeToOfficialCategory(newCat);
+                      setDraft(prev => ({ ...prev, category: finalCat }));
+                      if (onAddCategory) onAddCategory(finalCat);
                     }}
                     defaultValue="Diversos & Sazonais"
                     textAlign="left"
-                    placeholder="Diversos & Sazonais"
+                    placeholder="Selecione ou busque a categoria..."
                     inputClassName="h-10"
                   />
                 </div>

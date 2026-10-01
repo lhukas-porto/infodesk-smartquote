@@ -429,9 +429,9 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
         imageUrl: existing.imageUrl || p.imageUrl,
         sourceUrl: existing.sourceUrl || p.sourceUrl,
         supplier: existing.supplier || p.supplier,
-        category: normalizeToOfficialCategory(existing.category && existing.category !== 'Informática & Tecnologia' && existing.category !== 'Geral' ? existing.category : (p.category || existing.category)),
-        costPrice: existing.costPrice > 0 ? existing.costPrice : (p.costPrice || 0),
-        stock: Math.max(existing.stock || 0, p.stock || 0)
+        category: normalizeToOfficialCategory(p.category || existing.category || 'Diversos & Sazonais'),
+        costPrice: p.costPrice > 0 ? p.costPrice : (existing.costPrice || 0),
+        stock: p.stock !== undefined ? p.stock : (existing.stock || 0)
       };
       continue;
     }

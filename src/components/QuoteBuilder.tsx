@@ -76,7 +76,8 @@ import {
   getCategoryFromNcm,
   buildDirectPurchaseUrl,
   buildCompleteProductDescription,
-  normalizeSearchText
+  normalizeSearchText,
+  normalizeToOfficialCategory
 } from '../utils/aiEmailParser';
 import { 
   getClientCompanies, 
@@ -1326,16 +1327,19 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   const handleOpenCatalogReviewModal = (item: QuoteItem) => {
     // Buscar o item mais atualizado da cotação corrente para garantir que todas as edições feitas na tela sejam carregadas
     const freshItem = currentQuote.items.find(it => it.id === item.id) || item;
-    const generatedSku = (freshItem.partNumber || '').trim();
-    const initialCategory = getCategoryFromNcm(freshItem.ncm, 'Diversos & Sazonais');
-    const directInfo = buildDirectPurchaseUrl(freshItem.name, freshItem.sourceUrl);
 
-    // Se a descrição estiver vazia no item da proposta, buscar do catálogo ou gerar das especificações
+    // Se a descrição ou dados estiverem no catálogo, buscar produto correspondente
     const matchedCatalogProd = products.find(p => 
       (freshItem.productId && p.id === freshItem.productId) || 
       (freshItem.partNumber && p.partNumber && p.partNumber.trim().toLowerCase() === freshItem.partNumber.trim().toLowerCase()) || 
       (p.name && freshItem.name && p.name.trim().toLowerCase() === freshItem.name.trim().toLowerCase())
     );
+
+    const generatedSku = (freshItem.partNumber || matchedCatalogProd?.sku || '').trim();
+    const initialCategory = matchedCatalogProd?.category 
+      ? normalizeToOfficialCategory(matchedCatalogProd.category)
+      : getCategoryFromNcm(freshItem.ncm, 'Diversos & Sazonais');
+    const directInfo = buildDirectPurchaseUrl(freshItem.name, freshItem.sourceUrl);
 
     const fallbackSpecs = buildCompleteProductDescription({
       description: '',
