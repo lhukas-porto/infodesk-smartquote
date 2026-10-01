@@ -474,7 +474,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-sky-600" />
-            <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">Produtos & Catálogo Geral</h1>
+            <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">Catálogo de Produtos</h1>
             <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
               {products.length} ITENS
             </span>
@@ -498,7 +498,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             title="Exportar produtos no modelo oficial Conta Azul"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{isExportingContaAzul ? 'Exportando...' : 'Exportar XML'}</span>
+            <span>{isExportingContaAzul ? 'Exportando...' : 'Exportar XLS'}</span>
           </button>
 
           <button

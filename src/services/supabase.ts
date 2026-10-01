@@ -980,6 +980,18 @@ export async function syncRegisteredMetadataToSupabase(categories: string[], uni
         await supabase.from('product_categories').upsert(catRecords, { onConflict: 'name' });
       }
 
+      // Deleta do Supabase qualquer categoria que foi removida da lista ativa
+      if (cleanCats.length > 0) {
+        const { data: existingCats } = await supabase.from('product_categories').select('name');
+        if (Array.isArray(existingCats)) {
+          const activeLower = new Set(cleanCats.map(c => c.toLowerCase()));
+          const toDelete = existingCats.filter(r => !activeLower.has(r.name.toLowerCase())).map(r => r.name);
+          for (const name of toDelete) {
+            await supabase.from('product_categories').delete().eq('name', name);
+          }
+        }
+      }
+
       if (cleanUnits.length > 0) {
         const unitRecords = cleanUnits.map((u, idx) => ({
           id: `unit-${u.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
@@ -989,6 +1001,18 @@ export async function syncRegisteredMetadataToSupabase(categories: string[], uni
           updated_at: new Date().toISOString()
         }));
         await supabase.from('measurement_units').upsert(unitRecords, { onConflict: 'name' });
+      }
+
+      // Deleta do Supabase qualquer unidade que foi removida da lista ativa
+      if (cleanUnits.length > 0) {
+        const { data: existingUnits } = await supabase.from('measurement_units').select('name');
+        if (Array.isArray(existingUnits)) {
+          const activeLower = new Set(cleanUnits.map(u => u.toLowerCase()));
+          const toDelete = existingUnits.filter(r => !activeLower.has(r.name.toLowerCase())).map(r => r.name);
+          for (const name of toDelete) {
+            await supabase.from('measurement_units').delete().eq('name', name);
+          }
+        }
       }
     } catch (normErr) {
       console.warn('Aviso ao sincronizar tabelas normalizadas de metadados:', normErr);
@@ -1017,6 +1041,56 @@ export async function syncRegisteredMetadataToSupabase(categories: string[], uni
   }
 }
 
+export async function deleteCategoryFromSupabase(categoryName: string): Promise<void> {
+  if (!supabase || !categoryName) return;
+  try {
+    const clean = categoryName.trim();
+    await supabase.from('product_categories').delete().ilike('name', clean);
+
+    const { data: existing } = await supabase
+      .from('company_settings')
+      .select('id, registered_categories')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing?.id && Array.isArray(existing.registered_categories)) {
+      const updated = existing.registered_categories.filter((c: string) => c.toLowerCase() !== clean.toLowerCase());
+      await supabase
+        .from('company_settings')
+        .update({ registered_categories: updated, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+    }
+  } catch (err) {
+    console.warn('Erro ao deletar categoria no Supabase:', err);
+  }
+}
+
+export async function deleteUnitFromSupabase(unitName: string): Promise<void> {
+  if (!supabase || !unitName) return;
+  try {
+    const clean = unitName.trim();
+    await supabase.from('measurement_units').delete().ilike('name', clean);
+
+    const { data: existing } = await supabase
+      .from('company_settings')
+      .select('id, registered_units')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing?.id && Array.isArray(existing.registered_units)) {
+      const updated = existing.registered_units.filter((u: string) => u.toLowerCase() !== clean.toLowerCase());
+      await supabase
+        .from('company_settings')
+        .update({ registered_units: updated, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+    }
+  } catch (err) {
+    console.warn('Erro ao deletar unidade no Supabase:', err);
+  }
+}
+
 // ==============================================================================
 // 7. FORMAS DE PAGAMENTO (payment_methods)
 // ==============================================================================
@@ -1038,7 +1112,7 @@ export async function fetchPaymentMethodsFromSupabase(): Promise<string[] | null
 }
 
 export async function syncPaymentMethodsToSupabase(methods: string[]): Promise<void> {
-  if (!supabase || !methods || methods.length === 0) return;
+  if (!supabase || !methods) return;
   try {
     const cleanMethods = Array.from(new Set(methods.map(m => m.trim()).filter(Boolean)));
     const records = cleanMethods.map((m, idx) => ({
@@ -1049,9 +1123,31 @@ export async function syncPaymentMethodsToSupabase(methods: string[]): Promise<v
       updated_at: new Date().toISOString()
     }));
 
-    await supabase.from('payment_methods').upsert(records, { onConflict: 'name' });
+    if (records.length > 0) {
+      await supabase.from('payment_methods').upsert(records, { onConflict: 'name' });
+    }
+
+    // Deleta do Supabase formas de pagamento que foram excluídas localmente
+    const { data: existingInDb } = await supabase.from('payment_methods').select('name');
+    if (Array.isArray(existingInDb)) {
+      const activeNamesLower = new Set(cleanMethods.map(m => m.toLowerCase()));
+      const toDelete = existingInDb.filter(r => !activeNamesLower.has(r.name.toLowerCase())).map(r => r.name);
+      for (const name of toDelete) {
+        await supabase.from('payment_methods').delete().eq('name', name);
+      }
+    }
   } catch (err) {
     console.warn('Erro silencioso ao sincronizar formas de pagamento no Supabase:', err);
+  }
+}
+
+export async function deletePaymentMethodFromSupabase(methodName: string): Promise<void> {
+  if (!supabase || !methodName) return;
+  try {
+    const clean = methodName.trim();
+    await supabase.from('payment_methods').delete().ilike('name', clean);
+  } catch (err) {
+    console.warn('Erro ao deletar forma de pagamento no Supabase:', err);
   }
 }
 

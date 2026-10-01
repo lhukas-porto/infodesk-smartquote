@@ -10,7 +10,10 @@ import {
   syncQuoteToSupabase,
   syncDirectPurchasesToSupabase,
   deleteDirectPurchaseFromSupabase,
-  syncPaymentMethodsToSupabase
+  syncPaymentMethodsToSupabase,
+  deleteCategoryFromSupabase,
+  deleteUnitFromSupabase,
+  deletePaymentMethodFromSupabase
 } from '../services/supabase';
 
 const SETTINGS_KEY = 'infodesk_settings';
@@ -933,28 +936,145 @@ const notifyMetadataChanged = () => {
   }
 };
 
+// ==========================================
+// CONTROLE DE ITENS DELETADOS (TOMBSTONES ANTI-RESSURREIÇÃO)
+// ==========================================
+const DELETED_CATEGORIES_KEY = 'infodesk_deleted_categories';
+const DELETED_UNITS_KEY = 'infodesk_deleted_units';
+const DELETED_PAYMENT_METHODS_KEY = 'infodesk_deleted_payment_methods';
+
+export const getDeletedCategories = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_CATEGORIES_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr.map((s: string) => String(s).toLowerCase().trim()));
+    }
+  } catch { /* noop */ }
+  return new Set();
+};
+
+export const recordDeletedCategory = (category: string): void => {
+  if (!category) return;
+  try {
+    const set = getDeletedCategories();
+    set.add(category.toLowerCase().trim());
+    localStorage.setItem(DELETED_CATEGORIES_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const unrecordDeletedCategory = (category: string): void => {
+  if (!category) return;
+  try {
+    const set = getDeletedCategories();
+    set.delete(category.toLowerCase().trim());
+    localStorage.setItem(DELETED_CATEGORIES_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const clearDeletedCategories = (): void => {
+  try {
+    localStorage.removeItem(DELETED_CATEGORIES_KEY);
+  } catch { /* noop */ }
+};
+
+export const getDeletedUnits = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_UNITS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr.map((s: string) => String(s).toLowerCase().trim()));
+    }
+  } catch { /* noop */ }
+  return new Set();
+};
+
+export const recordDeletedUnit = (unit: string): void => {
+  if (!unit) return;
+  try {
+    const set = getDeletedUnits();
+    set.add(unit.toLowerCase().trim());
+    localStorage.setItem(DELETED_UNITS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const unrecordDeletedUnit = (unit: string): void => {
+  if (!unit) return;
+  try {
+    const set = getDeletedUnits();
+    set.delete(unit.toLowerCase().trim());
+    localStorage.setItem(DELETED_UNITS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const clearDeletedUnits = (): void => {
+  try {
+    localStorage.removeItem(DELETED_UNITS_KEY);
+  } catch { /* noop */ }
+};
+
+export const getDeletedPaymentMethods = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_PAYMENT_METHODS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr.map((s: string) => String(s).toLowerCase().trim()));
+    }
+  } catch { /* noop */ }
+  return new Set();
+};
+
+export const recordDeletedPaymentMethod = (method: string): void => {
+  if (!method) return;
+  try {
+    const set = getDeletedPaymentMethods();
+    set.add(method.toLowerCase().trim());
+    localStorage.setItem(DELETED_PAYMENT_METHODS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const unrecordDeletedPaymentMethod = (method: string): void => {
+  if (!method) return;
+  try {
+    const set = getDeletedPaymentMethods();
+    set.delete(method.toLowerCase().trim());
+    localStorage.setItem(DELETED_PAYMENT_METHODS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const clearDeletedPaymentMethods = (): void => {
+  try {
+    localStorage.removeItem(DELETED_PAYMENT_METHODS_KEY);
+  } catch { /* noop */ }
+};
+
+// ==========================================
+// 1. UNIDADES DE MEDIDA
+// ==========================================
 export const getRegisteredUnits = (): string[] => {
+  const deleted = getDeletedUnits();
   try {
     const saved = localStorage.getItem('infodesk_registered_units');
     if (saved !== null) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed
           .filter(Boolean)
           .map((u: string) => u.trim())
-          .filter((u: string) => !['Frasco', 'Galão', 'Tubo', 'Lata', 'Peça'].includes(u))
+          .filter((u: string) => !deleted.has(u.toLowerCase()) && !['Frasco', 'Galão', 'Tubo', 'Lata', 'Peça'].includes(u))
           .sort((a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
       }
     }
   } catch (e) {
     console.warn('Erro ao carregar unidades salvas:', e);
   }
-  return DEFAULT_REGISTERED_UNITS;
+  return DEFAULT_REGISTERED_UNITS.filter(u => !deleted.has(u.toLowerCase()));
 };
 
 export const saveRegisteredUnitsList = (units: string[]): string[] => {
+  const deleted = getDeletedUnits();
   const cleanList = Array.from(new Set(units.map(u => u.trim()).filter(Boolean)))
-    .filter(u => !['Frasco', 'Galão', 'Tubo', 'Lata', 'Peça'].includes(u))
+    .filter(u => !deleted.has(u.toLowerCase()) && !['Frasco', 'Galão', 'Tubo', 'Lata', 'Peça'].includes(u))
     .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   try {
     localStorage.setItem('infodesk_registered_units', JSON.stringify(cleanList));
@@ -971,6 +1091,7 @@ export const saveRegisteredUnitsList = (units: string[]): string[] => {
 export const saveRegisteredUnit = (unit: string): string[] => {
   if (!unit || !unit.trim()) return getRegisteredUnits();
   const clean = unit.trim();
+  unrecordDeletedUnit(clean);
   const current = getRegisteredUnits();
   const exists = current.some(u => u.toLowerCase() === clean.toLowerCase());
   if (!exists) {
@@ -985,41 +1106,57 @@ export const updateRegisteredUnit = (oldUnit: string, newUnit: string): string[]
   const cleanNew = newUnit.trim();
   if (!cleanNew) return getRegisteredUnits();
   const current = getRegisteredUnits();
+  recordDeletedUnit(cleanOld);
+  unrecordDeletedUnit(cleanNew);
+  deleteUnitFromSupabase(cleanOld).catch(() => {});
   const updated = current.map(u => u.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : u);
+  if (!updated.some(u => u.toLowerCase() === cleanNew.toLowerCase())) {
+    updated.push(cleanNew);
+  }
   return saveRegisteredUnitsList(updated);
 };
 
 export const deleteRegisteredUnit = (unit: string): string[] => {
   const clean = unit.trim();
+  recordDeletedUnit(clean);
+  deleteUnitFromSupabase(clean).catch(() => {});
   const current = getRegisteredUnits();
-  const updated = current.filter(u => u.trim() !== clean && u.trim().toLowerCase() !== clean.toLowerCase());
+  const updated = current.filter(u => u.trim().toLowerCase() !== clean.toLowerCase());
   return saveRegisteredUnitsList(updated);
 };
 
 export const resetRegisteredUnits = (): string[] => {
+  clearDeletedUnits();
   return saveRegisteredUnitsList(DEFAULT_REGISTERED_UNITS);
 };
 
+// ==========================================
+// 2. CATEGORIAS DE PRODUTO
+// ==========================================
 export const getRegisteredCategories = (): string[] => {
+  const deleted = getDeletedCategories();
   try {
     const saved = localStorage.getItem('infodesk_registered_categories');
     if (saved !== null) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed
           .filter(Boolean)
           .map((c: string) => c.trim())
+          .filter((c: string) => !deleted.has(c.toLowerCase()))
           .sort((a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
       }
     }
   } catch (e) {
     console.warn('Erro ao carregar categorias salvas:', e);
   }
-  return DEFAULT_REGISTERED_CATEGORIES;
+  return DEFAULT_REGISTERED_CATEGORIES.filter(c => !deleted.has(c.toLowerCase()));
 };
 
 export const saveRegisteredCategoriesList = (categories: string[]): string[] => {
+  const deleted = getDeletedCategories();
   const cleanList = Array.from(new Set(categories.map(c => c.trim()).filter(Boolean)))
+    .filter(c => !deleted.has(c.toLowerCase()))
     .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   try {
     localStorage.setItem('infodesk_registered_categories', JSON.stringify(cleanList));
@@ -1036,6 +1173,7 @@ export const saveRegisteredCategoriesList = (categories: string[]): string[] => 
 export const saveRegisteredCategory = (category: string): string[] => {
   if (!category || !category.trim()) return getRegisteredCategories();
   const clean = category.trim();
+  unrecordDeletedCategory(clean);
   const current = getRegisteredCategories();
   const exists = current.some(c => c.toLowerCase() === clean.toLowerCase());
   if (!exists) {
@@ -1050,21 +1188,33 @@ export const updateRegisteredCategory = (oldCategory: string, newCategory: strin
   const cleanNew = newCategory.trim();
   if (!cleanNew) return getRegisteredCategories();
   const current = getRegisteredCategories();
+  recordDeletedCategory(cleanOld);
+  unrecordDeletedCategory(cleanNew);
+  deleteCategoryFromSupabase(cleanOld).catch(() => {});
   const updated = current.map(c => c.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : c);
+  if (!updated.some(c => c.toLowerCase() === cleanNew.toLowerCase())) {
+    updated.push(cleanNew);
+  }
   return saveRegisteredCategoriesList(updated);
 };
 
 export const deleteRegisteredCategory = (category: string): string[] => {
   const clean = category.trim();
+  recordDeletedCategory(clean);
+  deleteCategoryFromSupabase(clean).catch(() => {});
   const current = getRegisteredCategories();
-  const updated = current.filter(c => c.trim() !== clean && c.trim().toLowerCase() !== clean.toLowerCase());
+  const updated = current.filter(c => c.trim().toLowerCase() !== clean.toLowerCase());
   return saveRegisteredCategoriesList(updated);
 };
 
 export const resetRegisteredCategories = (): string[] => {
+  clearDeletedCategories();
   return saveRegisteredCategoriesList(DEFAULT_REGISTERED_CATEGORIES);
 };
 
+// ==========================================
+// 3. FORMAS DE PAGAMENTO
+// ==========================================
 export const DEFAULT_PAYMENT_METHODS: string[] = [
   'PIX',
   'Cartão Amazon',
@@ -1082,25 +1232,29 @@ export const DEFAULT_PAYMENT_METHODS: string[] = [
 ].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 
 export const getRegisteredPaymentMethods = (): string[] => {
+  const deleted = getDeletedPaymentMethods();
   try {
     const saved = localStorage.getItem('infodesk_registered_payment_methods');
     if (saved !== null) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed
           .filter(Boolean)
           .map((m: string) => m.trim())
+          .filter((m: string) => !deleted.has(m.toLowerCase()))
           .sort((a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
       }
     }
   } catch (e) {
     console.warn('Erro ao carregar formas de pagamento salvas:', e);
   }
-  return DEFAULT_PAYMENT_METHODS;
+  return DEFAULT_PAYMENT_METHODS.filter(m => !deleted.has(m.toLowerCase()));
 };
 
 export const saveRegisteredPaymentMethodsList = (methods: string[]): string[] => {
+  const deleted = getDeletedPaymentMethods();
   const cleanList = Array.from(new Set(methods.map(m => m.trim()).filter(Boolean)))
+    .filter(m => !deleted.has(m.toLowerCase()))
     .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   try {
     localStorage.setItem('infodesk_registered_payment_methods', JSON.stringify(cleanList));
@@ -1108,7 +1262,6 @@ export const saveRegisteredPaymentMethodsList = (methods: string[]): string[] =>
     console.warn('Erro ao salvar lista de formas de pagamento:', e);
   }
   notifyMetadataChanged();
-  // Sincroniza em nuvem no Supabase
   syncPaymentMethodsToSupabase(cleanList).catch(err => {
     console.warn('[Storage] Erro ao sincronizar payment_methods no Supabase:', err);
   });
@@ -1118,6 +1271,7 @@ export const saveRegisteredPaymentMethodsList = (methods: string[]): string[] =>
 export const saveRegisteredPaymentMethod = (method: string): string[] => {
   if (!method || !method.trim()) return getRegisteredPaymentMethods();
   const clean = method.trim();
+  unrecordDeletedPaymentMethod(clean);
   const current = getRegisteredPaymentMethods();
   const exists = current.some(m => m.toLowerCase() === clean.toLowerCase());
   if (!exists) {
@@ -1132,18 +1286,27 @@ export const updateRegisteredPaymentMethod = (oldMethod: string, newMethod: stri
   const cleanNew = newMethod.trim();
   if (!cleanNew) return getRegisteredPaymentMethods();
   const current = getRegisteredPaymentMethods();
+  recordDeletedPaymentMethod(cleanOld);
+  unrecordDeletedPaymentMethod(cleanNew);
+  deletePaymentMethodFromSupabase(cleanOld).catch(() => {});
   const updated = current.map(m => m.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : m);
+  if (!updated.some(m => m.toLowerCase() === cleanNew.toLowerCase())) {
+    updated.push(cleanNew);
+  }
   return saveRegisteredPaymentMethodsList(updated);
 };
 
 export const deleteRegisteredPaymentMethod = (method: string): string[] => {
   const clean = method.trim();
+  recordDeletedPaymentMethod(clean);
+  deletePaymentMethodFromSupabase(clean).catch(() => {});
   const current = getRegisteredPaymentMethods();
-  const updated = current.filter(m => m.trim() !== clean && m.trim().toLowerCase() !== clean.toLowerCase());
+  const updated = current.filter(m => m.trim().toLowerCase() !== clean.toLowerCase());
   return saveRegisteredPaymentMethodsList(updated);
 };
 
 export const resetRegisteredPaymentMethods = (): string[] => {
+  clearDeletedPaymentMethods();
   return saveRegisteredPaymentMethodsList(DEFAULT_PAYMENT_METHODS);
 };
 

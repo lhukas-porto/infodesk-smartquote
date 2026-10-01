@@ -125,10 +125,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
-                title="Scanner de Preços & Produtos 360° com Inteligência Artificial"
+                title="Scanner de Produtos com Inteligência Artificial"
               >
                 <Search className="w-3.5 h-3.5 text-sky-600" />
-                <span>Scanner de Preços</span>
+                <span>Scanner IA</span>
               </button>
 
               <button
@@ -293,7 +293,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </span>
         </button>
 
-        {/* Scanner de Preços */}
+        {/* Scanner IA*/}
         <button
           type="button"
           onClick={() => setActiveTab('websearch')}

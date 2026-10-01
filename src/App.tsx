@@ -60,7 +60,10 @@ import {
   getRegisteredPaymentMethods,
   saveRegisteredPaymentMethodsList,
   getDirectPurchases,
-  saveDirectPurchases
+  saveDirectPurchases,
+  getDeletedCategories,
+  getDeletedUnits,
+  getDeletedPaymentMethods
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -112,7 +115,10 @@ import {
   fetchPaymentMethodsFromSupabase,
   syncPaymentMethodsToSupabase,
   fetchDirectPurchasesFromSupabase,
-  syncDirectPurchasesToSupabase
+  syncDirectPurchasesToSupabase,
+  deleteCategoryFromSupabase,
+  deleteUnitFromSupabase,
+  deletePaymentMethodFromSupabase
 } from './services/supabase';
 import { 
   calculateCommercialUnitPrice, 
@@ -379,19 +385,39 @@ export const App: React.FC = () => {
         // Sincronização e unificação de Categorias & Unidades com Supabase
         const remoteMeta = await fetchRegisteredMetadataFromSupabase();
         if (remoteMeta) {
+          const deletedCats = getDeletedCategories();
+          const deletedUnits = getDeletedUnits();
+
           if (remoteMeta.categories && remoteMeta.categories.length > 0) {
-            saveRegisteredCategoriesList(remoteMeta.categories);
+            const cleanRemoteCats = remoteMeta.categories.filter(c => !deletedCats.has(c.toLowerCase()));
+            const ghostCats = remoteMeta.categories.filter(c => deletedCats.has(c.toLowerCase()));
+            for (const g of ghostCats) {
+              deleteCategoryFromSupabase(g).catch(() => {});
+            }
+            saveRegisteredCategoriesList(cleanRemoteCats);
           }
           if (remoteMeta.units && remoteMeta.units.length > 0) {
-            saveRegisteredUnitsList(remoteMeta.units);
+            const cleanRemoteUnits = remoteMeta.units.filter(u => !deletedUnits.has(u.toLowerCase()));
+            const ghostUnits = remoteMeta.units.filter(u => deletedUnits.has(u.toLowerCase()));
+            for (const g of ghostUnits) {
+              deleteUnitFromSupabase(g).catch(() => {});
+            }
+            saveRegisteredUnitsList(cleanRemoteUnits);
           }
         }
 
         // Sincronização e unificação de Formas de Pagamento com Supabase
         try {
           const remoteMethods = await fetchPaymentMethodsFromSupabase();
+          const deletedMethods = getDeletedPaymentMethods();
+
           if (remoteMethods && remoteMethods.length > 0) {
-            saveRegisteredPaymentMethodsList(remoteMethods);
+            const cleanRemoteMethods = remoteMethods.filter(m => !deletedMethods.has(m.toLowerCase()));
+            const ghostMethods = remoteMethods.filter(m => deletedMethods.has(m.toLowerCase()));
+            for (const g of ghostMethods) {
+              deletePaymentMethodFromSupabase(g).catch(() => {});
+            }
+            saveRegisteredPaymentMethodsList(cleanRemoteMethods);
           } else {
             const localMethods = getRegisteredPaymentMethods();
             if (localMethods && localMethods.length > 0) {

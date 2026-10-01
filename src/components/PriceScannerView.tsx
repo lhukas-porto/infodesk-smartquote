@@ -931,9 +931,6 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
             <ListChecks className="w-4 h-4 text-sky-600" />
             <span>Cole aqui seus itens (texto, especificações ou um print):</span>
           </label>
-          <span className="text-xs text-slate-500 font-medium">
-            {batchRawInput ? `${parsePastedProductList(batchRawInput).length} item(s) identificado(s)` : 'Cole aqui um ou vários itens'}
-          </span>
         </div>
 
         {/* Banner Dourado de Preço em Histórico Recente (MEL-02) */}
@@ -1140,7 +1137,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
             className="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-98"
           >
             <Sparkles className={`w-4 h-4 ${isDiscoveringPhase1 ? 'animate-spin' : ''}`} />
-            <span>{isDiscoveringPhase1 ? 'Identificando Produto(s)...' : '1. Identificar Produto(s)'}</span>
+            <span>{isDiscoveringPhase1 ? 'Buscando Produto(s)...' : 'Buscar Produto(s)'}</span>
           </button>
         </div>
 
@@ -1149,7 +1146,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
           <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-3 animate-fadeIn">
             <Sparkles className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
             <div className="text-xs text-indigo-900 font-semibold">
-              <span>{ocrProgressMessage || 'Transcrevendo foto do pedido via leitura ótica (OCR)...'}</span>
+              <span>{ocrProgressMessage || 'Transcrevendo foto do pedido via (OCR)...'}</span>
             </div>
           </div>
         )}
