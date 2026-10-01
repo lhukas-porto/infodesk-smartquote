@@ -1280,23 +1280,9 @@ export const resetRegisteredCategories = (): string[] => {
 };
 
 // ==========================================
-// 3. FORMAS DE PAGAMENTO
+// 3. FORMAS DE PAGAMENTO (100% dinâmicas - sem lista padrão)
 // ==========================================
-export const DEFAULT_PAYMENT_METHODS: string[] = [
-  'PIX',
-  'Cartão Amazon',
-  'Cartão C6',
-  'Cartão Latam',
-  'Cartão Azul',
-  'Cartão Inter',
-  'Cartão XP',
-  'Cartão Nubank',
-  'Boleto Bancário',
-  'Boleto Faturado (28dd)',
-  'Dinheiro',
-  'Transferência Bancária',
-  'Outro'
-].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+export const DEFAULT_PAYMENT_METHODS: string[] = [];
 
 export const getRegisteredPaymentMethods = (): string[] => {
   const deleted = getDeletedPaymentMethods();
@@ -1315,7 +1301,7 @@ export const getRegisteredPaymentMethods = (): string[] => {
   } catch (e) {
     console.warn('Erro ao carregar formas de pagamento salvas:', e);
   }
-  return DEFAULT_PAYMENT_METHODS.filter(m => !deleted.has(m.toLowerCase()));
+  return [];
 };
 
 export const saveRegisteredPaymentMethodsList = (methods: string[]): string[] => {
@@ -1374,7 +1360,7 @@ export const deleteRegisteredPaymentMethod = (method: string): string[] => {
 
 export const resetRegisteredPaymentMethods = (): string[] => {
   clearDeletedPaymentMethods();
-  return saveRegisteredPaymentMethodsList(DEFAULT_PAYMENT_METHODS);
+  return saveRegisteredPaymentMethodsList([]);
 };
 
 // ==========================================

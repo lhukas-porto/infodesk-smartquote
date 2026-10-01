@@ -22,12 +22,10 @@ if (typeof globalThis.localStorage === 'undefined') {
 
 console.log('🧪 Iniciando testes das Novas Funcionalidades da Central de Compras...');
 
-// 1. Teste de Formas de Pagamento Dinâmicas
+// 1. Teste de Formas de Pagamento Dinâmicas (100% gerenciadas pelo usuário, sem lista padrão forçada)
 console.log('🔹 1. Validando Gerenciamento de Formas de Pagamento...');
 const initialMethods = getRegisteredPaymentMethods();
-assert.ok(initialMethods.includes('PIX'), 'Deve conter PIX');
-assert.ok(initialMethods.includes('Cartão C6'), 'Deve conter Cartão C6');
-assert.ok(initialMethods.includes('Cartão Amazon'), 'Deve conter Cartão Amazon');
+assert.equal(Array.isArray(initialMethods), true, 'Deve retornar array de formas');
 
 // Adiciona uma nova forma personalizada (ex: Cartão XP Corporate)
 const updatedWithXP = saveRegisteredPaymentMethod('Cartão XP Corporate');

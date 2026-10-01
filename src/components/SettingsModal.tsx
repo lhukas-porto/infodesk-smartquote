@@ -38,8 +38,7 @@ import {
   saveRegisteredPaymentMethodsList,
   saveRegisteredPaymentMethod,
   updateRegisteredPaymentMethod,
-  deleteRegisteredPaymentMethod,
-  resetRegisteredPaymentMethods
+  deleteRegisteredPaymentMethod
 } from '../utils/storage';
 import { getStoredGeminiKey, saveStoredGeminiKey, getStoredSerpApiKey, saveStoredSerpApiKey } from '../services/priceScannerService';
 import { maskPhone } from '../utils/aiEmailParser';
@@ -305,14 +304,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setPaymentMethods(updated);
     if (editingPaymentMethod === method) setEditingPaymentMethod(null);
     showFeedback(`Forma de pagamento "${method}" removida.`);
-  };
-
-  const handleResetPaymentMethods = () => {
-    if (window.confirm('Tem certeza que deseja restaurar as formas de pagamento padrão? Suas formas personalizadas serão redefinidas.')) {
-      const updated = resetRegisteredPaymentMethods();
-      setPaymentMethods(updated);
-      showFeedback('Formas de pagamento padrão restauradas com sucesso!');
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1195,19 +1186,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div>
                     <h4 className="font-bold text-slate-900 text-sm">Cartões, Contas & Formas de Pagamento</h4>
                     <p className="text-xs text-slate-400">
-                      {paymentMethods.length} formas cadastradas • Usadas para conciliar as compras na Central de Compras
+                      {paymentMethods.length} formas cadastradas • Sem padrão forçado, apenas o que você adicionar ou remover
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleResetPaymentMethods}
-                  title="Restaurar lista de formas de pagamento padrão"
-                  className="text-xs font-semibold text-slate-500 hover:text-emerald-700 flex items-center gap-1.5 transition cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-slate-100"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  Restaurar Padrão
-                </button>
               </div>
 
               {/* Form Adicionar Nova Forma de Pagamento */}

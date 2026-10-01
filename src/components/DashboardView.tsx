@@ -393,11 +393,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
-                Painel Executivo & BI de Propostas
+                Painel Executivo
               </h1>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Indicadores de conversão, margem realizada, clientes mais recorrentes e fornecedores mais cotados.
+              Indicadores de conversão, margem realizada e clientes mais recorrentes.
             </p>
           </div>
         </div>
