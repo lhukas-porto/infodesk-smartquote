@@ -23,7 +23,6 @@ import {
   ChevronsRight,
   ArrowRight,
   PlusCircle,
-  Clock,
   Save,
   Globe,
   ExternalLink
@@ -672,7 +671,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="sq-metric-card">
           <div className="flex items-center justify-between mb-1">
             <span className="sq-metric-label">Empresas</span>
@@ -696,14 +695,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
           </div>
           <div className="sq-metric-value">{uniqueLocationsCount}</div>
           <div className="sq-metric-sub">Cidades atendidas</div>
-        </div>
-        <div className="sq-metric-card">
-          <div className="flex items-center justify-between mb-1">
-            <span className="sq-metric-label">CRM</span>
-            <Clock className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-sm font-bold text-slate-900 font-mono mt-1">Sincronizado</div>
-          <div className="sq-metric-sub">Auto-preenchimento ativo</div>
         </div>
       </div>
 
