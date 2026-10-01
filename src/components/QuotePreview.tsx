@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { 
   Printer, 
   Send, 
@@ -19,13 +19,17 @@ interface QuotePreviewProps {
   settings: CompanySettings;
   onBackToEdit: () => void;
   onSendEmail: () => void;
+  sourceTab?: 'builder' | 'history' | 'purchases';
+  isEmailModalOpen?: boolean;
 }
 
 export const QuotePreview: React.FC<QuotePreviewProps> = ({
   quote,
   settings,
   onBackToEdit,
-  onSendEmail
+  onSendEmail,
+  sourceTab = 'builder',
+  isEmailModalOpen = false
 }) => {
   const documentRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -34,6 +38,18 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
     // Se a proposta tiver 6 ou mais itens, ativa por padrão para garantir formatação executiva perfeita
     return (quote.items || []).length >= 6;
   });
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isEmailModalOpen) return;
+        e.preventDefault();
+        onBackToEdit();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onBackToEdit, isEmailModalOpen]);
 
   const cleanPhone = (settings.phone || '61 3033-5373').replace(/[()]/g, '').trim();
   const cleanWhatsapp = (settings.whatsapp || '61 9 9627-2630').replace(/[()]/g, '').trim();
@@ -100,10 +116,20 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       <div className="no-print bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <button
           onClick={onBackToEdit}
-          className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition"
+          className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition cursor-pointer active:scale-95"
+          title="Voltar à tela anterior (ou pressione a tecla ESC)"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Voltar à Cotação</span>
+          <span>
+            {sourceTab === 'history' 
+              ? 'Voltar ao Histórico' 
+              : sourceTab === 'purchases' 
+                ? 'Voltar a Compras' 
+                : 'Voltar à Cotação'}
+          </span>
+          <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-slate-500 bg-slate-200/80 rounded font-semibold ml-0.5">
+            ESC
+          </span>
         </button>
 
         <div className="flex flex-wrap items-center gap-2">

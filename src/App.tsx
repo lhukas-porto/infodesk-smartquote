@@ -207,6 +207,7 @@ export const App: React.FC = () => {
     return updatedQuotes;
   });
   const [historyStageFilter, setHistoryStageFilter] = useState<'all' | 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost'>('all');
+  const [previewSourceTab, setPreviewSourceTab] = useState<'builder' | 'history' | 'purchases'>('builder');
 
   // Quantidade de produtos aprovados pendentes de compra para o badge na Navbar
   const pendingPurchasesCount = useMemo(() => {
@@ -1950,7 +1951,10 @@ export const App: React.FC = () => {
             onSaveCompanies={handleSaveCompanies}
             onDeleteCompany={handleDeleteCompany}
             onDeleteContact={handleDeleteContact}
-            onPreview={() => setActiveTab('preview')}
+            onPreview={() => {
+              setPreviewSourceTab('builder');
+              setActiveTab('preview');
+            }}
             onSave={handleSaveQuote}
             onSaveAsNewQuote={handleSaveAsNewQuote}
             onSendEmail={() => setIsEmailModalOpen(true)}
@@ -2011,7 +2015,9 @@ export const App: React.FC = () => {
           <QuotePreview
             quote={currentQuote}
             settings={settings}
-            onBackToEdit={() => setActiveTab('builder')}
+            sourceTab={previewSourceTab}
+            isEmailModalOpen={isEmailModalOpen}
+            onBackToEdit={() => setActiveTab(previewSourceTab)}
             onSendEmail={() => setIsEmailModalOpen(true)}
           />
         )}
@@ -2024,7 +2030,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'history' && (
+        <div style={{ display: activeTab === 'history' ? 'block' : 'none' }}>
           <SentHistoryView
             quotes={quotes}
             initialStageFilter={historyStageFilter}
@@ -2040,6 +2046,7 @@ export const App: React.FC = () => {
               }
               setCurrentQuote(fullQuote);
               saveCurrentDraftQuote(fullQuote);
+              setPreviewSourceTab('history');
               setActiveTab('preview');
             }}
             onEditQuote={async (q) => {
@@ -2111,7 +2118,7 @@ export const App: React.FC = () => {
             }}
             onNavigateToPurchases={() => setActiveTab('purchases')}
           />
-        )}
+        </div>
 
         {activeTab === 'purchases' && (
           <ProcurementView
@@ -2134,6 +2141,7 @@ export const App: React.FC = () => {
               const fullQuote = { ...matched, ...q, items: itemsToUse };
               setCurrentQuote(fullQuote);
               saveCurrentDraftQuote(fullQuote);
+              setPreviewSourceTab('purchases');
               setActiveTab('preview');
             }}
           />
