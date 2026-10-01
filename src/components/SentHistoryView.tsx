@@ -417,7 +417,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
               </h1>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Gerencie as propostas, acompanhe valores em negociação e controle os prazos de follow-up.
+              Gerencie as propostas, acompanhe valores em negociação e análises.
             </p>
           </div>
         </div>
@@ -532,7 +532,8 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
               </span>
             </div>
             <span className="text-[10px] text-slate-400 font-medium">
-              {dateFilteredQuotes.length} {dateFilteredQuotes.length === 1 ? 'proposta no período' : 'propostas no período'}
+              {stageStats.all.count} {stageStats.all.count === 1 ? 'proposta comercial no período' : 'propostas comerciais no período'}
+              {stageStats.draft.count > 0 && ` • ${stageStats.draft.count} rascunho(s)`}
             </span>
           </div>
         </div>
@@ -717,6 +718,33 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
         </div>
       </div>
 
+      {/* Lembrete de Rascunhos Pendentes (Separado para não misturar nem poluir o funil comercial) */}
+      {selectedStageFilter === 'all' && stageStats.draft.count > 0 && (
+        <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300/80 text-amber-700 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-950">
+                Você possui {stageStats.draft.count} cotação(ões) em rascunho aguardando envio
+              </p>
+              <p className="text-[11px] text-amber-700">
+                Total estimado em elaboração: R$ {stageStats.draft.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleSelectStage('draft')}
+            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0 flex items-center gap-1.5 justify-center"
+          >
+            <span>Acessar Rascunhos ({stageStats.draft.count})</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Lista de Propostas em Estilo Pipeline Row */}
       {filteredQuotes.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center max-w-lg mx-auto shadow-xs space-y-3">
@@ -724,16 +752,34 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
             <FileText className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-800">
-            Nenhuma proposta encontrada
+            {selectedStageFilter === 'draft'
+              ? 'Nenhum rascunho encontrado'
+              : selectedStageFilter === 'all'
+                ? 'Nenhuma proposta comercial emitida no período'
+                : 'Nenhuma proposta encontrada'}
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            {searchTerm || selectedStageFilter !== 'all' || onlyFollowUpDue
-              ? 'Nenhum orçamento corresponde aos filtros de busca ou estágio selecionados.'
-              : dateFilter === 'today'
-                ? 'Nenhum orçamento emitido no dia de hoje até o momento.'
-                : `Nenhum orçamento encontrado para o filtro (${getDateFilterLabel(dateFilter)}).`}
+            {selectedStageFilter === 'all' && stageStats.draft.count > 0
+              ? `Você ainda não emitiu propostas comerciais no período selecionado, mas possui ${stageStats.draft.count} cotação(ões) em rascunho em aberto.`
+              : searchTerm || selectedStageFilter !== 'all' || onlyFollowUpDue
+                ? 'Nenhum orçamento corresponde aos filtros de busca ou estágio selecionados.'
+                : dateFilter === 'today'
+                  ? 'Nenhuma proposta comercial emitida no dia de hoje até o momento.'
+                  : `Nenhuma proposta comercial encontrada para o filtro (${getDateFilterLabel(dateFilter)}).`}
           </p>
-          {dateFilter !== 'all' && (
+          {selectedStageFilter === 'all' && stageStats.draft.count > 0 && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => handleSelectStage('draft')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-xl transition cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-700" />
+                Visualizar {stageStats.draft.count} Rascunho(s)
+              </button>
+            </div>
+          )}
+          {dateFilter !== 'all' && (!stageStats.draft.count || selectedStageFilter !== 'all') && (
             <div className="pt-2">
               <button
                 type="button"

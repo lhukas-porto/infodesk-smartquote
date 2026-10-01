@@ -4210,9 +4210,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           }}
           title="Dados do Produto"
           subtitle="Revise os dados comerciais, foto e descrição. Depois de salvar o produto já entrará na base de dados."
-          badgeText="Proposta & Produtos"
           saveButtonText="Salvar"
-          saveButtonTitle="Salvar alterações no item da proposta e na base geral de produtos"
+          saveButtonTitle="Salvar"
           onSave={(finalProd, shippingCost) => {
             handleSaveProductFromReviewModal(finalProd, shippingCost);
           }}

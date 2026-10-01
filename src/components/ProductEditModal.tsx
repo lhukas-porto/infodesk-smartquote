@@ -132,12 +132,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   onAddCategory,
   title = 'Dados do Produto',
   subtitle = 'Revise os dados comerciais, foto e descrição. Depois de salvar o produto já entrará na base de dados.',
-  badgeText = 'Proposta & Produtos',
+  badgeText,
   initialShippingCost = 0,
   showShippingFields = true,
   dailyDollarRate,
   saveButtonText = 'Salvar',
-  saveButtonTitle = 'Salvar alterações no produto'
+  saveButtonTitle = 'Salva na base de Produtos'
 }) => {
   const [draft, setDraft] = useState<Partial<Product>>(() => product || {});
   const [dollarInput, setDollarInput] = useState<string>('');
