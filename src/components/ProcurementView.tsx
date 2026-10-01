@@ -167,7 +167,13 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           prev.forEach(i => {
             if (!map.has(i.id)) map.set(i.id, i);
           });
-          return Array.from(map.values());
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem('infodesk_direct_purchases', JSON.stringify(merged));
+          } catch (e) {
+            console.warn('Erro ao atualizar cache local de compras diretas:', e);
+          }
+          return merged;
         });
       }
     }).catch(() => {});
@@ -754,7 +760,10 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
   // Remover Item Avulso Definitivamente (apenas se for compra direta)
   const handleRemoveDirectItemPermanently = (itemId: string) => {
-    if (window.confirm('Deseja remover este item avulso da Central de Compras?')) {
+    if (window.confirm('Deseja remover este item avulso definitivamente da Central de Compras?')) {
+      // 1. Atualização Otimista Imediata no React State
+      setDirectPurchases(prev => prev.filter(i => i.id !== itemId && i.itemId !== itemId));
+      // 2. Remoção do Storage local e Supabase
       deleteDirectPurchaseItem(itemId);
     }
   };
@@ -2500,16 +2509,31 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm(`Tem certeza que deseja excluir a compra de "${item.name}"?\n\nO item retornará imediatamente para o status "A Comprar".`)) {
+                    const confirmMsg = item.isDirectPurchase
+                      ? `Deseja desfazer o registro de compra de "${item.name}" e retorná-lo para "A Comprar"?\n\n(Dica: Para remover este item avulso definitivamente da lista, use o ícone de lixeira vermelha ao lado).`
+                      : `Tem certeza que deseja excluir a compra de "${item.name}"?\n\nO item retornará imediatamente para o status "A Comprar".`;
+                    if (window.confirm(confirmMsg)) {
                       handleDeletePurchase(item);
                     }
                   }}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200/80 rounded-xl text-xs font-bold transition cursor-pointer"
-                  title="Excluir o registro desta compra e voltar o item para o status A Comprar"
+                  title={item.isDirectPurchase ? "Desfazer registro de compra e retornar para 'A Comprar'" : "Excluir o registro desta compra e voltar o item para o status A Comprar"}
                 >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Excluir Compra</span>
+                  <RotateCcw className="w-3 h-3" />
+                  <span>{item.isDirectPurchase ? 'Desfazer Compra' : 'Excluir Compra'}</span>
                 </button>
+
+                {/* Se for item avulso e estiver comprado, permitir também exclusão permanente definitiva */}
+                {item.isDirectPurchase && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDirectItemPermanently(item.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                    title="Remover item avulso definitivamente da Central de Compras"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
@@ -2522,13 +2546,13 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                   <span>Registrar Compra</span>
                 </button>
 
-                {/* Se for item avulso e estiver pendente, pode remover da fila */}
+                {/* Se for item avulso e estiver pendente, pode remover definitivamente da fila */}
                 {item.isDirectPurchase && (
                   <button
                     type="button"
                     onClick={() => handleRemoveDirectItemPermanently(item.id)}
                     className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
-                    title="Remover item avulso da fila de compras"
+                    title="Remover item avulso definitivamente da Central de Compras"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

@@ -1426,7 +1426,7 @@ export const saveOrUpdateDirectPurchase = (item: import('../types').ProcurementI
 
 export const deleteDirectPurchaseItem = (itemId: string): import('../types').ProcurementItem[] => {
   const current = getDirectPurchases();
-  const updated = current.filter(i => i.id !== itemId);
+  const updated = current.filter(i => i.id !== itemId && i.itemId !== itemId);
   saveDirectPurchases(updated);
   deleteDirectPurchaseFromSupabase(itemId).catch(err => {
     console.warn('[Storage] Erro ao deletar compra direta no Supabase:', err);

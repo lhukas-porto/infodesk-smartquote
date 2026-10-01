@@ -1273,7 +1273,7 @@ export async function syncDirectPurchasesToSupabase(items: import('../types').Pr
 export async function deleteDirectPurchaseFromSupabase(itemId: string): Promise<void> {
   if (!supabase || !itemId) return;
   try {
-    await supabase.from('procurement_items').delete().eq('id', itemId);
+    await supabase.from('procurement_items').delete().or(`id.eq.${itemId},item_id.eq.${itemId}`);
   } catch (err) {
     console.warn('Erro ao deletar compra direta no Supabase:', err);
   }
