@@ -5,8 +5,6 @@ import {
   ZoomIn,
   ImagePlus,
   Search,
-  ChevronDown,
-  Layers,
   Truck,
   Calculator,
   ExternalLink,
@@ -18,12 +16,6 @@ import {
 } from 'lucide-react';
 import { Product } from '../types';
 import {
-  applyTextCase,
-  getNextTextCase,
-  getWordOrSelectionRange,
-  mergeSelectedRanges,
-  applyCaseToRanges,
-  WordCaseStyle,
   extractStoreNameFromUrl,
   getCategoryFromNcm,
   normalizeToOfficialCategory
@@ -148,8 +140,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [costInput, setCostInput] = useState<string>('');
   const [shippingInput, setShippingInput] = useState<string>('');
 
-  const [selectedWordRanges, setSelectedWordRanges] = useState<Array<{ start: number; end: number }>>([]);
-  const [isCaseMenuOpen, setIsCaseMenuOpen] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
   const [isWebImagePickerOpen, setIsWebImagePickerOpen] = useState(false);
   const [isSearchingSpecs, setIsSearchingSpecs] = useState(false);
@@ -157,8 +147,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  const caseMenuRef = useRef<HTMLDivElement>(null);
 
   const effectiveDollarRate = Number(dailyDollarRate) > 0 ? Number(dailyDollarRate) : (getSettings().dailyDollarRate || 5.60);
 
@@ -177,8 +165,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         : (product.shippingCost || 0);
       setShippingInput(resolvedShipping > 0 ? formatCurrencyPtBr(resolvedShipping) : '0,00');
 
-      setSelectedWordRanges([]);
-      setIsCaseMenuOpen(false);
       setZoomedImage(null);
       setIsWebImagePickerOpen(false);
     }
@@ -224,19 +210,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
   };
 
-  // Fecha o menu de casos ao clicar fora
-  useEffect(() => {
-    const handleClickOutsideCaseMenu = (e: MouseEvent) => {
-      if (caseMenuRef.current && !caseMenuRef.current.contains(e.target as Node)) {
-        setIsCaseMenuOpen(false);
-      }
-    };
-    if (isCaseMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutsideCaseMenu);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutsideCaseMenu);
-  }, [isCaseMenuOpen]);
-
   // Captura global de Ctrl+V quando o modal está aberto
   useEffect(() => {
     if (!isOpen) return;
@@ -253,147 +226,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     window.addEventListener('paste', handleGlobalPaste, true);
     return () => window.removeEventListener('paste', handleGlobalPaste, true);
   }, [isOpen]);
-
-  // Alterna ou aplica Maiúsculas/Minúsculas no nome
-  const handleApplyNameCase = (targetStyle?: WordCaseStyle) => {
-    if (!draft.name) return;
-    const input = nameInputRef.current;
-    const fullText = draft.name;
-
-    // 1. Se existem palavras selecionadas com Ctrl (estilo Word)
-    if (selectedWordRanges.length > 0) {
-      const firstRange = selectedWordRanges[0];
-      const firstPart = fullText.substring(firstRange.start, firstRange.end);
-      const styleToApply = targetStyle || getNextTextCase(firstPart);
-
-      const { newText, newRanges } = applyCaseToRanges(fullText, selectedWordRanges, styleToApply);
-
-      setDraft(prev => ({ ...prev, name: newText }));
-      setSelectedWordRanges(newRanges);
-      setIsCaseMenuOpen(false);
-
-      setTimeout(() => {
-        if (input) input.focus();
-      }, 0);
-      return;
-    }
-
-    // 2. Se não há multi-seleção de Ctrl, segue a seleção única nativa ou palavra sob o cursor
-    const { start, end } = getWordOrSelectionRange(
-      fullText,
-      input?.selectionStart ?? null,
-      input?.selectionEnd ?? null
-    );
-
-    const targetPart = fullText.substring(start, end);
-    if (!targetPart.trim()) return;
-
-    const styleToApply = targetStyle || getNextTextCase(targetPart);
-    const transformedPart = applyTextCase(targetPart, styleToApply);
-    const newFullText = fullText.substring(0, start) + transformedPart + fullText.substring(end);
-
-    setDraft(prev => ({ ...prev, name: newFullText }));
-    setIsCaseMenuOpen(false);
-
-    setTimeout(() => {
-      if (input) {
-        input.focus();
-        input.setSelectionRange(start, start + transformedPart.length);
-      }
-    }, 0);
-  };
-
-  const handleInputMouseUp = (e: React.MouseEvent<HTMLInputElement>) => {
-    const input = e.currentTarget;
-    const start = input.selectionStart ?? 0;
-    const end = input.selectionEnd ?? 0;
-    const fullText = input.value;
-
-    if (e.ctrlKey) {
-      if (end > start) {
-        const newRange = { start, end };
-        setSelectedWordRanges(prev => {
-          const isExact = prev.some(r => r.start === start && r.end === end);
-          if (isExact) {
-            return prev.filter(r => !(r.start === start && r.end === end));
-          }
-          return mergeSelectedRanges([...prev, newRange]);
-        });
-      } else {
-        const { start: wordStart, end: wordEnd } = getWordOrSelectionRange(fullText, start, end);
-        if (wordEnd > wordStart) {
-          setSelectedWordRanges(prev => {
-            const exists = prev.some(r => Math.max(r.start, wordStart) < Math.min(r.end, wordEnd));
-            if (exists) {
-              return prev.filter(r => !(Math.max(r.start, wordStart) < Math.min(r.end, wordEnd)));
-            }
-            return mergeSelectedRanges([...prev, { start: wordStart, end: wordEnd }]);
-          });
-        }
-      }
-    } else {
-      if (selectedWordRanges.length > 0) {
-        setSelectedWordRanges([]);
-      }
-    }
-  };
-
-  const handleInputDoubleClick = (e: React.MouseEvent<HTMLInputElement>) => {
-    if (e.ctrlKey) {
-      e.preventDefault();
-      const input = e.currentTarget;
-      const start = input.selectionStart ?? 0;
-      const end = input.selectionEnd ?? 0;
-      const fullText = input.value;
-      const { start: wordStart, end: wordEnd } = getWordOrSelectionRange(fullText, start, end);
-      if (wordEnd > wordStart) {
-        setSelectedWordRanges(prev => {
-          const exists = prev.some(r => Math.max(r.start, wordStart) < Math.min(r.end, wordEnd));
-          if (exists) {
-            return prev.filter(r => !(Math.max(r.start, wordStart) < Math.min(r.end, wordEnd)));
-          }
-          return mergeSelectedRanges([...prev, { start: wordStart, end: wordEnd }]);
-        });
-      }
-    }
-  };
-
-  const renderBackdropHighlights = (text: string, ranges: Array<{ start: number; end: number }>) => {
-    if (!ranges || ranges.length === 0) return null;
-
-    const sorted = [...ranges].sort((a, b) => a.start - b.start);
-    const elements: React.ReactNode[] = [];
-    let lastIndex = 0;
-
-    sorted.forEach((r, idx) => {
-      if (r.start > lastIndex) {
-        elements.push(
-          <span key={`unsel-${idx}`} className="text-transparent">
-            {text.substring(lastIndex, r.start)}
-          </span>
-        );
-      }
-      elements.push(
-        <span
-          key={`sel-${idx}`}
-          className="bg-sky-200/90 text-transparent rounded-xs shadow-2xs border-b-2 border-sky-500 font-semibold"
-        >
-          {text.substring(r.start, r.end)}
-        </span>
-      );
-      lastIndex = r.end;
-    });
-
-    if (lastIndex < text.length) {
-      elements.push(
-        <span key="unsel-last" className="text-transparent">
-          {text.substring(lastIndex)}
-        </span>
-      );
-    }
-
-    return elements;
-  };
 
   // Upload local de imagem
   const handleTriggerImageUpload = () => {
@@ -618,147 +450,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     <label className="block text-[11px] font-bold text-slate-700">
                       Nome Padronizado *
                     </label>
-                    <div className="flex items-center gap-2">
-                      <div className="relative inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 hover:border-sky-300 shadow-2xs">
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleApplyNameCase()}
-                          className="inline-flex items-center gap-1 text-slate-700 hover:text-sky-700 hover:bg-sky-50 px-2 py-1 rounded-l-lg font-bold text-[10px] transition cursor-pointer active:scale-95 select-none"
-                          title="Alternar maiúsculas/minúsculas da palavra sob o cursor, das palavras selecionadas ou do nome todo"
-                        >
-                          <span className="font-serif font-bold text-[11px] leading-none text-sky-700">Aa</span>
-                          <span className="text-[10px] font-medium text-slate-700">Mudar Caso</span>
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => setIsCaseMenuOpen(prev => !prev)}
-                          className="px-1.5 py-1 border-l border-slate-200 hover:bg-sky-50 text-slate-500 hover:text-sky-700 rounded-r-lg transition cursor-pointer active:scale-95"
-                          title="Escolher estilo de maiúsculas/minúsculas específico"
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-
-                        {isCaseMenuOpen && (
-                          <div
-                            ref={caseMenuRef}
-                            className="absolute right-0 top-full mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
-                          >
-                            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
-                              Formatar Trecho / Palavras
-                            </div>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyNameCase('sentence')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">Primeira da frase maiúscula</span>
-                              <span className="text-[10px] text-slate-400">Ex: Teclado sem fio logitech k380</span>
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyNameCase('lowercase')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">minúsculas</span>
-                              <span className="text-[10px] text-slate-400">Ex: teclado sem fio logitech k380</span>
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyNameCase('uppercase')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">MAIÚSCULAS</span>
-                              <span className="text-[10px] text-slate-400">Ex: TECLADO SEM FIO LOGITECH K380</span>
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleApplyNameCase('title')}
-                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-sky-50 text-slate-700 flex flex-col transition cursor-pointer"
-                            >
-                              <span className="font-semibold text-slate-800">Primeira de Cada Palavra Maiúscula</span>
-                              <span className="text-[10px] text-slate-400">Ex: Teclado Sem Fio Logitech K380</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
                   </div>
 
-                  <div className="relative w-full">
-                    {/* Camada visual de destaque sincronizada para seleção com Ctrl (estilo Word) */}
-                    <div
-                      ref={backdropRef}
-                      aria-hidden="true"
-                      className="absolute inset-0 px-3 py-2 text-transparent font-semibold pointer-events-none overflow-hidden whitespace-pre font-sans text-sm select-none border border-transparent flex items-center"
-                    >
-                      {renderBackdropHighlights(draft.name || '', selectedWordRanges)}
-                    </div>
-                    <input
-                      ref={nameInputRef}
-                      type="text"
-                      required
-                      value={draft.name || ''}
-                      onChange={(e) => {
-                        setDraft({ ...draft, name: e.target.value });
-                        if (selectedWordRanges.length > 0) setSelectedWordRanges([]);
-                      }}
-                      onMouseUp={handleInputMouseUp}
-                      onDoubleClick={handleInputDoubleClick}
-                      onScroll={(e) => {
-                        if (backdropRef.current) {
-                          backdropRef.current.scrollLeft = e.currentTarget.scrollLeft;
-                        }
-                      }}
-                      onPaste={handlePasteImage}
-                      placeholder="Nome completo do produto sem traços ou vírgulas"
-                      className="w-full bg-transparent border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:outline-none focus:border-sky-500 relative z-10"
-                    />
-                  </div>
-
-                  {/* Badges de palavras selecionadas com Ctrl */}
-                  {selectedWordRanges.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap animate-in fade-in slide-in-from-top-1 duration-150">
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-bold">
-                        <Layers className="w-3 h-3 text-sky-600" />
-                        <span>
-                          {selectedWordRanges.length}{' '}
-                          {selectedWordRanges.length === 1 ? 'palavra selecionada com Ctrl' : 'palavras selecionadas com Ctrl'}:
-                        </span>
-                      </div>
-                      {selectedWordRanges.map((range, idx) => {
-                        const wordText = (draft.name || '').substring(range.start, range.end);
-                        return (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100/90 border border-sky-300 text-sky-900 text-[11px] font-bold shadow-2xs"
-                          >
-                            <span>{wordText}</span>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedWordRanges(prev => prev.filter((_, i) => i !== idx))}
-                              className="hover:text-red-600 ml-0.5 p-0.5 rounded transition cursor-pointer"
-                              title="Remover esta palavra da seleção"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </span>
-                        );
-                      })}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedWordRanges([])}
-                        className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer transition"
-                      >
-                        Limpar seleção
-                      </button>
-                    </div>
-                  )}
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    required
+                    value={draft.name || ''}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    onPaste={handlePasteImage}
+                    placeholder="Nome completo do produto sem traços ou vírgulas"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 transition shadow-2xs text-xs sm:text-sm"
+                  />
                 </div>
               </div>
 
