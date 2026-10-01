@@ -128,7 +128,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   onStageFilterChange
 }) => {
   const [quoteForApproval, setQuoteForApproval] = useState<Quote | null>(null);
-  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('all');
+  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('today');
   const [specificDate, setSpecificDate] = useState<string>(() => {
     const d = new Date();
     const year = d.getFullYear();
