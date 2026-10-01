@@ -675,15 +675,31 @@ export const saveCompanyPrefixPreference = (id: string, name: string, prefix: '�
 const DELETED_CONTACT_IDS_KEY = 'infodesk_deleted_contact_ids';
 const DELETED_COMPANY_IDS_KEY = 'infodesk_deleted_company_ids';
 
+export const isBlockedOrTestCompany = (comp: { id?: string; name?: string } | null | undefined): boolean => {
+  if (!comp || !comp.name) return true;
+  if (comp.id === 'comp-terraco') return true;
+  if (comp.id?.startsWith('comp-test')) return true;
+  const lower = comp.name.toLowerCase();
+  if (lower.includes('empresa teste')) return true;
+  if (lower.includes('shopping terraço') || lower.includes('shopping terraco') || lower.includes('condomínio shopping terraço')) return true;
+  return false;
+};
+
 export const getDeletedCompanyIds = (): Set<string> => {
   try {
     const raw = localStorage.getItem(DELETED_COMPANY_IDS_KEY);
     if (raw) {
       const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) return new Set(arr);
+      if (Array.isArray(arr)) {
+        const set = new Set(arr);
+        set.add('comp-terraco');
+        return set;
+      }
     }
   } catch { /* noop */ }
-  return new Set();
+  const defaultSet = new Set<string>();
+  defaultSet.add('comp-terraco');
+  return defaultSet;
 };
 
 export const recordDeletedCompanyId = (companyId: string): void => {
@@ -753,11 +769,7 @@ export const getClientCompanies = (): ClientCompany[] => {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed
-          .filter(c => {
-            if (!c || !c.name) return false;
-            const lower = c.name.toLowerCase();
-            return !deletedCompanyIds.has(c.id) && !lower.includes('empresa teste') && !c.id?.startsWith('comp-test');
-          })
+          .filter(c => !isBlockedOrTestCompany(c) && !deletedCompanyIds.has(c.id))
           .map(c => {
           let locs = Array.isArray(c.locations) && c.locations.length > 0 
             ? c.locations 
@@ -800,6 +812,7 @@ export const getClientCompanies = (): ClientCompany[] => {
     console.error(e);
   }
   return initialClientCompanies
+    .filter(comp => !isBlockedOrTestCompany(comp) && !getDeletedCompanyIds().has(comp.id))
     .map(comp => ({
       ...comp,
       contacts: deduplicateCompanyContacts(comp.contacts || []).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }))
@@ -825,11 +838,7 @@ export const saveClientCompanies = (companies: ClientCompany[]): void => {
 
     const deletedCompanyIds = getDeletedCompanyIds();
     const normalized = companies
-      .filter(comp => {
-        if (!comp || !comp.name) return false;
-        const lower = comp.name.toLowerCase();
-        return !deletedCompanyIds.has(comp.id) && !lower.includes('empresa teste') && !comp.id?.startsWith('comp-test');
-      })
+      .filter(comp => !isBlockedOrTestCompany(comp) && !deletedCompanyIds.has(comp.id))
       .map(comp => {
         const clean = (comp.name || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
         const pref = comp.prefix || prefixMap[comp.id] || prefixMap[clean] || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');

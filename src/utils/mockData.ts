@@ -425,16 +425,5 @@ export const initialClientCompanies: ClientCompany[] = [
     ],
     lastUsed: '2026-08-20T10:00:00Z',
     contacts: []
-  },
-  {
-    id: 'comp-terraco',
-    name: 'Condomínio Shopping Terraço',
-    prefix: 'Ao',
-    defaultDeliveryLocation: 'Brasília',
-    locations: [
-      'Brasília'
-    ],
-    lastUsed: '2026-08-25T10:00:00Z',
-    contacts: []
   }
 ];

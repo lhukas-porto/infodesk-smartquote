@@ -57,6 +57,7 @@ import {
   recordDeletedContactId,
   getDeletedCompanyIds,
   recordDeletedCompanyId,
+  isBlockedOrTestCompany,
   getRegisteredPaymentMethods,
   saveRegisteredPaymentMethodsList,
   getDirectPurchases,
@@ -585,11 +586,10 @@ export const App: React.FC = () => {
             localByName.set(clean, c);
           });
 
-          // Filtra empresas remotas contra IDs excluídos e dados de teste
+          // Filtra empresas remotas contra IDs excluídos e dados de teste ou mock bloqueados
           const sanitizedRemote = remoteCompanies.filter(rc => {
             if (!rc || !rc.name) return false;
-            const lower = rc.name.toLowerCase();
-            return !deletedCompanyIds.has(rc.id) && !lower.includes('empresa teste') && !rc.id?.startsWith('comp-test');
+            return !isBlockedOrTestCompany(rc) && !deletedCompanyIds.has(rc.id);
           });
 
           const mergedCompanies = sanitizedRemote.map(rc => {
@@ -624,12 +624,11 @@ export const App: React.FC = () => {
             };
           });
 
-          // Preservar novas empresas criadas localmente que ainda não estão no banco (ignorando testes e deletadas)
+          // Preservar novas empresas criadas localmente que ainda não estão no banco (ignorando testes, mocks e deletadas)
           const remoteIds = new Set(sanitizedRemote.map(r => r.id));
           const localOnlyCompanies = localCompanies.filter(lc => {
             if (!lc || !lc.name) return false;
-            const lower = lc.name.toLowerCase();
-            return !remoteIds.has(lc.id) && !deletedCompanyIds.has(lc.id) && !lower.includes('empresa teste') && !lc.id?.startsWith('comp-test');
+            return !remoteIds.has(lc.id) && !deletedCompanyIds.has(lc.id) && !isBlockedOrTestCompany(lc);
           });
           const finalCompanies = [...mergedCompanies, ...localOnlyCompanies];
 

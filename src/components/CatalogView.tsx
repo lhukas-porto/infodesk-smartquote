@@ -530,7 +530,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Digite o nome do produto, SKU, modelo, part number ou especificações..."
+              placeholder="Digite o nome do produto..."
               className="w-full h-11 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl pl-11 pr-10 text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition outline-none font-sans shadow-2xs"
             />
             {searchTerm && (

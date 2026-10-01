@@ -753,13 +753,17 @@ export async function syncClientCompaniesToSupabase(companies: ClientCompany[]):
   if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') return;
 
   try {
-    // Filtro contra empresas fictícias de teste
+    // Filtro contra empresas fictícias de teste e bloqueadas (ex: mock Shopping Terraço)
     const validCompanies = companies.filter(comp => {
       const lower = (comp.name || '').toLowerCase();
       if (lower.includes('empresa teste') || comp.id?.startsWith('comp-test')) return false;
+      if (comp.id === 'comp-terraco' || lower.includes('shopping terraço') || lower.includes('shopping terraco')) return false;
       return true;
     });
     if (validCompanies.length === 0) return;
+
+    // Purge defensivo caso comp-terraco esteja no banco
+    supabase.from('client_companies').delete().or('id.eq.comp-terraco,name.ilike.%Condomínio Shopping Terraço%').then(() => {});
 
     // 1. Batch upsert de todas as empresas (com website e logo serializados de forma compatível)
     const companiesPayload = validCompanies.map(comp => {

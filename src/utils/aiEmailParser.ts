@@ -1,5 +1,3 @@
-import { initialClientCompanies } from './mockData';
-
 export interface ParsedItem {
   name: string;
   description: string;
@@ -915,8 +913,7 @@ export function extractFullCompanyName(
     { name: 'Universidade Brasileira de Educação Católica - UBEC', keywords: ['ubec', 'educação católica', 'catolica de brasilia', 'unileste', 'catolica de santa catarina'] },
     { name: 'Casa Shopping Paulo Octávio', keywords: ['paulo octávio', 'paulo octavio', 'pauloctavio', 'casa shopping'] },
     { name: 'CNC — Confederação Nacional do Comércio', keywords: ['cnc', 'confederação nacional do comércio', 'confederacao nacional do comercio'] },
-    { name: 'Inframerica Concessionária do Aeroporto de Brasília', keywords: ['inframerica', 'aeroporto de brasília', 'aeroporto de brasilia'] },
-    { name: 'Condomínio Shopping Terraço', keywords: ['terraço shopping', 'terraco shopping'] }
+    { name: 'Inframerica Concessionária do Aeroporto de Brasília', keywords: ['inframerica', 'aeroporto de brasília', 'aeroporto de brasilia'] }
   ];
 
   const lower = fullText.toLowerCase();
@@ -3021,8 +3018,8 @@ export function generateQuoteCode(
     if (saved) {
       registeredList = JSON.parse(saved);
     }
-    if (!Array.isArray(registeredList) || registeredList.length === 0) {
-      registeredList = initialClientCompanies;
+    if (!Array.isArray(registeredList)) {
+      registeredList = [];
     }
     const cleanLower = cleanName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const found = registeredList.find((c: any) => {

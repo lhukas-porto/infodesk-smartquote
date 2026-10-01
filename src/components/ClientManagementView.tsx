@@ -704,7 +704,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Buscar empresa, comprador, e-mail ou cidade..."
+            placeholder="Buscar empresa, comprador ou e-mail..."
             className="sq-input pl-10"
           />
           {searchFilter && (
@@ -1093,7 +1093,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   })}
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); handleAddLocationToCompany(selectedCompany.id); }} className="flex items-center gap-2 pt-1">
-                  <input type="text" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} placeholder="Adicionar cidade/destino (ex: Joinville - SC)..." className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500" />
+                  <input type="text" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} placeholder="" className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500" />
                   <button type="submit" disabled={!newLocationName.trim()} className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 shrink-0 transition cursor-pointer">
                     <Plus className="w-3.5 h-3.5" /><span>Adicionar</span>
                   </button>
