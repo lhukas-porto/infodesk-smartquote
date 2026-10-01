@@ -267,7 +267,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
             {/* Opening Paragraph */}
             <p 
               className="text-justify text-black mb-5"
-              style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '9pt', textAlign: 'justify', lineHeight: '1.35' }}
+              style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '9pt', textAlign: 'justify', lineHeight: '1.35', textIndent: '1.25cm' }}
             >
               {getResolvedOpeningText(quote.openingText, settings.defaultOpeningText)}
             </p>

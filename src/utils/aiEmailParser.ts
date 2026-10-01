@@ -3298,7 +3298,7 @@ export function generateProposalEmailHtml(
     </div>
 
     <!-- Parágrafo de Abertura -->
-    <p style="text-align: justify; margin-bottom: 16px; font-size: 9pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.35; color: #000000;">
+    <p style="text-align: justify; text-indent: 1.25cm; margin-bottom: 16px; font-size: 9pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.35; color: #000000;">
       ${(() => {
         const fallback = 'Em atenção à solicitação de Vossa Senhoria, temos a grata satisfação de submeter à apreciação a nossa proposta de preços para fornecimento dos produtos relacionados a seguir:';
         const chosen = (quote.openingText && quote.openingText.trim()) || (settings.defaultOpeningText && settings.defaultOpeningText.trim()) || fallback;

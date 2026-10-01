@@ -387,7 +387,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
   // Parágrafos de Condições Gerais
   const conditionsParagraphs: Paragraph[] = [
     new Paragraph({
-      spacing: { before: 280, after: 120 },
+      spacing: { before: 240, after: 120 },
       children: [
         new TextRun({
           text: 'Condições gerais:',
@@ -398,27 +398,27 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
       ]
     }),
     new Paragraph({
-      spacing: { line: 360, after: 80 },
+      spacing: { line: 280, after: 60 },
       children: [
-        new TextRun({ text: `➤  Validade da proposta: ${quote.validityDays}`, size: 20 })
+        new TextRun({ text: `➤ Validade da proposta: ${quote.validityDays}`, size: 20 })
       ]
     }),
     new Paragraph({
-      spacing: { line: 360, after: 80 },
+      spacing: { line: 280, after: 60 },
       children: [
-        new TextRun({ text: `➤  Condições de pagamento: ${quote.paymentTerms}`, size: 20 })
+        new TextRun({ text: `➤ Condições de pagamento: ${quote.paymentTerms}`, size: 20 })
       ]
     }),
     new Paragraph({
-      spacing: { line: 360, after: 80 },
+      spacing: { line: 280, after: 60 },
       children: [
-        new TextRun({ text: `➤  Prazo de entrega: ${quote.deliveryDays}`, size: 20 })
+        new TextRun({ text: `➤ Prazo de entrega: ${quote.deliveryDays}`, size: 20 })
       ]
     }),
     new Paragraph({
-      spacing: { line: 360, after: 80 },
+      spacing: { line: 280, after: 60 },
       children: [
-        new TextRun({ text: `➤  Garantia: ${quote.warrantyTerms}`, size: 20 })
+        new TextRun({ text: `➤ Garantia: ${quote.warrantyTerms}`, size: 20 })
       ]
     })
   ];
@@ -429,9 +429,9 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
   if (formattedShipping) {
     conditionsParagraphs.push(
       new Paragraph({
-        spacing: { line: 360, after: cleanObs ? 80 : 480 },
+        spacing: { line: 280, after: cleanObs ? 60 : 360 },
         children: [
-          new TextRun({ text: `➤  ${formattedShipping}`, bold: true, size: 20 })
+          new TextRun({ text: `➤ ${formattedShipping}`, bold: true, size: 20 })
         ]
       })
     );
@@ -440,29 +440,29 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
   if (cleanObs) {
     const obsLines = cleanObs.split('\n');
     const obsRuns: TextRun[] = [
-      new TextRun({ text: '➤  ', size: 20 }),
+      new TextRun({ text: '➤ ', size: 20 }),
       new TextRun({ text: 'Obs: ', bold: true, size: 20 })
     ];
     obsLines.forEach((line, lIdx) => {
       if (lIdx === 0) {
         obsRuns.push(new TextRun({ text: line, size: 20 }));
       } else {
-        obsRuns.push(new TextRun({ text: `     ${line}`, break: 1, size: 20 }));
+        obsRuns.push(new TextRun({ text: `   ${line}`, break: 1, size: 20 }));
       }
     });
 
     conditionsParagraphs.push(
       new Paragraph({
-        spacing: { line: 360, after: 480 },
+        spacing: { line: 280, after: 360 },
         children: obsRuns
       })
     );
   } else if (!formattedShipping) {
     // Espaçamento final após condições se não houver frete nem observação
     conditionsParagraphs[conditionsParagraphs.length - 1] = new Paragraph({
-      spacing: { line: 360, after: 480 },
+      spacing: { line: 280, after: 360 },
       children: [
-        new TextRun({ text: `➤  Garantia: ${quote.warrantyTerms}`, size: 20 })
+        new TextRun({ text: `➤ Garantia: ${quote.warrantyTerms}`, size: 20 })
       ]
     });
   }
@@ -566,9 +566,9 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
             ]
           }),
 
-          // Dados do Destinatário (12 pt, negrito, espaçamento 1,5)
+          // Dados do Destinatário (12 pt, negrito)
           new Paragraph({
-            spacing: { line: 360, after: 0 },
+            spacing: { line: 280, after: 0 },
             children: [
               new TextRun({
                 text: clientCompanyFormatted,
@@ -578,7 +578,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
             ]
           }),
           new Paragraph({
-            spacing: { line: 360, after: 0 },
+            spacing: { line: 280, after: 60 },
             children: [
               new TextRun({
                 text: contactPersonFormatted,
@@ -588,7 +588,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
             ]
           }),
           new Paragraph({
-            spacing: { line: 270, before: 80, after: 0 },
+            spacing: { line: 260, after: 0 },
             children: [
               new TextRun({ text: 'E-mail: ', bold: true, size: 16 }),
               new ExternalHyperlink({
@@ -608,7 +608,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
           ...(quote.clientPhone
             ? [
                 new Paragraph({
-                  spacing: { line: 270, before: 40, after: 280 }, // ~14pt after
+                  spacing: { line: 260, after: 240 },
                   children: [
                     new TextRun({ text: `Telefone: ${quote.clientPhone}`, bold: true, size: 16 })
                   ]
@@ -616,14 +616,15 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
               ]
             : [
                 new Paragraph({
-                  spacing: { after: 280 },
+                  spacing: { after: 240 },
                   children: []
                 })
               ]),
 
-          // Texto de apresentação (9 pt, justificado, espaçamento 1,35)
+          // Texto de apresentação (9 pt, justificado, espaçamento 1,35, tabulação de parágrafo 1,25 cm)
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
+            indent: { firstLine: convertMillimetersToTwip(12.5) },
             spacing: { line: 324, after: 240 }, // ~12pt after
             children: [
               new TextRun({
