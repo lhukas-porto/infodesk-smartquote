@@ -107,18 +107,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               <button
-                onClick={() => setActiveTab('builder')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                  activeTab === 'builder'
-                    ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Cotação</span>
-              </button>
-
-              <button
                 onClick={() => setActiveTab('websearch')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === 'websearch'
@@ -129,6 +117,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Search className="w-3.5 h-3.5 text-sky-600" />
                 <span>Scanner IA</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('builder')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                  activeTab === 'builder'
+                    ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Cotação</span>
               </button>
 
               <button
@@ -277,6 +277,22 @@ export const Navbar: React.FC<NavbarProps> = ({
           </span>
         </button>
 
+        {/* Scanner IA */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('websearch')}
+          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
+            activeTab === 'websearch'
+              ? 'text-sky-600 font-bold bg-sky-50/80'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Search className={`w-5 h-5 ${activeTab === 'websearch' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+          <span className="text-[10px] tracking-tight mt-1 leading-none">
+            Scanner
+          </span>
+        </button>
+
         {/* Cotação */}
         <button
           type="button"
@@ -290,22 +306,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <FileText className={`w-5 h-5 ${activeTab === 'builder' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
           <span className="text-[10px] tracking-tight mt-1 leading-none">
             Cotação
-          </span>
-        </button>
-
-        {/* Scanner IA*/}
-        <button
-          type="button"
-          onClick={() => setActiveTab('websearch')}
-          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
-            activeTab === 'websearch'
-              ? 'text-sky-600 font-bold bg-sky-50/80'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Search className={`w-5 h-5 ${activeTab === 'websearch' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
-          <span className="text-[10px] tracking-tight mt-1 leading-none">
-            Scanner
           </span>
         </button>
 
