@@ -906,22 +906,6 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
           </div>
         </div>
 
-        {onNavigateToQuote && (
-          <button
-            type="button"
-            onClick={onNavigateToQuote}
-            className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shrink-0 self-start md:self-auto"
-            title="Voltar para a tela de cotação"
-          >
-            <span>Ver Cotação</span>
-            {quoteItemsCount > 0 && (
-              <span className="px-2 py-0.5 bg-sky-600 text-white text-[11px] rounded-full font-extrabold">
-                {quoteItemsCount}
-              </span>
-            )}
-            <ArrowRight className="w-4 h-4 text-slate-400" />
-          </button>
-        )}
       </div>
 
       {/* Card de Busca e Entrada */}
