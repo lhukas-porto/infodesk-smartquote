@@ -26,6 +26,24 @@ const ACTIVE_TAB_KEY = 'infodesk_active_tab';
 const MANUAL_ANALYSES_KEY = 'infodesk_manual_analyses';
 const DELETED_QUOTE_CODES_KEY = 'infodesk_deleted_quote_codes';
 
+const CURRENT_CACHE_VERSION = '2026-10-01-v3';
+const CACHE_VERSION_KEY = 'infodesk_cache_version';
+
+export const ensureFreshCacheVersion = (): void => {
+  try {
+    const saved = localStorage.getItem(CACHE_VERSION_KEY);
+    if (saved !== CURRENT_CACHE_VERSION) {
+      // Limpa dados legados e tombstones antigos do cache local para alinhar 100% com a nuvem
+      localStorage.removeItem('infodesk_deleted_products');
+      localStorage.removeItem('infodesk_products');
+      localStorage.setItem(CACHE_VERSION_KEY, CURRENT_CACHE_VERSION);
+      console.log('[Storage] Cache version atualizada: alinhamento com Supabase realizado.');
+    }
+  } catch { /* noop */ }
+};
+
+ensureFreshCacheVersion();
+
 export const isBlockedOrTestQuote = (q: { code?: string; clientCompany?: string; id?: string } | null | undefined): boolean => {
   if (!q) return true;
   const code = (q.code || '').trim().toLowerCase();
@@ -361,6 +379,8 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
     const idKey = (p.id || '').trim();
     const rawSku = (p.sku || '').trim().toLowerCase();
     const rawPn = (p.partNumber || '').trim().toLowerCase();
+    const cleanSkuAlphaNum = rawSku.replace(/[^a-z0-9]/gi, '');
+    const cleanPnAlphaNum = rawPn.replace(/[^a-z0-9]/gi, '');
     const normName = normalizeSearchText(p.name);
 
     // Ignora mock SKUs antigos
@@ -371,36 +391,48 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
     const isSkuDuplicate = Boolean(rawSku && !rawSku.startsWith('inf-auto-') && !rawSku.startsWith('sku-') && seenSkus.has(rawSku));
     const isNameDuplicate = Boolean(normName && normName.length >= 3 && seenNames.has(normName));
 
-    if (isIdDuplicate || isPnDuplicate || isSkuDuplicate || isNameDuplicate) {
-      // Já existe um produto equivalente: funde para preservar o mais completo
-      const existingIdx = result.findIndex(ex => {
-        const exId = (ex.id || '').trim();
-        const exPn = (ex.partNumber || '').trim().toLowerCase();
-        const exSku = (ex.sku || '').trim().toLowerCase();
-        const exName = normalizeSearchText(ex.name);
+    // Busca se já existe um produto equivalente: funde para preservar o mais completo
+    const existingIdx = result.findIndex(ex => {
+      const exId = (ex.id || '').trim();
+      const exPn = (ex.partNumber || '').trim().toLowerCase();
+      const exSku = (ex.sku || '').trim().toLowerCase();
+      const exName = normalizeSearchText(ex.name);
+      const exCleanSku = exSku.replace(/[^a-z0-9]/gi, '');
+      const exCleanPn = exPn.replace(/[^a-z0-9]/gi, '');
 
-        return (
-          Boolean(idKey && exId && exId === idKey) ||
-          Boolean(rawPn && rawPn.length >= 3 && exPn && exPn === rawPn) ||
-          Boolean(rawSku && !rawSku.startsWith('inf-auto-') && !rawSku.startsWith('sku-') && exSku && exSku === rawSku) ||
-          Boolean(normName && normName.length >= 3 && exName && exName === normName)
-        );
-      });
+      const matchId = Boolean(idKey && exId && exId === idKey);
+      const matchPn = Boolean(rawPn && rawPn.length >= 3 && exPn && exPn === rawPn);
+      const matchCleanPn = Boolean(cleanPnAlphaNum && cleanPnAlphaNum.length >= 3 && exCleanPn && exCleanPn === cleanPnAlphaNum);
+      const matchSku = Boolean(rawSku && !rawSku.startsWith('inf-auto-') && !rawSku.startsWith('sku-') && exSku && exSku === rawSku);
+      const matchCleanSku = Boolean(cleanSkuAlphaNum && cleanSkuAlphaNum.length >= 3 && !cleanSkuAlphaNum.startsWith('infauto') && exCleanSku && exCleanSku === cleanSkuAlphaNum);
+      const matchName = Boolean(normName && normName.length >= 3 && exName && exName === normName);
 
-      if (existingIdx >= 0) {
-        const existing = result[existingIdx];
-        result[existingIdx] = {
-          ...existing,
-          partNumber: existing.partNumber || p.partNumber,
-          ncm: existing.ncm || p.ncm,
-          imageUrl: existing.imageUrl || p.imageUrl,
-          sourceUrl: existing.sourceUrl || p.sourceUrl,
-          supplier: existing.supplier || p.supplier,
-          category: normalizeToOfficialCategory(existing.category && existing.category !== 'Informática & Tecnologia' && existing.category !== 'Geral' ? existing.category : (p.category || existing.category)),
-          costPrice: existing.costPrice > 0 ? existing.costPrice : (p.costPrice || 0),
-          stock: Math.max(existing.stock || 0, p.stock || 0)
-        };
-      }
+      // Correspondência semântica inteligente para produtos com mesmo núcleo (ex: açucareiro wolff)
+      const wordsA = normName.split(/\s+/).filter(w => w.length >= 4);
+      const wordsB = exName.split(/\s+/).filter(w => w.length >= 4);
+      const commonWords = wordsA.filter(w => wordsB.includes(w));
+      const matchSemantic = Boolean(
+        wordsA.length >= 2 && wordsB.length >= 2 &&
+        commonWords.length >= 2 &&
+        (commonWords.length / Math.min(wordsA.length, wordsB.length)) >= 0.67
+      );
+
+      return matchId || matchPn || matchCleanPn || matchSku || matchCleanSku || matchName || matchSemantic;
+    });
+
+    if (existingIdx >= 0) {
+      const existing = result[existingIdx];
+      result[existingIdx] = {
+        ...existing,
+        partNumber: existing.partNumber || p.partNumber,
+        ncm: existing.ncm || p.ncm,
+        imageUrl: existing.imageUrl || p.imageUrl,
+        sourceUrl: existing.sourceUrl || p.sourceUrl,
+        supplier: existing.supplier || p.supplier,
+        category: normalizeToOfficialCategory(existing.category && existing.category !== 'Informática & Tecnologia' && existing.category !== 'Geral' ? existing.category : (p.category || existing.category)),
+        costPrice: existing.costPrice > 0 ? existing.costPrice : (p.costPrice || 0),
+        stock: Math.max(existing.stock || 0, p.stock || 0)
+      };
       continue;
     }
 

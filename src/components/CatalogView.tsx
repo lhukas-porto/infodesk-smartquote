@@ -25,7 +25,8 @@ import {
   ArrowDown,
   DollarSign,
   SlidersHorizontal,
-  Tag
+  Tag,
+  RefreshCw
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Product } from '../types';
@@ -44,7 +45,8 @@ import { ProductEditModal } from './ProductEditModal';
 import { 
   syncProductToSupabase, 
   syncBatchProductsToSupabase, 
-  deleteProductFromSupabase 
+  deleteProductFromSupabase,
+  fetchProductsFromSupabase
 } from '../services/supabase';
 import { normalizeToOfficialCategory } from '../utils/aiEmailParser';
 import {
@@ -312,6 +314,30 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     document.body.removeChild(link);
   };
 
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+
+  const handleSyncFromCloud = async () => {
+    try {
+      setIsSyncingCloud(true);
+      const remote = await fetchProductsFromSupabase();
+      if (remote && Array.isArray(remote) && remote.length > 0) {
+        const clean = deduplicateProductsList(remote);
+        setProducts(clean);
+        saveProducts(clean);
+        setImportStatus(`✅ Catálogo 100% alinhado com a Nuvem! ${clean.length} produtos carregados.`);
+        setTimeout(() => setImportStatus(null), 4000);
+      } else {
+        setImportStatus('Nenhum produto novo retornado pelo Supabase.');
+        setTimeout(() => setImportStatus(null), 3000);
+      }
+    } catch (err: any) {
+      console.error('Erro ao sincronizar com nuvem:', err);
+      alert('Erro ao sincronizar com nuvem: ' + (err.message || 'Erro de rede'));
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
   const handleSaveNewProductFromModal = (newProd: Product, shippingCost: number) => {
     const cleanName = newProd.name.trim();
     const cleanPn = (newProd.partNumber || '').trim().toLowerCase();
@@ -490,6 +516,16 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             <span>Importar CSV</span>
             <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
           </label>
+
+          <button
+            onClick={handleSyncFromCloud}
+            disabled={isSyncingCloud}
+            className="px-3.5 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Sincronizar catálogo diretamente da nuvem Supabase"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+            <span>{isSyncingCloud ? 'Sincronizando...' : 'Sincronizar Nuvem'}</span>
+          </button>
 
           <button
             onClick={handleExportContaAzul}

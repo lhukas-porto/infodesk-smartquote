@@ -346,11 +346,29 @@ export const App: React.FC = () => {
     async function hydrateFromSupabase() {
       if (!isSupabaseConfigured) return;
       try {
+        // Dispara o carregamento paralelo de todas as tabelas (ultra rápido, sem gargalos em cascata)
+        const [
+          remoteSettings,
+          remoteMeta,
+          remoteMethods,
+          remoteDirectPurchases,
+          remoteQuotes,
+          remoteProducts,
+          remoteCompanies
+        ] = await Promise.all([
+          fetchCompanySettingsFromSupabase().catch(() => null),
+          fetchRegisteredMetadataFromSupabase().catch(() => null),
+          fetchPaymentMethodsFromSupabase().catch(() => null),
+          fetchDirectPurchasesFromSupabase().catch(() => null),
+          fetchQuotesFromSupabase().catch(() => null),
+          fetchProductsFromSupabase().catch(() => null),
+          fetchClientCompaniesFromSupabase().catch(() => null)
+        ]);
+
         // 1. Configurações
         // Lê o valor local ANTES de qualquer sobrescrita remota para preservar campos
         // que podem não existir ainda na coluna do Supabase (ex: daily_dollar_rate)
         const localSettingsBeforeHydrate = getSettings();
-        const remoteSettings = await fetchCompanySettingsFromSupabase();
         if (remoteSettings) {
           if (!remoteSettings.defaultOpeningText || remoteSettings.defaultOpeningText.trim() === 'Em atenção...' || remoteSettings.defaultOpeningText.trim() === 'Em atenção' || remoteSettings.defaultOpeningText.trim().startsWith('Em atenção ao que foi solicitado')) {
             remoteSettings.defaultOpeningText = defaultCompanySettings.defaultOpeningText;
@@ -389,7 +407,6 @@ export const App: React.FC = () => {
         }
 
         // Sincronização e unificação de Categorias & Unidades com Supabase
-        const remoteMeta = await fetchRegisteredMetadataFromSupabase();
         if (remoteMeta) {
           const deletedCats = getDeletedCategories();
           const deletedUnits = getDeletedUnits();
@@ -414,7 +431,6 @@ export const App: React.FC = () => {
 
         // Sincronização e unificação de Formas de Pagamento com Supabase
         try {
-          const remoteMethods = await fetchPaymentMethodsFromSupabase();
           const deletedMethods = getDeletedPaymentMethods();
 
           if (remoteMethods && remoteMethods.length > 0) {
@@ -436,7 +452,6 @@ export const App: React.FC = () => {
 
         // Sincronização e unificação de Compras Avulsas / Diretas com Supabase
         try {
-          const remoteDirectPurchases = await fetchDirectPurchasesFromSupabase();
           const localDirectPurchases = getDirectPurchases();
           if (remoteDirectPurchases && remoteDirectPurchases.length > 0) {
             const map = new Map<string, typeof remoteDirectPurchases[0]>();
@@ -456,7 +471,6 @@ export const App: React.FC = () => {
         }
 
         // 2. Orçamentos
-        const remoteQuotes = await fetchQuotesFromSupabase();
         if (remoteQuotes && remoteQuotes.length > 0) {
           const deletedCodes = getDeletedQuoteCodes();
 
@@ -583,7 +597,6 @@ export const App: React.FC = () => {
         }
 
         // 3. Catálogo de Produtos
-        const remoteProducts = await fetchProductsFromSupabase();
         if (remoteProducts && remoteProducts.length > 0) {
           const sanitizedRemote = remoteProducts.filter(p => !isProductDeleted(p));
           const ghostProducts = remoteProducts.filter(p => isProductDeleted(p));
@@ -596,7 +609,6 @@ export const App: React.FC = () => {
         }
 
         // 4. Empresas e Cidades de Frete
-        const remoteCompanies = await fetchClientCompaniesFromSupabase();
         if (remoteCompanies && remoteCompanies.length > 0) {
           const localCompanies = getClientCompanies();
           const localById = new Map<string, ClientCompany>();
