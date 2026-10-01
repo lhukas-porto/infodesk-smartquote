@@ -126,16 +126,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     return counts;
   }, [products]);
 
-  const activeCategoriesCount = React.useMemo(() => {
-    const set = new Set(products.map(p => p.category).filter(Boolean));
-    return set.size;
-  }, [products]);
-
-  const avgCostPrice = React.useMemo(() => {
-    if (products.length === 0) return 0;
-    const sum = products.reduce((acc, p) => acc + (p.costPrice || 0), 0);
-    return sum / products.length;
-  }, [products]);
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))];
 
@@ -518,36 +508,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
       )}
 
-      {/* Cards de Métricas do Catálogo */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total de Produtos</span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-xl font-bold text-slate-900 font-mono">{products.length}</span>
-            <span className="text-xs text-slate-500 font-medium">itens cadastrados</span>
-          </div>
-          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">Base ativa disponível para propostas</span>
-        </div>
 
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Categorias Ativas</span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-xl font-bold text-slate-900 font-mono">{activeCategoriesCount}</span>
-            <span className="text-xs text-slate-500 font-medium">segmentos</span>
-          </div>
-          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">Hardware, Periféricos, Redes e Suprimentos</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Custo Médio dos Itens</span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-xl font-bold text-slate-900 font-mono">
-              R$ {avgCostPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          </div>
-          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">Valor médio ponderado de custo de aquisição</span>
-        </div>
-      </div>
 
       {/* Barra de Busca e Filtro de Categoria em Dropdown */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
