@@ -11,7 +11,10 @@ import {
   Calculator,
   ExternalLink,
   Save,
-  Check
+  Check,
+  Sparkles,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import { Product } from '../types';
 import {
@@ -30,6 +33,7 @@ import { validateNcm, formatNcm } from '../utils/ncmValidator';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { WebImagePickerModal } from './WebImagePickerModal';
 import { getSettings } from '../utils/storage';
+import { fetchProductSpecsOnline } from '../services/specSearchService';
 
 export interface ProductEditModalProps {
   isOpen: boolean;
@@ -148,6 +152,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [isCaseMenuOpen, setIsCaseMenuOpen] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
   const [isWebImagePickerOpen, setIsWebImagePickerOpen] = useState(false);
+  const [isSearchingSpecs, setIsSearchingSpecs] = useState(false);
+  const [specsMessage, setSpecsMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -418,6 +424,48 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       e.preventDefault();
       e.stopPropagation();
       setDraft(prev => ({ ...prev, imageUrl: dataUrl }));
+    }
+  };
+
+  const handleSearchSpecificationsOnline = async () => {
+    const productName = (draft.name || '').trim();
+    if (!productName) {
+      alert('Por favor, informe ao menos o Nome Padronizado do produto antes de buscar as especificações na web.');
+      return;
+    }
+
+    setIsSearchingSpecs(true);
+    setSpecsMessage(null);
+    try {
+      const result = await fetchProductSpecsOnline({
+        productName,
+        brand: draft.supplier,
+        partNumber: draft.partNumber || draft.sku,
+        category: draft.category
+      });
+
+      setDraft(prev => ({
+        ...prev,
+        description: result.description || prev.description,
+        ncm: prev.ncm || result.ncm || '',
+        partNumber: prev.partNumber || result.partNumber || '',
+        sku: prev.sku || result.partNumber || prev.sku || ''
+      }));
+
+      setSpecsMessage({
+        text: 'Especificações técnicas localizadas na internet e aplicadas com sucesso!',
+        type: 'success'
+      });
+      setTimeout(() => setSpecsMessage(null), 4000);
+    } catch (err: any) {
+      console.warn('Erro ao buscar especificações técnicas na web:', err);
+      setSpecsMessage({
+        text: err?.message || 'Não foi possível encontrar especificações na web neste momento.',
+        type: 'error'
+      });
+      setTimeout(() => setSpecsMessage(null), 5000);
+    } finally {
+      setIsSearchingSpecs(false);
     }
   };
 
@@ -710,9 +758,46 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* Especificações Técnicas */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Especificações Técnicas
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    Especificações Técnicas
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleSearchSpecificationsOnline}
+                    disabled={isSearchingSpecs || !draft.name?.trim()}
+                    title="Pesquisar especificações técnicas oficiais na internet a partir do nome do produto"
+                    className="px-2 py-0.5 rounded text-[9.5px] font-semibold bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 shadow-2xs flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                  >
+                    {isSearchingSpecs ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin text-sky-600" />
+                        <span>Buscando na Web...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-sky-600" />
+                        <span>Buscar Especificações</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {specsMessage && (
+                  <div className={`mb-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold flex items-center gap-1.5 animate-fadeIn ${
+                    specsMessage.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                  }`}>
+                    {specsMessage.type === 'success' ? (
+                      <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                    )}
+                    <span>{specsMessage.text}</span>
+                  </div>
+                )}
+
                 <textarea
                   rows={5}
                   value={draft.description || ''}
