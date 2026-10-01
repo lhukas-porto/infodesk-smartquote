@@ -901,7 +901,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Pesquise produtos pela descrição ou pela foto e insira diretamente na sua cotação.
+              Pesquise produtos pela descrição ou foto e insira diretamente na sua cotação.
             </p>
           </div>
         </div>
@@ -929,10 +929,10 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
         <div className="flex items-center justify-between">
           <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
             <ListChecks className="w-4 h-4 text-sky-600" />
-            <span>Cole seus Produtos (texto, especificações ou cole um print com CTRL+V):</span>
+            <span>Cole aqui seus itens (texto, especificações ou um print):</span>
           </label>
           <span className="text-xs text-slate-500 font-medium">
-            {batchRawInput ? `${parsePastedProductList(batchRawInput).length} produto(s) identificado(s)` : 'Cole 1 item ou vários (1 por linha)'}
+            {batchRawInput ? `${parsePastedProductList(batchRawInput).length} item(s) identificado(s)` : 'Cole aqui um ou vários itens'}
           </span>
         </div>
 
@@ -1055,7 +1055,6 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
             value={batchRawInput}
             onChange={(e) => setBatchRawInput(e.target.value)}
             onPaste={handleBatchAreaPaste}
-            placeholder="Digite ou cole aqui as descrições dos produtos ou números de peça (SKU/PN) que deseja pesquisar. Você também pode colar imagens ou prints diretamente nesta área — o sistema extrairá os produtos automaticamente."
             className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-4 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono leading-relaxed resize-y"
           />
 
@@ -1102,7 +1101,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               <span>
                 {attachedProductPhotos.length > 0
                   ? `+ Anexar Mais Fotos (${attachedProductPhotos.length})`
-                  : 'Anexar Fotos dos Produtos (Prioridade)'}
+                  : 'Anexar Fotos'}
               </span>
             </button>
 
@@ -1114,7 +1113,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               title="Carregue uma imagem ou print de pedido para transcrever automaticamente"
             >
               <Camera className="w-4 h-4 text-slate-500" />
-              <span>{isOcrProcessing ? 'Transcrevendo...' : 'Ler Pedido OCR'}</span>
+              <span>{isOcrProcessing ? 'Transcrevendo...' : 'Fazer OCR'}</span>
             </button>
 
             {(batchRawInput || attachedProductPhotos.length > 0 || discoveredProducts.length > 0 || batchResults.length > 0) && (

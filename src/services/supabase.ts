@@ -874,62 +874,87 @@ export async function deleteIncomingEmailFromSupabase(emailId: string): Promise<
 export async function fetchRegisteredMetadataFromSupabase(): Promise<{ categories: string[]; units: string[] } | null> {
   if (!supabase) return null;
   try {
-    const categoriesSet = new Set<string>();
-    const unitsSet = new Set<string>();
+    let categories: string[] = [];
+    let units: string[] = [];
 
-    // 1. Tentar ler de company_settings (fonte canônica da verdade gerenciada pelo usuário)
+    // 1. Tentar ler prioritariamente das novas tabelas normalizadas (product_categories e measurement_units)
     try {
-      const { data: settingsData } = await supabase
-        .from('company_settings')
-        .select('registered_categories, registered_units')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: catData, error: catError } = await supabase
+        .from('product_categories')
+        .select('name')
+        .order('display_order', { ascending: true });
 
-      if (settingsData) {
-        const hasCategories = Array.isArray(settingsData.registered_categories) && settingsData.registered_categories.length > 0;
-        const hasUnits = Array.isArray(settingsData.registered_units) && settingsData.registered_units.length > 0;
-
-        if (hasCategories || hasUnits) {
-          const categories = hasCategories
-            ? Array.from(new Set((settingsData.registered_categories as string[]).map(c => c?.trim()).filter(Boolean)))
-            : [];
-          const units = hasUnits
-            ? Array.from(new Set((settingsData.registered_units as string[]).map(u => u?.trim()).filter(Boolean)))
-            : [];
-
-          return { categories, units };
-        }
+      if (!catError && Array.isArray(catData) && catData.length > 0) {
+        categories = catData.map(c => c.name).filter(Boolean);
       }
     } catch {
-      // Colunas podem não existir ainda no banco físico; segue graciosamente para bootstrap inicial
+      // Tabela normalizada pode não estar disponível
     }
 
-    // 2. Fallback de bootstrap inicial apenas se company_settings estiver completamente vazio
     try {
-      const { data: productsData } = await supabase
-        .from('products')
-        .select('category, unit')
-        .limit(50);
+      const { data: unitData, error: unitError } = await supabase
+        .from('measurement_units')
+        .select('name')
+        .order('display_order', { ascending: true });
 
-      if (Array.isArray(productsData)) {
-        productsData.forEach((p: any) => {
-          if (p.category && typeof p.category === 'string' && p.category.trim()) {
-            categoriesSet.add(p.category.trim());
-          }
-          if (p.unit && typeof p.unit === 'string' && p.unit.trim()) {
-            unitsSet.add(p.unit.trim());
-          }
-        });
+      if (!unitError && Array.isArray(unitData) && unitData.length > 0) {
+        units = unitData.map(u => u.name).filter(Boolean);
       }
-    } catch (e) {
-      console.warn('Aviso no fallback inicial de categorias/unidades no Supabase:', e);
+    } catch {
+      // Tabela normalizada pode não estar disponível
     }
 
-    return {
-      categories: Array.from(categoriesSet),
-      units: Array.from(unitsSet)
-    };
+    // 2. Se as novas tabelas estiverem vazias, fallback para company_settings
+    if (categories.length === 0 || units.length === 0) {
+      try {
+        const { data: settingsData } = await supabase
+          .from('company_settings')
+          .select('registered_categories, registered_units')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (settingsData) {
+          if (categories.length === 0 && Array.isArray(settingsData.registered_categories) && settingsData.registered_categories.length > 0) {
+            categories = Array.from(new Set((settingsData.registered_categories as string[]).map(c => c?.trim()).filter(Boolean)));
+          }
+          if (units.length === 0 && Array.isArray(settingsData.registered_units) && settingsData.registered_units.length > 0) {
+            units = Array.from(new Set((settingsData.registered_units as string[]).map(u => u?.trim()).filter(Boolean)));
+          }
+        }
+      } catch {
+        // Fallback gracioso
+      }
+    }
+
+    // 3. Fallback de bootstrap inicial se ainda estiver vazio
+    if (categories.length === 0 || units.length === 0) {
+      const categoriesSet = new Set<string>(categories);
+      const unitsSet = new Set<string>(units);
+      try {
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('category, unit')
+          .limit(50);
+
+        if (Array.isArray(productsData)) {
+          productsData.forEach((p: any) => {
+            if (p.category && typeof p.category === 'string' && p.category.trim()) {
+              categoriesSet.add(p.category.trim());
+            }
+            if (p.unit && typeof p.unit === 'string' && p.unit.trim()) {
+              unitsSet.add(p.unit.trim());
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Aviso no fallback inicial de categorias/unidades no Supabase:', e);
+      }
+      categories = Array.from(categoriesSet);
+      units = Array.from(unitsSet);
+    }
+
+    return { categories, units };
   } catch (err) {
     console.warn('Erro ao consultar metadados de categorias/unidades no Supabase:', err);
     return null;
@@ -942,7 +967,34 @@ export async function syncRegisteredMetadataToSupabase(categories: string[], uni
     const cleanCats = Array.from(new Set(categories.map(c => c.trim()).filter(Boolean)));
     const cleanUnits = Array.from(new Set(units.map(u => u.trim()).filter(Boolean)));
 
-    // Buscar o ID de company_settings existente
+    // 1. Grava nas tabelas normalizadas product_categories e measurement_units
+    try {
+      if (cleanCats.length > 0) {
+        const catRecords = cleanCats.map((cat, idx) => ({
+          id: `cat-${cat.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          name: cat,
+          display_order: idx + 1,
+          is_official: true,
+          updated_at: new Date().toISOString()
+        }));
+        await supabase.from('product_categories').upsert(catRecords, { onConflict: 'name' });
+      }
+
+      if (cleanUnits.length > 0) {
+        const unitRecords = cleanUnits.map((u, idx) => ({
+          id: `unit-${u.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          name: u,
+          symbol: u,
+          display_order: idx + 1,
+          updated_at: new Date().toISOString()
+        }));
+        await supabase.from('measurement_units').upsert(unitRecords, { onConflict: 'name' });
+      }
+    } catch (normErr) {
+      console.warn('Aviso ao sincronizar tabelas normalizadas de metadados:', normErr);
+    }
+
+    // 2. Grava também no company_settings para compatibilidade retroativa
     const { data: existing } = await supabase
       .from('company_settings')
       .select('id')
@@ -951,7 +1003,7 @@ export async function syncRegisteredMetadataToSupabase(categories: string[], uni
       .maybeSingle();
 
     if (existing?.id) {
-      const { error } = await supabase
+      await supabase
         .from('company_settings')
         .update({
           registered_categories: cleanCats,
@@ -959,10 +1011,6 @@ export async function syncRegisteredMetadataToSupabase(categories: string[], uni
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id);
-
-      if (error) {
-        console.warn('Aviso ao sincronizar categorias/unidades no Supabase (colunas registradas requerem execução do schema.sql):', error.message);
-      }
     }
   } catch (err) {
     console.warn('Erro silencioso ao sincronizar metadados no Supabase:', err);

@@ -49,6 +49,7 @@ import {
   getProducts
 } from '../utils/storage';
 import { normalizeSearchText } from '../utils/aiEmailParser';
+import { fetchDirectPurchasesFromSupabase } from '../services/supabase';
 
 interface ProcurementViewProps {
   quotes: Quote[];
@@ -156,6 +157,21 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     };
     window.addEventListener('infodesk_metadata_changed', handleMetaChanged);
     window.addEventListener('infodesk_direct_purchases_changed', handleDirectPurchasesChanged);
+
+    // Carrega compras diretas da nuvem ao abrir a Central de Compras
+    fetchDirectPurchasesFromSupabase().then(remoteItems => {
+      if (remoteItems && remoteItems.length > 0) {
+        setDirectPurchases(prev => {
+          const map = new Map<string, ProcurementItem>();
+          remoteItems.forEach(i => map.set(i.id, i));
+          prev.forEach(i => {
+            if (!map.has(i.id)) map.set(i.id, i);
+          });
+          return Array.from(map.values());
+        });
+      }
+    }).catch(() => {});
+
     return () => {
       window.removeEventListener('infodesk_metadata_changed', handleMetaChanged);
       window.removeEventListener('infodesk_direct_purchases_changed', handleDirectPurchasesChanged);

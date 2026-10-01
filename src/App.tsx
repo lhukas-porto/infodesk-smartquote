@@ -56,7 +56,11 @@ import {
   getDeletedContactIds,
   recordDeletedContactId,
   getDeletedCompanyIds,
-  recordDeletedCompanyId
+  recordDeletedCompanyId,
+  getRegisteredPaymentMethods,
+  saveRegisteredPaymentMethodsList,
+  getDirectPurchases,
+  saveDirectPurchases
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -65,7 +69,7 @@ import {
   requestGmailAccessToken, 
   fetchRealGmailMessages, 
   sendRealGmailMessage, 
-  disconnectGmailAccount,
+  disconnectGmailAccount, 
   EmailPeriodFilter 
 } from './services/gmailService';
 import { 
@@ -104,7 +108,11 @@ import {
   syncIncomingEmailsToSupabase,
   deleteIncomingEmailFromSupabase,
   fetchRegisteredMetadataFromSupabase,
-  syncRegisteredMetadataToSupabase
+  syncRegisteredMetadataToSupabase,
+  fetchPaymentMethodsFromSupabase,
+  syncPaymentMethodsToSupabase,
+  fetchDirectPurchasesFromSupabase,
+  syncDirectPurchasesToSupabase
 } from './services/supabase';
 import { 
   calculateCommercialUnitPrice, 
@@ -377,6 +385,42 @@ export const App: React.FC = () => {
           if (remoteMeta.units && remoteMeta.units.length > 0) {
             saveRegisteredUnitsList(remoteMeta.units);
           }
+        }
+
+        // Sincronização e unificação de Formas de Pagamento com Supabase
+        try {
+          const remoteMethods = await fetchPaymentMethodsFromSupabase();
+          if (remoteMethods && remoteMethods.length > 0) {
+            saveRegisteredPaymentMethodsList(remoteMethods);
+          } else {
+            const localMethods = getRegisteredPaymentMethods();
+            if (localMethods && localMethods.length > 0) {
+              syncPaymentMethodsToSupabase(localMethods).catch(() => {});
+            }
+          }
+        } catch (err) {
+          console.warn('Aviso ao sincronizar formas de pagamento na inicialização:', err);
+        }
+
+        // Sincronização e unificação de Compras Avulsas / Diretas com Supabase
+        try {
+          const remoteDirectPurchases = await fetchDirectPurchasesFromSupabase();
+          const localDirectPurchases = getDirectPurchases();
+          if (remoteDirectPurchases && remoteDirectPurchases.length > 0) {
+            const map = new Map<string, typeof remoteDirectPurchases[0]>();
+            remoteDirectPurchases.forEach(item => map.set(item.id, item));
+            localDirectPurchases.forEach(item => {
+              if (!map.has(item.id)) {
+                map.set(item.id, item);
+                syncDirectPurchasesToSupabase([item]).catch(() => {});
+              }
+            });
+            saveDirectPurchases(Array.from(map.values()));
+          } else if (localDirectPurchases.length > 0) {
+            syncDirectPurchasesToSupabase(localDirectPurchases).catch(() => {});
+          }
+        } catch (err) {
+          console.warn('Aviso ao sincronizar compras diretas na inicialização:', err);
         }
 
         // 2. Orçamentos
