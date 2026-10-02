@@ -14,14 +14,16 @@ import {
   updateDraftQuotesToToday 
 } from './utils/dateUtils';
 
-// Code-Splitting dinâmico com React.lazy para reduzir o bundle inicial do app
-const CatalogView = React.lazy(() => import('./components/CatalogView').then(m => ({ default: m.CatalogView })));
-const SentHistoryView = React.lazy(() => import('./components/SentHistoryView').then(m => ({ default: m.SentHistoryView })));
-const PriceScannerView = React.lazy(() => import('./components/PriceScannerView').then(m => ({ default: m.PriceScannerView })));
-const ClientManagementView = React.lazy(() => import('./components/ClientManagementView').then(m => ({ default: m.ClientManagementView })));
-const ManualAnalysesView = React.lazy(() => import('./components/ManualAnalysesView').then(m => ({ default: m.ManualAnalysesView })));
-const ProcurementView = React.lazy(() => import('./components/ProcurementView').then(m => ({ default: m.ProcurementView })));
-const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+import { lazyWithRetry } from './utils/lazyWithRetry';
+
+// Code-Splitting dinâmico com lazyWithRetry para tolerância contra atualizações de versão (deploys)
+const CatalogView = lazyWithRetry(() => import('./components/CatalogView').then(m => ({ default: m.CatalogView })));
+const SentHistoryView = lazyWithRetry(() => import('./components/SentHistoryView').then(m => ({ default: m.SentHistoryView })));
+const PriceScannerView = lazyWithRetry(() => import('./components/PriceScannerView').then(m => ({ default: m.PriceScannerView })));
+const ClientManagementView = lazyWithRetry(() => import('./components/ClientManagementView').then(m => ({ default: m.ClientManagementView })));
+const ManualAnalysesView = lazyWithRetry(() => import('./components/ManualAnalysesView').then(m => ({ default: m.ManualAnalysesView })));
+const ProcurementView = lazyWithRetry(() => import('./components/ProcurementView').then(m => ({ default: m.ProcurementView })));
+const DashboardView = lazyWithRetry(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
 
 const TabLoadingFallback: React.FC = () => (
   <div className="flex flex-col items-center justify-center min-h-[45vh] p-8 text-center animate-in fade-in duration-150">
