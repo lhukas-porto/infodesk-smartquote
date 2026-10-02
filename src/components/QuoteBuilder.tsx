@@ -102,6 +102,7 @@ import { recalculateQuoteTotals, calculateMarkupFromUnitPrice } from '../service
 import { MultiSupplierMatrixModal } from './MultiSupplierMatrixModal';
 import { ItemSupplierScanModal } from './ItemSupplierScanModal';
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
+import { reportError } from '../services/errorReporter';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -1131,7 +1132,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     try {
       await exportCostSheetToExcel(currentQuote);
     } catch (err) {
-      console.error('Erro ao exportar planilha de custos para Excel:', err);
+      reportError('Falha ao Exportar Planilha Excel', err, 'QuoteBuilder - Exportação de Planilha de Custos');
     }
   };
 

@@ -51,6 +51,7 @@ import {
   CachedPriceOffer 
 } from '../services/priceCacheService';
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
+import { reportError } from '../services/errorReporter';
 
 export interface CatalogMatchInfo {
   product: Product;
@@ -719,8 +720,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
         );
       }
     } catch (err) {
-      console.error('Erro na Fase 1 (Dedução de Produtos):', err);
-      alert('Não foi possível identificar os produtos. Verifique o texto/fotos e tente novamente.');
+      reportError('Falha ao Identificar Produtos via IA', err, 'Price Scanner - Fase 1 (Dedução)');
     } finally {
       if (stepTimer) clearInterval(stepTimer);
       setIsDiscoveringPhase1(false);
@@ -756,7 +756,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
       setSelectedResultIds(initialSelected);
       showToast(`Preços apurados para ${results.length} item(ns)!`);
     } catch (err) {
-      console.error('Erro na Fase 2 (Enriquecimento e Preços):', err);
+      reportError('Falha ao Apurar Preços dos Produtos', err, 'Price Scanner - Fase 2 (Enriquecimento e Fornecedores)');
     } finally {
       setIsScanningBatch(false);
     }
@@ -1163,8 +1163,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
         alert('Não foi possível identificar produtos na imagem. Tente uma foto mais nítida.');
       }
     } catch (err) {
-      console.error('Erro na extração visual:', err);
-      alert('Não foi possível ler a imagem. Tente novamente.');
+      reportError('Falha no Processamento OCR do Print/Imagem', err, 'Price Scanner - Leitura Visual');
     } finally {
       setIsOcrProcessing(false);
       setOcrProgressMessage('');

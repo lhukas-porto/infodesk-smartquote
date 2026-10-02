@@ -67,3 +67,29 @@ Todo e qualquer produto novo cadastrado, importado ou descoberto por IA/NCM deve
 
 **PROIBIDO**: Criar categorias fragmentadas (ex: "Armazenamento & SSDs", "Periféricos & Cabos", "Refrigeração, Geladeiras & Frigobares", "Ferramentas Elétricas"). Use sempre os macro-departamentos oficiais acima.
 
+---
+
+## 🚨 DIRETRIZ DE TOLERÂNCIA ZERO A ERROS SILENCIOSOS (REGRA DO LUCAS)
+
+**ORIGEM & OBJETIVO**: Nas palavras do Lucas: *"Tudo o que a gente fizer modificação e tiver um erro silencioso, esse erro passe a não ser mais silencioso, que ele seja mostrado na tela porque aí eu consigo dar um feedback melhor para você e a gente já mata na mosca o que precisa resolver."*
+
+### Regras Mandatórias para Todos os Agentes (Shiva, Hades, Atlas, Ravena, Kerberos):
+1. **PROIBIDO ENGOLIR ERROS**:
+   - É terminantemente proibido capturar uma exceção com `catch (err) { console.error(err); }` ou não fazer nada.
+   - NUNCA assumir falhas silenciosas em chamadas de API (Gemini, Supabase, OCR, WebSearch), manipulação de dados ou parsing de arquivos.
+
+2. **EXIBIÇÃO VISUAL OBRIGATÓRIA NA UI**:
+   - Todo erro ou falha que afete o fluxo do usuário DEVE ser exibido na tela usando o serviço oficial `reportError(titulo, erro, contexto)` (ou componente visual destacado).
+   - O alerta na tela deve conter:
+     - Título claro da operação que falhou.
+     - Mensagem compreensível do erro.
+     - Detalhes técnicos acessíveis (código HTTP, mensagem da API, stack).
+     - Botão funcional de **"Copiar Erro para Resolver"**, permitindo que o Lucas copie em 1 clique e envie no chat.
+
+3. **CAPTURA GLOBAL ATIVA**:
+   - O sistema possui ouvintes globais em `src/services/errorReporter.ts` e renderiza através de `src/components/GlobalErrorToaster.tsx`. Mesmo erros assíncronos não tratados (Unhandled Rejections) e exceções de runtime disparam o toast visual na tela.
+
+4. **FEEDBACK & "MATAR NA MOSCA"**:
+   - Sempre que o Lucas reportar uma mensagem ou colar o log copiado do toast de erro, os agentes devem analisar a causa raiz imediatamente (RCA), sem desculpas nem rodeios, e implementar o fix definitivo no primeiro ciclo de correção.
+
+
