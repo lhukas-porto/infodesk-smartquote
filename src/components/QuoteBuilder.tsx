@@ -2354,22 +2354,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center justify-between">
-              <span className="flex items-center gap-1">
-                <Tag className="w-3.5 h-3.5 text-amber-600" />
-                <span>Nº Ordem de Compra (OC / AF)</span>
-              </span>
-              <span className="text-[10px] text-slate-400 font-normal">Opcional</span>
-            </label>
-            <input
-              type="text"
-              value={currentQuote.clientOrderNumber || ''}
-              onChange={(e) => setCurrentQuote(prev => ({ ...prev, clientOrderNumber: e.target.value }))}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 font-mono font-bold text-amber-900"
-            />
-          </div>
-
-          <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Data de Emissão</label>
             <input
               type="text"
@@ -4505,7 +4489,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   title="Iniciar um novo orçamento em branco"
                 >
                   <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Novo Orçamento</span>
+                  <span>Novo</span>
                 </button>
               )}
 
@@ -4527,7 +4511,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   title="Cria uma nova cotação independente com código exclusivo sem sobrescrever a original"
                 >
                   <Copy className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Salvar como Nova Cotação</span>
+                  <span>Salvar como</span>
                 </button>
               )}
 
@@ -4570,7 +4554,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
               >
                 <Eye className="w-4 h-4" />
-                <span>Visualizar & Emitir Proposta</span>
+                <span>Enviar</span>
               </button>
             </div>
 
@@ -4679,7 +4663,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         className="w-full px-3 py-2 text-left text-xs font-semibold text-sky-700 hover:bg-sky-50 flex items-center gap-2 transition border-t border-slate-100"
                       >
                         <PlusCircle className="w-4 h-4 text-sky-600" />
-                        <span>Novo Orçamento</span>
+                        <span>Novo</span>
                       </button>
                     )}
                   </div>
