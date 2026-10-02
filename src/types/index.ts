@@ -64,11 +64,13 @@ export interface QuoteItem {
   purchasedAt?: string;
   purchaseNotes?: string;
   actualTaxPercent?: number;
+  clientOrderNumber?: string; // Número da Ordem de Compra / Pedido do Cliente / AF
 }
 
 export interface Quote {
   id: string;
   code: string;
+  clientOrderNumber?: string; // Número da Ordem de Compra / Pedido do Cliente / AF
   clientCompany: string;
   contactPerson: string;
   clientEmail: string;
@@ -113,6 +115,7 @@ export interface ProcurementItem {
   id: string; // unique item id
   quoteId: string;
   quoteCode: string;
+  clientOrderNumber?: string; // Número da Ordem de Compra do Cliente
   clientCompany: string;
   contactPerson?: string;
   approvedAt?: string;

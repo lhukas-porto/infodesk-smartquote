@@ -172,18 +172,20 @@ export const GlobalCommandBarModal: React.FC<GlobalCommandBarModalProps> = ({
     // 1. Propostas Comerciais
     quotes.forEach(quote => {
       const matchCode = (quote.code || '').toLowerCase().includes(q);
+      const matchOrder = (quote.clientOrderNumber || '').toLowerCase().includes(q);
       const matchClient = (quote.clientCompany || '').toLowerCase().includes(q);
       const matchContact = (quote.contactPerson || '').toLowerCase().includes(q);
       const matchItems = (quote.items || []).some(it => (it.name || '').toLowerCase().includes(q));
 
-      if (matchCode || matchClient || matchContact || matchItems) {
+      if (matchCode || matchOrder || matchClient || matchContact || matchItems) {
         const total = (quote.items || []).reduce((acc, it) => acc + (it.totalPrice || 0), 0);
+        const ocBadge = quote.clientOrderNumber ? ` • OC: ${quote.clientOrderNumber}` : '';
         items.push({
           id: `quote-${quote.id}`,
           type: 'quote',
-          title: `${quote.code || 'Proposta'} • ${quote.clientCompany || 'Cliente sem nome'}`,
+          title: `${quote.code || 'Proposta'} • ${quote.clientCompany || 'Cliente sem nome'}${ocBadge}`,
           subtitle: `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} • ${quote.contactPerson ? `${quote.contactPerson} • ` : ''}${quote.items?.length || 0} item(ns)`,
-          badge: 'Proposta',
+          badge: quote.clientOrderNumber ? 'Proposta / OC' : 'Proposta',
           icon: <FileText className="w-4 h-4 text-sky-600" />,
           action: () => {
             onSelectQuote(quote);

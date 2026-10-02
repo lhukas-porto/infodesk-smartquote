@@ -135,6 +135,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     quantity: 1,
     unit: 'un',
     clientCompany: 'Infodesk (Uso Interno / Estoque)',
+    clientOrderNumber: '',
     supplier: '',
     costPrice: 0,
     sourceUrl: '',
@@ -261,6 +262,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             id: `${quote.id}_${item.id}`,
             quoteId: quote.id,
             quoteCode: quote.code || 'PROPOSTA',
+            clientOrderNumber: quote.clientOrderNumber || item.clientOrderNumber,
             clientCompany: quote.clientCompany || 'Cliente sem nome',
             contactPerson: quote.contactPerson,
             approvedAt: quote.approvedAt || quote.date,
@@ -484,13 +486,14 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         const matchName = (item.name || '').toLowerCase().includes(query);
         const matchClient = (item.clientCompany || '').toLowerCase().includes(query);
         const matchCode = (item.quoteCode || '').toLowerCase().includes(query);
+        const matchOrder = (item.clientOrderNumber || '').toLowerCase().includes(query);
         const matchSupplier = (item.supplier || '').toLowerCase().includes(query);
         const matchPart = (item.partNumber || '').toLowerCase().includes(query);
         const matchNcm = (item.ncm || '').toLowerCase().includes(query);
         const matchNotes = (item.purchaseNotes || '').toLowerCase().includes(query);
         const matchPayment = (item.paymentMethod || '').toLowerCase().includes(query);
 
-        if (!matchName && !matchClient && !matchCode && !matchSupplier && !matchPart && !matchNcm && !matchNotes && !matchPayment) {
+        if (!matchName && !matchClient && !matchCode && !matchOrder && !matchSupplier && !matchPart && !matchNcm && !matchNotes && !matchPayment) {
           return false;
         }
       }
@@ -529,6 +532,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     const groups: {
       quoteId: string;
       quoteCode: string;
+      clientOrderNumber?: string;
       clientCompany: string;
       contactPerson?: string;
       approvedAt?: string;
@@ -549,6 +553,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         g = {
           quoteId: item.quoteId,
           quoteCode: item.quoteCode,
+          clientOrderNumber: item.clientOrderNumber,
           clientCompany: item.clientCompany,
           contactPerson: item.contactPerson,
           approvedAt: item.approvedAt,
@@ -562,6 +567,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         };
         map.set(item.quoteId, g);
         groups.push(g);
+      } else if (!g.clientOrderNumber && item.clientOrderNumber) {
+        g.clientOrderNumber = item.clientOrderNumber;
       }
 
       g.items.push(item);
@@ -948,6 +955,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       quantity: prefill?.quantity || 1,
       unit: matchingProduct?.unit || prefill?.unit || 'un',
       clientCompany: prefill?.clientCompany || 'Infodesk (Uso Interno / Estoque)',
+      clientOrderNumber: prefill?.clientOrderNumber || '',
       supplier: matchingProduct?.supplier || prefill?.supplier || '',
       costPrice: matchingProduct?.costPrice || prefill?.costPrice || 0,
       sourceUrl: matchingProduct?.sourceUrl || prefill?.sourceUrl || '',
@@ -978,6 +986,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       id,
       quoteId: 'direct_purchases',
       quoteCode: 'COMPRA DIRETA',
+      clientOrderNumber: directPurchaseForm.clientOrderNumber.trim() || undefined,
       clientCompany: directPurchaseForm.clientCompany.trim() || 'Infodesk (Uso Interno / Estoque)',
       itemId: id,
       productId: selectedStockProduct.id,
@@ -1046,8 +1055,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     const dateStr = new Date().toLocaleDateString('pt-BR');
     const itemsLines = group.items.map((it, idx) => {
       const skuStr = it.partNumber ? ` (Cód/SKU: ${it.partNumber})` : '';
+      const ocStr = it.clientOrderNumber ? ` [OC: ${it.clientOrderNumber}]` : '';
       const unitCost = it.quotedCostPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return `${idx + 1}. *${it.name}*${skuStr}\n   • Qtd: *${it.quantity} ${it.unit || 'un'}* | Ref: R$ ${unitCost}`;
+      return `${idx + 1}. *${it.name}*${skuStr}${ocStr}\n   • Qtd: *${it.quantity} ${it.unit || 'un'}* | Ref: R$ ${unitCost}`;
     }).join('\n\n');
 
     const totalStr = group.totalEstimatedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1079,8 +1089,9 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
     const dateStr = new Date().toLocaleDateString('pt-BR');
     const itemsLines = group.items.map((it, idx) => {
       const skuStr = it.partNumber ? ` (Cód/SKU: ${it.partNumber})` : '';
+      const ocStr = it.clientOrderNumber ? ` [OC: ${it.clientOrderNumber}]` : '';
       const unitCost = it.quotedCostPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return `${idx + 1}. *${it.name}*${skuStr}\n   • Qtd: *${it.quantity} ${it.unit || 'un'}* | Ref: R$ ${unitCost}`;
+      return `${idx + 1}. *${it.name}*${skuStr}${ocStr}\n   • Qtd: *${it.quantity} ${it.unit || 'un'}* | Ref: R$ ${unitCost}`;
     }).join('\n\n');
 
     const totalStr = group.totalEstimatedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1703,6 +1714,12 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       }`}>
                         {group.quoteCode}
                       </span>
+                      {group.clientOrderNumber && (
+                        <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-lg border bg-amber-50 text-amber-900 border-amber-300 flex items-center gap-1 shadow-2xs">
+                          <Tag className="w-3 h-3 text-amber-600" />
+                          <span>OC: {group.clientOrderNumber}</span>
+                        </span>
+                      )}
                       <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-slate-500" />
                         {group.clientCompany}
@@ -2451,11 +2468,11 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 </div>
               </div>
 
-              {/* Cliente / Destino e Fornecedor */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Cliente / Destino, Nº OC e Fornecedor */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">
-                    Cliente / Destino da Compra
+                    Cliente / Destino
                   </label>
                   <select
                     value={directPurchaseForm.clientCompany}
@@ -2470,12 +2487,26 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 </div>
 
                 <div>
+                  <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                    <span>Nº OC / AF</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Opcional</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: OC 48290..."
+                    value={directPurchaseForm.clientOrderNumber}
+                    onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, clientOrderNumber: e.target.value })}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-amber-900"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-slate-700 font-semibold mb-1">
                     Fornecedor / Loja
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: Amazon, Mercado Livre, Kabum..."
+                    placeholder="Ex: Amazon, Kabum..."
                     value={directPurchaseForm.supplier}
                     onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, supplier: e.target.value })}
                     className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900"
@@ -2696,6 +2727,17 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   >
                     {item.quoteCode}
                   </button>
+                )}
+
+                {/* Tag de Ordem de Compra do Cliente (se informada) */}
+                {item.clientOrderNumber && (
+                  <span 
+                    className="text-[11px] font-mono font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1 shadow-2xs"
+                    title={`Ordem de Compra / Pedido do Cliente: ${item.clientOrderNumber}`}
+                  >
+                    <Tag className="w-3 h-3 text-amber-600" />
+                    <span>OC: {item.clientOrderNumber}</span>
+                  </span>
                 )}
 
                 {/* Status de Compra */}

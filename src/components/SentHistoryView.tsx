@@ -27,7 +27,8 @@ import {
   CalendarDays,
   Copy,
   PackageCheck,
-  ShoppingCart
+  ShoppingCart,
+  Tag
 } from 'lucide-react';
 import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
@@ -367,6 +368,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
           const comp = normalizeSearchText(q.clientCompany);
           const contact = normalizeSearchText(q.contactPerson);
           const code = normalizeSearchText(q.code);
+          const order = normalizeSearchText(q.clientOrderNumber);
           const subject = normalizeSearchText(q.subject);
 
           const itemMatch = Array.isArray(q.items) && q.items.some(it => {
@@ -384,7 +386,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
             );
           });
 
-          return comp.includes(term) || contact.includes(term) || code.includes(term) || subject.includes(term) || itemMatch;
+          return comp.includes(term) || contact.includes(term) || code.includes(term) || order.includes(term) || subject.includes(term) || itemMatch;
         }
         return true;
       })
@@ -774,6 +776,15 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                           <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
                             {q.code || 'PROPOSTA'}
                           </span>
+                          {q.clientOrderNumber && (
+                            <span 
+                              className="font-mono text-xs font-bold text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-300 flex items-center gap-1 shadow-2xs"
+                              title="Ordem de Compra / Pedido do Cliente"
+                            >
+                              <Tag className="w-3 h-3 text-amber-600" />
+                              <span>OC: {q.clientOrderNumber}</span>
+                            </span>
+                          )}
                           <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-slate-400 shrink-0" />

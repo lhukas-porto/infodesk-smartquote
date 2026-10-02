@@ -7,7 +7,8 @@ import {
   AlertCircle,
   PackageCheck,
   Calendar,
-  Sparkles
+  Sparkles,
+  Tag
 } from 'lucide-react';
 import { Quote, QuoteItem } from '../types';
 
@@ -49,6 +50,8 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
     return `${y}-${m}-${d}`;
   });
 
+  const [clientOrderNumber, setClientOrderNumber] = useState<string>(quote.clientOrderNumber || '');
+
   // Atualiza estado se a proposta mudar
   React.useEffect(() => {
     const initialState: Record<string, ItemApprovalState> = {};
@@ -59,6 +62,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
       };
     });
     setItemsState(initialState);
+    setClientOrderNumber(quote.clientOrderNumber || '');
   }, [quote]);
 
   // Totais e Métricas Dinâmicas
@@ -132,6 +136,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
   };
 
   const handleConfirm = () => {
+    const oc = clientOrderNumber.trim() || undefined;
     // Monta os itens atualizados com status de aprovação e envio para esteira de compras
     const updatedItems: QuoteItem[] = (quote.items || []).map(item => {
       const state = itemsState[item.id] || { approved: false, approvedQuantity: item.quantity };
@@ -139,6 +144,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
         ...item,
         approved: state.approved,
         approvedQuantity: state.approved ? state.approvedQuantity : 0,
+        clientOrderNumber: oc || item.clientOrderNumber,
         // Itens aprovados entram com status de compra 'pending' caso ainda não tenham sido comprados
         purchaseStatus: state.approved 
           ? (item.purchaseStatus || 'pending') 
@@ -149,6 +155,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
     const updatedQuote: Quote = {
       ...quote,
       status: 'approved',
+      clientOrderNumber: oc,
       items: updatedItems,
       approvedTotalAmount: metrics.approvedAmount,
       approvedAt: approvalDate
@@ -275,17 +282,34 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              Data Fechamento:
-            </span>
-            <input
-              type="date"
-              value={approvalDate}
-              onChange={(e) => setApprovalDate(e.target.value)}
-              className="bg-white border border-slate-200 px-2.5 py-1 rounded-xl text-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-xs font-mono"
-            />
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                <Tag className="w-3.5 h-3.5 text-amber-600" />
+                <span className="hidden sm:inline">Nº da OC / AF:</span>
+                <span className="sm:hidden">OC:</span>
+              </span>
+              <input
+                type="text"
+                value={clientOrderNumber}
+                onChange={(e) => setClientOrderNumber(e.target.value)}
+                placeholder="Ex: OC 48290, AF 104/26..."
+                className="bg-white border border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 px-2.5 py-1 rounded-xl text-xs font-mono font-bold text-amber-900 w-36 sm:w-44"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <span className="hidden sm:inline">Data Fechamento:</span>
+              </span>
+              <input
+                type="date"
+                value={approvalDate}
+                onChange={(e) => setApprovalDate(e.target.value)}
+                className="bg-white border border-slate-200 px-2.5 py-1 rounded-xl text-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-xs font-mono"
+              />
+            </div>
           </div>
         </div>
 
