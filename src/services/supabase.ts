@@ -360,7 +360,7 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
 
   try {
     const cleanCompany = (quote.clientCompany || '').trim() || 'Cliente';
-    const cleanContact = (quote.contactPerson || '').trim() || 'Compras (A/C)';
+    const cleanContact = (quote.contactPerson || '').trim() || 'A/C Compras';
     const cleanEmail = (quote.clientEmail || '').trim() || 'contato@cliente.com.br';
     const cleanPhone = (quote.clientPhone || '').trim() || null;
     const cleanSubject = (quote.subject || '').trim() || 'Fornecimento de Materiais';
