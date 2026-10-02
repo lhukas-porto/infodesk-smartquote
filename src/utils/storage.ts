@@ -135,6 +135,9 @@ export const getCurrentDraftQuote = (): Quote | null => {
         if (parsed.globalMarkupPercent === undefined || parsed.globalMarkupPercent === 35 || parsed.globalMarkupPercent === 20 || parsed.globalMarkupPercent === 25) {
           parsed.globalMarkupPercent = 23.5;
         }
+        if (!parsed.subject || parsed.subject.trim() === 'Orçamento diversos' || parsed.subject.trim() === 'Fornecimento de Materiais e Equipamentos' || parsed.subject.trim() === 'Fornecimento de produtos para informática') {
+          parsed.subject = 'Fornecimento de Materiais';
+        }
           return parsed;
         }
       }

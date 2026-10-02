@@ -363,7 +363,7 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     const cleanContact = (quote.contactPerson || '').trim() || 'A/C Compras';
     const cleanEmail = (quote.clientEmail || '').trim() || 'contato@cliente.com.br';
     const cleanPhone = (quote.clientPhone || '').trim() || null;
-    const cleanSubject = (quote.subject || '').trim() || `Orçamento diversos — ${cleanCompany}`;
+    const cleanSubject = (quote.subject || '').trim() || 'Fornecimento de Materiais';
     const cleanCity = (quote.city || '').trim() || 'Brasília';
     const cleanDate = (quote.date || '').trim() || new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const cleanValidity = (quote.validityDays || '').trim() || '03 (três) dias';
