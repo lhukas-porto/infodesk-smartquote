@@ -616,7 +616,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
 
   const cleanContactName = (currentQuote.contactPerson || '')
-    .replace(/^a\/c\s*/i, '')
+    .replace(/^a\/c\s*:?\s*/i, '')
+    .replace(/\s*\(a\/c\)$/i, '')
     .replace(/^(sr\.|sra\.|srta\.|dr\.|dra\.)\s+/i, '')
     .trim();
 
@@ -2241,7 +2242,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
           <div className="space-y-1.5 md:col-span-2">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-medium text-slate-600">A/C (Nome do Comprador)</label>
+              <label className="block text-xs font-medium text-slate-600">Nome do Comprador (A/C)</label>
               {matchedCompany && matchedCompany.contacts.length > 0 && (
                 <span className="text-[10px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded font-semibold border border-sky-200">
                   {matchedCompany.contacts.length} comprador(es) disponível(is)
@@ -2290,7 +2291,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   <div className="p-2 overflow-y-auto divide-y divide-slate-100">
                     {(() => {
                       const query = (currentQuote.contactPerson || '')
-                        .replace(/^a\/c\s*/i, '')
+                        .replace(/^a\/c\s*:?\s*/i, '')
+                        .replace(/\s*\(a\/c\)$/i, '')
                         .replace(/^(sr\.|sra\.|srta\.|dr\.|dra\.)\s+/i, '')
                         .trim()
                         .toLowerCase();
@@ -2394,7 +2396,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Telefone do Contato (Opcional)</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Telefone (Opcional)</label>
             <input
               type="text"
               value={maskPhone(currentQuote.clientPhone || '')}
@@ -2601,7 +2603,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 title="Importar produtos em lote a partir de planilha Excel (.xlsx), CSV ou copiar e colar células (Ctrl+V)"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden sm:inline">Importar Planilha / Excel</span>
+                <span className="hidden sm:inline">Importar Planilha</span>
                 <span className="sm:hidden">Importar</span>
               </button>
 
@@ -2615,8 +2617,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   title="Pesquisar preços de múltiplos produtos em paralelo em segundo plano com IA (MEL-03)"
                 >
                   <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-                  <span className="hidden sm:inline">Varredura em Lote (IA)</span>
-                  <span className="sm:hidden">Varredura</span>
+                  <span className="hidden sm:inline">Pesquisa de preços (IA)</span>
+                  <span className="sm:hidden">Revisar</span>
                   {itemsWithoutCostCount > 0 && (
                     <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[9px] font-bold font-mono">
                       {itemsWithoutCostCount}

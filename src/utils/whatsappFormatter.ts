@@ -28,7 +28,7 @@ export function formatPhoneForWhatsApp(rawPhone?: string): string {
  * Constrói a mensagem comercial diagramada para WhatsApp
  */
 export function buildWhatsAppQuoteMessage(quote: Quote, settings?: CompanySettings): string {
-  const contactName = quote.contactPerson ? quote.contactPerson.trim() : '';
+  const contactName = quote.contactPerson ? quote.contactPerson.replace(/\s*\(a\/c\)$/i, '').replace(/^a\/c\s*:?\s*/i, '').trim() : '';
   const companyName = quote.clientCompany ? quote.clientCompany.trim() : 'sua empresa';
   const greeting = contactName ? `Olá, ${contactName}!` : `Olá!`;
   

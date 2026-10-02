@@ -76,7 +76,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
   const handleCopyToClipboard = () => {
     const text = `PROPOSTA COMERCIAL — INFODESK\n\n` +
       `Ao ${quote.clientCompany}\n` +
-      `A/C ${quote.contactPerson}\n` +
+      (quote.contactPerson ? `${formatContactPerson(quote.contactPerson)}\n` : '') +
       `E-mail: ${quote.clientEmail}\n\n` +
       `${getResolvedOpeningText(quote.openingText, settings.defaultOpeningText)}\n\n` +
       quote.items.map(i => `${i.itemNumber}. ${i.name} | Qtd: ${i.quantity} ${i.unit} | Unit: R$ ${i.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Total: R$ ${i.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join('\n') +

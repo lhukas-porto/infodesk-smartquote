@@ -18,7 +18,7 @@
 | **Subtítulo Explicativo** | `text-xs text-slate-500 mt-0.5` (`.sq-page-subtitle`) | "Configure os dados do cliente, custos, alíquota de impostos..." |
 | **Tópicos de Seção (H2 / H3)** | `text-sm md:text-base font-bold text-slate-900 flex items-center gap-2` (`.sq-section-title`) | "Dados do Solicitante & Identificação", "Itens da Cotação" |
 | **Ícones de Tópicos** | `w-4 h-4 text-sky-600 shrink-0` (`.sq-section-icon`) | Ícones de construção, usuário, caminhão, prancheta, lupa |
-| **Rótulos de Campo (Labels)** | `block text-xs font-semibold text-slate-700 mb-1.5` (`.sq-label`) | "Empresa / Órgão", "A/C (Nome do Comprador)" |
+| **Rótulos de Campo (Labels)** | `block text-xs font-semibold text-slate-700 mb-1.5` (`.sq-label`) | "Empresa / Órgão", "" |
 | **Textos Auxiliares / Pílulas** | `text-[10px] text-slate-400 font-medium` | "Prefixo: À Ao", "Opcional" |
 
 ---

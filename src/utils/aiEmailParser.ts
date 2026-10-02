@@ -2824,25 +2824,30 @@ export function formatCompanyPrefix(companyName: string, explicitPrefix?: string
 }
 
 /**
- * Automatically adds the respectful title (Sr. or Srta.) based on the recipient's name:
- * - "Alex Pereira da Silva Vasconcellos" -> "A/C Sr. Alex Pereira da Silva Vasconcellos"
- * - "Alexandra Oliveira" -> "A/C Srta. Alexandra Oliveira"
+ * Automatically formats the contact buyer as "Nome do Comprador (A/C)" with respectful title:
+ * - "Alex Pereira da Silva Vasconcellos" -> "Sr. Alex Pereira da Silva Vasconcellos (A/C)"
+ * - "Alexandra Oliveira" -> "Srta. Alexandra Oliveira (A/C)"
+ * - "A/C Sr. Alex Pereira" -> "Sr. Alex Pereira (A/C)"
  */
 export function formatContactPerson(contactPerson: string): string {
   if (!contactPerson) return '';
   let clean = contactPerson.trim();
   
-  // Strip existing "A/C" prefix if present
-  clean = clean.replace(/^a\/c\s*/i, '').trim();
+  // Strip existing "A/C" prefix, "(A/C)" suffix, or trailing "A/C" if present
+  clean = clean
+    .replace(/^a\/c\s*:?\s*/i, '')
+    .replace(/\s*\(a\/c\)$/i, '')
+    .replace(/\s*a\/c$/i, '')
+    .trim();
 
-// Se for vazio ou nome genérico fictício, retorna vazio!
+  // Se for vazio ou nome genérico fictício, retorna vazio!
   if (!clean || /^(responsavel|responsável|cliente|comprador|solicitante|usuario|usuário)$/i.test(clean)) {
     return '';
   }
 
   // If already has title like "Sr.", "Srta.", "Sra.", "Dr.", "Dra."
   if (/^(sr\.|srta\.|sra\.|dr\.|dra\.|prof\.|profa\.)\s+/i.test(clean)) {
-    return `A/C ${clean}`;
+    return `${clean} (A/C)`;
   }
 
   const firstName = clean.split(/\s+/)[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -2865,7 +2870,7 @@ export function formatContactPerson(contactPerson: string): string {
     (firstName.endsWith('a') && !maleExceptions.has(firstName));
 
   const title = isFemale ? 'Srta.' : 'Sr.';
-  return `A/C ${title} ${clean}`;
+  return `${title} ${clean} (A/C)`;
 }
 
 /**
