@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS company_settings (
   default_payment_terms TEXT NOT NULL DEFAULT 'Faturado.',
   default_delivery_days TEXT NOT NULL DEFAULT 'em até 10 (dez) dias úteis após autorização de fornecimento.',
   default_warranty_terms TEXT NOT NULL DEFAULT '06 (seis) meses contra eventuais problemas de fabricação. Garantia balcão. Exceto para Monitor/Impressora/Nobreak (garantia 1 ano na rede autorizada).',
-  default_opening_text TEXT NOT NULL DEFAULT 'Em atenção ao que foi solicitado por Vossa Senhoria, enviamos proposta para fornecimento dos produtos para informática, conforme especificações e condições a seguir.',
+  default_opening_text TEXT NOT NULL DEFAULT 'Em atenção ao que foi solicitado por Vossa Senhoria, enviamos proposta para Orçamento diversos, conforme especificações e condições a seguir.',
   default_markup_percent NUMERIC(6,2) NOT NULL DEFAULT 35.00,
   default_tax_percent NUMERIC(6,2) NOT NULL DEFAULT 6.00,
   default_shipping_cost NUMERIC(10,2) NOT NULL DEFAULT 0.00,

@@ -838,7 +838,7 @@ export const App: React.FC = () => {
       contactPerson: '',
       clientEmail: '',
       clientPhone: '',
-      subject: 'Fornecimento de produtos para informática',
+      subject: 'Orçamento diversos',
       city: 'Brasília',
       date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
       validityDays: s.defaultValidityDays,
@@ -882,7 +882,7 @@ export const App: React.FC = () => {
       contactPerson: '',
       clientEmail: '',
       clientPhone: '',
-      subject: 'Fornecimento de produtos para informática',
+      subject: 'Orçamento diversos',
       city: 'Brasília',
       date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
       validityDays: settings.defaultValidityDays,
@@ -1705,7 +1705,7 @@ export const App: React.FC = () => {
       // Usar a conta conectada garante 100% de entrega e gravação imediata nos "Itens Enviados" do Gmail.
       const senderAddress = connectedUserEmail || getStoredUserEmail() || 'lucas@infodesk.net.br';
       const replyToAddress = senderAddress;
-      const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`;
+      const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Orçamento diversos`;
 
       await sendRealGmailMessage(token, {
         to: recipient,
@@ -1729,7 +1729,7 @@ export const App: React.FC = () => {
       throw new Error(`Falha no envio do Gmail: ${err.message || 'Verifique se você selecionou a conta correta do Google'}`);
     }
 
-    const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Produtos`;
+    const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Orçamento diversos`;
     let quoteToSave: Quote = {
       ...sentQuote,
       status: 'sent',

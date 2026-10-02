@@ -49,9 +49,9 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
     return generateProposalEmailHtml(quote, settings);
   }, [quote, settings]);
 
-  const defaultSubject = (quote.subject && quote.subject !== 'Fornecimento de produtos para informática' && quote.subject !== 'Fornecimento de Materiais e Equipamentos')
+  const defaultSubject = (quote.subject && quote.subject !== 'Orçamento diversos' && quote.subject !== 'Fornecimento de produtos para informática' && quote.subject !== 'Fornecimento de Materiais e Equipamentos')
     ? quote.subject
-    : `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
+    : `Proposta Comercial ${quote.code} — Infodesk — Orçamento diversos`;
   const defaultBody = `Prezada(o) ${quote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial para fornecimento dos produtos para ${quote.clientCompany || 'sua empresa'}.\n\nValor Total: R$ ${quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCondições de Pagamento: ${quote.paymentTerms}\nPrazo de Entrega: ${quote.deliveryDays}\nGarantia: ${quote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\nInfodesk — Informática & Tecnologia\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`;
 
   const getResolvedInitialTo = (q: Quote): string => {
@@ -90,9 +90,9 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
       setCcEmails(resolvedCc);
       if (resolvedCc) setShowCc(true);
 
-      const computedSubject = (quote.subject && quote.subject !== 'Fornecimento de produtos para informática' && quote.subject !== 'Fornecimento de Materiais e Equipamentos')
+      const computedSubject = (quote.subject && quote.subject !== 'Orçamento diversos' && quote.subject !== 'Fornecimento de produtos para informática' && quote.subject !== 'Fornecimento de Materiais e Equipamentos')
         ? quote.subject
-        : `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
+        : `Proposta Comercial ${quote.code} — Infodesk — Orçamento diversos`;
       setSubject(computedSubject);
     }
 
@@ -119,7 +119,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
       setSendError(null);
       setIsSending(true);
 
-      const finalSubject = (subject || '').trim() || `Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`;
+      const finalSubject = (subject || '').trim() || `Proposta Comercial ${quote.code} — Infodesk — Orçamento diversos`;
       const cleanCc = extractEmailString(ccEmails);
 
       await onConfirmSend({
