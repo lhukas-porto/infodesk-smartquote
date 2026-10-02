@@ -790,7 +790,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5 flex-1 overflow-y-auto pr-0.5 custom-scrollbar content-start">
               {paginatedCompanies.map(comp => {
                 const isSelected = selectedCompany?.id === comp.id;
-                const displayPrefix = comp.prefix || (comp.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À');
 
                 return (
                   <div
@@ -816,20 +815,11 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Card Footer: Status Ativo + Prefix / Buyers count + Delete */}
+                    {/* Card Footer: Buyers count + Delete */}
                     <div className="flex items-center justify-between pt-1.5 border-t border-slate-100/80">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded-md">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          Ativo
-                        </span>
-                        <span className="text-[9.5px] font-mono font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1 py-0.2 rounded">
-                          {displayPrefix}
-                        </span>
-                        <span className="text-[9.5px] text-slate-500 font-medium">
-                          {comp.contacts.length} comp.
-                        </span>
-                      </div>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {comp.contacts.length} {comp.contacts.length === 1 ? 'comprador' : 'compradores'}
+                      </span>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setSelectedCompanyId(comp.id); setCompanyIdToDelete(comp.id); }}
