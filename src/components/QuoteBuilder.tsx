@@ -4001,206 +4001,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       )}
     </div>
 
-      {/* Barra de Ações Finais da Cotação (Barra Flutuante Fixa / Sticky Footer) */}
-      <div className="sticky bottom-16 lg:bottom-3 z-30 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-3 sm:p-5 shadow-lg shadow-slate-900/10 transition-all">
-        
-        {/* Layout Desktop (sm e superior) */}
-        <div className="hidden sm:flex items-center justify-between gap-4">
-          <div className="text-left">
-            <p className="text-xs text-slate-500 font-medium">
-              Total da Cotação: <strong className="text-slate-900 font-mono text-base ml-1">R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-            </p>
-            <p className="text-[11px] text-slate-400">
-              {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'} • Margem média de {currentQuote.averageMargin.toFixed(1)}%
-            </p>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {onNewQuote && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (currentQuote.items.length > 0) {
-                    if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
-                      onNewQuote();
-                    }
-                  } else {
-                    onNewQuote();
-                  }
-                }}
-                className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-sky-700 border border-sky-200/90 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                title="Iniciar um novo orçamento em branco"
-              >
-                <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
-                <span>Novo Orçamento</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => persistAndProceed(onSave)}
-              className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-              title="Salva alterações na proposta atual (rascunho)"
-            >
-              <Save className="w-3.5 h-3.5 text-slate-600" />
-              <span>Salvar</span>
-            </button>
-
-            {onSaveAsNewQuote && (
-              <button
-                type="button"
-                onClick={() => persistAndProceed(onSaveAsNewQuote)}
-                className="px-3.5 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/90 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                title="Cria uma nova cotação independente com código exclusivo sem sobrescrever a original"
-              >
-                <Copy className="w-3.5 h-3.5 text-sky-600" />
-                <span>Salvar como Nova Cotação</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                if (!currentQuote.items || currentQuote.items.length === 0) {
-                  alert('Adicione ao menos um produto na cotação para exportar a planilha Excel.');
-                  return;
-                }
-                handleExportExcel();
-              }}
-              className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-              title="Baixar planilha de custos e precificação detalhada no Excel (.xlsx)"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Salvar Excel</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => persistAndProceed(onPreview, true)}
-              className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-sky-600/25 cursor-pointer active:scale-95"
-              title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
-            >
-              <Eye className="w-4 h-4" />
-              <span>Visualizar & Emitir Proposta</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Layout Mobile Otimizado (sem botões sobrepostos) */}
-        <div className="flex sm:hidden flex-col gap-2.5">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block leading-none mb-0.5">Total Proposta</span>
-              <span className="text-sm font-extrabold text-slate-900 font-mono leading-none">
-                R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-            <span className="text-[10.5px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-lg font-medium">
-              {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item' : 'itens'} • {currentQuote.averageMargin.toFixed(0)}% margem
-            </span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
-            {/* Salvar Rascunho */}
-            <button
-              type="button"
-              onClick={() => persistAndProceed(onSave)}
-              className="flex flex-col items-center justify-center py-2.5 px-1 bg-slate-100 active:bg-slate-200 text-slate-700 rounded-xl text-[10.5px] font-bold transition shadow-2xs cursor-pointer active:scale-95"
-              title="Salvar rascunho"
-            >
-              <Save className="w-4 h-4 text-slate-600 mb-0.5" />
-              <span>Salvar</span>
-            </button>
-
-            {/* Visualizar Proposta */}
-            <button
-              type="button"
-              onClick={() => persistAndProceed(onPreview, true)}
-              className="flex flex-col items-center justify-center py-2.5 px-1 bg-sky-600 active:bg-sky-700 text-white rounded-xl text-[10.5px] font-bold transition shadow-xs cursor-pointer active:scale-95"
-              title="Visualizar proposta oficial"
-            >
-              <Eye className="w-4 h-4 mb-0.5" />
-              <span>Visualizar</span>
-            </button>
-
-            {/* Mais Ações (Excel, Novo Orçamento) */}
-            <div className="relative" ref={mobileMoreActionsRef}>
-              <button
-                type="button"
-                onClick={() => setIsMobileMoreActionsOpen(prev => !prev)}
-                className={`w-full h-full flex flex-col items-center justify-center py-2.5 px-1 rounded-xl text-[10.5px] font-bold transition shadow-2xs cursor-pointer active:scale-95 border ${
-                  isMobileMoreActionsOpen 
-                    ? 'bg-sky-50 text-sky-700 border-sky-300' 
-                    : 'bg-slate-100 active:bg-slate-200 text-slate-700 border-slate-200'
-                }`}
-                title="Mais ações da proposta"
-              >
-                <MoreVertical className="w-4 h-4 mb-0.5 text-slate-600" />
-                <span>Mais</span>
-              </button>
-
-              {isMobileMoreActionsOpen && (
-                <div className="absolute right-0 bottom-full mb-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-50 animate-scaleIn">
-                  <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Mais Ações
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileMoreActionsOpen(false);
-                      if (!currentQuote.items || currentQuote.items.length === 0) {
-                        alert('Adicione ao menos um produto na cotação para exportar a planilha Excel.');
-                        return;
-                      }
-                      handleExportExcel();
-                    }}
-                    className="w-full px-3 py-2.5 text-left text-xs font-semibold text-emerald-800 hover:bg-emerald-50 flex items-center gap-2 transition"
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                    <span>Salvar Excel (.xlsx)</span>
-                  </button>
-
-                  {onSaveAsNewQuote && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileMoreActionsOpen(false);
-                        persistAndProceed(onSaveAsNewQuote);
-                      }}
-                      className="w-full px-3 py-2.5 text-left text-xs font-semibold text-sky-800 hover:bg-sky-50 flex items-center gap-2 transition"
-                    >
-                      <Copy className="w-4 h-4 text-sky-600" />
-                      <span>Salvar como Nova Cotação</span>
-                    </button>
-                  )}
-
-                  {onNewQuote && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileMoreActionsOpen(false);
-                        if (currentQuote.items.length > 0) {
-                          if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
-                            onNewQuote();
-                          }
-                        } else {
-                          onNewQuote();
-                        }
-                      }}
-                      className="w-full px-3 py-2.5 text-left text-xs font-semibold text-sky-700 hover:bg-sky-50 flex items-center gap-2 transition border-t border-slate-100"
-                    >
-                      <PlusCircle className="w-4 h-4 text-sky-600" />
-                      <span>Novo Orçamento</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-      </div>
 
 
 
@@ -4627,31 +4428,31 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         />
       )}
 
-      {/* Barra Flutuante de Resumo Financeiro & Ações Rápidas (Item 2.A) */}
+      {/* Barra Flutuante de Resumo Financeiro & Ações Finais (Substitui barra antiga com 100% dos botões) */}
       {currentQuote.items && currentQuote.items.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] py-2.5 px-4 sm:px-6 transition-all duration-200 animate-in slide-in-from-bottom-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-            {/* Lado Esquerdo: Totais e Margem */}
-            <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-6px_25px_rgba(0,0,0,0.09)] py-2.5 px-4 sm:px-6 transition-all duration-200 animate-in slide-in-from-bottom-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+            {/* Lado Esquerdo: Totais, Margem e Itens */}
+            <div className="flex items-center gap-3 sm:gap-5 min-w-0">
               <div className="hidden sm:block">
                 <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-bold font-mono uppercase tracking-wider rounded-md">
                   {currentQuote.code || 'COTACAO'}
                 </span>
-                <span className="text-[11px] text-slate-500 font-medium block truncate max-w-[180px]">
+                <span className="text-[11px] text-slate-500 font-medium block truncate max-w-[150px] lg:max-w-[200px]">
                   {currentQuote.clientCompany || 'Cliente não definido'}
                 </span>
               </div>
 
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block leading-none">
-                  Total da Proposta
+                  Total da Cotação
                 </span>
                 <span className="text-base sm:text-lg font-extrabold text-slate-900 font-mono leading-none">
                   R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
 
-              <div className="hidden md:flex items-center gap-2 border-l border-slate-200 pl-4">
+              <div className="hidden xl:flex items-center gap-2 border-l border-slate-200 pl-4">
                 <div>
                   <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block leading-none">
                     Lucro Líquido
@@ -4673,28 +4474,172 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               </div>
             </div>
 
-            {/* Lado Direito: Ações Rápidas */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Lado Direito: Todos os Botões da Barra Antiga (Desktop lg e superior) */}
+            <div className="hidden lg:flex items-center gap-2 shrink-0">
+              {onNewQuote && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentQuote.items.length > 0) {
+                      if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
+                        onNewQuote();
+                      }
+                    } else {
+                      onNewQuote();
+                    }
+                  }}
+                  className="px-3 py-2 bg-white hover:bg-slate-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                  title="Iniciar um novo orçamento em branco"
+                >
+                  <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Novo Orçamento</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => persistAndProceed(onSave)}
                 className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                title="Salvar rascunho da proposta"
+                title="Salva alterações na proposta atual (rascunho)"
               >
                 <Save className="w-3.5 h-3.5 text-slate-600" />
-                <span className="hidden sm:inline">Salvar Rascunho</span>
-                <span className="sm:hidden">Salvar</span>
+                <span>Salvar</span>
+              </button>
+
+              {onSaveAsNewQuote && (
+                <button
+                  type="button"
+                  onClick={() => persistAndProceed(onSaveAsNewQuote)}
+                  className="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                  title="Cria uma nova cotação independente com código exclusivo sem sobrescrever a original"
+                >
+                  <Copy className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Salvar como Nova Cotação</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!currentQuote.items || currentQuote.items.length === 0) {
+                    alert('Adicione ao menos um produto na cotação para exportar a planilha Excel.');
+                    return;
+                  }
+                  handleExportExcel();
+                }}
+                className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                title="Baixar planilha de custos e precificação detalhada no Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Salvar Excel</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => persistAndProceed(onPreview, true)}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
-                title="Visualizar documento pronto para impressão/PDF ou envio"
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer active:scale-95"
+                title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Visualizar & Emitir Proposta</span>
+              </button>
+            </div>
+
+            {/* Layout Compacto (Telas Menores / Mobile) */}
+            <div className="flex lg:hidden items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => persistAndProceed(onSave)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
+                title="Salvar rascunho"
+              >
+                <Save className="w-3.5 h-3.5 text-slate-600" />
+                <span>Salvar</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => persistAndProceed(onPreview, true)}
+                className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                title="Visualizar proposta"
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>Visualizar Proposta</span>
+                <span>Visualizar</span>
               </button>
+
+              {/* Menu 'Mais' com as demais ações */}
+              <div className="relative" ref={mobileMoreActionsRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMoreActionsOpen(prev => !prev)}
+                  className={`p-2 rounded-xl text-xs font-bold transition border cursor-pointer active:scale-95 flex items-center justify-center ${
+                    isMobileMoreActionsOpen 
+                      ? 'bg-sky-50 text-sky-700 border-sky-300' 
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                  }`}
+                  title="Mais ações"
+                >
+                  <MoreVertical className="w-4 h-4 text-slate-600" />
+                </button>
+
+                {isMobileMoreActionsOpen && (
+                  <div className="absolute right-0 bottom-full mb-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-50 animate-scaleIn">
+                    <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Mais Ações da Proposta
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMoreActionsOpen(false);
+                        if (!currentQuote.items || currentQuote.items.length === 0) {
+                          alert('Adicione ao menos um produto na cotação para exportar a planilha Excel.');
+                          return;
+                        }
+                        handleExportExcel();
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs font-semibold text-emerald-800 hover:bg-emerald-50 flex items-center gap-2 transition"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                      <span>Salvar Excel (.xlsx)</span>
+                    </button>
+
+                    {onSaveAsNewQuote && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileMoreActionsOpen(false);
+                          persistAndProceed(onSaveAsNewQuote);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-semibold text-sky-800 hover:bg-sky-50 flex items-center gap-2 transition"
+                      >
+                        <Copy className="w-4 h-4 text-sky-600" />
+                        <span>Salvar como Nova Cotação</span>
+                      </button>
+                    )}
+
+                    {onNewQuote && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileMoreActionsOpen(false);
+                          if (currentQuote.items.length > 0) {
+                            if (window.confirm('Deseja iniciar um Novo Orçamento? As alterações não salvas da proposta atual serão substituídas.')) {
+                              onNewQuote();
+                            }
+                          } else {
+                            onNewQuote();
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-semibold text-sky-700 hover:bg-sky-50 flex items-center gap-2 transition border-t border-slate-100"
+                      >
+                        <PlusCircle className="w-4 h-4 text-sky-600" />
+                        <span>Novo Orçamento</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
