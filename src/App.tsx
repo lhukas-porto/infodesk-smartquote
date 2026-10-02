@@ -233,27 +233,28 @@ export const App: React.FC = () => {
   const [historyStageFilter, setHistoryStageFilter] = useState<'all' | 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost'>('all');
   const [previewSourceTab, setPreviewSourceTab] = useState<'builder' | 'history' | 'purchases'>('builder');
   const [syncNotice, setSyncNotice] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
-  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('infodesk_auth_user') || null;
-    } catch {
-      return null;
-    }
-  });
-  const [isCheckingAuth, setIsCheckingAuth] = useState(() => !localStorage.getItem('infodesk_auth_user'));
+  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     getCorporateSession().then(session => {
+      if (!mounted) return;
+      if (session?.user?.email) {
+        setAuthenticatedUserEmail(session.user.email);
+        try { localStorage.setItem('infodesk_auth_user', session.user.email); } catch {}
+      } else {
+        setAuthenticatedUserEmail(null);
+        try { localStorage.removeItem('infodesk_auth_user'); } catch {}
+      }
+      setIsCheckingAuth(false);
+    }).catch((err) => {
+      console.warn('[Auth Check Error]:', err);
       if (mounted) {
-        if (session?.user?.email) {
-          setAuthenticatedUserEmail(session.user.email);
-          try { localStorage.setItem('infodesk_auth_user', session.user.email); } catch {}
-        }
+        setAuthenticatedUserEmail(null);
+        try { localStorage.removeItem('infodesk_auth_user'); } catch {}
         setIsCheckingAuth(false);
       }
-    }).catch(() => {
-      if (mounted) setIsCheckingAuth(false);
     });
 
     const subscription = onCorporateAuthStateChange((session) => {
@@ -442,7 +443,7 @@ export const App: React.FC = () => {
   // Carregamento e sincronização com banco de dados do Supabase
   useEffect(() => {
     async function hydrateFromSupabase() {
-      if (!isSupabaseConfigured) return;
+      if (!isSupabaseConfigured || !authenticatedUserEmail) return;
       try {
         // Dispara o carregamento paralelo de todas as tabelas (ultra rápido, sem gargalos em cascata)
         const [
@@ -798,7 +799,7 @@ export const App: React.FC = () => {
     }
 
     hydrateFromSupabase();
-  }, []);
+  }, [authenticatedUserEmail]);
 
   // Manter estado de clientCompanies sincronizado quando houver alterações em qualquer componente
   useEffect(() => {

@@ -4,18 +4,14 @@ import { deduplicateCompanyContacts } from '../utils/storage';
 import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory } from '../utils/aiEmailParser';
 
 // Chaves de conexão com o Supabase da Infodesk
-// (A chave anon é pública por design do Supabase; a segurança estrita é garantida pelo Row Level Security)
-const DEFAULT_SUPABASE_URL = 'https://dxhbjygtbcxpabflsijv.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4aGJqeWd0YmN4cGFiZmxzaWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMTQ3MTIsImV4cCI6MjEwMzg5MDcxMn0.Bt9yCZDtPYCk8Cqa223MgReN2EmGfCl-41fR22GAucU';
-
 // Acesso estático direto às variáveis de ambiente do Vite (essencial para substituição no build)
 const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) 
-  ? import.meta.env.VITE_SUPABASE_URL 
-  : DEFAULT_SUPABASE_URL;
+  ? String(import.meta.env.VITE_SUPABASE_URL).trim()
+  : '';
 
 const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) 
-  ? import.meta.env.VITE_SUPABASE_ANON_KEY 
-  : DEFAULT_SUPABASE_ANON_KEY;
+  ? String(import.meta.env.VITE_SUPABASE_ANON_KEY).trim()
+  : '';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
