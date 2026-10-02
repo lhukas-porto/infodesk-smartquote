@@ -2113,7 +2113,6 @@ export const App: React.FC = () => {
             setActiveTab('history');
           }}
           onNavigateToBuilder={handleNavigateToBuilder}
-          onOpenCommandBar={() => setIsCommandBarOpen(true)}
         />
       </div>
 

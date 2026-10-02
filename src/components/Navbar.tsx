@@ -3,7 +3,7 @@ import {
   FileText, 
   Mail, 
   Package, 
-  Search, 
+  Search,
   Settings, 
   Users,
   History,
@@ -31,7 +31,6 @@ interface NavbarProps {
   authenticatedUserEmail?: string | null;
   onLogout?: () => void;
   onNavigateToBuilder?: () => void;
-  onOpenCommandBar?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -50,8 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDraftsHistory,
   authenticatedUserEmail,
   onLogout,
-  onNavigateToBuilder,
-  onOpenCommandBar
+  onNavigateToBuilder
 }) => {
   return (
     <header className="no-print sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 shadow-xs">
@@ -245,21 +243,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="whitespace-nowrap font-mono tracking-tight text-white drop-shadow-2xs">
                   {draftsCount} {draftsCount === 1 ? 'Rascunho' : 'Rascunhos'}
                 </span>
-              </button>
-            )}
-
-            {onOpenCommandBar && (
-              <button
-                type="button"
-                onClick={onOpenCommandBar}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-xl text-xs font-medium transition cursor-pointer shadow-2xs shrink-0"
-                title="Busca Global e Atalhos Rápidos (Ctrl + K)"
-              >
-                <Search className="w-3.5 h-3.5 text-slate-500" />
-                <span className="hidden xl:inline text-slate-500 font-medium">Buscar...</span>
-                <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-white border border-slate-300 text-slate-600 rounded-md shadow-2xs">
-                  Ctrl K
-                </kbd>
               </button>
             )}
 
