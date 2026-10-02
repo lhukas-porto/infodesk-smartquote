@@ -2379,7 +2379,10 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               )}
             </div>
           </div>
+        </div>
 
+        {/* Linha 2: Os 5 campos em UMA ÚNICA LINHA no Desktop */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 pt-1">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">E-mail</label>
             <input
@@ -2426,8 +2429,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
           <div ref={locationSearchContainerRef} className="relative">
             <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-sky-600" />
-              <span>Localidade do Frete / Destino da Entrega</span>
+              <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+              <span className="truncate" title="Localidade do Frete / Destino da Entrega">Localidade do Frete</span>
             </label>
 
             <div className="relative">
@@ -2554,22 +2557,22 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               </div>
             )}
           </div>
+        </div>
 
-          {/* Assunto Personalizado da Proposta / E-mail */}
-          <div className="md:col-span-3 pt-3 border-t border-slate-100">
-            <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 font-bold text-slate-700">
-                <Mail className="w-3.5 h-3.5 text-sky-600" />
-                Assunto do E-mail
-              </span>
-            </label>
-            <input
-              type="text"
-              value={currentQuote.subject || ''}
-              onChange={(e) => setCurrentQuote(prev => ({ ...prev, subject: e.target.value }))}
-              className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition"
-            />
-          </div>
+        {/* Linha 3: Assunto Personalizado da Proposta / E-mail */}
+        <div className="pt-3 border-t border-slate-100">
+          <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-bold text-slate-700">
+              <Mail className="w-3.5 h-3.5 text-sky-600" />
+              Assunto do E-mail
+            </span>
+          </label>
+          <input
+            type="text"
+            value={currentQuote.subject || ''}
+            onChange={(e) => setCurrentQuote(prev => ({ ...prev, subject: e.target.value }))}
+            className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition"
+          />
         </div>
       </div>
 
