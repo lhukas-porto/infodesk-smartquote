@@ -1631,7 +1631,7 @@ export const App: React.FC = () => {
       let currentUnitPrice = it.unitPrice;
       const currentShipping = it.shippingCost ?? 0;
       const currentMarkup = it.markupPercent ?? 23.5;
-      const currentTax = it.taxPercent ?? 9.05;
+      const currentTax = it.taxPercent ?? settings.defaultTaxPercent ?? 9.1;
 
       if (updateCostsFromCatalog && catalogProducts.length > 0) {
         // Tenta achar pelo Part Number exato primeiro
@@ -2426,6 +2426,7 @@ export const App: React.FC = () => {
         {activeTab === 'purchases' && (
           <ProcurementView
             quotes={quotes}
+            settings={settings}
             onUpdateQuote={(updatedQuote) => {
               setQuotes(prev => {
                 const next = prev.map(q => 

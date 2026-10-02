@@ -146,7 +146,8 @@ export interface ProcurementItem {
   paymentMethod?: string;
   purchasedAt?: string;
   purchaseNotes?: string;
-  taxPercent: number; // padrão 9.05%
+  taxPercent: number; // padrão das configurações
+  actualTaxPercent?: number;
   isDirectPurchase?: boolean;
 }
 

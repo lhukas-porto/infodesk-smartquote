@@ -37,7 +37,7 @@ import {
   Boxes,
   Truck
 } from 'lucide-react';
-import { Quote, ProcurementItem, Product } from '../types';
+import { Quote, ProcurementItem, Product, CompanySettings } from '../types';
 import { 
   getRegisteredPaymentMethods, 
   saveRegisteredPaymentMethod,
@@ -48,13 +48,15 @@ import {
   getClientCompanies,
   getProducts,
   savePurchasedProcurementRecord,
-  removePurchasedProcurementRecord
+  removePurchasedProcurementRecord,
+  getSettings
 } from '../utils/storage';
 import { normalizeSearchText } from '../utils/aiEmailParser';
 import { fetchDirectPurchasesFromSupabase } from '../services/supabase';
 
 interface ProcurementViewProps {
   quotes: Quote[];
+  settings?: CompanySettings;
   onUpdateQuote: (quote: Quote) => void;
   onOpenQuote?: (quote: Quote) => void;
 }
@@ -104,9 +106,11 @@ interface ProductReferenceSummary {
 
 export const ProcurementView: React.FC<ProcurementViewProps> = ({
   quotes,
+  settings,
   onUpdateQuote,
   onOpenQuote
 }) => {
+  const defaultTax = settings?.defaultTaxPercent ?? getSettings().defaultTaxPercent ?? 9.1;
   // 1. Filtros Avançados
   const [statusFilter, setStatusFilter] = useState<'pending' | 'purchased' | 'all'>('pending');
   const [periodFilter, setPeriodFilter] = useState<PeriodOption>('all');
@@ -248,7 +252,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     actualPurchaseUrl: '',
     paymentMethod: 'PIX',
     purchaseDate: '',
-    taxPercent: 9.05,
+    taxPercent: defaultTax,
     notes: ''
   });
 
@@ -271,6 +275,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           const actualUnit = item.actualUnitCostPrice !== undefined
             ? item.actualUnitCostPrice
             : (item.actualCostPrice !== undefined && qty > 0 ? Number((item.actualCostPrice / qty).toFixed(2)) : undefined);
+
+          const itemTax = item.actualTaxPercent ?? item.taxPercent ?? quote.globalTaxPercent ?? defaultTax;
 
           list.push({
             id: `${quote.id}_${item.id}`,
@@ -303,7 +309,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             paymentMethod: item.paymentMethod,
             purchasedAt: item.purchasedAt,
             purchaseNotes: item.purchaseNotes,
-            taxPercent: item.actualTaxPercent ?? 9.05,
+            taxPercent: itemTax,
+            actualTaxPercent: item.actualTaxPercent,
             isDirectPurchase: false
           });
         }
@@ -319,7 +326,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     });
 
     return list;
-  }, [quotes, directPurchases]);
+  }, [quotes, directPurchases, defaultTax]);
 
   // Listas Dinâmicas para Dropdowns de Filtro
   const availableCompanies = useMemo(() => {
@@ -723,7 +730,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       actualPurchaseUrl: item.actualPurchaseUrl || item.sourceUrl || '',
       paymentMethod: item.paymentMethod || paymentMethodsList[0] || 'PIX',
       purchaseDate: defaultDate,
-      taxPercent: item.taxPercent || 9.05,
+      taxPercent: item.actualTaxPercent ?? item.taxPercent ?? defaultTax,
       notes: item.purchaseNotes || ''
     });
   };
@@ -1076,7 +1083,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       supplier: directPurchaseForm.supplier.trim() || selectedStockProduct.supplier || undefined,
       sourceUrl: directPurchaseForm.sourceUrl.trim() || selectedStockProduct.sourceUrl || undefined,
       purchaseStatus: directPurchaseForm.initialStatus,
-      taxPercent: 9.05,
+      taxPercent: defaultTax,
       isDirectPurchase: true,
       approvedAt: new Date().toISOString()
     };
@@ -2242,7 +2249,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm font-mono text-slate-900"
                   />
                   <span className="text-[10px] text-slate-400 mt-1 block">
-                    Padrão da planilha: 9,05%
+                    Padrão das configurações: {defaultTax.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%
                   </span>
                 </div>
 
