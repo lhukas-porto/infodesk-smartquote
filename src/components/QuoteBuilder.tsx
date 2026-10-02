@@ -2828,31 +2828,18 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           {/* Barra de Operações Rápidas em Lote (Bulk Actions) */}
           {currentQuote.items && currentQuote.items.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2 flex-wrap max-w-full overflow-visible">
-                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+              <div className="flex items-center gap-2 flex-nowrap overflow-x-auto no-scrollbar max-w-full py-0.5">
+                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 shrink-0">
                   <Sparkles className="w-3.5 h-3.5 text-sky-600" />
                   <span>Ações em Lote:</span>
                 </span>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    const brand = window.prompt('Digite a marca/fabricante para aplicar ao nome de todos os itens (Ex: Dell, HP, Lenovo, Intelbras):');
-                    if (brand) handleApplyPrefixOrBrandToAll(brand);
-                  }}
-                  className="px-2.5 py-1 bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer"
-                  title="Aplica o nome da marca na frente da descrição dos itens que ainda não a possuem"
-                >
-                  + Inserir Marca em Todos
-                </button>
-
-
                 {/* Botão de Formatação Word (Maiúsculas/Minúsculas) em Lote */}
-                <div className="relative" ref={quoteCaseMenuRef}>
+                <div className="relative shrink-0" ref={quoteCaseMenuRef}>
                   <button
                     type="button"
                     onClick={() => setIsQuoteCaseMenuOpen(prev => !prev)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer flex items-center gap-1.5 border ${
+                    className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer flex items-center gap-1 border shrink-0 ${
                       isQuoteCaseMenuOpen
                         ? 'bg-sky-50 text-sky-700 border-sky-300 ring-1 ring-sky-200'
                         : 'bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border-slate-200'
@@ -2862,7 +2849,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     <span className="font-serif font-bold text-xs tracking-tight text-sky-700 bg-sky-100 px-1 py-0.2 rounded">
                       Aa
                     </span>
-                    <span>Maiúsculas / Minúsculas</span>
                     <ChevronDown className="w-3 h-3 text-slate-400" />
                   </button>
 
@@ -2938,17 +2924,17 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     const updated = currentQuote.items.map(i => ({ ...i, showImage: !allHaveImage }));
                     setCurrentQuote(prev => ({ ...prev, items: updated }));
                   }}
-                  className="px-2.5 py-1 bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer"
+                  className="px-2.5 py-1 bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
                   title="Ativa ou desativa a exibição das fotos na proposta para todos os itens simultaneamente"
                 >
                   {currentQuote.items.every(i => i.showImage) ? 'Ocultar Fotos' : 'Exibir Fotos (Todos)'}
                 </button>
 
                 {/* Divisor vertical */}
-                <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
+                <div className="h-4 w-px bg-slate-200 hidden sm:block shrink-0"></div>
 
                 {/* Campo Editável de Porcentagem de Lucro para Itens Selecionados */}
-                <div className="flex items-center gap-1.5 bg-sky-50/80 border border-sky-200/80 px-2.5 py-1 rounded-xl shadow-2xs">
+                <div className="flex items-center gap-1.5 bg-sky-50/80 border border-sky-200/80 px-2.5 py-1 rounded-xl shadow-2xs shrink-0">
                   <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1">
                     <Percent className="w-3.5 h-3.5 text-sky-600" />
                     <span>Lucro:</span>
