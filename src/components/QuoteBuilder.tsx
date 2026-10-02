@@ -3015,7 +3015,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     <span>Item</span>
                   </div>
                 </th>
-                <th className="py-2.5 px-2 min-w-[340px] md:min-w-[500px] lg:min-w-[560px] whitespace-nowrap">Descrição Detalhada do Produto</th>
+                <th className="py-2.5 px-2 min-w-[180px] whitespace-nowrap">Descrição Detalhada do Produto</th>
                 <th className="py-2.5 px-1 w-14 min-w-[56px] text-center whitespace-nowrap">Qtd.</th>
                 <th className="py-2.5 px-1 w-14 min-w-[52px] text-center whitespace-nowrap">Un.</th>
                 <th className="py-2.5 px-1 w-20 min-w-[80px] text-center whitespace-nowrap">Custo (R$)</th>
@@ -3030,7 +3030,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 <th className="py-2.5 px-1 w-14 min-w-[56px] text-center whitespace-nowrap">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {currentQuote.items.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-10 text-slate-400">
@@ -3039,32 +3039,31 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </tr>
               ) : (
                 currentQuote.items.map((item, idx) => (
-                  <tr 
-                    key={item.id} 
-                    data-item-index={idx}
-                    onClick={() => { activeImageUploadIndexRef.current = idx; }}
-                    className={`transition group align-top ${
-                      selectedItemIds.includes(item.id)
-                        ? 'bg-sky-50/50 hover:bg-sky-50/80'
-                        : 'hover:bg-slate-50/80'
-                    }`}
-                  >
+                  <React.Fragment key={item.id}>
+                    <tr 
+                      data-item-index={idx}
+                      onClick={() => { activeImageUploadIndexRef.current = idx; }}
+                      className={`transition align-top ${idx > 0 ? 'border-t border-slate-200/80' : ''} ${
+                        selectedItemIds.includes(item.id)
+                          ? 'bg-sky-50/50 hover:bg-sky-50/80'
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                    >
 
-                    <td className="py-2 px-1 w-12 min-w-[44px] text-center font-bold text-slate-500 pt-3.5">
-                      <div className="flex flex-col items-center justify-center gap-1.5">
-                        <input
-                          type="checkbox"
-                          checked={selectedItemIds.includes(item.id)}
-                          onChange={() => handleToggleSelectItem(item.id)}
-                          className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
-                          title={`Selecionar item ${item.itemNumber || idx + 1} para ações em lote`}
-                        />
-                        <span className="text-[11px] font-mono text-slate-600">{item.itemNumber}</span>
-                      </div>
-                    </td>
+                      <td className="py-2 px-1 w-12 min-w-[44px] text-center font-bold text-slate-500 pt-3.5">
+                        <div className="flex flex-col items-center justify-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={selectedItemIds.includes(item.id)}
+                            onChange={() => handleToggleSelectItem(item.id)}
+                            className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
+                            title={`Selecionar item ${item.itemNumber || idx + 1} para ações em lote`}
+                          />
+                          <span className="text-[11px] font-mono text-slate-600">{item.itemNumber}</span>
+                        </div>
+                      </td>
 
-                    <td className="py-2 px-2 min-w-[340px] md:min-w-[500px] lg:min-w-[560px]">
-                      <div className="flex flex-col gap-1.5">
+                      <td className="py-2 px-2 min-w-[180px]">
                         {/* Linha principal: Foto + Descrição */}
                         <div className="flex items-start gap-2">
                           {/* Caixa de Foto / Upload / Zoom */}
@@ -3232,108 +3231,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                             })()}
                           </div>
                         </div>
-
-                        {/* Barra de utilidades (recolhida no modo compacto) */}
-                        {!isCompactTableMode && (
-                          <div className="flex items-center flex-nowrap gap-1.5 pl-0.5 text-[10px] pt-0.5 overflow-x-auto no-scrollbar whitespace-nowrap">
-                            <label className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer select-none shrink-0">
-                              <input
-                                type="checkbox"
-                                checked={!!item.showImage}
-                                onChange={(e) => handleItemChange(idx, 'showImage', e.target.checked)}
-                                className="rounded text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
-                              />
-                              <span className="font-medium text-[10px] whitespace-nowrap">Foto na proposta</span>
-                            </label>
-
-                            {/* Botão Aa – Alterna maiúsculas/minúsculas do item */}
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleCycleItemTextCase(idx, item.id)}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-sky-700 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
-                              title="Alternar maiúsculas/minúsculas da palavra sob o cursor, da seleção ou do nome completo"
-                            >
-                              <span className="font-serif font-bold text-[11px] tracking-tight text-sky-700">Aa</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setWebImagePickerItem({
-                                type: 'quote_item',
-                                itemId: item.id,
-                                itemIndex: idx,
-                                productName: item.name,
-                                currentImageUrl: item.imageUrl
-                              })}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
-                              title="Pesquisar e escolher foto comercial deste item na web"
-                            >
-                              <Search className="w-2.5 h-2.5" />
-                              <span>{item.imageUrl ? 'Trocar Foto' : 'Buscar Foto'}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setItemForSupplierScan({ index: idx, item })}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
-                              title="Consultar preços em fornecedores e aplicar o menor custo neste item"
-                            >
-                              <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                              <span>Scanner Fornecedor</span>
-                            </button>
-
-                            {item.sourceUrl ? (
-                              <a
-                                href={item.sourceUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0"
-                                title={`Abrir link do produto em ${item.supplier || 'loja'}`}
-                              >
-                                <ExternalLink className="w-3 h-3 text-emerald-600" />
-                                <span>Link do Produto</span>
-                              </a>
-                            ) : (
-                              <a
-                                href={`https://www.google.com/search?q=${encodeURIComponent(item.rawSearchQuery || item.name)}&tbm=shop`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 hover:underline text-[10px] whitespace-nowrap shrink-0"
-                                title="Buscar produto no Google Shopping"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                <span>Link do Produto</span>
-                              </a>
-                            )}
-
-                            {onSaveToCatalog && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenCatalogReviewModal(item)}
-                                title="Cadastrar ou revisar foto, NCM, SKU e ficha técnica no Catálogo Geral"
-                                className={`text-[10px] font-semibold inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border transition cursor-pointer whitespace-nowrap shrink-0 ${savedCatalogIds[item.id]
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                  : 'bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 text-slate-600 border-slate-200'
-                                  }`}
-                              >
-                                {savedCatalogIds[item.id] ? (
-                                  <>
-                                    <Check className="w-3 h-3 text-emerald-600" />
-                                    <span>Salvo no Catálogo</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Package className="w-3 h-3 text-slate-500" />
-                                    <span>Editar</span>
-                                  </>
-                                )}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                      </td>
 
                     {/* Qtd */}
                     <td className="py-2 px-1 w-14 min-w-[56px] text-center">
@@ -3610,7 +3508,119 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     </td>
 
                   </tr>
-                ))
+
+                  {/* Barra de utilidades: estende-se abaixo da descrição, Qtd e Unidade em linha única sem esticar a tabela */}
+                  {!isCompactTableMode && (
+                    <tr
+                      className={`transition ${
+                        selectedItemIds.includes(item.id)
+                          ? 'bg-sky-50/50 hover:bg-sky-50/80'
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <td className="py-0 px-1"></td>
+                      <td colSpan={9} className="pt-0 pb-2.5 px-2">
+                        <div className="flex items-center flex-nowrap gap-1.5 pl-0.5 text-[10px] whitespace-nowrap overflow-x-auto no-scrollbar">
+                          <label className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer select-none shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={!!item.showImage}
+                              onChange={(e) => handleItemChange(idx, 'showImage', e.target.checked)}
+                              className="rounded text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
+                            />
+                            <span className="font-medium text-[10px] whitespace-nowrap">Foto na proposta</span>
+                          </label>
+
+                          {/* Botão Aa – Alterna maiúsculas/minúsculas do item */}
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleCycleItemTextCase(idx, item.id)}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-sky-700 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
+                            title="Alternar maiúsculas/minúsculas da palavra sob o cursor, da seleção ou do nome completo"
+                          >
+                            <span className="font-serif font-bold text-[11px] tracking-tight text-sky-700">Aa</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setWebImagePickerItem({
+                              type: 'quote_item',
+                              itemId: item.id,
+                              itemIndex: idx,
+                              productName: item.name,
+                              currentImageUrl: item.imageUrl
+                            })}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
+                            title="Pesquisar e escolher foto comercial deste item na web"
+                          >
+                            <Search className="w-2.5 h-2.5" />
+                            <span>{item.imageUrl ? 'Trocar Foto' : 'Buscar Foto'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setItemForSupplierScan({ index: idx, item })}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
+                            title="Consultar preços em fornecedores e aplicar o menor custo neste item"
+                          >
+                            <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                            <span>Scanner Fornecedor</span>
+                          </button>
+
+                          {item.sourceUrl ? (
+                            <a
+                              href={item.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0"
+                              title={`Abrir link do produto em ${item.supplier || 'loja'}`}
+                            >
+                              <ExternalLink className="w-3 h-3 text-emerald-600" />
+                              <span>Link do Produto</span>
+                            </a>
+                          ) : (
+                            <a
+                              href={`https://www.google.com/search?q=${encodeURIComponent(item.rawSearchQuery || item.name)}&tbm=shop`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 hover:underline text-[10px] whitespace-nowrap shrink-0"
+                              title="Buscar produto no Google Shopping"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span>Link do Produto</span>
+                            </a>
+                          )}
+
+                          {onSaveToCatalog && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCatalogReviewModal(item)}
+                              title="Cadastrar ou revisar foto, NCM, SKU e ficha técnica no Catálogo Geral"
+                              className={`text-[10px] font-semibold inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border transition cursor-pointer whitespace-nowrap shrink-0 ${savedCatalogIds[item.id]
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 text-slate-600 border-slate-200'
+                                }`}
+                            >
+                              {savedCatalogIds[item.id] ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span>Salvo no Catálogo</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Package className="w-3 h-3 text-slate-500" />
+                                  <span>Editar</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))
               )}
             </tbody>
             {currentQuote.items.length > 0 && (
