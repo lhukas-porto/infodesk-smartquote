@@ -4429,54 +4429,27 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         />
       )}
 
-      {/* Barra Flutuante de Resumo Financeiro & Ações Finais (Substitui barra antiga com 100% dos botões) */}
+      {/* Barra Flutuante de Resumo Financeiro & Ações Finais (Design Slim Oficial) */}
       {currentQuote.items && currentQuote.items.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-6px_25px_rgba(0,0,0,0.09)] py-2.5 px-4 sm:px-6 transition-all duration-200 animate-in slide-in-from-bottom-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
-            {/* Lado Esquerdo: Totais, Margem e Itens */}
-            <div className="flex items-center gap-3 sm:gap-5 min-w-0">
-              <div className="hidden sm:block">
-                <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-bold font-mono uppercase tracking-wider rounded-md">
-                  {currentQuote.code || 'COTACAO'}
-                </span>
-                <span className="text-[11px] text-slate-500 font-medium block truncate max-w-[150px] lg:max-w-[200px]">
-                  {currentQuote.clientCompany || 'Cliente não definido'}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block leading-none">
-                  Total da Cotação
-                </span>
-                <span className="text-base sm:text-lg font-extrabold text-slate-900 font-mono leading-none">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] h-16 flex items-center px-4 sm:px-6 transition-all duration-200">
+          <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-4">
+            {/* Lado Esquerdo: Total da Cotação e Margem (Alinhamento Horizontal Limpo) */}
+            <div className="flex flex-col justify-center shrink-0 select-text">
+              <div className="flex items-baseline gap-2 whitespace-nowrap leading-none">
+                <span className="text-xs text-slate-500 font-semibold tracking-tight">Total da Cotação:</span>
+                <span className="text-base sm:text-lg font-bold text-slate-900 font-mono tracking-tight">
                   R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
-
-              <div className="hidden xl:flex items-center gap-2 border-l border-slate-200 pl-4">
-                <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block leading-none">
-                    Lucro Líquido
-                  </span>
-                  <span className="text-xs font-bold text-emerald-600 font-mono leading-none">
-                    R$ {currentQuote.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  currentQuote.averageMargin < 12 
-                    ? 'bg-amber-100 text-amber-800' 
-                    : 'bg-emerald-100 text-emerald-800'
-                }`}>
-                  {currentQuote.averageMargin.toFixed(1)}% margem
-                </span>
-                <span className="text-[11px] text-slate-400">
-                  • {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item' : 'itens'}
-                </span>
+              <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5 whitespace-nowrap leading-none mt-1">
+                <span>{currentQuote.items.length} {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'}</span>
+                <span>•</span>
+                <span>Margem média de {currentQuote.averageMargin.toFixed(1)}%</span>
               </div>
             </div>
 
-            {/* Lado Direito: Todos os Botões da Barra Antiga (Desktop lg e superior) */}
-            <div className="hidden lg:flex items-center gap-2 shrink-0">
+            {/* Lado Direito: Todos os Botões (Desktop / Telas Médias e Grandes) */}
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
               {onNewQuote && (
                 <button
                   type="button"
@@ -4489,7 +4462,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       onNewQuote();
                     }
                   }}
-                  className="px-3 py-2 bg-white hover:bg-slate-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                  className="h-9 px-3.5 bg-white hover:bg-sky-50 text-sky-700 border border-sky-300 hover:border-sky-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
                   title="Iniciar um novo orçamento em branco"
                 >
                   <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
@@ -4500,7 +4473,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               <button
                 type="button"
                 onClick={() => persistAndProceed(onSave)}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                className="h-9 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
                 title="Salva alterações na proposta atual (rascunho)"
               >
                 <Save className="w-3.5 h-3.5 text-slate-600" />
@@ -4511,7 +4484,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 <button
                   type="button"
                   onClick={() => persistAndProceed(onSaveAsNewQuote)}
-                  className="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                  className="h-9 px-3.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
                   title="Cria uma nova cotação independente com código exclusivo sem sobrescrever a original"
                 >
                   <Copy className="w-3.5 h-3.5 text-sky-600" />
@@ -4528,7 +4501,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   }
                   handleExportExcel();
                 }}
-                className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                className="h-9 px-3.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
                 title="Baixar planilha de custos e precificação detalhada no Excel (.xlsx)"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
@@ -4538,7 +4511,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               <button
                 type="button"
                 onClick={() => persistAndProceed(onPreview, true)}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer active:scale-95"
+                className="h-9 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs whitespace-nowrap cursor-pointer active:scale-95"
                 title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
               >
                 <Eye className="w-4 h-4" />
@@ -4546,34 +4519,34 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               </button>
             </div>
 
-            {/* Layout Compacto (Telas Menores / Mobile) */}
-            <div className="flex lg:hidden items-center gap-2 shrink-0">
+            {/* Layout Mobile (< 640px) */}
+            <div className="flex sm:hidden items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => persistAndProceed(onSave)}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
+                className="h-8 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
                 title="Salvar rascunho"
               >
-                <Save className="w-3.5 h-3.5 text-slate-600" />
+                <Save className="w-3 h-3 text-slate-600" />
                 <span>Salvar</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => persistAndProceed(onPreview, true)}
-                className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                className="h-8 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
                 title="Visualizar proposta"
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="w-3 h-3" />
                 <span>Visualizar</span>
               </button>
 
-              {/* Menu 'Mais' com as demais ações */}
+              {/* Menu 'Mais' no Mobile */}
               <div className="relative" ref={mobileMoreActionsRef}>
                 <button
                   type="button"
                   onClick={() => setIsMobileMoreActionsOpen(prev => !prev)}
-                  className={`p-2 rounded-xl text-xs font-bold transition border cursor-pointer active:scale-95 flex items-center justify-center ${
+                  className={`h-8 w-8 rounded-lg text-xs font-bold transition border cursor-pointer active:scale-95 flex items-center justify-center ${
                     isMobileMoreActionsOpen 
                       ? 'bg-sky-50 text-sky-700 border-sky-300' 
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
