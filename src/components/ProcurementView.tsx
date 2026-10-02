@@ -60,6 +60,16 @@ interface ProcurementViewProps {
 type PeriodOption = 'all' | 'today' | 'yesterday' | '7days' | '30days' | 'this_month' | 'last_month' | 'custom';
 type ViewModeOption = 'items' | 'quotes' | 'suppliers' | 'reference';
 
+function formatDatePtBr(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const clean = dateStr.split('T')[0];
+  const parts = clean.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return clean;
+}
+
 interface ProductReferenceSummary {
   normalizedKey: string;
   name: string;
@@ -1588,7 +1598,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       )}
                       {item.lastPurchasedAt && (
                         <span className="text-slate-400 text-[11px]">
-                          Última em: {item.lastPurchasedAt} ({item.lastClient})
+                          Última em: {formatDatePtBr(item.lastPurchasedAt)} ({item.lastClient})
                         </span>
                       )}
                     </div>
@@ -2820,7 +2830,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
               {item.purchasedAt && (
                 <span className="text-slate-400 text-[11px]">
-                  Comprado em: {item.purchasedAt.split('T')[0]}
+                  Comprado em: {formatDatePtBr(item.purchasedAt)}
                 </span>
               )}
             </div>
