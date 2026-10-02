@@ -2408,16 +2408,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Código / Referência</label>
-            <input
-              type="text"
-              value={currentQuote.code}
-              onChange={(e) => setCurrentQuote(prev => ({ ...prev, code: e.target.value }))}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono font-medium"
-            />
-          </div>
-
-          <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Data de Emissão</label>
             <input
               type="text"
@@ -2556,6 +2546,16 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 </div>
               </div>
             )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Código / Referência</label>
+            <input
+              type="text"
+              value={currentQuote.code}
+              onChange={(e) => setCurrentQuote(prev => ({ ...prev, code: e.target.value }))}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono font-medium"
+            />
           </div>
         </div>
 
