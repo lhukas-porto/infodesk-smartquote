@@ -1305,7 +1305,14 @@ export function normalizeToOfficialCategory(rawCategory?: string): string {
     norm.includes('teclado') || 
     norm.includes('mouse') ||
     norm.includes('computador') ||
-    norm.includes('notebook')
+    norm.includes('notebook') ||
+    norm.includes('pelicula') ||
+    norm.includes('capa') ||
+    norm.includes('capinha') ||
+    norm.includes('case') ||
+    norm.includes('smartphone') ||
+    norm.includes('celular') ||
+    norm.includes('tablet')
   ) {
     return 'Informática, Hardware & Periféricos';
   }

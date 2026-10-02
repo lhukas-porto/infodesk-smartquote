@@ -407,17 +407,7 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
       const matchCleanSku = Boolean(cleanSkuAlphaNum && cleanSkuAlphaNum.length >= 3 && !cleanSkuAlphaNum.startsWith('infauto') && exCleanSku && exCleanSku === cleanSkuAlphaNum);
       const matchName = Boolean(normName && normName.length >= 3 && exName && exName === normName);
 
-      // Correspondência semântica inteligente para produtos com mesmo núcleo (ex: açucareiro wolff)
-      const wordsA = normName.split(/\s+/).filter(w => w.length >= 4);
-      const wordsB = exName.split(/\s+/).filter(w => w.length >= 4);
-      const commonWords = wordsA.filter(w => wordsB.includes(w));
-      const matchSemantic = Boolean(
-        wordsA.length >= 2 && wordsB.length >= 2 &&
-        commonWords.length >= 2 &&
-        (commonWords.length / Math.min(wordsA.length, wordsB.length)) >= 0.67
-      );
-
-      return matchId || matchPn || matchCleanPn || matchSku || matchCleanSku || matchName || matchSemantic;
+      return matchId || matchPn || matchCleanPn || matchSku || matchCleanSku || matchName;
     });
 
     if (existingIdx >= 0) {
@@ -758,6 +748,7 @@ export const saveQuotes = (quotes: Quote[]): void => {
           if (it.purchaseStatus === 'purchased' || it.purchaseStatus === 'delivered') {
             savePurchasedProcurementRecord({
               itemId: it.id,
+              itemNumber: it.itemNumber,
               quoteId: q.id,
               quoteCode: q.code,
               name: it.name,
@@ -1631,6 +1622,7 @@ export const deleteDirectPurchaseItem = (itemId: string): import('../types').Pro
 // ==============================================================================
 export interface ProcurementPurchaseRecord {
   itemId: string;
+  itemNumber?: number;
   quoteId?: string;
   quoteCode?: string;
   name?: string;
@@ -1658,29 +1650,152 @@ export const getPurchasedProcurementRecords = (): Record<string, ProcurementPurc
 };
 
 export const savePurchasedProcurementRecord = (record: ProcurementPurchaseRecord): void => {
-  if (!record || !record.itemId) return;
+  if (!record || (!record.itemId && !record.name)) return;
   try {
     const map = getPurchasedProcurementRecords();
-    map[record.itemId] = record;
-    if (record.quoteId) {
+
+    // 1. Chave direta por itemId
+    if (record.itemId) {
+      map[record.itemId] = record;
+    }
+
+    // 2. Chave composta por quoteId + itemId
+    if (record.quoteId && record.itemId) {
       map[`${record.quoteId}_${record.itemId}`] = record;
     }
-    if (record.quoteCode && record.name) {
-      const sig = `${record.quoteCode}_${record.name}`.trim().toLowerCase();
-      map[sig] = record;
+
+    // 3. Chave resiliente por quoteCode + itemNumber (o número do item NUNCA muda mesmo ao re-gerar UUID no banco!)
+    if (record.quoteCode && record.itemNumber !== undefined) {
+      const codeUpper = record.quoteCode.trim().toUpperCase();
+      map[`${codeUpper}#item_${record.itemNumber}`] = record;
+      map[`${codeUpper}#${record.itemNumber}`] = record;
     }
+
+    // 4. Chave resiliente por quoteId + itemNumber
+    if (record.quoteId && record.itemNumber !== undefined) {
+      map[`${record.quoteId}#item_${record.itemNumber}`] = record;
+    }
+
+    // 5. Chave por quoteCode + nome normalizado
+    if (record.quoteCode && record.name) {
+      const codeUpper = record.quoteCode.trim().toUpperCase();
+      const rawSig = `${record.quoteCode}_${record.name}`.trim().toLowerCase();
+      const normSig = `${codeUpper}:::${normalizeSearchText(record.name)}`;
+      const cleanNameSig = `${codeUpper}:::${record.name.trim().toLowerCase()}`;
+      map[rawSig] = record;
+      map[normSig] = record;
+      map[cleanNameSig] = record;
+    }
+
+    // 6. Chave por quoteId + nome normalizado
+    if (record.quoteId && record.name) {
+      map[`${record.quoteId}:::${normalizeSearchText(record.name)}`] = record;
+    }
+
     localStorage.setItem(PROCUREMENT_PURCHASES_KEY, JSON.stringify(map));
   } catch (err) {
     console.warn('Erro ao salvar registro de compra persistente:', err);
   }
 };
 
-export const removePurchasedProcurementRecord = (itemId: string, quoteId?: string): void => {
+export const findPurchasedProcurementRecord = (
+  map: Record<string, ProcurementPurchaseRecord>,
+  opts: {
+    itemId?: string;
+    quoteId?: string;
+    quoteCode?: string;
+    itemNumber?: number;
+    name?: string;
+  }
+): ProcurementPurchaseRecord | undefined => {
+  if (!map || Object.keys(map).length === 0) return undefined;
+
+  const codeUpper = opts.quoteCode?.trim().toUpperCase();
+  const normName = opts.name ? normalizeSearchText(opts.name) : '';
+  const cleanName = opts.name?.trim().toLowerCase();
+
+  // 1. Busca direta por itemId
+  if (opts.itemId && map[opts.itemId]) {
+    return map[opts.itemId];
+  }
+
+  // 2. Busca por quoteId_itemId
+  if (opts.quoteId && opts.itemId && map[`${opts.quoteId}_${opts.itemId}`]) {
+    return map[`${opts.quoteId}_${opts.itemId}`];
+  }
+
+  // 3. Busca por quoteCode + itemNumber (máxima confiabilidade contra novas UUIDs)
+  if (codeUpper && opts.itemNumber !== undefined) {
+    if (map[`${codeUpper}#item_${opts.itemNumber}`]) return map[`${codeUpper}#item_${opts.itemNumber}`];
+    if (map[`${codeUpper}#${opts.itemNumber}`]) return map[`${codeUpper}#${opts.itemNumber}`];
+  }
+
+  // 4. Busca por quoteId + itemNumber
+  if (opts.quoteId && opts.itemNumber !== undefined && map[`${opts.quoteId}#item_${opts.itemNumber}`]) {
+    return map[`${opts.quoteId}#item_${opts.itemNumber}`];
+  }
+
+  // 5. Busca por quoteCode + nome normalizado
+  if (codeUpper && normName) {
+    if (map[`${codeUpper}:::${normName}`]) return map[`${codeUpper}:::${normName}`];
+  }
+  if (codeUpper && cleanName) {
+    if (map[`${codeUpper}:::${cleanName}`]) return map[`${codeUpper}:::${cleanName}`];
+  }
+  if (opts.quoteCode && cleanName) {
+    const rawSig = `${opts.quoteCode}_${opts.name}`.trim().toLowerCase();
+    if (map[rawSig]) return map[rawSig];
+  }
+
+  // 6. Varredura nos valores caso as chaves diretas não tenham casado
+  const records = Object.values(map);
+  const match = records.find(r => {
+    const rCode = r.quoteCode?.trim().toUpperCase();
+    const isSameQuote = (codeUpper && rCode && codeUpper === rCode) || (opts.quoteId && r.quoteId && opts.quoteId === r.quoteId);
+    if (!isSameQuote) return false;
+
+    // Se a proposta é a mesma, verifica itemNumber
+    if (opts.itemNumber !== undefined && r.itemNumber !== undefined && opts.itemNumber === r.itemNumber) {
+      return true;
+    }
+
+    // Ou nome normalizado
+    if (normName && r.name && normalizeSearchText(r.name) === normName) {
+      return true;
+    }
+
+    return false;
+  });
+
+  return match;
+};
+
+export const removePurchasedProcurementRecord = (
+  itemId: string, 
+  quoteId?: string, 
+  quoteCode?: string, 
+  itemNumber?: number, 
+  name?: string
+): void => {
   try {
     const map = getPurchasedProcurementRecords();
     delete map[itemId];
     if (quoteId) {
       delete map[`${quoteId}_${itemId}`];
+      if (itemNumber !== undefined) delete map[`${quoteId}#item_${itemNumber}`];
+      if (name) delete map[`${quoteId}:::${normalizeSearchText(name)}`];
+    }
+    if (quoteCode) {
+      const codeUpper = quoteCode.trim().toUpperCase();
+      if (itemNumber !== undefined) {
+        delete map[`${codeUpper}#item_${itemNumber}`];
+        delete map[`${codeUpper}#${itemNumber}`];
+      }
+      if (name) {
+        delete map[`${codeUpper}:::${normalizeSearchText(name)}`];
+        delete map[`${codeUpper}:::${name.trim().toLowerCase()}`];
+        delete map[`${quoteCode}_${name}`.trim().toLowerCase()];
+      }
     }
     localStorage.setItem(PROCUREMENT_PURCHASES_KEY, JSON.stringify(map));
   } catch { /* noop */ }

@@ -199,7 +199,21 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
         unitPrice: Number(row.unit_price),
         totalPrice: Number(row.total_price),
         sourceUrl: row.source_url || '',
-        supplier: row.supplier || extractStoreNameFromUrl(row.source_url) || ''
+        supplier: row.supplier || extractStoreNameFromUrl(row.source_url) || '',
+        // Dados de Aprovação e Central de Compras persistidos
+        approved: row.approved !== undefined && row.approved !== null ? Boolean(row.approved) : undefined,
+        approvedQuantity: row.approved_quantity !== undefined && row.approved_quantity !== null ? Number(row.approved_quantity) : undefined,
+        purchaseStatus: row.purchase_status || undefined,
+        actualCostPrice: row.actual_cost_price !== undefined && row.actual_cost_price !== null ? Number(row.actual_cost_price) : undefined,
+        actualUnitCostPrice: row.actual_unit_cost_price !== undefined && row.actual_unit_cost_price !== null ? Number(row.actual_unit_cost_price) : undefined,
+        actualPurchaseUrl: row.actual_purchase_url || undefined,
+        actualShippingCost: row.actual_shipping_cost !== undefined && row.actual_shipping_cost !== null ? Number(row.actual_shipping_cost) : undefined,
+        shippingPending: row.shipping_pending !== undefined && row.shipping_pending !== null ? Boolean(row.shipping_pending) : undefined,
+        paymentMethod: row.payment_method || undefined,
+        purchasedAt: row.purchased_at || undefined,
+        purchaseNotes: row.purchase_notes || undefined,
+        actualTaxPercent: row.actual_tax_percent !== undefined && row.actual_tax_percent !== null ? Number(row.actual_tax_percent) : undefined,
+        clientOrderNumber: row.client_order_number || undefined
       });
     });
 
@@ -239,6 +253,9 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
         status: (q.sent_at && (!q.status || q.status === 'draft')) || (q.code && q.code.trim().toUpperCase() === 'CNC 210926-3') ? 'sent' : (q.status || 'draft'),
         recipientEmails: normalizeEmailListString(q.recipient_emails),
         ccEmails: normalizeEmailListString(q.cc_emails),
+        clientOrderNumber: q.client_order_number || undefined,
+        approvedAt: q.approved_at || undefined,
+        approvedTotalAmount: q.approved_total_amount !== undefined && q.approved_total_amount !== null ? Number(q.approved_total_amount) : undefined,
         createdAt: q.created_at,
         sentAt: q.sent_at || ((q.code && q.code.trim().toUpperCase() === 'CNC 210926-3') ? q.created_at || new Date().toISOString() : undefined)
       };
@@ -284,7 +301,20 @@ export async function fetchQuoteItemsByQuoteId(quoteId: string): Promise<QuoteIt
       unitPrice: Number(row.unit_price),
       totalPrice: Number(row.total_price),
       sourceUrl: row.source_url || '',
-      supplier: row.supplier || extractStoreNameFromUrl(row.source_url) || ''
+      supplier: row.supplier || extractStoreNameFromUrl(row.source_url) || '',
+      approved: row.approved !== undefined && row.approved !== null ? Boolean(row.approved) : undefined,
+      approvedQuantity: row.approved_quantity !== undefined && row.approved_quantity !== null ? Number(row.approved_quantity) : undefined,
+      purchaseStatus: row.purchase_status || undefined,
+      actualCostPrice: row.actual_cost_price !== undefined && row.actual_cost_price !== null ? Number(row.actual_cost_price) : undefined,
+      actualUnitCostPrice: row.actual_unit_cost_price !== undefined && row.actual_unit_cost_price !== null ? Number(row.actual_unit_cost_price) : undefined,
+      actualPurchaseUrl: row.actual_purchase_url || undefined,
+      actualShippingCost: row.actual_shipping_cost !== undefined && row.actual_shipping_cost !== null ? Number(row.actual_shipping_cost) : undefined,
+      shippingPending: row.shipping_pending !== undefined && row.shipping_pending !== null ? Boolean(row.shipping_pending) : undefined,
+      paymentMethod: row.payment_method || undefined,
+      purchasedAt: row.purchased_at || undefined,
+      purchaseNotes: row.purchase_notes || undefined,
+      actualTaxPercent: row.actual_tax_percent !== undefined && row.actual_tax_percent !== null ? Number(row.actual_tax_percent) : undefined,
+      clientOrderNumber: row.client_order_number || undefined
     }));
   } catch (err) {
     console.warn('Erro ao buscar itens de orçamento específico no Supabase:', err);
@@ -371,6 +401,9 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       global_shipping: Number(quote.globalShipping ?? 0),
       status: (quote.sentAt && (!quote.status || quote.status === 'draft')) || (quote.code && quote.code.trim().toUpperCase() === 'CNC 210926-3') ? 'sent' : (quote.status || 'draft'),
       sent_at: quote.sentAt || ((quote.status === 'sent' || (quote.code && quote.code.trim().toUpperCase() === 'CNC 210926-3')) ? new Date().toISOString() : null),
+      client_order_number: quote.clientOrderNumber || null,
+      approved_at: quote.approvedAt || null,
+      approved_total_amount: quote.approvedTotalAmount !== undefined && quote.approvedTotalAmount !== null ? Number(quote.approvedTotalAmount) : null,
       updated_at: new Date().toISOString()
     };
 
@@ -392,7 +425,21 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       markup_percent: Number(item.markupPercent || 35),
       unit_price: Number(item.unitPrice || 0),
       total_price: Number(item.totalPrice || 0),
-      source_url: item.sourceUrl || null
+      supplier: item.supplier || null,
+      source_url: item.sourceUrl || null,
+      approved: Boolean(item.approved),
+      approved_quantity: item.approvedQuantity !== undefined && item.approvedQuantity !== null ? Number(item.approvedQuantity) : null,
+      purchase_status: item.purchaseStatus || 'pending',
+      actual_cost_price: item.actualCostPrice !== undefined && item.actualCostPrice !== null ? Number(item.actualCostPrice) : null,
+      actual_unit_cost_price: item.actualUnitCostPrice !== undefined && item.actualUnitCostPrice !== null ? Number(item.actualUnitCostPrice) : null,
+      actual_purchase_url: item.actualPurchaseUrl || null,
+      actual_shipping_cost: item.actualShippingCost !== undefined && item.actualShippingCost !== null ? Number(item.actualShippingCost) : 0,
+      shipping_pending: Boolean(item.shippingPending),
+      payment_method: item.paymentMethod || null,
+      purchased_at: item.purchasedAt || null,
+      purchase_notes: item.purchaseNotes || null,
+      actual_tax_percent: item.actualTaxPercent !== undefined && item.actualTaxPercent !== null ? Number(item.actualTaxPercent) : null,
+      client_order_number: item.clientOrderNumber || null
     }));
 
     // Deduplicar rigorosamente itemsPayload para nunca persistir clones
@@ -430,11 +477,24 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
 
     // 2. Fallback de segurança caso a RPC não esteja instalada no banco
     if (!rpcSuccess) {
-      const { data: savedQuote, error: quoteError } = await supabase
+      let { data: savedQuote, error: quoteError } = await supabase
         .from('quotes')
         .upsert(sanitizedQuotePayload, { onConflict: 'code' })
         .select()
         .single();
+
+      // Fallback resiliente: caso as novas colunas de quotes ainda não existam no Supabase
+      if (quoteError && quoteError.message?.includes('column')) {
+        console.warn('[Supabase] Colunas de aprovação ainda não existem em quotes. Gravando sem campos extras...');
+        const { client_order_number, approved_at, approved_total_amount, ...baseQuotePayload } = sanitizedQuotePayload;
+        const retry = await supabase
+          .from('quotes')
+          .upsert(baseQuotePayload, { onConflict: 'code' })
+          .select()
+          .single();
+        savedQuote = retry.data;
+        quoteError = retry.error;
+      }
 
       if (quoteError || !savedQuote) {
         console.error('Erro ao salvar quote no Supabase:', quoteError);
@@ -449,7 +509,24 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         quote_id: savedQuote.id
       }));
 
-      const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
+      let { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
+
+      // Fallback resiliente: caso as novas colunas de quote_items ainda não existam no Supabase
+      if (itemsInsertError && itemsInsertError.message?.includes('column')) {
+        console.warn('[Supabase] Colunas de compras ainda não existem em quote_items. Gravando apenas campos padrão...');
+        const legacyItems = itemsToInsert.map(it => {
+          const {
+            approved, approved_quantity, purchase_status, actual_cost_price, actual_unit_cost_price,
+            actual_purchase_url, actual_shipping_cost, shipping_pending, payment_method,
+            purchased_at, purchase_notes, actual_tax_percent, client_order_number,
+            ...legacy
+          } = it as any;
+          return legacy;
+        });
+        const retry = await supabase.from('quote_items').insert(legacyItems);
+        itemsInsertError = retry.error;
+      }
+
       if (itemsInsertError) {
         console.error('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
         throw new Error(`Falha ao gravar itens no banco: ${itemsInsertError.message}`);
@@ -618,17 +695,6 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
         await supabase.from('products').delete().in('id', extraIds);
       }
       return;
-    }
-
-    // 4.1 Busca aproximada por palavras-chave centrais do nome (evita criar duplicata desatualizada)
-    const significantWords = cleanName.split(/\s+/).filter(w => w.length >= 4);
-    if (significantWords.length >= 2) {
-      const termPattern = `%${significantWords[0]}%${significantWords[1]}%`;
-      const { data: byPattern } = await supabase.from('products').select('id').ilike('name', termPattern).limit(1);
-      if (byPattern && byPattern.length > 0) {
-        await supabase.from('products').update(payload).eq('id', byPattern[0].id);
-        return;
-      }
     }
 
     // 5. Se não existe, insere como novo produto

@@ -2122,7 +2122,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                               onClick={() => {
                                 const formatted = formatCompanyPrefix(c.name, c.prefix);
                                 const newCode = generateQuoteCode(c.name, new Date(), propsQuotes);
-                                const primaryContact = Array.isArray(c.contacts) && c.contacts.length > 0 ? c.contacts[0] : null;
                                 setCurrentQuote(prev => {
                                   const isSavedForAnother = (propsQuotes || []).some(q => 
                                     q.id === prev.id && 
@@ -2133,9 +2132,9 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                     ...prev,
                                     id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
                                     clientCompany: formatted,
-                                    contactPerson: primaryContact ? primaryContact.name : prev.contactPerson,
-                                    clientEmail: primaryContact?.email || prev.clientEmail,
-                                    clientPhone: primaryContact?.phone || prev.clientPhone,
+                                    contactPerson: '',
+                                    clientEmail: '',
+                                    clientPhone: '',
                                     deliveryLocation: c.defaultDeliveryLocation || prev.deliveryLocation,
                                     paymentTerms: c.defaultPaymentTerms || prev.paymentTerms,
                                     deliveryDays: c.defaultDeliveryDays || prev.deliveryDays,

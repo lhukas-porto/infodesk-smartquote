@@ -84,7 +84,8 @@ import {
   getDeletedQuoteCodes,
   recordDeletedQuoteCode,
   getPurchasedProcurementRecords,
-  savePurchasedProcurementRecord
+  savePurchasedProcurementRecord,
+  findPurchasedProcurementRecord
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -688,14 +689,17 @@ export const App: React.FC = () => {
                 const locIt = localMatch?.items?.find(li => 
                   (li.id && remIt.id && li.id === remIt.id) ||
                   (li.itemNumber !== undefined && remIt.itemNumber !== undefined && li.itemNumber === remIt.itemNumber) ||
-                  (li.name && remIt.name && li.name.trim().toLowerCase() === remIt.name.trim().toLowerCase())
+                  (li.name && remIt.name && normalizeSearchText(li.name) === normalizeSearchText(remIt.name))
                 );
 
-                // 2. Tenta correspondência no registro permanente de compras
-                const purchaseRecord = purchasesMap[remIt.id] ||
-                  (rq.id ? purchasesMap[`${rq.id}_${remIt.id}`] : null) ||
-                  (locIt?.id ? purchasesMap[locIt.id] : null) ||
-                  (rq.code && remIt.name ? purchasesMap[`${rq.code}_${remIt.name}`.trim().toLowerCase()] : null);
+                // 2. Tenta correspondência no registro permanente de compras com algoritmo inteligente multi-chave
+                const purchaseRecord = findPurchasedProcurementRecord(purchasesMap, {
+                  itemId: remIt.id,
+                  quoteId: rq.id,
+                  quoteCode: rq.code,
+                  itemNumber: remIt.itemNumber,
+                  name: remIt.name
+                }) || (locIt?.id ? purchasesMap[locIt.id] : undefined);
 
                 // Se houver qualquer dado de compra (local ou no registro persistente), preserva 100%!
                 const isPurchased = remIt.purchaseStatus === 'purchased' ||
@@ -709,15 +713,25 @@ export const App: React.FC = () => {
                   purchaseStatus,
                   approved: remIt.approved !== undefined ? remIt.approved : locIt?.approved,
                   approvedQuantity: remIt.approvedQuantity !== undefined ? remIt.approvedQuantity : locIt?.approvedQuantity,
-                  actualCostPrice: remIt.actualCostPrice !== undefined ? remIt.actualCostPrice : (locIt?.actualCostPrice ?? purchaseRecord?.actualCostPrice),
-                  actualUnitCostPrice: remIt.actualUnitCostPrice !== undefined ? remIt.actualUnitCostPrice : (locIt?.actualUnitCostPrice ?? purchaseRecord?.actualUnitCostPrice),
-                  actualPurchaseUrl: remIt.actualPurchaseUrl || locIt?.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl,
-                  actualShippingCost: remIt.actualShippingCost !== undefined ? remIt.actualShippingCost : (locIt?.actualShippingCost ?? purchaseRecord?.actualShippingCost),
-                  shippingPending: remIt.shippingPending !== undefined ? remIt.shippingPending : (locIt?.shippingPending ?? purchaseRecord?.shippingPending),
-                  paymentMethod: remIt.paymentMethod || locIt?.paymentMethod || purchaseRecord?.paymentMethod,
-                  purchasedAt: remIt.purchasedAt || locIt?.purchasedAt || purchaseRecord?.purchasedAt,
-                  purchaseNotes: remIt.purchaseNotes || locIt?.purchaseNotes || purchaseRecord?.purchaseNotes,
-                  actualTaxPercent: remIt.actualTaxPercent !== undefined ? remIt.actualTaxPercent : (locIt?.actualTaxPercent ?? purchaseRecord?.actualTaxPercent),
+                  actualCostPrice: isPurchased
+                    ? (locIt?.actualCostPrice ?? purchaseRecord?.actualCostPrice ?? remIt.actualCostPrice)
+                    : (remIt.actualCostPrice !== undefined ? remIt.actualCostPrice : (locIt?.actualCostPrice ?? purchaseRecord?.actualCostPrice)),
+                  actualUnitCostPrice: isPurchased
+                    ? (locIt?.actualUnitCostPrice ?? purchaseRecord?.actualUnitCostPrice ?? remIt.actualUnitCostPrice)
+                    : (remIt.actualUnitCostPrice !== undefined ? remIt.actualUnitCostPrice : (locIt?.actualUnitCostPrice ?? purchaseRecord?.actualUnitCostPrice)),
+                  actualPurchaseUrl: locIt?.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl || remIt.actualPurchaseUrl,
+                  actualShippingCost: isPurchased
+                    ? (locIt?.actualShippingCost ?? purchaseRecord?.actualShippingCost ?? remIt.actualShippingCost)
+                    : (remIt.actualShippingCost !== undefined ? remIt.actualShippingCost : (locIt?.actualShippingCost ?? purchaseRecord?.actualShippingCost)),
+                  shippingPending: isPurchased
+                    ? (locIt?.shippingPending ?? purchaseRecord?.shippingPending ?? remIt.shippingPending)
+                    : (remIt.shippingPending !== undefined ? remIt.shippingPending : (locIt?.shippingPending ?? purchaseRecord?.shippingPending)),
+                  paymentMethod: locIt?.paymentMethod || purchaseRecord?.paymentMethod || remIt.paymentMethod,
+                  purchasedAt: locIt?.purchasedAt || purchaseRecord?.purchasedAt || remIt.purchasedAt,
+                  purchaseNotes: locIt?.purchaseNotes || purchaseRecord?.purchaseNotes || remIt.purchaseNotes,
+                  actualTaxPercent: isPurchased
+                    ? (locIt?.actualTaxPercent ?? purchaseRecord?.actualTaxPercent ?? remIt.actualTaxPercent)
+                    : (remIt.actualTaxPercent !== undefined ? remIt.actualTaxPercent : (locIt?.actualTaxPercent ?? purchaseRecord?.actualTaxPercent)),
                   clientOrderNumber: remIt.clientOrderNumber || locIt?.clientOrderNumber
                 };
               });
@@ -2406,7 +2420,11 @@ export const App: React.FC = () => {
             }}
             onUpdateQuote={(updatedQuote) => {
               setQuotes(prev => {
-                const next = prev.map(q => q.id === updatedQuote.id ? updatedQuote : q);
+                const next = prev.map(q => 
+                  (q.id === updatedQuote.id || (q.code && updatedQuote.code && q.code.trim().toUpperCase() === updatedQuote.code.trim().toUpperCase()))
+                    ? updatedQuote 
+                    : q
+                );
                 saveQuotes(next);
                 syncQuoteToSupabase(updatedQuote).catch(err => {
                   console.warn('Aviso sync quote aprovado:', err);

@@ -151,10 +151,12 @@ CREATE TABLE IF NOT EXISTS quotes (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Migrações retroativas idempotentes para a tabela quotes:
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS recipient_emails TEXT[] DEFAULT ARRAY[]::TEXT[];
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS cc_emails TEXT[] DEFAULT ARRAY[]::TEXT[];
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS global_markup_percent NUMERIC(6,2) DEFAULT 35.00;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS client_order_number TEXT;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS approved_total_amount NUMERIC(12,2);
 
 -- ==============================================================================
 -- 7. TABELA: quote_items (Itens da Proposta com Imagem Proporcional 4cm)
@@ -184,8 +186,21 @@ CREATE TABLE IF NOT EXISTS quote_items (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Migração retroativa idempotente para fornecedor do item:
+-- Migração retroativa idempotente para fornecedor do item e compras reais:
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS supplier TEXT;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS approved BOOLEAN DEFAULT false;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS approved_quantity INTEGER;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS purchase_status TEXT DEFAULT 'pending';
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS actual_cost_price NUMERIC(12,2);
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS actual_unit_cost_price NUMERIC(12,2);
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS actual_purchase_url TEXT;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS actual_shipping_cost NUMERIC(10,2) DEFAULT 0.00;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS shipping_pending BOOLEAN DEFAULT false;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS payment_method TEXT;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS purchased_at TEXT;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS purchase_notes TEXT;
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS actual_tax_percent NUMERIC(6,2);
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS client_order_number TEXT;
 
 -- ==============================================================================
 -- 8. TABELA: incoming_emails (E-mails e Cotações Capturadas)
@@ -497,13 +512,16 @@ BEGIN
     recipient_emails = EXCLUDED.recipient_emails,
     cc_emails = EXCLUDED.cc_emails,
     sent_at = EXCLUDED.sent_at,
+    client_order_number = COALESCE(EXCLUDED.client_order_number, quotes.client_order_number),
+    approved_at = COALESCE(EXCLUDED.approved_at, quotes.approved_at),
+    approved_total_amount = COALESCE(EXCLUDED.approved_total_amount, quotes.approved_total_amount),
     updated_at = NOW()
   RETURNING id INTO v_quote_id;
 
   -- 2. Deletar itens antigos da proposta
   DELETE FROM quote_items WHERE quote_id = v_quote_id;
 
-  -- 3. Inserir novos itens se houver
+  -- 3. Inserir novos itens se houver com dados de compra e aprovação
   IF p_items IS NOT NULL AND jsonb_array_length(p_items) > 0 THEN
     INSERT INTO quote_items (
       quote_id,
@@ -525,7 +543,20 @@ BEGIN
       image_url,
       show_image,
       source_url,
-      raw_search_query
+      raw_search_query,
+      approved,
+      approved_quantity,
+      purchase_status,
+      actual_cost_price,
+      actual_unit_cost_price,
+      actual_purchase_url,
+      actual_shipping_cost,
+      shipping_pending,
+      payment_method,
+      purchased_at,
+      purchase_notes,
+      actual_tax_percent,
+      client_order_number
     )
     SELECT
       v_quote_id,
@@ -547,7 +578,20 @@ BEGIN
       item->>'image_url',
       COALESCE((item->>'show_image')::BOOLEAN, false),
       item->>'source_url',
-      item->>'raw_search_query'
+      item->>'raw_search_query',
+      COALESCE((item->>'approved')::BOOLEAN, false),
+      CASE WHEN (item->>'approved_quantity') IS NOT NULL THEN (item->>'approved_quantity')::INTEGER ELSE NULL END,
+      COALESCE(item->>'purchase_status', 'pending'),
+      CASE WHEN (item->>'actual_cost_price') IS NOT NULL THEN (item->>'actual_cost_price')::NUMERIC ELSE NULL END,
+      CASE WHEN (item->>'actual_unit_cost_price') IS NOT NULL THEN (item->>'actual_unit_cost_price')::NUMERIC ELSE NULL END,
+      item->>'actual_purchase_url',
+      COALESCE((item->>'actual_shipping_cost')::NUMERIC, 0),
+      COALESCE((item->>'shipping_pending')::BOOLEAN, false),
+      item->>'payment_method',
+      item->>'purchased_at',
+      item->>'purchase_notes',
+      CASE WHEN (item->>'actual_tax_percent') IS NOT NULL THEN (item->>'actual_tax_percent')::NUMERIC ELSE NULL END,
+      item->>'client_order_number'
     FROM jsonb_array_elements(p_items) AS item;
   END IF;
 END;

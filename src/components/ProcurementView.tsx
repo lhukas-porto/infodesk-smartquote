@@ -48,6 +48,8 @@ import {
   getClientCompanies,
   getProducts,
   savePurchasedProcurementRecord,
+  findPurchasedProcurementRecord,
+  getPurchasedProcurementRecords,
   removePurchasedProcurementRecord,
   getSettings
 } from '../utils/storage';
@@ -260,6 +262,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   const procurementItems = useMemo<ProcurementItem[]>(() => {
     const list: ProcurementItem[] = [];
 
+    const purchasesMap = getPurchasedProcurementRecords();
+
     // 1. Itens das propostas aprovadas
     (quotes || []).forEach(quote => {
       const isQuoteApproved = quote.status === 'approved';
@@ -272,9 +276,24 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           const quotedUnitPrice = item.unitPrice;
           const quotedTotalPrice = Number((quotedUnitPrice * qty).toFixed(2));
 
-          const actualUnit = item.actualUnitCostPrice !== undefined
+          // Recupera blindagem persistente caso item venha do banco sem os dados de compra
+          const purchaseRecord = findPurchasedProcurementRecord(purchasesMap, {
+            itemId: item.id,
+            quoteId: quote.id,
+            quoteCode: quote.code,
+            itemNumber: item.itemNumber,
+            name: item.name
+          });
+
+          const isPurchased = item.purchaseStatus === 'purchased' || purchaseRecord?.purchaseStatus === 'purchased';
+          const effectivePurchaseStatus = isPurchased ? ('purchased' as const) : (item.purchaseStatus || 'pending');
+
+          const effectiveActualCost = item.actualCostPrice !== undefined ? item.actualCostPrice : purchaseRecord?.actualCostPrice;
+          const effectiveActualUnit = item.actualUnitCostPrice !== undefined
             ? item.actualUnitCostPrice
-            : (item.actualCostPrice !== undefined && qty > 0 ? Number((item.actualCostPrice / qty).toFixed(2)) : undefined);
+            : (purchaseRecord?.actualUnitCostPrice !== undefined
+              ? purchaseRecord.actualUnitCostPrice
+              : (effectiveActualCost !== undefined && qty > 0 ? Number((effectiveActualCost / qty).toFixed(2)) : undefined));
 
           const itemTax = item.actualTaxPercent ?? item.taxPercent ?? quote.globalTaxPercent ?? defaultTax;
 
@@ -300,17 +319,17 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             quotedTotalPrice,
             supplier: item.supplier,
             sourceUrl: item.sourceUrl,
-            purchaseStatus: item.purchaseStatus || 'pending',
-            actualCostPrice: item.actualCostPrice,
-            actualUnitCostPrice: actualUnit,
-            actualPurchaseUrl: item.actualPurchaseUrl,
-            actualShippingCost: item.actualShippingCost,
-            shippingPending: item.shippingPending || false,
-            paymentMethod: item.paymentMethod,
-            purchasedAt: item.purchasedAt,
-            purchaseNotes: item.purchaseNotes,
+            purchaseStatus: effectivePurchaseStatus,
+            actualCostPrice: effectiveActualCost,
+            actualUnitCostPrice: effectiveActualUnit,
+            actualPurchaseUrl: item.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl,
+            actualShippingCost: item.actualShippingCost !== undefined ? item.actualShippingCost : purchaseRecord?.actualShippingCost,
+            shippingPending: item.shippingPending ?? purchaseRecord?.shippingPending ?? false,
+            paymentMethod: item.paymentMethod || purchaseRecord?.paymentMethod,
+            purchasedAt: item.purchasedAt || purchaseRecord?.purchasedAt,
+            purchaseNotes: item.purchaseNotes || purchaseRecord?.purchaseNotes,
             taxPercent: itemTax,
-            actualTaxPercent: item.actualTaxPercent,
+            actualTaxPercent: item.actualTaxPercent ?? purchaseRecord?.actualTaxPercent,
             isDirectPurchase: false
           });
         }
@@ -809,7 +828,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     const updatedItems = (targetQuote.items || []).map(it => {
       const isMatch = (it.id && activeItemForPurchase.itemId && it.id === activeItemForPurchase.itemId) ||
                       (it.itemNumber !== undefined && activeItemForPurchase.itemNumber !== undefined && it.itemNumber === activeItemForPurchase.itemNumber) ||
-                      (it.name && activeItemForPurchase.name && it.name.trim().toLowerCase() === activeItemForPurchase.name.trim().toLowerCase());
+                      (it.name && activeItemForPurchase.name && normalizeSearchText(it.name) === normalizeSearchText(activeItemForPurchase.name));
 
       if (isMatch) {
         return {
@@ -832,6 +851,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     // Registra imediatamente no storage dedicado de compras para blindagem absoluta contra F5
     savePurchasedProcurementRecord({
       itemId: activeItemForPurchase.itemId || activeItemForPurchase.id,
+      itemNumber: activeItemForPurchase.itemNumber,
       quoteId: targetQuote.id,
       quoteCode: targetQuote.code,
       name: activeItemForPurchase.name,
@@ -857,7 +877,13 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
   // 1. Desfazer Compra Realizada (retornando o item para o status 'A Comprar')
   const handleDeletePurchase = (item: ProcurementItem) => {
-    removePurchasedProcurementRecord(item.itemId || item.id, item.quoteId);
+    removePurchasedProcurementRecord(
+      item.itemId || item.id, 
+      item.quoteId, 
+      item.quoteCode, 
+      item.itemNumber, 
+      item.name
+    );
 
     if (item.isDirectPurchase) {
       // Compra direta: reverte para pending e limpa campos reais
