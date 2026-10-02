@@ -264,6 +264,20 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   const [registeredUnits, setRegisteredUnits] = useState<string[]>(() => getRegisteredUnits());
   const [registeredCategories, setRegisteredCategories] = useState<string[]>(() => getRegisteredCategories());
 
+  // Autocomplete dinâmico nos campos de descrição dos itens com busca na base de produtos
+  const [activeItemAutocompleteId, setActiveItemAutocompleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutsideAutocomplete = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.sq-item-autocomplete-container')) {
+        setActiveItemAutocompleteId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutsideAutocomplete);
+    return () => document.removeEventListener('mousedown', handleClickOutsideAutocomplete);
+  }, []);
+
   useEffect(() => {
     const handleMetadataChange = () => {
       setRegisteredUnits(getRegisteredUnits());
@@ -800,6 +814,52 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
   const handleItemChange = (index: number, field: keyof QuoteItem, value: any) => {
     handleItemUpdate(index, { [field]: value });
+  };
+
+  // Preenchimento automático de produto do catálogo ao selecionar na busca preditiva da descrição
+  const handleApplyProductToRow = (targetIdx: number, p: Product) => {
+    const updatedItems = [...currentQuote.items];
+    const currentItem = updatedItems[targetIdx];
+    if (!currentItem) return;
+
+    const newCost = Number(p.costPrice) || 0;
+    const newShipping = currentItem.shippingCost ?? globalShipping ?? 0;
+    const newMarkup = currentItem.markupPercent ?? globalMarkup ?? 0;
+    const newTax = currentItem.taxPercent ?? globalTax ?? 0;
+    const newUnitPrice = calculateItemUnitPrice(newCost, newShipping, newMarkup, newTax);
+
+    updatedItems[targetIdx] = {
+      ...currentItem,
+      productId: p.id,
+      name: p.name,
+      description: p.description || currentItem.description || '',
+      imageUrl: p.imageUrl || currentItem.imageUrl || '',
+      showImage: Boolean(p.imageUrl || currentItem.imageUrl),
+      partNumber: p.partNumber || currentItem.partNumber || '',
+      ncm: p.ncm || currentItem.ncm || '',
+      category: p.category || currentItem.category || '',
+      unit: p.unit || currentItem.unit || 'Un.',
+      costPrice: newCost,
+      supplier: p.supplier || currentItem.supplier || '',
+      sourceUrl: p.sourceUrl || currentItem.sourceUrl || '',
+      unitPrice: newUnitPrice,
+      totalPrice: Number((newUnitPrice * (currentItem.quantity || 1)).toFixed(2))
+    };
+
+    const totals = recalculateQuote(updatedItems);
+    setCurrentQuote(prev => ({
+      ...prev,
+      items: updatedItems,
+      ...totals
+    }));
+
+    setActiveItemAutocompleteId(null);
+    setSavedCatalogIds(prev => ({ ...prev, [currentItem.id]: true }));
+
+    setTimeout(() => {
+      const el = itemNameTextareaRefs.current[currentItem.id];
+      if (el) adjustItemTextareaHeight(el);
+    }, 50);
   };
 
   const handleAddItem = () => {
@@ -2935,7 +2995,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           )}
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[320px]">
           <table className="w-full text-left text-xs text-slate-800">
             <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 whitespace-nowrap">
               <tr>
@@ -3051,8 +3111,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                             )}
                           </div>
 
-                          {/* Campo de Descrição */}
-                          <div className="flex-1 min-w-0">
+                          {/* Campo de Descrição com Busca Preditiva no Banco / Catálogo */}
+                          <div className="flex-1 min-w-0 relative sq-item-autocomplete-container">
                             <textarea
                               ref={(el) => {
                                 itemNameTextareaRefs.current[item.id] = el;
@@ -3060,10 +3120,26 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                               }}
                               rows={1}
                               value={item.name}
-                              onFocus={() => { activeImageUploadIndexRef.current = idx; }}
+                              onFocus={() => {
+                                activeImageUploadIndexRef.current = idx;
+                                if ((item.name || '').trim().length >= 2) {
+                                  setActiveItemAutocompleteId(item.id);
+                                }
+                              }}
                               onChange={(e) => {
-                                handleItemChange(idx, 'name', e.target.value);
+                                const val = e.target.value;
+                                handleItemChange(idx, 'name', val);
                                 adjustItemTextareaHeight(e.target);
+                                if (val.trim().length >= 2) {
+                                  setActiveItemAutocompleteId(item.id);
+                                } else {
+                                  setActiveItemAutocompleteId(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setActiveItemAutocompleteId(null);
+                                }
                               }}
                               onPaste={(e) => {
                                 handlePasteImageToItem(e, idx);
@@ -3074,6 +3150,82 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                               }}
                               className="w-full min-h-[32px] bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white resize-none leading-snug overflow-hidden"
                             />
+
+                            {/* Dropdown de Autocomplete com Produtos Cadastrados */}
+                            {activeItemAutocompleteId === item.id && (() => {
+                              const query = (item.name || '').trim().toLowerCase();
+                              if (!query || query.length < 2) return null;
+
+                              const filtered = (products || [])
+                                .filter(p => {
+                                  if ((p.name || '').trim().toLowerCase() === query) return false;
+                                  const nameMatch = (p.name || '').toLowerCase().includes(query);
+                                  const skuMatch = (p.sku || '').toLowerCase().includes(query);
+                                  const partMatch = (p.partNumber || '').toLowerCase().includes(query);
+                                  const catMatch = (p.category || '').toLowerCase().includes(query);
+                                  return nameMatch || skuMatch || partMatch || catMatch;
+                                })
+                                .slice(0, 8);
+
+                              if (filtered.length === 0) return null;
+
+                              return (
+                                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col animate-scaleIn max-h-72">
+                                  <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <span className="flex items-center gap-1.5 text-sky-700">
+                                      <Package className="w-3.5 h-3.5 text-sky-600" />
+                                      <span>Produtos no Catálogo ({filtered.length})</span>
+                                    </span>
+                                    <span className="text-[9.5px] text-slate-400 font-normal lowercase">clique para preencher dados e custo</span>
+                                  </div>
+
+                                  <div className="p-1 overflow-y-auto divide-y divide-slate-100">
+                                    {filtered.map(p => (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          handleApplyProductToRow(idx, p);
+                                        }}
+                                        className="w-full text-left p-2 hover:bg-sky-50 rounded-xl transition flex items-center gap-2.5 border border-transparent hover:border-sky-200 cursor-pointer group"
+                                      >
+                                        {p.imageUrl ? (
+                                          <img
+                                            src={p.imageUrl}
+                                            alt={p.name}
+                                            className="w-8 h-8 object-contain bg-white border border-slate-200 rounded-lg p-0.5 shrink-0"
+                                          />
+                                        ) : (
+                                          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                                            <Package className="w-4 h-4" />
+                                          </div>
+                                        )}
+
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-xs font-bold text-slate-900 group-hover:text-sky-800 truncate">
+                                            {p.name}
+                                          </p>
+                                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                                            {p.partNumber && <span>Part: {p.partNumber}</span>}
+                                            {p.sku && <span>SKU: {p.sku}</span>}
+                                            {p.category && <span className="text-slate-400 font-sans">• {p.category}</span>}
+                                            <span className="text-slate-400 font-sans">• {p.unit || 'Un.'}</span>
+                                          </div>
+                                        </div>
+
+                                        <div className="text-right shrink-0">
+                                          <span className="text-xs font-bold text-emerald-700 font-mono block">
+                                            R$ {p.costPrice.toFixed(2)}
+                                          </span>
+                                          <span className="text-[9px] text-slate-400">Custo Base</span>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
 
