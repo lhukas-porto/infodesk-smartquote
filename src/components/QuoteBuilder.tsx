@@ -2383,20 +2383,20 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </div>
         </div>
 
-        {/* Linha 2: Os 5 campos em UMA ÚNICA LINHA no Desktop */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 pt-1">
-          <div>
+        {/* Linha 2: Os 5 campos em UMA ÚNICA LINHA no Desktop com E-mail aumentado e Telefone enxuto */}
+        <div className="grid grid-cols-1 sm:grid-cols-12 lg:grid-cols-[1.45fr_0.8fr_0.9fr_1fr_0.85fr] gap-3.5 pt-1">
+          <div className="sm:col-span-7 lg:col-span-1">
             <label className="block text-xs font-medium text-slate-600 mb-1.5">E-mail</label>
             <input
               type="email"
               value={currentQuote.clientEmail}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, clientEmail: e.target.value.toLowerCase() }))}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-medium lowercase"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-medium lowercase"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Telefone (Opcional)</label>
+          <div className="sm:col-span-5 lg:col-span-1">
+            <label className="block text-xs font-medium text-slate-600 mb-1.5 truncate" title="Telefone do Contato (Opcional)">Telefone do Contato (Opcional)</label>
             <input
               type="text"
               value={maskPhone(currentQuote.clientPhone || '')}
@@ -2405,21 +2405,21 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 setCurrentQuote(prev => ({ ...prev, clientPhone: masked }));
               }}
               maxLength={15}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-medium"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-medium"
             />
           </div>
 
-          <div>
+          <div className="sm:col-span-6 lg:col-span-1">
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Data de Emissão</label>
             <input
               type="text"
               value={currentQuote.date}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, date: e.target.value }))}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-medium"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-medium"
             />
           </div>
 
-          <div ref={locationSearchContainerRef} className="relative">
+          <div ref={locationSearchContainerRef} className="relative sm:col-span-6 lg:col-span-1">
             <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
               <span className="truncate" title="Localidade do Frete / Destino da Entrega">Localidade do Frete</span>
@@ -2550,13 +2550,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             )}
           </div>
 
-          <div>
+          <div className="sm:col-span-12 lg:col-span-1">
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Código / Referência</label>
             <input
               type="text"
               value={currentQuote.code}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, code: e.target.value }))}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono font-medium"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-mono font-medium"
             />
           </div>
         </div>
