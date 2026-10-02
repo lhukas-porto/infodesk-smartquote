@@ -52,7 +52,6 @@ import { normalizeToOfficialCategory } from '../utils/aiEmailParser';
 import {
   normalizeSearchText
 } from '../utils/aiEmailParser';
-import { exportContaAzulExcel } from '../utils/contaAzulExport';
 
 interface CatalogViewProps {
   products: Product[];
@@ -283,6 +282,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const handleExportContaAzul = async () => {
     try {
       setIsExportingContaAzul(true);
+      const { exportContaAzulExcel } = await import('../utils/contaAzulExport');
       await exportContaAzulExcel(products);
       setImportStatus('Planilha exportada com sucesso no formato oficial do Conta Azul!');
       setTimeout(() => setImportStatus(null), 4000);

@@ -11,7 +11,6 @@ import {
   Layers
 } from 'lucide-react';
 import Papa from 'papaparse';
-import ExcelJS from 'exceljs';
 import { QuoteItem } from '../types';
 import { detectDistributorProfile, DistributorProfile } from '../services/supplierConnectorService';
 import { extractQuoteItemsWithAI } from '../services/multiItemExtractorService';
@@ -262,6 +261,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
         });
       } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
         const buffer = await file.arrayBuffer();
+        const ExcelJS = (await import('exceljs')).default || await import('exceljs');
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer);
         const worksheet = workbook.worksheets[0];

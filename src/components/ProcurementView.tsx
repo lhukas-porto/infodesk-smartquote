@@ -37,7 +37,6 @@ import {
   Boxes
 } from 'lucide-react';
 import { Quote, ProcurementItem, Product } from '../types';
-import { exportPurchasesToExcel } from '../utils/excelExport';
 import { 
   getRegisteredPaymentMethods, 
   saveRegisteredPaymentMethod,
@@ -1124,8 +1123,13 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
   };
 
   // Exportar Excel
-  const handleExportExcel = () => {
-    exportPurchasesToExcel(filteredItems);
+  const handleExportExcel = async () => {
+    try {
+      const { exportPurchasesToExcel } = await import('../utils/excelExport');
+      exportPurchasesToExcel(filteredItems);
+    } catch (err) {
+      console.error('Erro ao exportar compras para Excel:', err);
+    }
   };
 
   // Limpar todos os filtros

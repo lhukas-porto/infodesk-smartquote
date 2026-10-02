@@ -10,8 +10,6 @@ import {
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
 import { formatCompanyPrefix, formatContactPerson, extractDeliveryExceptionDetails } from '../utils/aiEmailParser';
-import { exportCostSheetToExcel } from '../utils/excelExport';
-import { exportQuoteToWord } from '../utils/wordExport';
 
 interface QuotePreviewProps {
   quote: Quote;
@@ -65,6 +63,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
   const handleDownloadDoc = async () => {
     try {
       setDownloadingDoc(true);
+      const { exportQuoteToWord } = await import('../utils/wordExport');
       await exportQuoteToWord(quote, settings);
     } catch (err) {
       console.error('Erro ao gerar proposta em Word:', err);
@@ -150,6 +149,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
           <button
             onClick={async () => {
               try {
+                const { exportCostSheetToExcel } = await import('../utils/excelExport');
                 await exportCostSheetToExcel(quote);
               } catch (err) {
                 console.error('Erro ao exportar planilha Excel:', err);

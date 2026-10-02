@@ -91,7 +91,6 @@ import {
   saveRegisteredCategory 
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
-import { exportCostSheetToExcel } from '../utils/excelExport';
 import { UniversalListImportModal } from './UniversalListImportModal';
 import { BatchPriceScanModal } from './BatchPriceScanModal';
 import { WebImagePickerModal } from './WebImagePickerModal';
@@ -1142,6 +1141,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
   const handleExportExcel = async () => {
     try {
+      const { exportCostSheetToExcel } = await import('../utils/excelExport');
       await exportCostSheetToExcel(currentQuote);
     } catch (err) {
       reportError('Falha ao Exportar Planilha Excel', err, 'QuoteBuilder - Exportação de Planilha de Custos');
