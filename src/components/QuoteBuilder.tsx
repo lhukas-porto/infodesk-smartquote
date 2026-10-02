@@ -2605,19 +2605,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 <span className="sm:hidden">Importar</span>
               </button>
 
-              {/* Botão de Matriz Multi-Fornecedor & Split */}
-              {currentQuote.items && currentQuote.items.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setIsSupplierMatrixOpen(true)}
-                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/90 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
-                  title="Abrir matriz comparativa de fornecedores e simular cesta mais barata"
-                >
-                  <Layers className="w-3.5 h-3.5 text-sky-600" />
-                  <span className="hidden sm:inline">Matriz Fornecedores & Split</span>
-                  <span className="sm:hidden">Matriz</span>
-                </button>
-              )}
 
               {/* Botão de Varredura em Lote (MEL-03) */}
               {currentQuote.items && currentQuote.items.length > 0 && (
@@ -4090,7 +4077,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             <div className="flex items-center justify-between mb-1">
               <label className="text-slate-600 font-medium flex items-center gap-1 text-xs">
                 <Truck className="w-3.5 h-3.5 text-sky-600" />
-                <span>Cláusula de Frete na Proposta</span>
+                <span>Cláusula de Frete</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-semibold text-slate-600 hover:text-slate-900">
                 <input
