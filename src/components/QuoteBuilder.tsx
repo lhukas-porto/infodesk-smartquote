@@ -6,6 +6,7 @@ import {
   Sparkles,
   Zap,
   Save,
+  Send,
   Eye,
   Calculator,
   Percent,
@@ -4739,7 +4740,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 className="h-9 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs whitespace-nowrap cursor-pointer active:scale-95"
                 title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
               >
-                <Eye className="w-4 h-4" />
+                <Send className="w-3.5 h-3.5" />
                 <span>Enviar</span>
               </button>
             </div>
@@ -4759,11 +4760,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               <button
                 type="button"
                 onClick={() => persistAndProceed(onPreview, true)}
-                className="h-8 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
-                title="Visualizar proposta"
+                className="h-8 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                title="Enviar proposta"
               >
-                <Eye className="w-3 h-3" />
-                <span>Visualizar</span>
+                <Send className="w-3 h-3" />
+                <span>Enviar</span>
               </button>
 
               {/* Menu 'Mais' no Mobile */}
