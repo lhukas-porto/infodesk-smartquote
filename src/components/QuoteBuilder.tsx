@@ -3169,7 +3169,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                 ) : (
                                   <>
                                     <Package className="w-3 h-3 text-slate-500" />
-                                    <span>Catálogo / NCM</span>
+                                    <span>Editar</span>
                                   </>
                                 )}
                               </button>
