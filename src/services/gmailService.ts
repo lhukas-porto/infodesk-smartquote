@@ -13,12 +13,24 @@ const GMAIL_TOKEN_EXPIRY = 'infodesk_gmail_token_expiry';
 const GMAIL_USER_EMAIL = 'infodesk_gmail_user_email';
 
 export const getStoredAccessToken = (): string | null => {
-  const token = localStorage.getItem(GMAIL_TOKEN_KEY);
-  const expiry = localStorage.getItem(GMAIL_TOKEN_EXPIRY);
-  if (!token) return null;
-  if (expiry && Date.now() > Number(expiry)) {
+  // Limpar qualquer resquício antigo de localStorage por segurança e migrar para sessionStorage se ainda válido
+  const legacyToken = localStorage.getItem(GMAIL_TOKEN_KEY);
+  const legacyExpiry = localStorage.getItem(GMAIL_TOKEN_EXPIRY);
+  if (legacyToken) {
+    if (!legacyExpiry || Date.now() <= Number(legacyExpiry)) {
+      sessionStorage.setItem(GMAIL_TOKEN_KEY, legacyToken);
+      if (legacyExpiry) sessionStorage.setItem(GMAIL_TOKEN_EXPIRY, legacyExpiry);
+    }
     localStorage.removeItem(GMAIL_TOKEN_KEY);
     localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
+  }
+
+  const token = sessionStorage.getItem(GMAIL_TOKEN_KEY);
+  const expiry = sessionStorage.getItem(GMAIL_TOKEN_EXPIRY);
+  if (!token) return null;
+  if (expiry && Date.now() > Number(expiry)) {
+    sessionStorage.removeItem(GMAIL_TOKEN_KEY);
+    sessionStorage.removeItem(GMAIL_TOKEN_EXPIRY);
     return null;
   }
   return token;
@@ -34,6 +46,8 @@ export const getStoredUserEmail = (): string | null => {
 };
 
 export const disconnectGmailAccount = () => {
+  sessionStorage.removeItem(GMAIL_TOKEN_KEY);
+  sessionStorage.removeItem(GMAIL_TOKEN_EXPIRY);
   localStorage.removeItem(GMAIL_TOKEN_KEY);
   localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
   localStorage.removeItem(GMAIL_USER_EMAIL);
@@ -97,8 +111,10 @@ export const requestGmailAccessToken = async (
           const expiresIn = response.expires_in || 3600;
           const expiryTime = Date.now() + Number(expiresIn) * 1000;
 
-          localStorage.setItem(GMAIL_TOKEN_KEY, accessToken);
-          localStorage.setItem(GMAIL_TOKEN_EXPIRY, String(expiryTime));
+          sessionStorage.setItem(GMAIL_TOKEN_KEY, accessToken);
+          sessionStorage.setItem(GMAIL_TOKEN_EXPIRY, String(expiryTime));
+          localStorage.removeItem(GMAIL_TOKEN_KEY);
+          localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
 
           try {
             // Validar perfil e e-mail real da conta selecionada
