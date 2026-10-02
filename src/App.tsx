@@ -1471,7 +1471,7 @@ export const App: React.FC = () => {
     alert(`✅ Salvo como nova cotação com sucesso!\n\n📋 Novo Código: ${newQuote.code}\n📁 A cotação anterior permanece intacta no seu histórico.`);
   };
 
-  const handleDuplicateQuoteFromHistory = async (q: Quote) => {
+  const handleDuplicateQuoteFromHistory = async (q: Quote, updateCostsFromCatalog: boolean = false) => {
     const itemsToUse = await resolveQuoteItems(q, quotes);
     const newCode = getNextUniqueQuoteCode(
       q.clientCompany,
@@ -1479,11 +1479,51 @@ export const App: React.FC = () => {
       q.code
     );
     const newQuoteId = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const clonedItems = itemsToUse.map((it, idx) => ({
-      ...it,
-      id: `item-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`
-    }));
+    
+    // Se selecionou atualizar custos com base no catálogo atual
+    const catalogProducts = updateCostsFromCatalog ? getProducts() : [];
+
+    let updatedCount = 0;
+    const clonedItems = itemsToUse.map((it, idx) => {
+      let currentCost = it.costPrice;
+      let currentUnitPrice = it.unitPrice;
+      const currentShipping = it.shippingCost ?? 0;
+      const currentMarkup = it.markupPercent ?? 23.5;
+      const currentTax = it.taxPercent ?? 9.05;
+
+      if (updateCostsFromCatalog && catalogProducts.length > 0) {
+        // Tenta achar pelo Part Number exato primeiro
+        const matchPn = it.partNumber ? catalogProducts.find(p => p.partNumber && p.partNumber.trim().toLowerCase() === it.partNumber?.trim().toLowerCase()) : null;
+        // Senão pelo nome normalizado
+        const matchName = !matchPn ? catalogProducts.find(p => normalizeSearchText(p.name) === normalizeSearchText(it.name)) : null;
+        const matched = matchPn || matchName;
+
+        if (matched && matched.costPrice > 0) {
+          currentCost = matched.costPrice;
+          currentUnitPrice = calculateCommercialUnitPrice(currentCost, currentShipping, currentMarkup, currentTax);
+          updatedCount++;
+        }
+      }
+
+      const qty = it.quantity || 1;
+      const totalPrice = Number((currentUnitPrice * qty).toFixed(2));
+      const profit = Number(((currentUnitPrice - currentCost - currentShipping) * qty).toFixed(2));
+
+      return {
+        ...it,
+        id: `item-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
+        costPrice: currentCost,
+        unitPrice: currentUnitPrice,
+        totalPrice,
+        profit
+      };
+    });
+
     const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    
+    // Recalcula totais da proposta
+    const totals = recalculateQuoteTotals(clonedItems);
+
     const newQuote: Quote = {
       ...q,
       id: newQuoteId,
@@ -1492,8 +1532,12 @@ export const App: React.FC = () => {
       status: 'draft',
       sentAt: undefined,
       createdAt: new Date().toISOString(),
-      items: clonedItems
+      items: clonedItems,
+      totalAmount: totals.totalAmount,
+      totalProfit: totals.totalProfit,
+      averageMargin: totals.averageMargin
     };
+
     if (newQuote.items && newQuote.items.length > 0) {
       saveQuoteItemsBackup(newQuote.code, newQuote.items);
       saveQuoteItemsBackup(newQuote.id, newQuote.items);

@@ -14,6 +14,9 @@ import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
 import { QuoteItem } from '../types';
 import { detectDistributorProfile, DistributorProfile } from '../services/supplierConnectorService';
+import { extractQuoteItemsWithAI } from '../services/multiItemExtractorService';
+import { extractItemsFromEmailContent } from '../utils/aiEmailParser';
+import { MessageSquare } from 'lucide-react';
 
 interface UniversalListImportModalProps {
   isOpen: boolean;
@@ -41,9 +44,11 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
   defaultMarkupPercent = 23.5
 }) => {
   const pasteAreaId = useId();
+  const freeTextAreaId = useId();
   const fileInputId = useId();
-  const [activeTab, setActiveTab] = useState<'paste' | 'file'>('paste');
+  const [activeTab, setActiveTab] = useState<'paste' | 'freeText' | 'file'>('paste');
   const [pastedText, setPastedText] = useState('');
+  const [freeText, setFreeText] = useState('');
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -196,6 +201,43 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
     }
   };
 
+  const handleProcessFreeText = async () => {
+    setErrorMsg(null);
+    if (!freeText.trim()) {
+      setErrorMsg('Cole o texto da mensagem do cliente (WhatsApp ou e-mail) antes de processar.');
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      const res = await extractQuoteItemsWithAI(freeText);
+      const items = res.items && res.items.length > 0 
+        ? res.items 
+        : extractItemsFromEmailContent(freeText);
+
+      if (!items || items.length === 0) {
+        setErrorMsg('Nenhum item comercial identificado no texto. Tente colar uma lista com itens e quantidades (ex: "10x Cabos Furukawa Cat6").');
+        setParsedRows([]);
+      } else {
+        const rows: ParsedRow[] = items.map((it: any) => ({
+          partNumber: it.partNumber || '',
+          name: it.name,
+          description: it.description || it.name,
+          quantity: it.quantity && it.quantity > 0 ? it.quantity : 1,
+          unit: it.unit || 'UN',
+          costPrice: it.estimatedCost || 0,
+          ncm: it.ncm || ''
+        }));
+        setParsedRows(rows);
+        setSuccessCount(rows.length);
+      }
+    } catch (err: any) {
+      setErrorMsg(`Erro ao processar texto: ${err?.message || 'Falha na extração de itens'}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setErrorMsg(null);
     const file = e.target.files?.[0];
@@ -314,10 +356,10 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
         </div>
 
         {/* Abas */}
-        <div className="flex border-b border-slate-200 px-6 bg-white">
+        <div className="flex border-b border-slate-200 px-6 bg-white overflow-x-auto">
           <button
             onClick={() => setActiveTab('paste')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
               activeTab === 'paste'
                 ? 'border-sky-600 text-sky-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -327,8 +369,19 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
             Colar Células do Excel (Ctrl+V)
           </button>
           <button
+            onClick={() => setActiveTab('freeText')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
+              activeTab === 'freeText'
+                ? 'border-sky-600 text-sky-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 text-emerald-600" />
+            Colar Mensagem / WhatsApp / E-mail
+          </button>
+          <button
             onClick={() => setActiveTab('file')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
               activeTab === 'file'
                 ? 'border-sky-600 text-sky-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -341,7 +394,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
 
         {/* Conteúdo Principal com Scroll */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {activeTab === 'paste' ? (
+          {activeTab === 'paste' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label htmlFor={pasteAreaId} className="sq-label mb-0">
@@ -381,7 +434,56 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                 </button>
               </div>
             </div>
-          ) : (
+          )}
+
+          {activeTab === 'freeText' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label htmlFor={freeTextAreaId} className="sq-label mb-0">
+                  Cole a mensagem recebida pelo WhatsApp, e-mail ou lista simples de compras:
+                </label>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const clipText = await navigator.clipboard.readText();
+                      if (clipText) setFreeText(clipText);
+                    } catch {
+                      // Fallback
+                    }
+                  }}
+                  className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Colar da Área de Transferência
+                </button>
+              </div>
+              <textarea
+                id={freeTextAreaId}
+                value={freeText}
+                onChange={(e) => setFreeText(e.target.value)}
+                rows={6}
+                placeholder="Exemplo de mensagem:&#10;Olá Lucas, por favor cote:&#10;- 10 cabos de rede furukawa cat6 vermelho 2,5m&#10;- 2 switch aruba 24 portas gigabit jl682a&#10;- 5 caixas conector rj45 macho cat6&#10;- 1 nobreak apc 1500va"
+                className="sq-input h-auto py-3 font-sans text-xs leading-relaxed resize-y text-slate-800"
+              />
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  Nossa IA extrairá produtos, quantidades, códigos e unidades automaticamente.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleProcessFreeText}
+                  disabled={isProcessing || !freeText.trim()}
+                  className="sq-btn-emerald flex items-center gap-2"
+                >
+                  {isProcessing ? 'Extraindo Produtos...' : 'Extrair Produtos da Mensagem'}
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'file' && (
             <div className="space-y-4">
               <label htmlFor={fileInputId} className="border-2 border-dashed border-slate-200 hover:border-sky-400 rounded-2xl p-8 flex flex-col items-center justify-center text-center bg-slate-50/50 hover:bg-sky-50/30 transition-all cursor-pointer">
                 <FileSpreadsheet className="w-12 h-12 text-slate-400 mb-3" />

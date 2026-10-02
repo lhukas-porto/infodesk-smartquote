@@ -100,6 +100,7 @@ import { PRICING_PROFILES, suggestMarkupForItem } from '../utils/pricingProfiles
 import { savePriceToCache } from '../services/priceCacheService';
 import { recalculateQuoteTotals, calculateMarkupFromUnitPrice } from '../services/pricingEngine';
 import { MultiSupplierMatrixModal } from './MultiSupplierMatrixModal';
+import { ItemSupplierScanModal } from './ItemSupplierScanModal';
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
 
 interface QuoteBuilderProps {
@@ -169,6 +170,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   const [isBatchPriceScanOpen, setIsBatchPriceScanOpen] = useState(false);
   const [selectedPricingProfile, setSelectedPricingProfile] = useState<string>('corporativo_padrao');
   const [isSupplierMatrixOpen, setIsSupplierMatrixOpen] = useState(false);
+  const [itemForSupplierScan, setItemForSupplierScan] = useState<{ index: number; item: QuoteItem } | null>(null);
+
+  const handleApplyItemSupplierPrice = (index: number, newCost: number, supplier?: string, sourceUrl?: string) => {
+    handleItemChange(index, 'costPrice', newCost);
+    if (supplier) handleItemChange(index, 'supplier', supplier);
+    if (sourceUrl) handleItemChange(index, 'sourceUrl', sourceUrl);
+  };
 
   // Contador de itens pendentes de custo para badge visual
   const itemsWithoutCostCount = useMemo(() => {
@@ -1833,7 +1841,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     currentQuote.items.reduce((acc, item) => acc + ((item.shippingCost ?? globalShipping ?? 0) * item.quantity), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
 
       {/* Header Bar with Action Buttons */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -3068,6 +3076,16 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                             >
                               <Search className="w-2.5 h-2.5" />
                               <span>{item.imageUrl ? 'Trocar Foto' : 'Buscar Foto'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setItemForSupplierScan({ index: idx, item })}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
+                              title="Consultar preços em fornecedores e aplicar o menor custo neste item"
+                            >
+                              <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                              <span>Scanner Fornecedor</span>
                             </button>
 
                             {item.sourceUrl ? (
@@ -4591,6 +4609,95 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           currentImageUrl={webImagePickerItem.currentImageUrl}
           onSelectImage={handlePhotoSelectedForQuote}
         />
+      )}
+
+      {/* Modal de Scanner de Fornecedores por Item (MEL-08 / Item 1.C) */}
+      {itemForSupplierScan && (
+        <ItemSupplierScanModal
+          isOpen={Boolean(itemForSupplierScan)}
+          onClose={() => setItemForSupplierScan(null)}
+          item={itemForSupplierScan.item}
+          itemIndex={itemForSupplierScan.index}
+          onApplyPrice={handleApplyItemSupplierPrice}
+          onNavigateToWebSearch={(query) => {
+            if (onOpenWebSearch && itemForSupplierScan) {
+              onOpenWebSearch(query, itemForSupplierScan.index, itemForSupplierScan.item);
+            }
+          }}
+        />
+      )}
+
+      {/* Barra Flutuante de Resumo Financeiro & Ações Rápidas (Item 2.A) */}
+      {currentQuote.items && currentQuote.items.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] py-2.5 px-4 sm:px-6 transition-all duration-200 animate-in slide-in-from-bottom-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            {/* Lado Esquerdo: Totais e Margem */}
+            <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+              <div className="hidden sm:block">
+                <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-bold font-mono uppercase tracking-wider rounded-md">
+                  {currentQuote.code || 'COTACAO'}
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium block truncate max-w-[180px]">
+                  {currentQuote.clientCompany || 'Cliente não definido'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block leading-none">
+                  Total da Proposta
+                </span>
+                <span className="text-base sm:text-lg font-extrabold text-slate-900 font-mono leading-none">
+                  R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="hidden md:flex items-center gap-2 border-l border-slate-200 pl-4">
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block leading-none">
+                    Lucro Líquido
+                  </span>
+                  <span className="text-xs font-bold text-emerald-600 font-mono leading-none">
+                    R$ {currentQuote.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  currentQuote.averageMargin < 12 
+                    ? 'bg-amber-100 text-amber-800' 
+                    : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {currentQuote.averageMargin.toFixed(1)}% margem
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  • {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item' : 'itens'}
+                </span>
+              </div>
+            </div>
+
+            {/* Lado Direito: Ações Rápidas */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => persistAndProceed(onSave)}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                title="Salvar rascunho da proposta"
+              >
+                <Save className="w-3.5 h-3.5 text-slate-600" />
+                <span className="hidden sm:inline">Salvar Rascunho</span>
+                <span className="sm:hidden">Salvar</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => persistAndProceed(onPreview, true)}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                title="Visualizar documento pronto para impressão/PDF ou envio"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Visualizar Proposta</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

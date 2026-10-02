@@ -1013,11 +1013,17 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       {/* 1. Header Oficial do Sistema */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="space-y-1">
-          <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            Central de Compras & Gestão de Lucro
-          </h1>
-          <p className="text-xs text-slate-500">
-            Acompanhe compras aprovadas, cadastre novas compras, consulte referências de preços já pagos e concilie faturas por forma de pagamento.
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="sq-page-title flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-sky-600" />
+              <span>Central de Compras & Suprimentos</span>
+            </h1>
+            <span className="sq-badge-code">
+              PROCUREMENT & LUCRO
+            </span>
+          </div>
+          <p className="sq-page-subtitle">
+            Acompanhe compras aprovadas de propostas, cadastre novas compras, consulte preços pagos e concilie faturas.
           </p>
         </div>
 
@@ -1026,7 +1032,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           <button
             type="button"
             onClick={() => handleOpenNewDirectPurchaseModal()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
+            className="sq-btn-primary"
             title="Cadastrar um item a comprar fora de proposta comercial (uso interno, insumo ou urgência)"
           >
             <Plus className="w-4 h-4" />
@@ -1079,7 +1085,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           <button
             type="button"
             onClick={handleExportExcel}
-            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl font-bold text-xs sm:text-sm shadow-2xs transition cursor-pointer"
+            className="sq-btn-excel"
             title="Exportar planilha de compras com fórmulas idênticas a Compras 2026.xlsx"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
@@ -1088,13 +1094,16 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Cards de Métricas Superiores Consolidadas do Filtro */}
+      {/* 2. Cards de Métricas Superiores Consolidadas do Filtro (Padrão AGENTS.md) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Itens a Comprar */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            A Comprar (Pendentes)
-          </span>
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">
+              A Comprar (Pendentes)
+            </span>
+            <Clock className="w-4 h-4 text-amber-500" />
+          </div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl sm:text-2xl font-bold font-mono text-amber-600">
               {stats.pendingCount}
@@ -1108,9 +1117,12 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
         {/* Itens Comprados */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Itens Comprados
-          </span>
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Itens Comprados
+            </span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          </div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-600">
               {stats.purchasedCount}
@@ -1124,9 +1136,12 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
         {/* Custo Real Desembolsado & Saving */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Custo Real Pago
-          </span>
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Custo Real Pago
+            </span>
+            <DollarSign className="w-4 h-4 text-slate-400" />
+          </div>
           <span className="text-xl sm:text-2xl font-bold font-mono text-slate-800 block mt-1">
             R$ {stats.purchasedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
@@ -1145,9 +1160,12 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
         {/* Lucro Líquido Realizado */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Lucro Líquido Realizado
-          </span>
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Lucro Líquido Realizado
+            </span>
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
+          </div>
           <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-700 block mt-1">
             R$ {stats.netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
