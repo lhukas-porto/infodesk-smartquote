@@ -157,7 +157,6 @@ export const ManualAnalysesView: React.FC<ManualAnalysesViewProps> = ({
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Buscar..."
               value={filterText}
               onChange={e => setFilterText(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 bg-slate-50"

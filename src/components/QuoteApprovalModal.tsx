@@ -293,7 +293,6 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
                 type="text"
                 value={clientOrderNumber}
                 onChange={(e) => setClientOrderNumber(e.target.value)}
-                placeholder="Ex: OC 48290, AF 104/26..."
                 className="bg-white border border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 px-2.5 py-1 rounded-xl text-xs font-mono font-bold text-amber-900 w-36 sm:w-44"
               />
             </div>

@@ -420,7 +420,6 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                 value={pastedText}
                 onChange={(e) => setPastedText(e.target.value)}
                 rows={6}
-                placeholder="Exemplo colado:&#10;JL682A	Switch Aruba Instant On 1930 24G	2	UN	1200.00&#10;SMC1500C	Nobreak APC Smart-UPS 1500VA	1	UN	3400.00"
                 className="sq-input h-auto py-3 font-mono text-xs leading-relaxed resize-y"
               />
               <div className="flex justify-end">
@@ -462,7 +461,6 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                 value={freeText}
                 onChange={(e) => setFreeText(e.target.value)}
                 rows={6}
-                placeholder="Exemplo de mensagem:&#10;Olá Lucas, por favor cote:&#10;- 10 cabos de rede furukawa cat6 vermelho 2,5m&#10;- 2 switch aruba 24 portas gigabit jl682a&#10;- 5 caixas conector rj45 macho cat6&#10;- 1 nobreak apc 1500va"
                 className="sq-input h-auto py-3 font-sans text-xs leading-relaxed resize-y text-slate-800"
               />
               <div className="flex items-center justify-between flex-wrap gap-2">

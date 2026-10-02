@@ -704,7 +704,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Buscar empresa, comprador ou e-mail..."
             className="sq-input pl-10"
           />
           {searchFilter && (
@@ -755,7 +754,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   </select>
                   <input
                     type="text"
-                    placeholder="Nome da empresa..."
                     value={newCompanyName}
                     onChange={(e) => setNewCompanyName(e.target.value)}
                     className="flex-1 text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-medium"
@@ -763,12 +761,11 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     required
                   />
                 </div>
-                <input type="text" placeholder="Local padrão (Ex: Brasília - DF)" value={newCompanyLocation} onChange={(e) => setNewCompanyLocation(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500" />
+                <input type="text" value={newCompanyLocation} onChange={(e) => setNewCompanyLocation(e.target.value)} className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500" />
                 <div className="relative flex items-center">
                   <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input 
                     type="text" 
-                    placeholder="Site da empresa (ex: ubec.edu.br ou sabin.com.br)" 
                     value={newCompanyWebsite} 
                     onChange={(e) => setNewCompanyWebsite(e.target.value)} 
                     className="w-full text-xs pl-8 pr-8 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" 
@@ -957,7 +954,6 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         <div className="relative flex items-center">
                           <input 
                             type="text" 
-                            placeholder="Ex: ubec.edu.br ou sabin.com.br" 
                             value={editCompanyWebsite} 
                             onChange={(e) => setEditCompanyWebsite(e.target.value)} 
                             className="w-full text-xs px-3 pr-9 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900 font-medium" 
@@ -1075,7 +1071,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   })}
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); handleAddLocationToCompany(selectedCompany.id); }} className="flex items-center gap-2 pt-1">
-                  <input type="text" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} placeholder="" className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500" />
+                  <input type="text" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500" />
                   <button type="submit" disabled={!newLocationName.trim()} className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 shrink-0 transition cursor-pointer">
                     <Plus className="w-3.5 h-3.5" /><span>Adicionar</span>
                   </button>
@@ -1137,7 +1133,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         <select value={contactTitle} onChange={(e) => setContactTitle(e.target.value as any)} className="text-xs px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-sky-500">
                           <option value="Sr.">Sr.</option><option value="Srta.">Srta.</option><option value="Sra.">Sra.</option><option value="Dr.">Dr.</option><option value="Dra.">Dra.</option>
                         </select>
-                        <input type="text" required placeholder="Ex: Alex Pereira" value={contactName} onChange={(e) => setContactName(e.target.value)} className="flex-1 text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-bold text-slate-900" autoFocus />
+                        <input type="text" required value={contactName} onChange={(e) => setContactName(e.target.value)} className="flex-1 text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-bold text-slate-900" autoFocus />
                       </div>
                     </div>
                     <div>
@@ -1148,11 +1144,11 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">E-mail</label>
-                      <input type="email" required placeholder="Ex: alex@empresa.com.br" value={contactEmail} onChange={(e) => setContactEmail(e.target.value.toLowerCase())} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900 lowercase" />
+                      <input type="email" required value={contactEmail} onChange={(e) => setContactEmail(e.target.value.toLowerCase())} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900 lowercase" />
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">Telefone</label>
-                      <input type="text" placeholder="(61) 99999-9999" maxLength={15} value={maskPhone(contactPhone)} onChange={(e) => setContactPhone(maskPhone(e.target.value))} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" />
+                      <input type="text" maxLength={15} value={maskPhone(contactPhone)} onChange={(e) => setContactPhone(maskPhone(e.target.value))} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" />
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-1">

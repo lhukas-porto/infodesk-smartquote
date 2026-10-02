@@ -688,7 +688,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
               <textarea
                 value={customText}
                 onChange={(e) => setCustomText(e.target.value)}
-                placeholder="Exemplo:&#10;Prezado Lucas, favor cotar para o Tribunal de Justiça:&#10;15 Monitores Dell 27 4K&#10;30 Cabos HDMI 2.0 2 metros&#10;Contato: Dr. Marcos — marcos@tjdf.jus.br — Tel: (61) 3400-0000"
                 rows={6}
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-mono leading-relaxed shadow-2xs"
                 autoFocus
@@ -701,7 +700,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     type="text"
                     value={customSenderCompany}
                     onChange={(e) => setCustomSenderCompany(e.target.value)}
-                    placeholder="Ex: UBEC ou CNC"
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -711,7 +709,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     type="text"
                     value={customSenderName}
                     onChange={(e) => setCustomSenderName(e.target.value)}
-                    placeholder="Ex: Marcos Silva"
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -721,7 +718,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     type="text"
                     value={customSenderPhone}
                     onChange={(e) => setCustomSenderPhone(e.target.value)}
-                    placeholder="Ex: (61) 99999-0000"
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -731,7 +727,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     type="text"
                     value={customDeliveryLocation}
                     onChange={(e) => setCustomDeliveryLocation(e.target.value)}
-                    placeholder="Ex: Brasília - DF"
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -824,7 +819,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                             type="text"
                             value={customSubject}
                             onChange={(e) => setCustomSubject(e.target.value)}
-                            placeholder="Ex: Cotação via Foto / Print - Aeroporto de Brasília"
                             className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
                           />
                         </div>
@@ -836,7 +830,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                               type="text"
                               value={customSenderCompany}
                               onChange={(e) => setCustomSenderCompany(e.target.value)}
-                              placeholder="Ex: Inframerica ou UBEC"
                               className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
                             />
                           </div>
@@ -847,7 +840,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                               type="text"
                               value={customSenderName}
                               onChange={(e) => setCustomSenderName(e.target.value)}
-                              placeholder="Ex: Lidiane Ramos"
                               className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
                             />
                           </div>
@@ -860,7 +852,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                               type="text"
                               value={customSenderPhone}
                               onChange={(e) => setCustomSenderPhone(e.target.value)}
-                              placeholder="Ex: (61) 3364-9000"
                               className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
                             />
                           </div>
@@ -871,7 +862,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                               type="text"
                               value={customDeliveryLocation}
                               onChange={(e) => setCustomDeliveryLocation(e.target.value)}
-                              placeholder="Ex: Aeroporto de Brasília"
                               className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-medium"
                             />
                           </div>
@@ -963,7 +953,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
               type="text"
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
-              placeholder="Buscar por cliente, órgão ou assunto..."
               className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none"
             />
           </div>
@@ -1156,7 +1145,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                           type="text"
                           value={editSenderCompany}
                           onChange={(e) => setEditSenderCompany(e.target.value)}
-                          placeholder="Ex: UBEC ou CNC"
                           className="w-full text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-semibold text-slate-900"
                         />
                       </div>
@@ -1167,7 +1155,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                           type="text"
                           value={editSenderName}
                           onChange={(e) => setEditSenderName(e.target.value)}
-                          placeholder="Ex: Alex Pereira"
                           className="w-full text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 font-semibold text-slate-900"
                         />
                       </div>
@@ -1178,7 +1165,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                           type="text"
                           value={editSenderPhone}
                           onChange={(e) => setEditSenderPhone(e.target.value)}
-                          placeholder="Ex: (61) 3403-2944"
                           className="w-full text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900"
                         />
                       </div>
@@ -1189,7 +1175,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                           type="text"
                           value={editDeliveryLocation}
                           onChange={(e) => setEditDeliveryLocation(e.target.value)}
-                          placeholder="Ex: Brasília - DF"
                           className="w-full text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900"
                         />
                       </div>
@@ -1393,7 +1378,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
                           rows={Math.max(2, Math.min(6, Math.ceil((item.name || '').length / 60)))}
                           value={item.name}
                           onChange={(e) => handleUpdateItem(idx, 'name', e.target.value)}
-                          placeholder="Descrição completa, marca, modelo, códigos de referência e especificações..."
                           className="w-full text-xs font-semibold text-slate-900 bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-sky-500 rounded-xl p-3 leading-relaxed focus:outline-none resize-y transition shadow-2xs font-sans min-h-[60px]"
                           title="Todas as informações do produto (usadas integralmente na busca exata)"
                         />

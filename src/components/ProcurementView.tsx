@@ -1487,11 +1487,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={
-              viewMode === 'reference'
-                ? "Buscar no catálogo de referência por produto, SKU, fornecedor ou cliente..."
-                : "Buscar por produto, SKU/Part Number, cliente, proposta, fornecedor ou nota/rastreio..."
-            }
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 transition"
           />
           {searchTerm && (
@@ -1956,7 +1951,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     value={purchaseForm.actualUnitCost || ''}
                     onChange={(e) => handleUnitCostChange(parseFloat(e.target.value) || 0)}
                     className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm font-mono font-bold text-slate-900"
-                    placeholder="0.00"
                   />
                   <div className="mt-1 flex items-center justify-between text-[10px]">
                     <span className="text-slate-400">
@@ -1989,7 +1983,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     value={purchaseForm.actualCost || ''}
                     onChange={(e) => handleTotalCostChange(parseFloat(e.target.value) || 0)}
                     className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm font-mono font-bold text-slate-900"
-                    placeholder="0.00"
                   />
                   <span className="text-[10px] text-slate-400 mt-1 block">
                     Cotado Total: R$ {(activeItemForPurchase.quotedCostPrice * activeItemForPurchase.quantity).toFixed(2)}
@@ -2021,7 +2014,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     type="url"
                     value={purchaseForm.actualPurchaseUrl}
                     onChange={(e) => setPurchaseForm({ ...purchaseForm, actualPurchaseUrl: e.target.value })}
-                    placeholder="Cole aqui o link de onde comprou (Amazon, Kabum, Mercado Livre, distribuidor...)"
                     className="flex-1 h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs text-slate-900"
                   />
                 </div>
@@ -2064,7 +2056,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     <input
                       type="text"
                       autoFocus
-                      placeholder="Ex: Cartão XP, Cartão Santander, Pix Itaú..."
                       value={newPaymentMethodName}
                       onChange={(e) => setNewPaymentMethodName(e.target.value)}
                       onKeyDown={(e) => {
@@ -2130,7 +2121,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     value={purchaseForm.actualShipping || ''}
                     onChange={(e) => setPurchaseForm({ ...purchaseForm, actualShipping: parseFloat(e.target.value) || 0 })}
                     className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm font-mono text-slate-900"
-                    placeholder="0.00 (grátis)"
                   />
                 </div>
               </div>
@@ -2161,7 +2151,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     type="text"
                     value={purchaseForm.notes}
                     onChange={(e) => setPurchaseForm({ ...purchaseForm, notes: e.target.value })}
-                    placeholder="Ex: pedido #12345, rastreio BR1234..."
                     className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs text-slate-900"
                   />
                 </div>
@@ -2352,7 +2341,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder="Digite o nome, part number ou SKU do produto no estoque..."
                         value={productSearchTerm}
                         onChange={(e) => {
                           setProductSearchTerm(e.target.value);
@@ -2460,7 +2448,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     type="number"
                     step="0.01"
                     min="0"
-                    placeholder="0.00"
                     value={directPurchaseForm.costPrice || ''}
                     onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, costPrice: parseFloat(e.target.value) || 0 })}
                     className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900"
@@ -2493,7 +2480,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: OC 48290..."
                     value={directPurchaseForm.clientOrderNumber}
                     onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, clientOrderNumber: e.target.value })}
                     className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-amber-900"
@@ -2506,7 +2492,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: Amazon, Kabum..."
                     value={directPurchaseForm.supplier}
                     onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, supplier: e.target.value })}
                     className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900"
@@ -2521,7 +2506,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 </label>
                 <input
                   type="url"
-                  placeholder="https://..."
                   value={directPurchaseForm.sourceUrl}
                   onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, sourceUrl: e.target.value })}
                   className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900"
@@ -2614,7 +2598,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: compra urgente para o rack da recepção"
                   value={directPurchaseForm.notes}
                   onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, notes: e.target.value })}
                   className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900"

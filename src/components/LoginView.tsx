@@ -141,7 +141,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="lucas@infodesk.net.br"
                   className="w-full h-11 pl-10 pr-3.5 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900 transition-all"
                 />
               </div>
@@ -174,7 +173,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
                     className="w-full h-11 pl-10 pr-10 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900 transition-all"
                   />
                   <button

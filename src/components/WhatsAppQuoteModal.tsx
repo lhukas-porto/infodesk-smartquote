@@ -98,7 +98,6 @@ export const WhatsAppQuoteModal: React.FC<WhatsAppQuoteModalProps> = ({
                 type="text"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="Ex: (61) 98765-4321 ou 61987654321"
                 className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 rounded-xl text-xs sm:text-sm text-slate-900 font-mono"
               />
               <span className="absolute right-3 top-2.5 text-xs text-slate-400">

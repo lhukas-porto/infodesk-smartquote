@@ -529,7 +529,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <label className="block text-slate-600 font-medium mb-1">Telefone Fixo</label>
                 <input
                   type="text"
-                  placeholder="(61) 3403-2944"
                   maxLength={15}
                   value={maskPhone(form.phone)}
                   onChange={(e) => setForm({ ...form, phone: maskPhone(e.target.value) })}
@@ -540,7 +539,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <label className="block text-slate-600 font-medium mb-1">WhatsApp</label>
                 <input
                   type="text"
-                  placeholder="(61) 99627-2630"
                   maxLength={15}
                   value={maskPhone(form.whatsapp)}
                   onChange={(e) => setForm({ ...form, whatsapp: maskPhone(e.target.value) })}
@@ -622,7 +620,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         setForm(prev => ({ ...prev, dailyDollarRate: parsed }));
                       }
                     }}
-                    placeholder="5,60"
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-500 font-semibold font-mono"
                   />
                 </div>
@@ -679,7 +676,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   type="text"
                   value={form.defaultPaymentTerms || 'Faturado.'}
                   onChange={(e) => setForm({ ...form, defaultPaymentTerms: e.target.value })}
-                  placeholder="Faturado."
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500 text-xs font-semibold"
                 />
               </div>
@@ -728,7 +724,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   type="text"
                   value={form.defaultWarrantyTerms || '06 (seis) meses balcão para defeitos de fabricação.'}
                   onChange={(e) => setForm({ ...form, defaultWarrantyTerms: e.target.value })}
-                  placeholder="06 (seis) meses balcão para defeitos de fabricação."
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-sky-500 text-xs font-semibold"
                 />
               </div>
@@ -754,7 +749,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }));
                     }}
                     className="w-full max-w-sm bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500 shadow-2xs"
-                    placeholder="lucas@infodesk.net.br"
                   />
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1">E-mail corporativo utilizado para emissão e envio oficial via Google Workspace.</p>
@@ -785,7 +779,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </label>
                 <input
                   type="password"
-                  placeholder="AIzaSy..."
                   value={geminiKey}
                   onChange={(e) => setGeminiKey(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500"
@@ -821,7 +814,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </label>
                 <input
                   type="password"
-                  placeholder="Insira sua chave SerpApi ou ValueSerp..."
                   value={serpApiKey}
                   onChange={(e) => setSerpApiKey(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500"
@@ -911,7 +903,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <form onSubmit={handleAddCategory} className="flex gap-2 mb-3">
                   <input
                     type="text"
-                    placeholder="Nova categoria..."
                     value={newCategoryInput}
                     onChange={(e) => setNewCategoryInput(e.target.value)}
                     className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-sky-500"
@@ -932,7 +923,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
                     <input
                       type="text"
-                      placeholder="Filtrar categorias..."
                       value={searchCategory}
                       onChange={(e) => setSearchCategory(e.target.value)}
                       className="w-full bg-slate-50/70 border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-sky-500"
@@ -1048,7 +1038,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <form onSubmit={handleAddUnit} className="flex gap-2 mb-3">
                   <input
                     type="text"
-                    placeholder="Ex: Un., Cx., Pct., Metro..."
                     value={newUnitInput}
                     onChange={(e) => setNewUnitInput(e.target.value)}
                     className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-mono"
@@ -1069,7 +1058,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
                     <input
                       type="text"
-                      placeholder="Filtrar unidades..."
                       value={searchUnit}
                       onChange={(e) => setSearchUnit(e.target.value)}
                       className="w-full bg-slate-50/70 border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-sky-500 font-mono"
@@ -1196,7 +1184,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <form onSubmit={handleAddPaymentMethod} className="flex gap-2 mb-3">
                 <input
                   type="text"
-                  placeholder="Ex: Cartão XP, Cartão Santander, Pix Itaú, Boleto 30 dias..."
                   value={newPaymentMethodInput}
                   onChange={(e) => setNewPaymentMethodInput(e.target.value)}
                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-medium"
@@ -1217,7 +1204,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="text"
-                    placeholder="Filtrar cartões e formas de pagamento..."
                     value={searchPaymentMethod}
                     onChange={(e) => setSearchPaymentMethod(e.target.value)}
                     className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-sky-500 font-medium"

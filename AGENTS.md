@@ -32,6 +32,7 @@ Toda e qualquer interface criada no SmartQuote DEVE seguir estritamente o padrã
 5. **Formulários e Inputs**:
    - Rótulos (Labels): `block text-xs font-semibold text-slate-700 mb-1.5` (`.sq-label`).
    - Campos de entrada: `w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900` (`.sq-input`).
+   - **PROIBIDO PLACEHOLDERS (REGRA DO LUCAS)**: É terminantemente proibido utilizar o atributo `placeholder` em qualquer campo de entrada (`<input>`, `<textarea>`, `<select>`) no sistema. Os campos devem ser limpos, sem textos cinzas de exemplo dentro deles. A identificação do campo deve ser feita sempre pelo label/rótulo superior ou pelo contexto.
 
 Consulte `.agents/rules/UI_DESIGN_SYSTEM.md` e `src/index.css` para todas as classes e especificações.
 

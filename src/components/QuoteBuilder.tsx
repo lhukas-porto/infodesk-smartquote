@@ -2049,7 +2049,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       setIsCompanySearchOpen(true);
                     }
                   }}
-                  placeholder="Digite para buscar empresa cadastrada..."
                   className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
                 />
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
@@ -2204,7 +2203,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       setIsBuyerSearchOpen(true);
                     }
                   }}
-                  placeholder={matchedCompany && matchedCompany.contacts.length > 0 ? "Clique para listar compradores da empresa ou digite para filtrar..." : "Ex: A/C Sr. Alex ou A/C Srta. Alexandra"}
                   className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
                 />
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
@@ -2328,7 +2326,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="email"
               value={currentQuote.clientEmail}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, clientEmail: e.target.value.toLowerCase() }))}
-              placeholder="Ex: alexandraoliveira@cnc.org.br"
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-medium lowercase"
             />
           </div>
@@ -2342,7 +2339,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 const masked = maskPhone(e.target.value);
                 setCurrentQuote(prev => ({ ...prev, clientPhone: masked }));
               }}
-              placeholder="Ex: (61) 3403-2944"
               maxLength={15}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-medium"
             />
@@ -2354,7 +2350,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.code}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, code: e.target.value }))}
-              placeholder="Ex: SABIN 050926"
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono font-medium"
             />
           </div>
@@ -2371,7 +2366,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.clientOrderNumber || ''}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, clientOrderNumber: e.target.value }))}
-              placeholder="Ex: OC 48290, AF 104/26..."
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 font-mono font-bold text-amber-900"
             />
           </div>
@@ -2382,7 +2376,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.date}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, date: e.target.value }))}
-              placeholder="Ex: 28 de agosto de 2026"
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-medium"
             />
           </div>
@@ -2411,7 +2404,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     setIsLocationSearchOpen(true);
                   }
                 }}
-                placeholder={matchedCompany?.locations && matchedCompany.locations.length > 0 ? "Clique para listar cidades da empresa ou digite para buscar..." : "Ex: Brasília, Coronel Fabriciano, Joinville..."}
                 className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
               />
               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
@@ -2531,7 +2523,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.subject || ''}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, subject: e.target.value }))}
-              placeholder={`Ex: Proposta Comercial ${currentQuote.code || ''} — Infodesk — Fornecimento de Produtos`}
               className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition"
             />
           </div>
@@ -2639,7 +2630,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   onFocus={() => {
                     setIsProductSearchOpen(true);
                   }}
-                  placeholder="Digite o nome, código ou marca para buscar nos produtos cadastrados..."
                   className="w-full bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-9 py-2.5 text-xs text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 shadow-2xs transition"
                 />
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
@@ -2930,7 +2920,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                           handleApplyMarkupToSelectedItems(batchMarkupInput);
                         }
                       }}
-                      placeholder={formatPercentPtBr(globalMarkup)}
                       className="w-16 h-7 bg-white border border-sky-300 rounded-lg px-2 text-xs font-mono font-bold text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 shadow-2xs"
                       title="Digite a porcentagem de lucro e clique em 'Aplicar nos Selecionados' ou pressione Enter"
                     />
@@ -3100,7 +3089,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                   if (el) adjustItemTextareaHeight(el);
                                 }, 0);
                               }}
-                              placeholder="Descrição padronizada do produto"
                               className="w-full min-h-[32px] bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white resize-none leading-snug overflow-hidden"
                             />
                           </div>
@@ -3238,7 +3226,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                             handleItemChange(idx, 'unit', 'Un.');
                           }
                         }}
-                        placeholder="Un."
                         className="w-full h-8 min-w-[46px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center text-slate-700 focus:outline-none focus:border-sky-500 font-medium leading-none"
                       />
                     </td>
@@ -3280,7 +3267,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                             (e.target as HTMLInputElement).blur();
                           }
                         }}
-                        placeholder="0,00"
                         className="w-full h-8 min-w-[68px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-mono text-slate-700 focus:outline-none focus:border-sky-500 focus:bg-white leading-none"
                       />
                     </td>
@@ -3323,7 +3309,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                             (e.target as HTMLInputElement).blur();
                           }
                         }}
-                        placeholder="0,00"
                         title="Frete unitário deste item (R$)"
                         className="w-full h-8 min-w-[72px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-mono text-amber-700 font-semibold focus:outline-none focus:border-amber-500 focus:bg-white leading-none"
                       />
@@ -3373,7 +3358,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                             (e.target as HTMLInputElement).blur();
                           }
                         }}
-                        placeholder="0,0"
                         title="Margem de lucro % sobre o custo"
                         className="w-full h-8 min-w-[68px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-bold text-sky-700 focus:outline-none focus:border-sky-500 focus:bg-white leading-none"
                       />
@@ -3421,7 +3405,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                             }
                           }
                         }}
-                        placeholder="0,00"
                         className="w-full h-8 min-w-[80px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-bold text-slate-900 font-mono focus:outline-none focus:border-sky-500 focus:bg-white leading-none"
                       />
                     </td>
@@ -3577,7 +3560,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.validityDays}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, validityDays: e.target.value }))}
-              placeholder="05 (cinco) dias ou enquanto durar o estoque."
               className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
             />
           </div>
@@ -3642,7 +3624,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.paymentTerms}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, paymentTerms: e.target.value }))}
-              placeholder="Faturado."
               className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
             />
           </div>
@@ -3717,7 +3698,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        placeholder="ex: 12"
                         value={displayVal}
                         onChange={(e) => {
                           const raw = e.target.value.replace(/\D/g, '');
@@ -3873,7 +3853,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.deliveryDays}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, deliveryDays: e.target.value }))}
-              placeholder="em até 10 (dez) dias úteis após autorização de fornecimento."
               className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
             />
           </div>
@@ -3952,7 +3931,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.warrantyTerms}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, warrantyTerms: e.target.value }))}
-              placeholder="06 (seis) meses balcão para defeitos de fabricação."
               className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
             />
           </div>
@@ -3982,7 +3960,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               disabled={currentQuote.showShippingInProposal === false}
               value={currentQuote.shippingTerms || `Frete incluso p/ ${currentQuote.deliveryLocation || 'Brasília'}.`}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, shippingTerms: e.target.value }))}
-              placeholder=""
               className={`w-full border rounded-xl px-3 py-2 font-medium text-xs transition ${
                 currentQuote.showShippingInProposal === false
                   ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
@@ -4020,7 +3997,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   notes: val
                 }));
               }}
-              placeholder=""
               className="w-full min-h-[85px] bg-slate-50 border border-slate-300 hover:border-slate-400 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl px-3.5 py-2.5 text-slate-900 font-medium text-xs leading-relaxed transition resize-y"
             />
           </div>
@@ -4290,7 +4266,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     autoFocus
                     value={modalMarkupInput}
                     onChange={(e) => setModalMarkupInput(e.target.value)}
-                    placeholder="Ex: 30 ou 23,5"
                     className="w-full bg-slate-50 focus:bg-white border-2 border-sky-300 focus:border-sky-500 rounded-2xl px-4 py-3 text-lg font-bold text-slate-900 focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition pr-10 font-mono"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm pointer-events-none">
@@ -4382,7 +4357,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     autoFocus
                     value={modalTaxInput}
                     onChange={(e) => setModalTaxInput(e.target.value)}
-                    placeholder="Ex: 9,1 ou 6"
                     className="w-full bg-slate-50 focus:bg-white border-2 border-indigo-300 focus:border-indigo-500 rounded-2xl px-4 py-3 text-lg font-bold text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition pr-10 font-mono"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm pointer-events-none">

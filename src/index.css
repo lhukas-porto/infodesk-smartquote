@@ -8,6 +8,15 @@
     color: #0f172a;
     background-color: #f8fafc;
   }
+
+  /* REGRA MANDATÓRIA DO LUCAS: Zero placeholders em qualquer campo do sistema */
+  input::placeholder,
+  textarea::placeholder,
+  select::placeholder {
+    color: transparent !important;
+    opacity: 0 !important;
+    user-select: none !important;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

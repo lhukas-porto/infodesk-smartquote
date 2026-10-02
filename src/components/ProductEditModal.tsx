@@ -488,7 +488,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     value={draft.name || ''}
                     onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                     onPaste={handlePasteImage}
-                    placeholder="Nome completo do produto sem traços ou vírgulas"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 transition shadow-2xs text-xs sm:text-sm"
                   />
                 </div>
@@ -540,7 +539,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   rows={5}
                   value={draft.description || ''}
                   onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                  placeholder="Ex: 4K UHD IPS, USB-C 65W, Ajuste de Altura, HDMI (deixe em branco se não houver)"
                   className="w-full min-h-[110px] bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 text-xs transition leading-relaxed resize-y"
                 />
               </div>
@@ -555,7 +553,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     type="text"
                     value={draft.sku || draft.partNumber || ''}
                     onChange={(e) => setDraft({ ...draft, sku: e.target.value, partNumber: e.target.value })}
-                    placeholder="Ex: DEL-27-4K ou S2722QC"
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500"
                   />
                 </div>
@@ -596,7 +593,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           : prev.category
                       }));
                     }}
-                    placeholder="Ex: 8517.62.54"
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500 text-xs"
                   />
                   {draft.ncm && validateNcm(draft.ncm).description && (
@@ -624,7 +620,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     }}
                     onChange={(e) => handleDollarChange(e.target.value)}
                     onBlur={handleDollarBlur}
-                    placeholder="0,00"
                     title={`Preço em dólar americano (Cotação atual: R$ ${effectiveDollarRate.toFixed(2).replace('.', ',')})`}
                     className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
                   />
@@ -659,7 +654,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       setDraft(prev => ({ ...prev, costPrice: parsed }));
                       setCostInput(formatCurrencyPtBr(parsed));
                     }}
-                    placeholder="0,00"
                     className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
                   />
                 </div>
@@ -687,7 +681,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         setShippingInput(parsed > 0 ? formatCurrencyPtBr(parsed) : '0,00');
                         setDraft(prev => ({ ...prev, shippingCost: parsed }));
                       }}
-                      placeholder="0,00"
                       title="Frete unitário a ser aplicado neste item no orçamento"
                       className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white text-xs text-center"
                     />
@@ -727,7 +720,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     }}
                     defaultValue="Un."
                     textAlign="center"
-                    placeholder="Un."
                     inputClassName="h-10 font-bold font-mono"
                   />
                 </div>
@@ -752,7 +744,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     }}
                     defaultValue="Diversos & Sazonais"
                     textAlign="left"
-                    placeholder="Selecione ou busque a categoria..."
                     inputClassName="h-10"
                   />
                 </div>
@@ -765,7 +756,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     type="text"
                     value={draft.supplier || ''}
                     onChange={(e) => setDraft({ ...draft, supplier: e.target.value })}
-                    placeholder="Ex: Mercado Livre, Kalunga, Fabricante"
                     className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 focus:outline-none focus:border-sky-500 text-xs"
                   />
                 </div>
@@ -789,7 +779,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         supplier: detectedStore || prev.supplier
                       }));
                     }}
-                    placeholder="https://..."
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-[11px] focus:outline-none focus:border-sky-500"
                   />
                   {draft.sourceUrl && (

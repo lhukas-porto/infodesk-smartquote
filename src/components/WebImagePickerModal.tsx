@@ -213,7 +213,6 @@ export const WebImagePickerModal: React.FC<WebImagePickerModalProps> = ({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Pesquisar fotos por nome, modelo, marca ou part number..."
                 className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 hover:border-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900 transition"
               />
             </div>

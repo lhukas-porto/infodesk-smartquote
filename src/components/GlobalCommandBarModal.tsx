@@ -300,7 +300,6 @@ export const GlobalCommandBarModal: React.FC<GlobalCommandBarModalProps> = ({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar propostas, produtos, empresas ou ações rápidas..."
             className="w-full bg-transparent text-sm sm:text-base text-slate-900 placeholder-slate-400 focus:outline-none font-medium"
           />
           {query ? (

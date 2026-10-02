@@ -158,7 +158,6 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
           ref={inputRef}
           type="text"
           value={value || ''}
-          placeholder={placeholder || defaultValue || 'Selecione ou digite...'}
           onChange={handleInputChange}
           onFocus={handleInputFocus}
           onBlur={handleInputBlur}

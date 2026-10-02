@@ -650,7 +650,6 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por produto, empresa, comprador, part number ou código..."
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 transition"
           />
           {searchTerm && (

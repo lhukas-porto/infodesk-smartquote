@@ -225,7 +225,6 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                   setToEmails(e.target.value);
                   if (sendError) setSendError(null);
                 }}
-                placeholder="email1@empresa.com, email2@empresa.com"
                 className={`w-full bg-white border ${
                   sendError && !extractEmailString(toEmails)
                     ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20'
@@ -277,7 +276,6 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 type="text"
                 value={ccEmails}
                 onChange={(e) => setCcEmails(e.target.value)}
-                placeholder="copia1@empresa.com, copia2@empresa.com"
                 className="w-full bg-white border border-sky-200 rounded-lg px-3 py-1.5 text-slate-900 font-medium focus:outline-none focus:border-sky-500 text-xs"
               />
             </div>
@@ -296,7 +294,6 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder={`Ex: Proposta Comercial ${quote.code} — Infodesk — Fornecimento de Produtos`}
               className="w-full bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-100 transition shadow-2xs"
             />
           </div>
