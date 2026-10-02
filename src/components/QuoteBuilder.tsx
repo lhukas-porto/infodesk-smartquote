@@ -2951,7 +2951,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     <span>Item</span>
                   </div>
                 </th>
-                <th className="py-2.5 px-2 min-w-[180px] whitespace-nowrap">Descrição Detalhada do Produto</th>
+                <th className="py-2.5 px-2 min-w-[340px] md:min-w-[500px] lg:min-w-[560px] whitespace-nowrap">Descrição Detalhada do Produto</th>
                 <th className="py-2.5 px-1 w-14 min-w-[56px] text-center whitespace-nowrap">Qtd.</th>
                 <th className="py-2.5 px-1 w-14 min-w-[52px] text-center whitespace-nowrap">Un.</th>
                 <th className="py-2.5 px-1 w-20 min-w-[80px] text-center whitespace-nowrap">Custo (R$)</th>
@@ -2999,7 +2999,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       </div>
                     </td>
 
-                    <td className="py-2 px-2 min-w-[180px]">
+                    <td className="py-2 px-2 min-w-[340px] md:min-w-[500px] lg:min-w-[560px]">
                       <div className="flex flex-col gap-1.5">
                         {/* Linha principal: Foto + Descrição */}
                         <div className="flex items-start gap-2">
@@ -3079,7 +3079,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
                         {/* Barra de utilidades (recolhida no modo compacto) */}
                         {!isCompactTableMode && (
-                          <div className="flex flex-wrap items-center gap-1.5 pl-0.5 text-[10px] pt-0.5">
+                          <div className="flex items-center flex-nowrap gap-1.5 pl-0.5 text-[10px] pt-0.5 overflow-x-auto no-scrollbar whitespace-nowrap">
                             <label className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer select-none shrink-0">
                               <input
                                 type="checkbox"
