@@ -237,6 +237,9 @@ export interface ClientCompany {
   prefix?: 'À' | 'Ao' | string;
   contacts: ClientContact[];
   defaultDeliveryLocation?: string;
+  defaultPaymentTerms?: string;
+  defaultDeliveryDays?: string;
+  defaultWarrantyTerms?: string;
   locations?: string[];
   lastUsed?: string;
   logoUrl?: string;

@@ -44,7 +44,8 @@ import {
   LayoutList,
   PlusCircle,
   Mail,
-  MoreVertical
+  MoreVertical,
+  MessageSquare
 } from 'lucide-react';
 import { ClientCompany, ClientContact, CompanySettings, Product, Quote, QuoteItem } from '../types';
 import { 
@@ -103,6 +104,7 @@ import { MultiSupplierMatrixModal } from './MultiSupplierMatrixModal';
 import { ItemSupplierScanModal } from './ItemSupplierScanModal';
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
 import { reportError } from '../services/errorReporter';
+import { WhatsAppQuoteModal } from './WhatsAppQuoteModal';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -174,6 +176,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   const [selectedPricingProfile, setSelectedPricingProfile] = useState<string>('corporativo_padrao');
   const [isSupplierMatrixOpen, setIsSupplierMatrixOpen] = useState(false);
   const [itemForSupplierScan, setItemForSupplierScan] = useState<{ index: number; item: QuoteItem } | null>(null);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const handleApplyItemSupplierPrice = (index: number, newCost: number, supplier?: string, sourceUrl?: string) => {
     handleItemChange(index, 'costPrice', newCost);
@@ -458,7 +461,10 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
         currentQuote.contactPerson,
         currentQuote.clientEmail,
         currentQuote.clientPhone,
-        currentQuote.deliveryLocation
+        currentQuote.deliveryLocation,
+        currentQuote.paymentTerms,
+        currentQuote.deliveryDays,
+        currentQuote.warrantyTerms
       );
       handleUpdateCompanies(updated);
     }
@@ -617,7 +623,10 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       currentQuote.contactPerson,
       currentQuote.clientEmail,
       currentQuote.clientPhone,
-      currentQuote.deliveryLocation
+      currentQuote.deliveryLocation,
+      currentQuote.paymentTerms,
+      currentQuote.deliveryDays,
+      currentQuote.warrantyTerms
     );
     handleUpdateCompanies(updated);
     setLinkNotification(`Comprador "${cleanContactName}" vinculado à "${matchedCompany?.name || currentQuote.clientCompany}" com sucesso!`);
@@ -2107,6 +2116,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                               onClick={() => {
                                 const formatted = formatCompanyPrefix(c.name, c.prefix);
                                 const newCode = generateQuoteCode(c.name, new Date(), propsQuotes);
+                                const primaryContact = Array.isArray(c.contacts) && c.contacts.length > 0 ? c.contacts[0] : null;
                                 setCurrentQuote(prev => {
                                   const isSavedForAnother = (propsQuotes || []).some(q => 
                                     q.id === prev.id && 
@@ -2117,7 +2127,13 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                                     ...prev,
                                     id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
                                     clientCompany: formatted,
+                                    contactPerson: primaryContact ? primaryContact.name : prev.contactPerson,
+                                    clientEmail: primaryContact?.email || prev.clientEmail,
+                                    clientPhone: primaryContact?.phone || prev.clientPhone,
                                     deliveryLocation: c.defaultDeliveryLocation || prev.deliveryLocation,
+                                    paymentTerms: c.defaultPaymentTerms || prev.paymentTerms,
+                                    deliveryDays: c.defaultDeliveryDays || prev.deliveryDays,
+                                    warrantyTerms: c.defaultWarrantyTerms || prev.warrantyTerms,
                                     shippingTerms: c.defaultDeliveryLocation ? `Frete incluso p/ ${c.defaultDeliveryLocation}.` : prev.shippingTerms,
                                     code: newCode
                                   };
@@ -4537,6 +4553,22 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
 
               <button
                 type="button"
+                onClick={() => {
+                  if (!currentQuote.items || currentQuote.items.length === 0) {
+                    alert('Adicione ao menos um produto na cotação para enviar via WhatsApp.');
+                    return;
+                  }
+                  setIsWhatsAppModalOpen(true);
+                }}
+                className="h-9 px-3.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
+                title="Copiar ou abrir proposta comercial direto no WhatsApp do comprador"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                <span>WhatsApp</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => persistAndProceed(onPreview, true)}
                 className="h-9 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs whitespace-nowrap cursor-pointer active:scale-95"
                 title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
@@ -4605,6 +4637,22 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                       <span>Salvar Excel (.xlsx)</span>
                     </button>
 
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMoreActionsOpen(false);
+                        if (!currentQuote.items || currentQuote.items.length === 0) {
+                          alert('Adicione ao menos um produto na cotação para enviar via WhatsApp.');
+                          return;
+                        }
+                        setIsWhatsAppModalOpen(true);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs font-semibold text-emerald-800 hover:bg-emerald-50 flex items-center gap-2 transition"
+                    >
+                      <MessageSquare className="w-4 h-4 text-emerald-600" />
+                      <span>Enviar no WhatsApp</span>
+                    </button>
+
                     {onSaveAsNewQuote && (
                       <button
                         type="button"
@@ -4644,6 +4692,16 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Envio e Copia para WhatsApp */}
+      {isWhatsAppModalOpen && (
+        <WhatsAppQuoteModal
+          isOpen={isWhatsAppModalOpen}
+          onClose={() => setIsWhatsAppModalOpen(false)}
+          quote={currentQuote}
+          settings={settings}
+        />
       )}
 
     </div>

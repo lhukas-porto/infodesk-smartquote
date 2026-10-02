@@ -992,7 +992,10 @@ export const registerOrUpdateClient = (
   contactName: string,
   email?: string,
   phone?: string,
-  deliveryLocation?: string
+  deliveryLocation?: string,
+  paymentTerms?: string,
+  deliveryDays?: string,
+  warrantyTerms?: string
 ): ClientCompany[] => {
   if (!companyName || !companyName.trim()) return getClientCompanies();
 
@@ -1025,6 +1028,9 @@ export const registerOrUpdateClient = (
       defaultDeliveryLocation: loc || 'Brasília - DF',
       locations: loc ? [loc] : ['Brasília - DF'],
       contacts: [],
+      defaultPaymentTerms: paymentTerms?.trim() || undefined,
+      defaultDeliveryDays: deliveryDays?.trim() || undefined,
+      defaultWarrantyTerms: warrantyTerms?.trim() || undefined,
       lastUsed: new Date().toISOString()
     };
     companies.push(comp);
@@ -1045,6 +1051,15 @@ export const registerOrUpdateClient = (
     }
     if (loc && !comp.defaultDeliveryLocation) {
       comp.defaultDeliveryLocation = loc;
+    }
+    if (paymentTerms?.trim()) {
+      comp.defaultPaymentTerms = paymentTerms.trim();
+    }
+    if (deliveryDays?.trim()) {
+      comp.defaultDeliveryDays = deliveryDays.trim();
+    }
+    if (warrantyTerms?.trim()) {
+      comp.defaultWarrantyTerms = warrantyTerms.trim();
     }
   }
 

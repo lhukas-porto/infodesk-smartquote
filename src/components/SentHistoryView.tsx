@@ -33,6 +33,7 @@ import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
 import { parseQuoteTimestamp, isSameDay } from '../utils/dateUtils';
 import { QuoteApprovalModal } from './QuoteApprovalModal';
+import { WhatsAppQuoteModal } from './WhatsAppQuoteModal';
 
 interface SentHistoryViewProps {
   quotes: Quote[];
@@ -128,6 +129,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   onStageFilterChange
 }) => {
   const [quoteForApproval, setQuoteForApproval] = useState<Quote | null>(null);
+  const [quoteForWhatsApp, setQuoteForWhatsApp] = useState<Quote | null>(null);
   const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('today');
   const [specificDate, setSpecificDate] = useState<string>(() => {
     const d = new Date();
@@ -970,6 +972,16 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
                       <span>Visualizar</span>
                     </button>
 
+                    <button
+                      type="button"
+                      onClick={() => setQuoteForWhatsApp(q)}
+                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                      title="Copiar ou abrir proposta comercial direto no WhatsApp do comprador"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>WhatsApp</span>
+                    </button>
+
                     {onDeleteQuote && (
                       <button
                         type="button"
@@ -1184,6 +1196,15 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Envio e Copia para WhatsApp */}
+      {quoteForWhatsApp && (
+        <WhatsAppQuoteModal
+          isOpen={Boolean(quoteForWhatsApp)}
+          onClose={() => setQuoteForWhatsApp(null)}
+          quote={quoteForWhatsApp}
+        />
       )}
 
     </div>

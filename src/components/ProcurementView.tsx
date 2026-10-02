@@ -58,7 +58,7 @@ interface ProcurementViewProps {
 }
 
 type PeriodOption = 'all' | 'today' | 'yesterday' | '7days' | '30days' | 'this_month' | 'last_month' | 'custom';
-type ViewModeOption = 'items' | 'quotes' | 'reference';
+type ViewModeOption = 'items' | 'quotes' | 'suppliers' | 'reference';
 
 interface ProductReferenceSummary {
   normalizedKey: string;
@@ -108,6 +108,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   // 2. Modos de Exibição: Itens Individuais, Agrupado por Proposta, ou Referência de Preços Pagos
   const [viewMode, setViewMode] = useState<ViewModeOption>('items');
   const [collapsedQuotes, setCollapsedQuotes] = useState<Record<string, boolean>>({});
+  const [collapsedSuppliers, setCollapsedSuppliers] = useState<Record<string, boolean>>({});
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -580,6 +581,49 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     return groups;
   }, [filteredItems]);
 
+  // Agrupamento Inteligente por Fornecedor (O que comprar na Kabum, Fujioka, etc.)
+  const supplierGroups = useMemo(() => {
+    const map = new Map<string, {
+      supplierName: string;
+      items: ProcurementItem[];
+      totalQuantity: number;
+      totalEstimatedCost: number;
+      totalActualCost: number;
+      pendingCount: number;
+      purchasedCount: number;
+    }>();
+
+    filteredItems.forEach(item => {
+      const rawSupp = item.supplier?.trim();
+      const supp = rawSupp && rawSupp.length > 0 ? rawSupp : 'Fornecedor a Definir';
+      let g = map.get(supp);
+      if (!g) {
+        g = {
+          supplierName: supp,
+          items: [],
+          totalQuantity: 0,
+          totalEstimatedCost: 0,
+          totalActualCost: 0,
+          pendingCount: 0,
+          purchasedCount: 0
+        };
+        map.set(supp, g);
+      }
+      g.items.push(item);
+      g.totalQuantity += item.quantity;
+      g.totalEstimatedCost += item.quotedCostPrice * item.quantity;
+      g.totalActualCost += item.actualCostPrice !== undefined ? item.actualCostPrice : (item.quotedCostPrice * item.quantity);
+      if (item.purchaseStatus === 'pending') g.pendingCount++;
+      if (item.purchaseStatus === 'purchased') g.purchasedCount++;
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.supplierName === 'Fornecedor a Definir') return 1;
+      if (b.supplierName === 'Fornecedor a Definir') return -1;
+      return b.totalEstimatedCost - a.totalEstimatedCost;
+    });
+  }, [filteredItems]);
+
   // Métricas do Topo calculadas de forma desacoplada da aba ativa (sempre refletem o total real do contexto)
   const stats = useMemo(() => {
     const pendingCount = pendingItems.length;
@@ -984,6 +1028,80 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     }));
   };
 
+  // Alternar colapso de fornecedor no modo agrupado
+  const toggleSupplierCollapse = (supplierName: string) => {
+    setCollapsedSuppliers(prev => ({
+      ...prev,
+      [supplierName]: !prev[supplierName]
+    }));
+  };
+
+  // Copiar Pedido de Compra formatado para WhatsApp do Vendedor/Representante
+  const handleCopySupplierPurchaseOrder = (group: {
+    supplierName: string;
+    items: ProcurementItem[];
+    totalQuantity: number;
+    totalEstimatedCost: number;
+  }) => {
+    const dateStr = new Date().toLocaleDateString('pt-BR');
+    const itemsLines = group.items.map((it, idx) => {
+      const skuStr = it.partNumber ? ` (Cód/SKU: ${it.partNumber})` : '';
+      const unitCost = it.quotedCostPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${idx + 1}. *${it.name}*${skuStr}\n   • Qtd: *${it.quantity} ${it.unit || 'un'}* | Ref: R$ ${unitCost}`;
+    }).join('\n\n');
+
+    const totalStr = group.totalEstimatedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const message = `📋 *PEDIDO DE COMPRA / COTAÇÃO - INFODESK*
+🗓️ *Data:* ${dateStr}
+🤝 *Fornecedor:* ${group.supplierName}
+
+📦 *ITENS SOLICITADOS:*
+${itemsLines}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *Total Previsto:* R$ ${totalStr} (${group.totalQuantity} itens)
+📍 *Entrega:* Brasília - DF
+
+Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato para a Infodesk Tecnologia? Obrigado!`;
+
+    navigator.clipboard.writeText(message);
+    showToast(`Pedido de compra para "${group.supplierName}" copiado para a área de transferência!`);
+  };
+
+  // Abrir WhatsApp com Pedido de Compra Pré-preenchido
+  const handleOpenWhatsAppSupplierOrder = (group: {
+    supplierName: string;
+    items: ProcurementItem[];
+    totalQuantity: number;
+    totalEstimatedCost: number;
+  }) => {
+    const dateStr = new Date().toLocaleDateString('pt-BR');
+    const itemsLines = group.items.map((it, idx) => {
+      const skuStr = it.partNumber ? ` (Cód/SKU: ${it.partNumber})` : '';
+      const unitCost = it.quotedCostPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${idx + 1}. *${it.name}*${skuStr}\n   • Qtd: *${it.quantity} ${it.unit || 'un'}* | Ref: R$ ${unitCost}`;
+    }).join('\n\n');
+
+    const totalStr = group.totalEstimatedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const message = `📋 *PEDIDO DE COMPRA / COTAÇÃO - INFODESK*
+🗓️ *Data:* ${dateStr}
+🤝 *Fornecedor:* ${group.supplierName}
+
+📦 *ITENS SOLICITADOS:*
+${itemsLines}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *Total Previsto:* R$ ${totalStr} (${group.totalQuantity} itens)
+📍 *Entrega:* Brasília - DF
+
+Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato para a Infodesk Tecnologia? Obrigado!`;
+
+    const encoded = encodeURIComponent(message);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+  };
+
   // Exportar Excel
   const handleExportExcel = () => {
     exportPurchasesToExcel(filteredItems);
@@ -1066,6 +1184,19 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             >
               <Layers className="w-3.5 h-3.5" />
               <span>Por Proposta</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('suppliers')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'suppliers'
+                  ? 'bg-white text-sky-700 shadow-2xs border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Agrupar produtos por Fornecedor (Kabum, Fujioka, etc.) e gerar Pedido de Compra"
+            >
+              <Building2 className="w-3.5 h-3.5 text-sky-600" />
+              <span>Por Fornecedor ({supplierGroups.length})</span>
             </button>
             <button
               type="button"
@@ -1634,6 +1765,117 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 </div>
 
                 {/* Itens da Proposta (expansível) */}
+                {!isCollapsed && (
+                  <div className="p-3 sm:p-4 space-y-2.5 bg-slate-50/40">
+                    {group.items.map(item => renderItemCard(item))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : viewMode === 'suppliers' ? (
+        /* MODO AGRUPADO POR FORNECEDOR (KABUM, FUJIOKA, AMAZON...) */
+        <div className="space-y-4">
+          <div className="bg-sky-50/70 border border-sky-200 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-sky-100 text-sky-700 rounded-xl">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Central de Compras por Fornecedor
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Agrupe os itens da sua cotação por distribuidor (Fujioka, Kabum, etc.) e copie o pedido de compra formatado para enviar no WhatsApp do vendedor.
+                </p>
+              </div>
+            </div>
+
+            <span className="text-xs font-mono font-bold text-sky-800 bg-white px-3 py-1 rounded-xl border border-sky-200 shadow-2xs">
+              {supplierGroups.length} fornecedor(es) com itens
+            </span>
+          </div>
+
+          {supplierGroups.map(group => {
+            const isCollapsed = Boolean(collapsedSuppliers[group.supplierName]);
+            return (
+              <div
+                key={group.supplierName}
+                className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden transition"
+              >
+                {/* Cabeçalho do Fornecedor */}
+                <div
+                  onClick={() => toggleSupplierCollapse(group.supplierName)}
+                  className="p-4 sm:p-5 bg-gradient-to-r from-slate-50/80 to-white flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 transition border-b border-slate-100"
+                >
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2.5 py-0.5 bg-sky-100 text-sky-800 border border-sky-200 text-xs font-bold rounded-lg flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                        {group.supplierName}
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium">
+                        • {group.items.length} produto(s) ({group.totalQuantity} unidades)
+                      </span>
+                      {group.pendingCount > 0 && (
+                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          {group.pendingCount} pendente(s)
+                        </span>
+                      )}
+                      {group.purchasedCount > 0 && (
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          {group.purchasedCount} comprado(s)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Ações e Total */}
+                  <div className="flex items-center gap-2 sm:gap-4 shrink-0 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                    <div className="text-right mr-1">
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">
+                        Custo Estimado
+                      </span>
+                      <span className="text-sm sm:text-base font-mono font-bold text-slate-900">
+                        R$ {group.totalEstimatedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopySupplierPurchaseOrder(group)}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Copiar lista de compras formatada para enviar no WhatsApp do vendedor"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Copiar Pedido</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenWhatsAppSupplierOrder(group)}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Abrir WhatsApp com o pedido de compra formatado"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-emerald-100" />
+                      <span>WhatsApp</span>
+                    </button>
+
+                    <div 
+                      onClick={() => toggleSupplierCollapse(group.supplierName)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                    >
+                      {isCollapsed ? (
+                        <ChevronDown className="w-5 h-5" />
+                      ) : (
+                        <ChevronUp className="w-5 h-5" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Itens do Fornecedor */}
                 {!isCollapsed && (
                   <div className="p-3 sm:p-4 space-y-2.5 bg-slate-50/40">
                     {group.items.map(item => renderItemCard(item))}

@@ -6,6 +6,7 @@ import { QuoteBuilder } from './components/QuoteBuilder';
 import { QuotePreview } from './components/QuotePreview';
 import { EmailSendModal } from './components/EmailSendModal';
 import { SettingsModal } from './components/SettingsModal';
+import { GlobalCommandBarModal } from './components/GlobalCommandBarModal';
 import { LoginView } from './components/LoginView';
 import { 
   isSameDay, 
@@ -343,7 +344,20 @@ export const App: React.FC = () => {
   };
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
   const [clientCompanies, setClientCompanies] = useState<ClientCompany[]>(() => getClientCompanies());
+
+  // Atalho global do teclado: Ctrl + K ou Cmd + K abre a Command Bar
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandBarOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
   const [manualAnalyses, setManualAnalyses] = useState<IncomingEmail[]>(() => getManualAnalyses());
 
   const handleSaveCompanies = async (updated: ClientCompany[]) => {
@@ -2099,6 +2113,7 @@ export const App: React.FC = () => {
             setActiveTab('history');
           }}
           onNavigateToBuilder={handleNavigateToBuilder}
+          onOpenCommandBar={() => setIsCommandBarOpen(true)}
         />
       </div>
 
@@ -2456,6 +2471,39 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSaveSettings={handleSaveSettings}
+      />
+
+      <GlobalCommandBarModal
+        isOpen={isCommandBarOpen}
+        onClose={() => setIsCommandBarOpen(false)}
+        quotes={quotes}
+        products={products}
+        clientCompanies={clientCompanies}
+        onSelectQuote={async (q) => {
+          const matched = quotes.find(item => item.id === q.id || item.code === q.code);
+          const itemsToUse = await resolveQuoteItems(q, quotes);
+          const fullQuote = { ...matched, ...q, items: itemsToUse };
+          setCurrentQuote(fullQuote);
+          saveCurrentDraftQuote(fullQuote);
+          setActiveTab('builder');
+        }}
+        onSelectProduct={() => {
+          setActiveTab('catalog');
+        }}
+        onSelectCompany={() => {
+          setActiveTab('clients');
+        }}
+        onNewQuote={handleNewQuote}
+        onNavigateTab={(tab) => {
+          if (tab === 'quote') {
+            setActiveTab('builder');
+          } else if (tab === 'procurement') {
+            setActiveTab('purchases');
+          } else {
+            setActiveTab(tab as any);
+          }
+        }}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       {syncNotice && (
