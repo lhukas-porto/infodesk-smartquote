@@ -30,6 +30,7 @@ interface NavbarProps {
   onOpenDraftsHistory?: () => void;
   authenticatedUserEmail?: string | null;
   onLogout?: () => void;
+  onNavigateToBuilder?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -47,7 +48,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   pendingPurchasesCount = 0,
   onOpenDraftsHistory,
   authenticatedUserEmail,
-  onLogout
+  onLogout,
+  onNavigateToBuilder
 }) => {
   return (
     <header className="no-print sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200/90 shadow-xs">
@@ -122,7 +124,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               <button
-                onClick={() => setActiveTab('builder')}
+                onClick={() => {
+                  if (onNavigateToBuilder) {
+                    onNavigateToBuilder();
+                  } else {
+                    setActiveTab('builder');
+                  }
+                }}
                 className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === 'builder'
                     ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'

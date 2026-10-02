@@ -175,6 +175,8 @@ export const App: React.FC = () => {
   const activeTabRef = useRef<TabType>(activeTab);
   activeTabRef.current = activeTab;
 
+  const onLeaveBuilderRef = useRef<(() => void) | null>(null);
+
   // Interceptador de segurança: confirmação antes de sair do Scanner durante pesquisa ativa
   const confirmScannerExitIfNeeded = useCallback((): boolean => {
     const isBusy = isScannerBusyRef.current || (typeof window !== 'undefined' && Boolean((window as any).__INFODESK_SCANNER_BUSY__));
@@ -192,6 +194,10 @@ export const App: React.FC = () => {
       if (VALID_TABS.includes(nextTab) && nextTab !== prev) {
         if (!confirmScannerExitIfNeeded()) {
           return prev; // Impede a saída da aba de pesquisa se o usuário cancelar
+        }
+        // Diretriz do Lucas: Ao sair da Cotação para outra aba, encerra edição de propostas do histórico
+        if (prev === 'builder' && nextTab !== 'builder' && nextTab !== 'preview' && onLeaveBuilderRef.current) {
+          onLeaveBuilderRef.current();
         }
         window.history.pushState({ tab: nextTab }, '', `#${nextTab}`);
         saveActiveTab(nextTab);
@@ -800,19 +806,64 @@ export const App: React.FC = () => {
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '219637540127-tle29vean1bmjgm5irhs1n3eer1iqiep.apps.googleusercontent.com';
 
+  const [editingHistoricalQuoteId, setEditingHistoricalQuoteId] = useState<string | null>(null);
+  const editingHistoricalQuoteIdRef = useRef<string | null>(null);
+  editingHistoricalQuoteIdRef.current = editingHistoricalQuoteId;
+
+  const createCleanBlankQuote = useCallback((customQuotes?: Quote[], customSettings?: CompanySettings): Quote => {
+    const s = customSettings || settings;
+    const qList = customQuotes || quotes;
+    const defaultMarkup = s.defaultMarkupPercent ?? 23.5;
+    const defaultTax = s.defaultTaxPercent ?? 9.1;
+    const defaultShipping = s.defaultShippingCost ?? 0;
+
+    return {
+      id: `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      code: generateQuoteCode('COTACAO', new Date(), qList),
+      clientCompany: '',
+      contactPerson: '',
+      clientEmail: '',
+      clientPhone: '',
+      subject: 'Fornecimento de produtos para informática',
+      city: 'Brasília',
+      date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
+      validityDays: s.defaultValidityDays,
+      paymentTerms: s.defaultPaymentTerms,
+      deliveryDays: s.defaultDeliveryDays,
+      warrantyTerms: s.defaultWarrantyTerms,
+      openingText: s.defaultOpeningText,
+      items: [],
+      totalCost: 0,
+      totalProfit: 0,
+      totalAmount: 0,
+      averageMargin: defaultMarkup,
+      globalMarkupPercent: defaultMarkup,
+      globalTaxPercent: defaultTax,
+      globalShipping: defaultShipping,
+      status: 'draft',
+      createdAt: new Date().toISOString()
+    };
+  }, [settings, quotes]);
+
   const [currentQuote, setCurrentQuote] = useState<Quote>(() => {
     const draft = getCurrentDraftQuote();
-    if (draft && !isBlockedOrTestQuote(draft) && (
+    // Diretriz do Lucas: Só restaura se for rascunho de verdade, NUNCA cotação salva do histórico
+    if (draft && !isBlockedOrTestQuote(draft) && (draft.status || 'draft') === 'draft' && !draft.sentAt && (
       (Array.isArray(draft.items) && draft.items.length > 0) ||
       (draft.clientCompany && draft.clientCompany.trim())
     )) {
-      return draft;
+      const isHistorical = quotes.some(q => (q.id === draft.id || q.code === draft.code) && (q.status === 'sent' || q.status === 'approved'));
+      if (!isHistorical) {
+        return draft;
+      }
     }
-    const existing = quotes.find(q => !isBlockedOrTestQuote(q) && Array.isArray(q.items) && q.items.length > 0) || quotes.find(q => !isBlockedOrTestQuote(q));
-    if (existing) return existing;
+    // Sempre inicia em branco se não houver um rascunho real em digitação
+    const defaultMarkup = settings.defaultMarkupPercent ?? 23.5;
+    const defaultTax = settings.defaultTaxPercent ?? 9.1;
+    const defaultShipping = settings.defaultShippingCost ?? 0;
     return {
-      id: `quote-${Date.now()}`,
-      code: '',
+      id: `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      code: generateQuoteCode('COTACAO', new Date(), quotes),
       clientCompany: '',
       contactPerson: '',
       clientEmail: '',
@@ -829,12 +880,26 @@ export const App: React.FC = () => {
       totalCost: 0,
       totalProfit: 0,
       totalAmount: 0,
-      averageMargin: settings.defaultMarkupPercent ?? 23.5,
-      globalMarkupPercent: settings.defaultMarkupPercent ?? 23.5,
+      averageMargin: defaultMarkup,
+      globalMarkupPercent: defaultMarkup,
+      globalTaxPercent: defaultTax,
+      globalShipping: defaultShipping,
       status: 'draft',
       createdAt: new Date().toISOString()
     };
   });
+
+  useEffect(() => {
+    onLeaveBuilderRef.current = () => {
+      if (editingHistoricalQuoteIdRef.current) {
+        setEditingHistoricalQuoteId(null);
+        editingHistoricalQuoteIdRef.current = null;
+        const blank = createCleanBlankQuote();
+        setCurrentQuote(blank);
+        saveCurrentDraftQuote(blank);
+      }
+    };
+  }, [createCleanBlankQuote]);
 
   useEffect(() => { 
     if (isSettingsHydratedRef.current) {
@@ -1227,39 +1292,28 @@ export const App: React.FC = () => {
   };
 
   const handleNewQuote = () => {
-    const defaultMarkup = settings.defaultMarkupPercent ?? 23.5;
-    const defaultTax = settings.defaultTaxPercent ?? 9.1;
-    const defaultShipping = settings.defaultShippingCost ?? 0;
-
-    const blank: Quote = {
-      id: `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      code: generateQuoteCode('COTACAO', new Date(), quotes),
-      clientCompany: '',
-      contactPerson: '',
-      clientEmail: '',
-      clientPhone: '',
-      subject: 'Fornecimento de produtos para informática',
-      city: 'Brasília',
-      date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
-      validityDays: settings.defaultValidityDays,
-      paymentTerms: settings.defaultPaymentTerms,
-      deliveryDays: settings.defaultDeliveryDays,
-      warrantyTerms: settings.defaultWarrantyTerms,
-      openingText: settings.defaultOpeningText,
-      items: [],
-      totalCost: 0,
-      totalProfit: 0,
-      totalAmount: 0,
-      averageMargin: defaultMarkup,
-      globalMarkupPercent: defaultMarkup,
-      globalTaxPercent: defaultTax,
-      globalShipping: defaultShipping,
-      status: 'draft',
-      createdAt: new Date().toISOString()
-    };
+    setEditingHistoricalQuoteId(null);
+    editingHistoricalQuoteIdRef.current = null;
+    const blank = createCleanBlankQuote();
     setCurrentQuote(blank);
     saveCurrentDraftQuote(blank);
     setActiveTab('builder');
+  };
+
+  const handleNavigateToBuilder = () => {
+    // Diretriz do Lucas: Ao clicar em "Cotação" na Navbar superior:
+    // Se o usuário estava editando cotação do histórico ou se a atual já está salva/enviada,
+    // sempre abre uma nova proposta limpa em branco!
+    const isHistorical = Boolean(editingHistoricalQuoteId) || 
+      (currentQuote.status && currentQuote.status !== 'draft') || 
+      Boolean(currentQuote.sentAt) ||
+      quotes.some(q => (q.id === currentQuote.id || q.code === currentQuote.code) && (q.status === 'sent' || q.status === 'approved'));
+
+    if (isHistorical) {
+      handleNewQuote();
+    } else {
+      setActiveTab('builder');
+    }
   };
 
   const handleSaveProductToCatalog = async (p: Product) => {
@@ -2044,6 +2098,7 @@ export const App: React.FC = () => {
             setHistoryStageFilter('draft');
             setActiveTab('history');
           }}
+          onNavigateToBuilder={handleNavigateToBuilder}
         />
       </div>
 
@@ -2119,6 +2174,7 @@ export const App: React.FC = () => {
             onSaveToCatalog={handleSaveProductToCatalog}
             onUpdateSettings={handleSaveSettings}
             onNewQuote={handleNewQuote}
+            isEditingHistoricalQuote={Boolean(editingHistoricalQuoteId)}
           />
         )}
 
@@ -2197,7 +2253,6 @@ export const App: React.FC = () => {
                 fullQuote.createdAt = new Date().toISOString();
               }
               setCurrentQuote(fullQuote);
-              saveCurrentDraftQuote(fullQuote);
               setPreviewSourceTab('history');
               setActiveTab('preview');
             }}
@@ -2210,8 +2265,10 @@ export const App: React.FC = () => {
                 quoteToEdit.date = todayFormatted;
                 quoteToEdit.createdAt = new Date().toISOString();
               }
+              const quoteKey = quoteToEdit.id || quoteToEdit.code;
+              setEditingHistoricalQuoteId(quoteKey);
+              editingHistoricalQuoteIdRef.current = quoteKey;
               setCurrentQuote(quoteToEdit);
-              saveCurrentDraftQuote(quoteToEdit);
               setActiveTab('builder');
             }}
             onDuplicateQuote={handleDuplicateQuoteFromHistory}

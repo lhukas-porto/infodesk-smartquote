@@ -122,6 +122,7 @@ interface QuoteBuilderProps {
   onDeleteContact?: (contactId: string, companyId: string) => void;
   onUpdateSettings?: (newSettings: CompanySettings) => void;
   onNewQuote?: () => void;
+  isEditingHistoricalQuote?: boolean;
 }
 
 export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
@@ -141,7 +142,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
   onDeleteCompany: propsOnDeleteCompany,
   onDeleteContact: propsOnDeleteContact,
   onUpdateSettings,
-  onNewQuote
+  onNewQuote,
+  isEditingHistoricalQuote = false
 }) => {
   const [globalMarkup, setGlobalMarkup] = useState<number>(() => {
     return currentQuote.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 23.5;
@@ -1848,15 +1850,40 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-lg md:text-xl font-bold text-slate-900">Nova Proposta Comercial</h1>
-            <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold rounded-lg font-mono">
+            <h1 className="text-lg md:text-xl font-bold text-slate-900">
+              {isEditingHistoricalQuote ? 'Editando Proposta Comercial' : 'Nova Proposta Comercial'}
+            </h1>
+            <span className={`px-2.5 py-0.5 border text-xs font-bold rounded-lg font-mono ${
+              isEditingHistoricalQuote 
+                ? 'bg-amber-50 text-amber-800 border-amber-300' 
+                : 'bg-sky-50 text-sky-700 border-sky-200'
+            }`}>
               {currentQuote.code}
             </span>
+            {isEditingHistoricalQuote && (
+              <span className="px-2 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold uppercase rounded-md">
+                Salva no Histórico
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Configure os dados do cliente, custos, alíquota de impostos e margem de lucro da Infodesk.
+            {isEditingHistoricalQuote 
+              ? `Alterações feitas aqui serão atualizadas nesta cotação para o cliente ${currentQuote.clientCompany || 'definido'}.`
+              : 'Configure os dados do cliente, custos, alíquota de impostos e margem de lucro da Infodesk.'}
           </p>
         </div>
+
+        {isEditingHistoricalQuote && onNewQuote && (
+          <button
+            type="button"
+            onClick={onNewQuote}
+            className="self-start xl:self-auto h-9 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+            title="Sair desta edição e abrir um orçamento em branco"
+          >
+            <PlusCircle className="w-3.5 h-3.5 text-sky-600" />
+            <span>Sair e Iniciar Nova Cotação</span>
+          </button>
+        )}
       </div>
 
       {/* Financial Summary Dashboard (5 Cards) */}
