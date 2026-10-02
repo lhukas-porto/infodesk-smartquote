@@ -6,8 +6,7 @@ import {
   Copy, 
   Check,
   Download,
-  FileSpreadsheet,
-  SplitSquareVertical
+  FileSpreadsheet
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
 import { formatCompanyPrefix, formatContactPerson, extractDeliveryExceptionDetails } from '../utils/aiEmailParser';
@@ -34,10 +33,6 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
   const documentRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [downloadingDoc, setDownloadingDoc] = useState(false);
-  const [forcePageBreak, setForcePageBreak] = useState(() => {
-    // Se a proposta tiver 6 ou mais itens, ativa por padrão para garantir formatação executiva perfeita
-    return (quote.items || []).length >= 6;
-  });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -166,22 +161,6 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Exportar Excel (.xlsx)</span>
           </button>
-
-          {quote.items && quote.items.length >= 4 && (
-            <button
-              type="button"
-              onClick={() => setForcePageBreak(prev => !prev)}
-              className={`flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-semibold transition cursor-pointer active:scale-95 ${
-                forcePageBreak 
-                  ? 'border-sky-500 bg-sky-50 text-sky-800' 
-                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-              }`}
-              title="Alternar quebra de página antes das condições gerais para orçamentos com múltiplos produtos"
-            >
-              <SplitSquareVertical className={`w-3.5 h-3.5 ${forcePageBreak ? 'text-sky-600' : 'text-slate-500'}`} />
-              <span>{forcePageBreak ? 'Pág. 2 Ativa' : 'Quebrar Condições'}</span>
-            </button>
-          )}
 
           <button
             onClick={handlePrint}
@@ -344,7 +323,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 
             {/* General Conditions */}
             <div 
-              className={`mb-8 text-black sq-avoid-break ${forcePageBreak ? 'sq-page-break-before pt-6' : ''}`}
+              className="mb-8 text-black sq-avoid-break"
               style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt', lineHeight: '1.5' }}
             >
               <p className="font-bold underline mb-2" style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '12pt', fontWeight: 'bold', textDecoration: 'underline' }}>Condições gerais:</p>
