@@ -1245,9 +1245,6 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
               <h1 className="sq-page-title">
                 Scanner Inteligente de Preços & Produtos
               </h1>
-              <span className="sq-badge-code">
-                IA & WEB SEARCH
-              </span>
             </div>
             <p className="sq-page-subtitle">
               Pesquise produtos por código, especificações técnicas ou foto e insira diretamente na sua cotação comercial.

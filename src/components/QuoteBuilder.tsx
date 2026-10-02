@@ -3489,7 +3489,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           <div className="flex items-center gap-2.5 flex-wrap">
             <Calendar className="w-4 h-4 text-sky-600" />
             <h3 className="text-sm font-bold text-slate-900 group-hover:text-sky-700 transition">
-              Condições Gerais de Fornecimento (Padrão Infodesk)
+              Condições Gerais de Fornecimento
             </h3>
             {/* Chips de Resumo Visual quando recolhido */}
             <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
@@ -3973,7 +3973,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
               <label className="text-slate-700 font-bold flex items-center gap-1.5 text-xs">
                 <FileText className="w-4 h-4 text-sky-600" />
                 <span>Observações na Proposta</span>
-                <span className="text-[10.5px] text-slate-400 font-normal">(aparece no documento oficial e no corpo do e-mail)</span>
               </label>
               {(currentQuote.observations || currentQuote.notes) && (
                 <button
