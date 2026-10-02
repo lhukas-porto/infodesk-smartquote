@@ -752,6 +752,29 @@ export const saveQuotes = (quotes: Quote[]): void => {
       }));
     try {
       localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));
+      // Indexa imediatamente todas as compras realizadas para blindagem no F5
+      normalized.forEach(q => {
+        (q.items || []).forEach(it => {
+          if (it.purchaseStatus === 'purchased' || it.purchaseStatus === 'delivered') {
+            savePurchasedProcurementRecord({
+              itemId: it.id,
+              quoteId: q.id,
+              quoteCode: q.code,
+              name: it.name,
+              purchaseStatus: it.purchaseStatus,
+              actualCostPrice: it.actualCostPrice,
+              actualUnitCostPrice: it.actualUnitCostPrice,
+              actualPurchaseUrl: it.actualPurchaseUrl,
+              actualShippingCost: it.actualShippingCost,
+              shippingPending: it.shippingPending,
+              paymentMethod: it.paymentMethod,
+              purchasedAt: it.purchasedAt,
+              purchaseNotes: it.purchaseNotes,
+              actualTaxPercent: it.actualTaxPercent
+            });
+          }
+        });
+      });
     } catch (quotaErr) {
       console.warn('Quota excedida ao salvar propostas. Executando limpeza automática...', quotaErr);
       pruneLocalStorage();
@@ -1572,6 +1595,22 @@ export const saveOrUpdateDirectPurchase = (item: import('../types').ProcurementI
     updated = [item, ...current];
   }
   saveDirectPurchases(updated);
+  if (item.purchaseStatus === 'purchased' || item.purchaseStatus === 'delivered') {
+    savePurchasedProcurementRecord({
+      itemId: item.itemId || item.id,
+      name: item.name,
+      purchaseStatus: item.purchaseStatus,
+      actualCostPrice: item.actualCostPrice,
+      actualUnitCostPrice: item.actualUnitCostPrice,
+      actualPurchaseUrl: item.actualPurchaseUrl,
+      actualShippingCost: item.actualShippingCost,
+      shippingPending: item.shippingPending,
+      paymentMethod: item.paymentMethod,
+      purchasedAt: item.purchasedAt,
+      purchaseNotes: item.purchaseNotes,
+      actualTaxPercent: item.taxPercent
+    });
+  }
   return updated;
 };
 
@@ -1580,9 +1619,71 @@ export const deleteDirectPurchaseItem = (itemId: string): import('../types').Pro
   const current = getDirectPurchases();
   const updated = current.filter(i => i.id !== itemId && i.itemId !== itemId);
   saveDirectPurchases(updated);
+  removePurchasedProcurementRecord(itemId);
   deleteDirectPurchaseFromSupabase(itemId).catch(err => {
     console.warn('[Storage] Erro ao deletar compra direta no Supabase:', err);
   });
   return updated;
 };
+
+// ==============================================================================
+// 14. REGISTRO DEDICADO DE COMPRAS REALIZADAS (BLINDAGEM CONTRA PERDAS NO F5)
+// ==============================================================================
+export interface ProcurementPurchaseRecord {
+  itemId: string;
+  quoteId?: string;
+  quoteCode?: string;
+  name?: string;
+  purchaseStatus: 'purchased' | 'delivered';
+  actualCostPrice?: number;
+  actualUnitCostPrice?: number;
+  actualPurchaseUrl?: string;
+  actualShippingCost?: number;
+  shippingPending?: boolean;
+  paymentMethod?: string;
+  purchasedAt?: string;
+  purchaseNotes?: string;
+  actualTaxPercent?: number;
+}
+
+const PROCUREMENT_PURCHASES_KEY = 'infodesk_procurement_purchases_v1';
+
+export const getPurchasedProcurementRecords = (): Record<string, ProcurementPurchaseRecord> => {
+  try {
+    const raw = localStorage.getItem(PROCUREMENT_PURCHASES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const savePurchasedProcurementRecord = (record: ProcurementPurchaseRecord): void => {
+  if (!record || !record.itemId) return;
+  try {
+    const map = getPurchasedProcurementRecords();
+    map[record.itemId] = record;
+    if (record.quoteId) {
+      map[`${record.quoteId}_${record.itemId}`] = record;
+    }
+    if (record.quoteCode && record.name) {
+      const sig = `${record.quoteCode}_${record.name}`.trim().toLowerCase();
+      map[sig] = record;
+    }
+    localStorage.setItem(PROCUREMENT_PURCHASES_KEY, JSON.stringify(map));
+  } catch (err) {
+    console.warn('Erro ao salvar registro de compra persistente:', err);
+  }
+};
+
+export const removePurchasedProcurementRecord = (itemId: string, quoteId?: string): void => {
+  try {
+    const map = getPurchasedProcurementRecords();
+    delete map[itemId];
+    if (quoteId) {
+      delete map[`${quoteId}_${itemId}`];
+    }
+    localStorage.setItem(PROCUREMENT_PURCHASES_KEY, JSON.stringify(map));
+  } catch { /* noop */ }
+};
+
 

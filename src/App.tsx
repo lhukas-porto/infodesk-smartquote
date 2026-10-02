@@ -82,7 +82,9 @@ import {
   isProductDeleted,
   isBlockedOrTestQuote,
   getDeletedQuoteCodes,
-  recordDeletedQuoteCode
+  recordDeletedQuoteCode,
+  getPurchasedProcurementRecords,
+  savePurchasedProcurementRecord
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -549,7 +551,7 @@ export const App: React.FC = () => {
           console.warn('Aviso ao sincronizar formas de pagamento na inicialização:', err);
         }
 
-        // Sincronização e unificação de Compras Avulsas / Diretas com Supabase
+        // Sincronização e unificação de Compras Avulsas / Diretas com Supabase (Blindada contra perda no F5)
         try {
           const deletedDirectIds = getDeletedDirectPurchaseIds();
           const localDirectPurchases = getDirectPurchases().filter(item => !deletedDirectIds.has(item.id) && !deletedDirectIds.has(item.itemId || ''));
@@ -566,10 +568,34 @@ export const App: React.FC = () => {
               }
             });
 
-            localDirectPurchases.forEach(item => {
-              if (!deletedDirectIds.has(item.id) && !map.has(item.id)) {
-                map.set(item.id, item);
-                syncDirectPurchasesToSupabase([item]).catch(() => {});
+            localDirectPurchases.forEach(localItem => {
+              if (deletedDirectIds.has(localItem.id) || deletedDirectIds.has(localItem.itemId || '')) return;
+
+              const remoteItem = map.get(localItem.id);
+              if (!remoteItem) {
+                // Item existe apenas no dispositivo: preserva e sincroniza
+                map.set(localItem.id, localItem);
+                syncDirectPurchasesToSupabase([localItem]).catch(() => {});
+              } else {
+                // Item existe em ambos: se o item local foi comprado ('purchased'), o local VENCE para não reverter no F5
+                if (localItem.purchaseStatus === 'purchased') {
+                  const mergedItem = {
+                    ...remoteItem,
+                    ...localItem,
+                    purchaseStatus: 'purchased' as const,
+                    shippingPending: localItem.shippingPending ?? remoteItem.shippingPending
+                  };
+                  map.set(localItem.id, mergedItem);
+                  if (remoteItem.purchaseStatus !== 'purchased') {
+                    syncDirectPurchasesToSupabase([mergedItem]).catch(() => {});
+                  }
+                } else {
+                  map.set(localItem.id, {
+                    ...remoteItem,
+                    ...localItem,
+                    shippingPending: localItem.shippingPending ?? remoteItem.shippingPending
+                  });
+                }
               }
             });
             saveDirectPurchases(Array.from(map.values()));
@@ -653,7 +679,54 @@ export const App: React.FC = () => {
                 });
               }
 
-              return { ...rq, items };
+              // BLINDAGEM DE COMPRAS NO F5:
+              // Recupera registros de compras salvos localmente e no storage dedicado
+              const purchasesMap = getPurchasedProcurementRecords();
+
+              items = items.map(remIt => {
+                // 1. Tenta correspondência local do item na memória anterior
+                const locIt = localMatch?.items?.find(li => 
+                  (li.id && remIt.id && li.id === remIt.id) ||
+                  (li.itemNumber !== undefined && remIt.itemNumber !== undefined && li.itemNumber === remIt.itemNumber) ||
+                  (li.name && remIt.name && li.name.trim().toLowerCase() === remIt.name.trim().toLowerCase())
+                );
+
+                // 2. Tenta correspondência no registro permanente de compras
+                const purchaseRecord = purchasesMap[remIt.id] ||
+                  (rq.id ? purchasesMap[`${rq.id}_${remIt.id}`] : null) ||
+                  (locIt?.id ? purchasesMap[locIt.id] : null) ||
+                  (rq.code && remIt.name ? purchasesMap[`${rq.code}_${remIt.name}`.trim().toLowerCase()] : null);
+
+                // Se houver qualquer dado de compra (local ou no registro persistente), preserva 100%!
+                const isPurchased = remIt.purchaseStatus === 'purchased' ||
+                  locIt?.purchaseStatus === 'purchased' ||
+                  purchaseRecord?.purchaseStatus === 'purchased';
+
+                const purchaseStatus = isPurchased ? ('purchased' as const) : (remIt.purchaseStatus || locIt?.purchaseStatus);
+
+                return {
+                  ...remIt,
+                  purchaseStatus,
+                  approved: remIt.approved !== undefined ? remIt.approved : locIt?.approved,
+                  approvedQuantity: remIt.approvedQuantity !== undefined ? remIt.approvedQuantity : locIt?.approvedQuantity,
+                  actualCostPrice: remIt.actualCostPrice !== undefined ? remIt.actualCostPrice : (locIt?.actualCostPrice ?? purchaseRecord?.actualCostPrice),
+                  actualUnitCostPrice: remIt.actualUnitCostPrice !== undefined ? remIt.actualUnitCostPrice : (locIt?.actualUnitCostPrice ?? purchaseRecord?.actualUnitCostPrice),
+                  actualPurchaseUrl: remIt.actualPurchaseUrl || locIt?.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl,
+                  actualShippingCost: remIt.actualShippingCost !== undefined ? remIt.actualShippingCost : (locIt?.actualShippingCost ?? purchaseRecord?.actualShippingCost),
+                  shippingPending: remIt.shippingPending !== undefined ? remIt.shippingPending : (locIt?.shippingPending ?? purchaseRecord?.shippingPending),
+                  paymentMethod: remIt.paymentMethod || locIt?.paymentMethod || purchaseRecord?.paymentMethod,
+                  purchasedAt: remIt.purchasedAt || locIt?.purchasedAt || purchaseRecord?.purchasedAt,
+                  purchaseNotes: remIt.purchaseNotes || locIt?.purchaseNotes || purchaseRecord?.purchaseNotes,
+                  actualTaxPercent: remIt.actualTaxPercent !== undefined ? remIt.actualTaxPercent : (locIt?.actualTaxPercent ?? purchaseRecord?.actualTaxPercent),
+                  clientOrderNumber: remIt.clientOrderNumber || locIt?.clientOrderNumber
+                };
+              });
+
+              // Preserva status de aprovação da proposta se ela estiver aprovada localmente
+              const finalStatus = (localMatch?.status === 'approved' && rq.status !== 'approved') ? 'approved' : rq.status;
+              const finalApprovedAt = rq.approvedAt || (finalStatus === 'approved' ? localMatch?.approvedAt : undefined);
+
+              return { ...rq, status: finalStatus, approvedAt: finalApprovedAt, items };
             });
 
             // Preserva propostas que existem apenas localmente (evita perda de dados locais)
@@ -2355,7 +2428,11 @@ export const App: React.FC = () => {
             quotes={quotes}
             onUpdateQuote={(updatedQuote) => {
               setQuotes(prev => {
-                const next = prev.map(q => q.id === updatedQuote.id ? updatedQuote : q);
+                const next = prev.map(q => 
+                  (q.id === updatedQuote.id || (q.code && updatedQuote.code && q.code.trim().toUpperCase() === updatedQuote.code.trim().toUpperCase()))
+                    ? updatedQuote 
+                    : q
+                );
                 saveQuotes(next);
                 syncQuoteToSupabase(updatedQuote).catch(err => {
                   console.warn('Aviso sync compra:', err);

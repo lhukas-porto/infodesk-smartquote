@@ -46,7 +46,9 @@ import {
   deleteDirectPurchaseItem,
   getRegisteredUnits,
   getClientCompanies,
-  getProducts
+  getProducts,
+  savePurchasedProcurementRecord,
+  removePurchasedProcurementRecord
 } from '../utils/storage';
 import { normalizeSearchText } from '../utils/aiEmailParser';
 import { fetchDirectPurchasesFromSupabase } from '../services/supabase';
@@ -279,6 +281,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             contactPerson: quote.contactPerson,
             approvedAt: quote.approvedAt || quote.date,
             itemId: item.id,
+            itemNumber: item.itemNumber,
             name: item.name,
             description: item.description,
             partNumber: item.partNumber,
@@ -767,16 +770,41 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         purchaseNotes: purchaseForm.notes?.trim() || undefined
       };
       saveOrUpdateDirectPurchase(updatedDirectItem);
+      savePurchasedProcurementRecord({
+        itemId: updatedDirectItem.itemId || updatedDirectItem.id,
+        name: updatedDirectItem.name,
+        purchaseStatus: 'purchased',
+        actualCostPrice: updatedDirectItem.actualCostPrice,
+        actualUnitCostPrice: updatedDirectItem.actualUnitCostPrice,
+        actualPurchaseUrl: updatedDirectItem.actualPurchaseUrl,
+        actualShippingCost: updatedDirectItem.actualShippingCost,
+        shippingPending: updatedDirectItem.shippingPending,
+        paymentMethod: updatedDirectItem.paymentMethod,
+        purchasedAt: updatedDirectItem.purchasedAt,
+        purchaseNotes: updatedDirectItem.purchaseNotes,
+        actualTaxPercent: updatedDirectItem.taxPercent
+      });
       setActiveItemForPurchase(null);
+      showToast(`Compra de "${updatedDirectItem.name}" registrada com sucesso!`);
       return;
     }
 
     // Compra vinculada a proposta comercial
-    const targetQuote = quotes.find(q => q.id === activeItemForPurchase.quoteId);
-    if (!targetQuote) return;
+    const targetQuote = quotes.find(q => 
+      q.id === activeItemForPurchase.quoteId || 
+      (q.code && activeItemForPurchase.quoteCode && q.code.trim().toUpperCase() === activeItemForPurchase.quoteCode.trim().toUpperCase())
+    );
+    if (!targetQuote) {
+      console.warn('[ProcurementView] Proposta de origem não encontrada:', activeItemForPurchase.quoteId, activeItemForPurchase.quoteCode);
+      return;
+    }
 
     const updatedItems = (targetQuote.items || []).map(it => {
-      if (it.id === activeItemForPurchase.itemId) {
+      const isMatch = (it.id && activeItemForPurchase.itemId && it.id === activeItemForPurchase.itemId) ||
+                      (it.itemNumber !== undefined && activeItemForPurchase.itemNumber !== undefined && it.itemNumber === activeItemForPurchase.itemNumber) ||
+                      (it.name && activeItemForPurchase.name && it.name.trim().toLowerCase() === activeItemForPurchase.name.trim().toLowerCase());
+
+      if (isMatch) {
         return {
           ...it,
           purchaseStatus: 'purchased' as const,
@@ -794,15 +822,36 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       return it;
     });
 
+    // Registra imediatamente no storage dedicado de compras para blindagem absoluta contra F5
+    savePurchasedProcurementRecord({
+      itemId: activeItemForPurchase.itemId || activeItemForPurchase.id,
+      quoteId: targetQuote.id,
+      quoteCode: targetQuote.code,
+      name: activeItemForPurchase.name,
+      purchaseStatus: 'purchased',
+      actualCostPrice: Number(purchaseForm.actualCost),
+      actualUnitCostPrice: Number(purchaseForm.actualUnitCost),
+      actualPurchaseUrl: purchaseForm.actualPurchaseUrl?.trim() || undefined,
+      actualShippingCost: Number(purchaseForm.actualShipping),
+      shippingPending: Boolean(purchaseForm.shippingPending),
+      paymentMethod: purchaseForm.paymentMethod,
+      purchasedAt: purchaseForm.purchaseDate,
+      purchaseNotes: purchaseForm.notes?.trim() || undefined,
+      actualTaxPercent: Number(purchaseForm.taxPercent)
+    });
+
     onUpdateQuote({
       ...targetQuote,
       items: updatedItems
     });
     setActiveItemForPurchase(null);
+    showToast(`Compra de "${activeItemForPurchase.name}" registrada com sucesso!`);
   };
 
   // 1. Desfazer Compra Realizada (retornando o item para o status 'A Comprar')
   const handleDeletePurchase = (item: ProcurementItem) => {
+    removePurchasedProcurementRecord(item.itemId || item.id, item.quoteId);
+
     if (item.isDirectPurchase) {
       // Compra direta: reverte para pending e limpa campos reais
       const cleaned: ProcurementItem = { ...item };
@@ -814,6 +863,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       delete cleaned.paymentMethod;
       delete cleaned.purchasedAt;
       delete cleaned.purchaseNotes;
+      delete cleaned.shippingPending;
       const updated = saveOrUpdateDirectPurchase(cleaned);
       setDirectPurchases(updated);
       showToast(`Registro de compra de "${item.name}" desfeito. Item retornou para "A Comprar".`);
@@ -821,17 +871,25 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     }
 
     // Compra de proposta: reverte para pending e limpa campos reais
-    const targetQuote = quotes.find(q => q.id === item.quoteId);
+    const targetQuote = quotes.find(q => 
+      q.id === item.quoteId || 
+      (q.code && item.quoteCode && q.code.trim().toUpperCase() === item.quoteCode.trim().toUpperCase())
+    );
     if (!targetQuote) return;
 
     const updatedItems = (targetQuote.items || []).map(it => {
-      if (it.id === item.itemId) {
+      const isMatch = (it.id && item.itemId && it.id === item.itemId) ||
+                      (it.itemNumber !== undefined && item.itemNumber !== undefined && it.itemNumber === item.itemNumber) ||
+                      (it.name && item.name && it.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+
+      if (isMatch) {
         const cleaned = { ...it };
         cleaned.purchaseStatus = 'pending' as const;
         delete cleaned.actualCostPrice;
         delete cleaned.actualUnitCostPrice;
         delete cleaned.actualPurchaseUrl;
         delete cleaned.actualShippingCost;
+        delete cleaned.shippingPending;
         delete cleaned.paymentMethod;
         delete cleaned.purchasedAt;
         delete cleaned.purchaseNotes;
