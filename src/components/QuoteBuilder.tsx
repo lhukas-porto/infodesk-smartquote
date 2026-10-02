@@ -2957,8 +2957,8 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                 <th className="py-2.5 px-1 w-20 min-w-[80px] text-center whitespace-nowrap">Custo (R$)</th>
                 <th className="py-2.5 px-1 w-20 min-w-[80px] text-center whitespace-nowrap">Frete (R$)</th>
                 <th className="py-2.5 px-1 w-24 min-w-[88px] text-center whitespace-nowrap">
-                  <span title="Margem de Lucro (%) individual deste item sobre o custo" className="whitespace-nowrap">
-                    Margem %
+                  <span title="Margem de Lucro (%) e Lucro Líquido individual deste item em R$" className="whitespace-nowrap">
+                    Margem / Lucro
                   </span>
                 </th>
                 <th className="py-2.5 px-1 w-28 min-w-[96px] text-center whitespace-nowrap">Preço Un. (R$)</th>
@@ -3344,6 +3344,21 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                         title="Margem de lucro % sobre o custo"
                         className="w-full h-8 min-w-[68px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-bold text-sky-700 focus:outline-none focus:border-sky-500 focus:bg-white leading-none"
                       />
+                      {(() => {
+                        const itemTax = item.taxPercent ?? globalTax ?? 0;
+                        const itemBaseCost = (Number(item.costPrice || 0) + Number(item.shippingCost ?? globalShipping ?? 0));
+                        const itemNetRevenue = (item.unitPrice || 0) * (1 - (itemTax / 100));
+                        const itemUnitProfit = itemNetRevenue - itemBaseCost;
+                        const itemTotalProfit = itemUnitProfit * (item.quantity || 1);
+                        return (
+                          <div
+                            className="text-[10px] font-mono font-bold text-emerald-600 mt-1 whitespace-nowrap"
+                            title={`Lucro líquido deste item: R$ ${itemTotalProfit.toFixed(2)} (Unitário: R$ ${itemUnitProfit.toFixed(2)})`}
+                          >
+                            +R$ {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Preço Unitário */}
@@ -4456,18 +4471,37 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       {currentQuote.items && currentQuote.items.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] h-16 flex items-center px-4 sm:px-6 transition-all duration-200">
           <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-4">
-            {/* Lado Esquerdo: Total da Cotação e Margem (Alinhamento Horizontal Limpo) */}
-            <div className="flex flex-col justify-center shrink-0 select-text">
-              <div className="flex items-baseline gap-2 whitespace-nowrap leading-none">
-                <span className="text-xs text-slate-500 font-semibold tracking-tight">Total da Cotação:</span>
-                <span className="text-base sm:text-lg font-bold text-slate-900 font-mono tracking-tight">
-                  R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
+            {/* Lado Esquerdo: Total da Cotação, Lucro e Margem (Alinhamento Horizontal Limpo) */}
+            <div className="flex items-center gap-3 sm:gap-5 shrink-0 select-text">
+              <div className="flex flex-col justify-center">
+                <div className="flex items-baseline gap-1.5 sm:gap-2 whitespace-nowrap leading-none">
+                  <span className="text-xs text-slate-500 font-semibold tracking-tight">Total da Cotação:</span>
+                  <span className="text-base sm:text-lg font-bold text-slate-900 font-mono tracking-tight">
+                    R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5 whitespace-nowrap leading-none mt-1">
+                  <span>{currentQuote.items.length} {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'}</span>
+                  <span>•</span>
+                  <span>Margem média de {currentQuote.averageMargin.toFixed(1)}%</span>
+                  {/* Inline no mobile */}
+                  <span className="inline sm:hidden font-bold text-emerald-600 font-mono">
+                    • Lucro: R$ {currentQuote.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
-              <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5 whitespace-nowrap leading-none mt-1">
-                <span>{currentQuote.items.length} {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'}</span>
-                <span>•</span>
-                <span>Margem média de {currentQuote.averageMargin.toFixed(1)}%</span>
+
+              {/* Bloco Dedicado de Lucro Líquido (Desktop / Telas > 640px) */}
+              <div className="hidden sm:flex flex-col justify-center pl-3 sm:pl-4 border-l border-slate-200">
+                <div className="flex items-baseline gap-1.5 whitespace-nowrap leading-none">
+                  <span className="text-xs text-emerald-700 font-bold tracking-tight">Lucro:</span>
+                  <span className="text-base sm:text-lg font-bold text-emerald-600 font-mono tracking-tight">
+                    R$ {currentQuote.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="text-[10px] text-emerald-700/80 font-medium leading-none mt-1">
+                  Retorno líquido estimado
+                </div>
               </div>
             </div>
 
