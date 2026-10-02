@@ -34,7 +34,8 @@ import {
   ArrowRight,
   AlertCircle,
   AlertTriangle,
-  Boxes
+  Boxes,
+  Truck
 } from 'lucide-react';
 import { Quote, ProcurementItem, Product } from '../types';
 import { 
@@ -154,6 +155,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     paymentMethod: 'Cartão Amazon',
     purchaseDate: new Date().toISOString().split('T')[0],
     actualShipping: 0,
+    shippingPending: false,
     notes: ''
   });
 
@@ -240,6 +242,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     actualUnitCost: 0,
     actualCost: 0,
     actualShipping: 0,
+    shippingPending: false,
     actualPurchaseUrl: '',
     paymentMethod: 'PIX',
     purchaseDate: '',
@@ -293,6 +296,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             actualUnitCostPrice: actualUnit,
             actualPurchaseUrl: item.actualPurchaseUrl,
             actualShippingCost: item.actualShippingCost,
+            shippingPending: item.shippingPending || false,
             paymentMethod: item.paymentMethod,
             purchasedAt: item.purchasedAt,
             purchaseNotes: item.purchaseNotes,
@@ -712,6 +716,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       actualUnitCost: defaultUnitCost,
       actualCost: defaultTotalCost,
       actualShipping: item.actualShippingCost || 0,
+      shippingPending: Boolean(item.shippingPending),
       actualPurchaseUrl: item.actualPurchaseUrl || item.sourceUrl || '',
       paymentMethod: item.paymentMethod || paymentMethodsList[0] || 'PIX',
       purchaseDate: defaultDate,
@@ -755,6 +760,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         actualUnitCostPrice: Number(purchaseForm.actualUnitCost),
         actualPurchaseUrl: purchaseForm.actualPurchaseUrl?.trim() || undefined,
         actualShippingCost: Number(purchaseForm.actualShipping),
+        shippingPending: Boolean(purchaseForm.shippingPending),
         paymentMethod: purchaseForm.paymentMethod,
         purchasedAt: purchaseForm.purchaseDate,
         taxPercent: Number(purchaseForm.taxPercent),
@@ -778,6 +784,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           actualUnitCostPrice: Number(purchaseForm.actualUnitCost),
           actualPurchaseUrl: purchaseForm.actualPurchaseUrl?.trim() || undefined,
           actualShippingCost: Number(purchaseForm.actualShipping),
+          shippingPending: Boolean(purchaseForm.shippingPending),
           paymentMethod: purchaseForm.paymentMethod,
           purchasedAt: purchaseForm.purchaseDate,
           actualTaxPercent: Number(purchaseForm.taxPercent),
@@ -973,6 +980,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       paymentMethod: prefill?.paymentMethod || paymentMethodsList[0] || 'Cartão Amazon',
       purchaseDate: new Date().toISOString().split('T')[0],
       actualShipping: prefill?.actualShipping || 0,
+      shippingPending: prefill?.shippingPending || false,
       notes: prefill?.notes || ''
     });
     setIsDirectPurchaseModalOpen(true);
@@ -1021,6 +1029,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       newItem.actualUnitCostPrice = qty > 0 ? Number((realTotal / qty).toFixed(2)) : cost;
       newItem.actualPurchaseUrl = directPurchaseForm.sourceUrl.trim() || selectedStockProduct.sourceUrl || undefined;
       newItem.actualShippingCost = Number(directPurchaseForm.actualShipping) || 0;
+      newItem.shippingPending = Boolean(directPurchaseForm.shippingPending);
       newItem.paymentMethod = directPurchaseForm.paymentMethod;
       newItem.purchasedAt = directPurchaseForm.purchaseDate;
       newItem.purchaseNotes = directPurchaseForm.notes.trim() || undefined;
@@ -2125,17 +2134,39 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Frete da Compra (R$)
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-slate-400" />
+                      Frete da Compra (R$)
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-amber-700 hover:text-amber-800 select-none bg-amber-50 hover:bg-amber-100/70 border border-amber-200/80 px-2 py-0.5 rounded-lg transition">
+                      <input
+                        type="checkbox"
+                        checked={purchaseForm.shippingPending}
+                        onChange={(e) => setPurchaseForm({ ...purchaseForm, shippingPending: e.target.checked })}
+                        className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span>Frete Pendente</span>
+                    </label>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     value={purchaseForm.actualShipping || ''}
                     onChange={(e) => setPurchaseForm({ ...purchaseForm, actualShipping: parseFloat(e.target.value) || 0 })}
-                    className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm font-mono text-slate-900"
+                    className={`w-full h-10 px-3.5 bg-white border rounded-xl text-xs sm:text-sm font-mono text-slate-900 transition ${
+                      purchaseForm.shippingPending
+                        ? 'border-amber-400 bg-amber-50/20 focus:border-amber-500 focus:ring-amber-100'
+                        : 'border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-sky-100'
+                    }`}
                   />
+                  {purchaseForm.shippingPending && (
+                    <span className="text-[11px] font-semibold text-amber-700 mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                      Frete marcado como pendente (será sinalizado no card da compra)
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -2561,10 +2592,10 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
                 {/* Campos adicionais se já foi comprado */}
                 {directPurchaseForm.initialStatus === 'purchased' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-200/60 animate-fadeIn">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-200/60 animate-fadeIn">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                        Custo Total Pago (R$) *
+                        Custo Total (R$) *
                       </label>
                       <input
                         type="number"
@@ -2576,8 +2607,35 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     </div>
 
                     <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[10px] font-bold text-slate-600">
+                          Frete (R$)
+                        </label>
+                        <label className="inline-flex items-center gap-1 cursor-pointer text-[10px] font-semibold text-amber-700 hover:text-amber-800 select-none">
+                          <input
+                            type="checkbox"
+                            checked={directPurchaseForm.shippingPending}
+                            onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, shippingPending: e.target.checked })}
+                            className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-3 h-3 cursor-pointer"
+                          />
+                          <span>Pendente</span>
+                        </label>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={directPurchaseForm.actualShipping || ''}
+                        onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, actualShipping: parseFloat(e.target.value) || 0 })}
+                        className={`w-full h-8 px-2 bg-white border rounded-lg text-xs font-mono text-slate-900 transition ${
+                          directPurchaseForm.shippingPending ? 'border-amber-400 bg-amber-50/20' : 'border-slate-300'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
                       <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                        Forma de Pagamento
+                        Forma Pgto
                       </label>
                       <select
                         value={directPurchaseForm.paymentMethod}
@@ -2592,7 +2650,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                        Data da Compra
+                        Data Compra
                       </label>
                       <input
                         type="date"
@@ -2675,7 +2733,11 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
       <div
         key={item.id}
         className={`bg-white border rounded-2xl p-4 shadow-xs transition hover:shadow-sm flex flex-col gap-3 ${
-          isPurchased ? 'border-emerald-200/80 bg-emerald-50/10' : 'border-slate-200 hover:border-sky-300'
+          isPurchased 
+            ? item.shippingPending
+              ? 'border-emerald-200/90 bg-emerald-50/15 border-l-4 border-l-amber-500'
+              : 'border-emerald-200/80 bg-emerald-50/10'
+            : 'border-slate-200 hover:border-sky-300'
         }`}
       >
         {/* Cabeçalho do Card */}
@@ -2755,6 +2817,17 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     </>
                   )}
                 </span>
+
+                {/* Badge de Frete Pendente (quando marcado) */}
+                {item.shippingPending && (
+                  <span 
+                    className="text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border bg-amber-50 text-amber-800 border-amber-300 shadow-2xs animate-pulse"
+                    title="O frete desta compra está marcado como pendente de confirmação / lançamento"
+                  >
+                    <Truck className="w-3 h-3 text-amber-600" />
+                    <span>Frete Pendente</span>
+                  </span>
+                )}
               </div>
 
               <h3 className="text-sm font-bold text-slate-900 line-clamp-2">
@@ -2826,11 +2899,17 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 Unitário: <strong>R$ {unitPaid.toFixed(2)}/un</strong>
               </span>
 
-              {fretePaid > 0 && (
+              {/* Frete */}
+              {item.shippingPending ? (
+                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-300 font-bold font-mono text-[11px]" title="Valor do frete pendente de confirmação">
+                  <Truck className="w-3 h-3 text-amber-600" />
+                  Frete: {fretePaid > 0 ? `R$ ${fretePaid.toFixed(2)} (Pendente)` : 'Pendente'}
+                </span>
+              ) : fretePaid > 0 ? (
                 <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 font-medium font-mono text-[11px]">
                   Frete: R$ {fretePaid.toFixed(2)}
                 </span>
-              )}
+              ) : null}
 
               {item.purchasedAt && (
                 <span className="text-slate-400 text-[11px]">

@@ -60,6 +60,7 @@ export interface QuoteItem {
   actualUnitCostPrice?: number;
   actualPurchaseUrl?: string;
   actualShippingCost?: number;
+  shippingPending?: boolean;
   paymentMethod?: string;
   purchasedAt?: string;
   purchaseNotes?: string;
@@ -140,6 +141,7 @@ export interface ProcurementItem {
   actualUnitCostPrice?: number;
   actualPurchaseUrl?: string;
   actualShippingCost?: number;
+  shippingPending?: boolean;
   paymentMethod?: string;
   purchasedAt?: string;
   purchaseNotes?: string;
