@@ -92,9 +92,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </div>
           <h1 className="text-xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
             <span>Infodesk SmartQuote</span>
-            <span className="px-2 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-400/30 text-[10px] font-mono font-bold rounded-md uppercase">
-              V3.0 Pro
-            </span>
           </h1>
           <p className="text-xs text-slate-300 mt-1.5 font-medium">
             Sistema Oficial de Orçamentação Comercial & Compras
@@ -132,7 +129,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                E-mail Corporativo
+                E-mail
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -150,7 +147,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Senha Corporativa
+                    Senha
                   </label>
                   {mode === 'login' && (
                     <button
@@ -241,7 +238,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
         {/* Rodapé institucional */}
         <div className="p-3.5 bg-slate-50 border-t border-slate-100 text-center text-[10px] text-slate-400 font-medium">
-          Infodesk Informática & Tecnologia • Brasília – DF
+          Infodesk Informática • Brasília – DF
         </div>
       </div>
     </div>
