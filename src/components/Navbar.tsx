@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   FileText, 
   Mail, 
@@ -10,7 +10,12 @@ import {
   BarChart3,
   Clock,
   ShoppingCart,
-  LogOut
+  LogOut,
+  Menu,
+  X,
+  ChevronRight,
+  PlusCircle,
+  Sparkles
 } from 'lucide-react';
 import { CompanySettings } from '../types';
 
@@ -51,16 +56,33 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onNavigateToBuilder
 }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const handleMobileNavSelect = (tab: NavbarProps['activeTab']) => {
+    setIsMobileMenuOpen(false);
+    if (tab === 'builder') {
+      if (onNavigateToBuilder) {
+        onNavigateToBuilder();
+      } else {
+        setActiveTab('builder');
+      }
+    } else {
+      setActiveTab(tab);
+    }
+  };
+
+  const isMoreTabActive = ['dashboard', 'websearch', 'catalog', 'clients'].includes(activeTab);
+
   return (
     <>
       <header className="no-print fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-all duration-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between min-h-16 py-2 gap-2 sm:gap-4 lg:gap-6">
           
           {/* Lado Esquerdo: Marca Infodesk */}
           <div className="flex items-center shrink-0">
             <div 
-              className="flex items-center gap-2.5 cursor-pointer select-none shrink-0 group py-1" 
+              className="flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none shrink-0 group py-1" 
               onClick={() => setActiveTab('inbox')}
               title="Ir para o Inbox"
             >
@@ -86,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Centro: Menu de Navegação em Abas (Cápsula Integrada Centralizada) */}
+          {/* Centro: Menu de Navegação em Abas (Cápsula Integrada Centralizada) - Desktop */}
           <div className="hidden lg:flex flex-1 justify-center items-center px-2">
             <nav className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shrink-0">
               <button
@@ -214,26 +236,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Lado Direito: Ações auxiliares */}
-          <div className="flex items-center justify-end gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setActiveTab('clients')}
-              className={`md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition shadow-2xs whitespace-nowrap ${
-                activeTab === 'clients'
-                  ? 'bg-sky-600 text-white'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-              }`}
-              title="Empresas"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Empresas</span>
-            </button>
-
+          <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
             {draftsCount > 0 && (
               <button
                 type="button"
                 onClick={onOpenDraftsHistory}
-                className="group relative flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white rounded-xl shadow-xs hover:shadow-md transition-all duration-200 border border-amber-300/50 text-xs font-bold cursor-pointer shrink-0 animate-in fade-in"
+                className="group relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white rounded-xl shadow-xs hover:shadow-md transition-all duration-200 border border-amber-300/50 text-xs font-bold cursor-pointer shrink-0 animate-in fade-in"
                 title={`Existe${draftsCount > 1 ? 'm' : ''} ${draftsCount} orçamento${draftsCount > 1 ? 's' : ''} em rascunho pendente${draftsCount > 1 ? 's' : ''}. Clique para abrir o histórico filtrado.`}
               >
                 <span className="relative flex h-2 w-2 shrink-0">
@@ -241,15 +249,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                 </span>
                 <Clock className="w-3.5 h-3.5 text-amber-100 shrink-0" />
-                <span className="whitespace-nowrap font-mono tracking-tight text-white drop-shadow-2xs">
-                  {draftsCount} {draftsCount === 1 ? 'Rascunho' : 'Rascunhos'}
+                <span className="font-mono tracking-tight text-white drop-shadow-2xs">
+                  {draftsCount} <span className="hidden sm:inline">{draftsCount === 1 ? 'Rascunho' : 'Rascunhos'}</span>
                 </span>
               </button>
             )}
 
             <button
               onClick={openSettings}
-              className="p-2 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition shadow-xs shrink-0"
+              className="p-2 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition shadow-xs shrink-0 cursor-pointer"
               title="Configurações da Infodesk"
             >
               <Settings className="w-4 h-4" />
@@ -279,7 +287,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Inbox */}
         <button
           type="button"
-          onClick={() => setActiveTab('inbox')}
+          onClick={() => handleMobileNavSelect('inbox')}
           className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
             activeTab === 'inbox'
               ? 'text-sky-600 font-bold bg-sky-50/80'
@@ -299,26 +307,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           </span>
         </button>
 
-        {/* Scanner IA */}
-        <button
-          type="button"
-          onClick={() => setActiveTab('websearch')}
-          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
-            activeTab === 'websearch'
-              ? 'text-sky-600 font-bold bg-sky-50/80'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Search className={`w-5 h-5 ${activeTab === 'websearch' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
-          <span className="text-[10px] tracking-tight mt-1 leading-none">
-            Scanner
-          </span>
-        </button>
-
         {/* Cotação */}
         <button
           type="button"
-          onClick={() => setActiveTab('builder')}
+          onClick={() => handleMobileNavSelect('builder')}
           className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
             activeTab === 'builder'
               ? 'text-sky-600 font-bold bg-sky-50/80'
@@ -331,26 +323,33 @@ export const Navbar: React.FC<NavbarProps> = ({
           </span>
         </button>
 
-        {/* Produtos */}
+        {/* Compras */}
         <button
           type="button"
-          onClick={() => setActiveTab('catalog')}
+          onClick={() => handleMobileNavSelect('purchases')}
           className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
-            activeTab === 'catalog'
-              ? 'text-sky-600 font-bold bg-sky-50/80'
+            activeTab === 'purchases'
+              ? 'text-emerald-600 font-bold bg-emerald-50/80'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Package className={`w-5 h-5 ${activeTab === 'catalog' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+          <div className="relative">
+            <ShoppingCart className={`w-5 h-5 ${activeTab === 'purchases' ? 'text-emerald-600 stroke-[2.5]' : 'stroke-2'}`} />
+            {pendingPurchasesCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-amber-500 text-white text-[9px] font-extrabold rounded-full shadow-2xs animate-pulse">
+                {pendingPurchasesCount > 99 ? '99+' : pendingPurchasesCount}
+              </span>
+            )}
+          </div>
           <span className="text-[10px] tracking-tight mt-1 leading-none">
-            Produtos
+            Compras
           </span>
         </button>
 
         {/* Histórico */}
         <button
           type="button"
-          onClick={() => setActiveTab('history')}
+          onClick={() => handleMobileNavSelect('history')}
           className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
             activeTab === 'history'
               ? 'text-sky-600 font-bold bg-sky-50/80'
@@ -367,10 +366,206 @@ export const Navbar: React.FC<NavbarProps> = ({
             Histórico
           </span>
         </button>
+
+        {/* Mais / Menu Drawer */}
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(true)}
+          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
+            isMoreTabActive || isMobileMenuOpen
+              ? 'text-sky-600 font-bold bg-sky-50/80'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+          title="Mais opções e ferramentas"
+        >
+          <div className="relative">
+            <Menu className="w-5 h-5 stroke-2" />
+            {analysesCount > 0 && (
+              <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-violet-600 ring-2 ring-white"></span>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight mt-1 leading-none">
+            Mais
+          </span>
+        </button>
       </nav>
+
+      {/* Drawer / Bottom Sheet Mobile Menu */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end animate-in fade-in duration-200">
+          {/* Backdrop escurecido */}
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity" 
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+
+          {/* Painel Inferior que sobe suavemente */}
+          <div className="relative bg-white rounded-t-3xl border-t border-slate-200 shadow-2xl p-4 pb-8 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-200 z-10">
+            {/* Traço visual de arrastar */}
+            <div className="flex justify-center mb-3">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            </div>
+
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-slate-900">Ferramentas & Módulos</span>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 rounded-full">
+                  SmartQuote
+                </span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Grid de opções do menu */}
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => handleMobileNavSelect('dashboard')}
+                className={`w-full flex items-center justify-between p-3 rounded-2xl transition text-left cursor-pointer ${
+                  activeTab === 'dashboard'
+                    ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                    <BarChart3 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Dashboard & Indicadores</p>
+                    <p className="text-[11px] text-slate-500">Métricas comerciais, conversão e faturamento</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleMobileNavSelect('websearch')}
+                className={`w-full flex items-center justify-between p-3 rounded-2xl transition text-left cursor-pointer ${
+                  activeTab === 'websearch'
+                    ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                    <Search className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Scanner IA de Produtos</p>
+                    <p className="text-[11px] text-slate-500">Localizar fornecedores e referências com IA</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleMobileNavSelect('catalog')}
+                className={`w-full flex items-center justify-between p-3 rounded-2xl transition text-left cursor-pointer ${
+                  activeTab === 'catalog'
+                    ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Package className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Catálogo de Produtos</p>
+                    <p className="text-[11px] text-slate-500">Consulta geral de estoque, NCM e custos base</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleMobileNavSelect('clients')}
+                className={`w-full flex items-center justify-between p-3 rounded-2xl transition text-left cursor-pointer ${
+                  activeTab === 'clients'
+                    ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">Empresas & Clientes</p>
+                    <p className="text-[11px] text-slate-500">Gestão de CNPJs, compradores e condições</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {onNewQuote && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onNewQuote();
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white transition text-left cursor-pointer shadow-xs mt-2"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-white/20 text-white flex items-center justify-center shrink-0">
+                      <PlusCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-white">Criar Nova Cotação do Zero</p>
+                      <p className="text-[11px] text-sky-100">Iniciar proposta limpa com novo código</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/70 shrink-0" />
+                </button>
+              )}
+            </div>
+
+            {/* Rodapé do Menu com Configurações e Logout */}
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  openSettings();
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-slate-200"
+              >
+                <Settings className="w-4 h-4 text-slate-500" />
+                <span>Configurações</span>
+              </button>
+
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onLogout();
+                  }}
+                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold border border-rose-200"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sair</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
     {/* Espaçador para compensar a navbar fixa no topo e evitar sobreposição com o conteúdo */}
     <div className="h-16 shrink-0 no-print" aria-hidden="true" />
   </>
   );
 };
+

@@ -716,10 +716,10 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       </div>
 
       {/* Master-Detail Layout */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col lg:grid lg:grid-cols-12 min-h-[640px]">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col lg:grid lg:grid-cols-12 min-h-0 lg:min-h-[640px]">
 
         {/* Left: Companies Grid List (Paginada em 2 Colunas - Opção 3) */}
-        <div className="lg:col-span-4 xl:col-span-4 border-r border-slate-200 flex flex-col justify-between bg-slate-50/50 p-4 space-y-3 min-h-[640px] max-h-[84vh]">
+        <div className="lg:col-span-4 xl:col-span-4 border-r border-slate-200 flex flex-col justify-between bg-slate-50/50 p-4 space-y-3 min-h-[320px] lg:min-h-[640px] max-h-[84vh]">
           <div className="flex-1 flex flex-col min-h-0 space-y-3">
             <div className="flex items-center justify-between pt-1 shrink-0">
               <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">

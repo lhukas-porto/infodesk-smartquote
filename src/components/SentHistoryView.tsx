@@ -501,8 +501,8 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
         </div>
 
         {/* Direita: Seletores Rápidos de Período & Busca por Dia / Intervalo */}
-        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-wrap">
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-0.5 overflow-x-auto max-w-full">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap w-full sm:w-auto">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-0.5 overflow-x-auto no-scrollbar max-w-full">
             <button
               type="button"
               onClick={() => setDateFilter('today')}

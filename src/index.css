@@ -263,3 +263,10 @@
   padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
 }
 
+/* Evitar zoom automático do iOS Safari ao focar em inputs no mobile */
+@media (max-width: 640px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+

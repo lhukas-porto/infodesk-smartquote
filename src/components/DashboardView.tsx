@@ -279,11 +279,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Filtros de Período & Badge Contador Rápido (Justificados à Direita) */}
-        <div className="flex flex-col items-end gap-2 ml-auto shrink-0 w-full sm:w-auto">
+        {/* Filtros de Período & Badge Contador Rápido (Justificados) */}
+        <div className="flex flex-col sm:items-end items-stretch gap-2 ml-auto shrink-0 w-full sm:w-auto">
           
           {/* Badge Contador Rápido no Header */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50/80 border border-sky-200/90 rounded-xl text-sky-950 shadow-2xs self-end">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50/80 border border-sky-200/90 rounded-xl text-sky-950 shadow-2xs self-start sm:self-end">
             <FileText className="w-4 h-4 text-sky-600 shrink-0" />
             <span className="text-xs font-medium text-slate-600">No período:</span>
             <span className="font-mono font-bold text-sky-800 text-sm bg-white px-2 py-0.5 rounded-lg border border-sky-100 shadow-2xs">
@@ -292,7 +292,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Botões de Seleção de Período */}
-          <div className="flex items-center justify-end bg-slate-100 p-1 rounded-xl border border-slate-200 gap-0.5 overflow-x-auto max-w-full self-end">
+          <div className="flex items-center justify-start sm:justify-end bg-slate-100 p-1 rounded-xl border border-slate-200 gap-0.5 overflow-x-auto no-scrollbar max-w-full self-stretch sm:self-end">
             <button
               type="button"
               onClick={() => setPeriod('today')}
@@ -400,10 +400,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
 
       {/* Cards de Métricas Superiores (Padrão Oficial AGENTS.md - 5 Cards com Contador Destacado) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-3.5">
         
         {/* Card 1 (DESTACADO): Total de Orçamentos no Período Selecionado */}
-        <div className="bg-white border-2 border-sky-500/40 p-4 rounded-2xl shadow-xs relative overflow-hidden bg-gradient-to-br from-white via-white to-sky-50/50">
+        <div className="bg-white border-2 border-sky-500/40 p-4 rounded-2xl shadow-xs relative overflow-hidden bg-gradient-to-br from-white via-white to-sky-50/50 col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-sky-600" />

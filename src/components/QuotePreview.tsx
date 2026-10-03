@@ -182,7 +182,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       </div>
 
       {/* Visual Proposal Page (Identical replica of Infodesk's official document) */}
-      <div className="flex justify-center print:block print:w-full print:m-0 print:p-0">
+      <div className="flex justify-start sm:justify-center overflow-x-auto max-w-full pb-8 print:block print:w-full print:m-0 print:p-0">
         <div 
           ref={documentRef}
           className="print-page bg-white text-black w-full shadow-2xl rounded-sm border border-slate-200 flex flex-col justify-between"

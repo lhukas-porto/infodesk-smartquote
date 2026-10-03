@@ -1056,9 +1056,9 @@ export const InboxView: React.FC<InboxViewProps> = ({
           {selectedEmail ? (
             <>
               <div>
-                <div className="flex items-start justify-between gap-4 mb-2">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-2">
                   <div>
-                    <h3 className="text-lg font-bold text-slate-900 leading-tight">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
                       {selectedEmail.subject || '(Sem Assunto)'}
                     </h3>
                     <span className="text-xs text-slate-500 inline-block mt-1 bg-slate-100 px-2.5 py-0.5 rounded-full font-medium">
@@ -1066,7 +1066,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 flex-wrap sm:shrink-0 w-full sm:w-auto">
                     {(selectedEmail.bodyHtml?.includes('<img') || selectedEmail.subject?.includes('Foto / Print')) && (
                       <button
                         type="button"
