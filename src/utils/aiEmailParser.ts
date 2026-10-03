@@ -1172,6 +1172,21 @@ export function formatValidityDaysText(daysCount: number): string {
   return `${padded} (${word}) ${dayUnit} ou enquanto durar o estoque.`;
 }
 
+/**
+ * Garante que o texto de validade da proposta inclua sempre o complemento oficial:
+ * "ou enquanto durar o estoque."
+ */
+export function formatProposalValidityText(validityText: string | undefined): string {
+  if (!validityText || !validityText.trim()) {
+    return '05 (cinco) dias ou enquanto durar o estoque.';
+  }
+  let clean = validityText.trim().replace(/\.+$/, '');
+  if (/enquanto\s+durar\s+o\s+estoque/i.test(clean)) {
+    return `${clean}.`;
+  }
+  return `${clean} ou enquanto durar o estoque.`;
+}
+
 export function extractValidityDaysNumber(text: string | undefined): number {
   if (!text) return 5;
   const match = text.match(/(\d+)/);
@@ -3336,7 +3351,7 @@ export function generateProposalEmailHtml(
     <!-- Condições Gerais -->
     <div style="margin-bottom: 24px; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.5; color: #000000;">
       <p style="margin: 0 0 6px 0; font-size: 12pt; font-weight: bold; text-decoration: underline; font-family: Verdana, Geneva, sans-serif; color: #000000;">Condições gerais:</p>
-      <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Validade da proposta: ${quote.validityDays}</p>
+      <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Validade da proposta: ${escapeHtml(formatProposalValidityText(quote.validityDays))}</p>
       <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Condições de pagamento: ${quote.paymentTerms}</p>
       <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Prazo de entrega: ${quote.deliveryDays}</p>
       <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Garantia: ${quote.warrantyTerms}</p>

@@ -11,7 +11,7 @@ export const defaultCompanySettings: CompanySettings = {
   whatsapp: '(61) 9 9627-2630',
   email: 'lucas@infodesk.net.br',
   representativeName: 'Lucas Porto da Fonseca',
-  defaultValidityDays: '05 (cinco) dias',
+  defaultValidityDays: '05 (cinco) dias ou enquanto durar o estoque.',
   defaultPaymentTerms: 'Faturado.',
   defaultDeliveryDays: 'em até 10 (dez) dias úteis após autorização de fornecimento.',
   defaultWarrantyTerms: '06 (seis) meses balcão para defeitos de fabricação.',

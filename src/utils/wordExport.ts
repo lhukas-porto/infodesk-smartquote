@@ -21,7 +21,8 @@ import { CompanySettings, Quote } from '../types';
 import { 
   formatCompanyPrefix, 
   formatContactPerson, 
-  extractDeliveryExceptionDetails 
+  extractDeliveryExceptionDetails,
+  formatProposalValidityText
 } from './aiEmailParser';
 import { 
   INFODESK_LOGO_BASE64, 
@@ -400,7 +401,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
     new Paragraph({
       spacing: { line: 280, after: 60 },
       children: [
-        new TextRun({ text: `➤ Validade da proposta: ${quote.validityDays}`, size: 20 })
+        new TextRun({ text: `➤ Validade da proposta: ${formatProposalValidityText(quote.validityDays)}`, size: 20 })
       ]
     }),
     new Paragraph({

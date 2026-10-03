@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { deduplicateCompanyContacts } from '../utils/storage';
-import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory } from '../utils/aiEmailParser';
+import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory, formatProposalValidityText } from '../utils/aiEmailParser';
 
 // Chaves de conexão com o Supabase da Infodesk
 // Acesso estático direto às variáveis de ambiente do Vite (essencial para substituição no build)
@@ -366,7 +366,7 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     const cleanSubject = (quote.subject || '').trim() || 'Fornecimento de Materiais';
     const cleanCity = (quote.city || '').trim() || 'Brasília';
     const cleanDate = (quote.date || '').trim() || new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    const cleanValidity = (quote.validityDays || '').trim() || '03 (três) dias';
+    const cleanValidity = formatProposalValidityText((quote.validityDays || '').trim() || '05 (cinco) dias');
     const cleanPayment = (quote.paymentTerms || '').trim() || 'Faturado.';
     const cleanDelivery = (quote.deliveryDays || '').trim() || 'em até 10 dias úteis';
     const cleanWarranty = (quote.warrantyTerms || '').trim() || '06 meses';

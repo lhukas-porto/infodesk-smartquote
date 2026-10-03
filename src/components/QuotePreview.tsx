@@ -9,7 +9,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
-import { formatCompanyPrefix, formatContactPerson, extractDeliveryExceptionDetails } from '../utils/aiEmailParser';
+import { formatCompanyPrefix, formatContactPerson, extractDeliveryExceptionDetails, formatProposalValidityText } from '../utils/aiEmailParser';
 
 interface QuotePreviewProps {
   quote: Quote;
@@ -82,7 +82,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       quote.items.map(i => `${i.itemNumber}. ${i.name} | Qtd: ${i.quantity} ${i.unit} | Unit: R$ ${i.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Total: R$ ${i.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join('\n') +
       `\n\nTotal Geral: R$ ${quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n` +
       `Condições Gerais:\n` +
-      `- Validade: ${quote.validityDays}\n` +
+      `- Validade: ${formatProposalValidityText(quote.validityDays)}\n` +
       `- Pagamento: ${quote.paymentTerms}\n` +
       `- Prazo de Entrega: ${quote.deliveryDays}\n` +
       `- Garantia: ${quote.warrantyTerms}\n` +
@@ -327,7 +327,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
               style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt', lineHeight: '1.5' }}
             >
               <p className="font-bold underline mb-2" style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '12pt', fontWeight: 'bold', textDecoration: 'underline' }}>Condições gerais:</p>
-              <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>➤&nbsp; Validade da proposta: {quote.validityDays}</p>
+              <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>➤&nbsp; Validade da proposta: {formatProposalValidityText(quote.validityDays)}</p>
               <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>➤&nbsp; Condições de pagamento: {quote.paymentTerms}</p>
               <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>➤&nbsp; Prazo de entrega: {quote.deliveryDays}</p>
               <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>➤&nbsp; Garantia: {quote.warrantyTerms}</p>

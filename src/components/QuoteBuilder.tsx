@@ -56,6 +56,7 @@ import {
   formatDeliveryDaysWithException,
   extractDeliveryExceptionDetails,
   formatValidityDaysText,
+  formatProposalValidityText,
   extractValidityDaysNumber,
   formatPaymentTermsDays,
   extractPaymentDaysNumber,
@@ -465,6 +466,16 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       }
     });
   }, [currentQuote.items]);
+
+  // Garante que a validade da cotação sempre inclua o complemento oficial "ou enquanto durar o estoque."
+  React.useEffect(() => {
+    if (currentQuote.validityDays && !/enquanto\s+durar\s+o\s+estoque/i.test(currentQuote.validityDays)) {
+      setCurrentQuote(prev => ({
+        ...prev,
+        validityDays: formatProposalValidityText(prev.validityDays)
+      }));
+    }
+  }, [currentQuote.id]);
 
   // Estado para edição fluida dos campos numéricos com formatação pt-BR
   const [editingInputs, setEditingInputs] = useState<Record<string, string>>({});
