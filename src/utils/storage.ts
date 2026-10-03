@@ -415,10 +415,22 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
 
     if (existingIdx >= 0) {
       const existing = result[existingIdx];
+      const pTime = p.lastUpdated ? new Date(p.lastUpdated).getTime() : 0;
+      const exTime = existing.lastUpdated ? new Date(existing.lastUpdated).getTime() : 0;
+      const isPNewer = pTime >= exTime;
+
+      const chosenCategory = (isPNewer && p.category)
+        ? normalizeToOfficialCategory(p.category)
+        : (existing.category ? normalizeToOfficialCategory(existing.category) : normalizeToOfficialCategory(p.category || 'Diversos & Sazonais'));
+
+      const chosenLastUpdated = (isPNewer && p.lastUpdated)
+        ? p.lastUpdated
+        : (existing.lastUpdated || p.lastUpdated || new Date().toISOString());
+
       result[existingIdx] = {
         ...existing,
         ...p,
-        name: (p.name || existing.name || '').trim(),
+        name: (isPNewer && p.name ? p.name : (p.name || existing.name || '')).trim(),
         description: (p.description !== undefined && p.description !== null && p.description.trim() !== '') 
           ? p.description.trim() 
           : (existing.description || ''),
@@ -440,17 +452,11 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
         supplier: (p.supplier !== undefined && p.supplier !== null && p.supplier.trim() !== '')
           ? p.supplier.trim()
           : (existing.supplier || ''),
-        category: (p.lastUpdated && existing.lastUpdated && p.lastUpdated > existing.lastUpdated && p.category)
-          ? normalizeToOfficialCategory(p.category)
-          : (existing.category && existing.lastUpdated && p.lastUpdated && existing.lastUpdated > p.lastUpdated)
-          ? normalizeToOfficialCategory(existing.category)
-          : normalizeToOfficialCategory(p.category || existing.category || 'Diversos & Sazonais'),
+        category: chosenCategory,
         costPrice: Number(p.costPrice) > 0 ? Number(p.costPrice) : (Number(existing.costPrice) || 0),
         unit: p.unit || existing.unit || 'Un.',
         stock: p.stock !== undefined ? Number(p.stock) : (existing.stock ?? 10),
-        lastUpdated: (p.lastUpdated && existing.lastUpdated && p.lastUpdated > existing.lastUpdated)
-          ? p.lastUpdated
-          : (existing.lastUpdated || new Date().toISOString().split('T')[0])
+        lastUpdated: chosenLastUpdated
       };
       continue;
     }
@@ -467,6 +473,83 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
   }
 
   return result;
+};
+
+/**
+ * Realiza a mesclagem bidirecional inteligente entre produtos remotos (Supabase)
+ * e o cache local (localStorage), garantindo que modificações feitas localmente
+ * (como troca de categoria, preços ou dados) NUNCA sejam sobrescritas por um dado remoto mais antigo.
+ */
+export const mergeRemoteProductsWithLocal = (remote: Product[], local: Product[]): Product[] => {
+  if (!remote || !Array.isArray(remote) || remote.length === 0) return local || [];
+  if (!local || !Array.isArray(local) || local.length === 0) return deduplicateProductsList(remote).filter(p => !isProductDeleted(p));
+
+  const localMap = new Map<string, Product>();
+  const localPnMap = new Map<string, Product>();
+  const localSkuMap = new Map<string, Product>();
+  const localNameMap = new Map<string, Product>();
+
+  for (const lp of local) {
+    if (!lp) continue;
+    if (lp.id) localMap.set(lp.id, lp);
+    const pn = (lp.partNumber || '').trim().toLowerCase();
+    if (pn && pn.length >= 3) localPnMap.set(pn, lp);
+    const sku = (lp.sku || '').trim().toLowerCase();
+    if (sku && !sku.startsWith('inf-auto-')) localSkuMap.set(sku, lp);
+    const name = normalizeSearchText(lp.name);
+    if (name && name.length >= 3) localNameMap.set(name, lp);
+  }
+
+  const mergedRemotes = remote.map(rp => {
+    if (!rp) return rp;
+    const rpPn = (rp.partNumber || '').trim().toLowerCase();
+    const rpSku = (rp.sku || '').trim().toLowerCase();
+    const rpName = normalizeSearchText(rp.name);
+
+    const localMatch = localMap.get(rp.id) ||
+      (rpPn && rpPn.length >= 3 ? localPnMap.get(rpPn) : undefined) ||
+      (rpSku && !rpSku.startsWith('inf-auto-') ? localSkuMap.get(rpSku) : undefined) ||
+      (rpName && rpName.length >= 3 ? localNameMap.get(rpName) : undefined);
+
+    if (!localMatch) return rp;
+
+    const localTime = localMatch.lastUpdated ? new Date(localMatch.lastUpdated).getTime() : 0;
+    const remoteTime = rp.lastUpdated ? new Date(rp.lastUpdated).getTime() : 0;
+
+    // Se o produto local for mais recente (ou tiver sido modificado recentemente), preserva a versão local!
+    if (localTime > remoteTime) {
+      return {
+        ...rp,
+        ...localMatch,
+        category: localMatch.category ? normalizeToOfficialCategory(localMatch.category) : normalizeToOfficialCategory(rp.category),
+        lastUpdated: localMatch.lastUpdated
+      };
+    }
+
+    return rp;
+  });
+
+  // Também inclui produtos que existem apenas localmente
+  const remoteIds = new Set(remote.map(r => r.id).filter(Boolean));
+  const remotePns = new Set(remote.map(r => (r.partNumber || '').trim().toLowerCase()).filter(p => p.length >= 3));
+  const remoteSkus = new Set(remote.map(r => (r.sku || '').trim().toLowerCase()).filter(s => !s.startsWith('inf-auto-')));
+  const remoteNames = new Set(remote.map(r => normalizeSearchText(r.name)).filter(n => n.length >= 3));
+
+  const localOnly = local.filter(lp => {
+    if (!lp || isProductDeleted(lp)) return false;
+    const lpPn = (lp.partNumber || '').trim().toLowerCase();
+    const lpSku = (lp.sku || '').trim().toLowerCase();
+    const lpName = normalizeSearchText(lp.name);
+
+    const hasId = lp.id && remoteIds.has(lp.id);
+    const hasPn = lpPn && lpPn.length >= 3 && remotePns.has(lpPn);
+    const hasSku = lpSku && !lpSku.startsWith('inf-auto-') && remoteSkus.has(lpSku);
+    const hasName = lpName && lpName.length >= 3 && remoteNames.has(lpName);
+
+    return !hasId && !hasPn && !hasSku && !hasName;
+  });
+
+  return deduplicateProductsList([...mergedRemotes, ...localOnly]).filter(p => !isProductDeleted(p));
 };
 
 // ==========================================

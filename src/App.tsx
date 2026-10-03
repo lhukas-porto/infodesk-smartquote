@@ -49,6 +49,7 @@ import {
   getSettings, 
   saveEmails, 
   saveProducts, 
+  mergeRemoteProductsWithLocal,
   saveQuotes, 
   saveSettings,
   registerOrUpdateClient,
@@ -812,9 +813,11 @@ export const App: React.FC = () => {
           for (const gp of ghostProducts) {
             deleteProductFromSupabase(gp.id, gp.sku, gp.partNumber, gp.name).catch(() => {});
           }
-          const cleanRemote = deduplicateProductsList(sanitizedRemote);
-          setProducts(cleanRemote);
-          saveProducts(cleanRemote);
+          setProducts(prev => {
+            const merged = mergeRemoteProductsWithLocal(sanitizedRemote, prev);
+            saveProducts(merged);
+            return merged;
+          });
         }
 
         // 4. Empresas e Cidades de Frete

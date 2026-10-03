@@ -1461,7 +1461,7 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
       unit: freshItem.unit || 'Un.',
       supplier: freshItem.supplier || directInfo.store,
       stock: 10,
-      lastUpdated: new Date().toISOString().split('T')[0],
+      lastUpdated: new Date().toISOString(),
       sourceUrl: directInfo.url,
       imageUrl: freshItem.imageUrl || ''
     });

@@ -920,7 +920,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
         supplier: prod.supplier || prod.brand || directInfo.store || existing.supplier,
         imageUrl: chosenImage || existing.imageUrl,
         sourceUrl: prod.sourceUrl || directInfo.url || existing.sourceUrl,
-        lastUpdated: new Date().toISOString().split('T')[0]
+        lastUpdated: new Date().toISOString()
       };
       onSaveToCatalog(updatedProd);
       setCatalogConflictItem(null);
@@ -944,7 +944,7 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
         unit: prod.unit || 'Un.',
         supplier: prod.supplier || prod.brand || directInfo.store,
         stock: 10,
-        lastUpdated: new Date().toISOString().split('T')[0],
+        lastUpdated: new Date().toISOString(),
         sourceUrl: prod.sourceUrl || directInfo.url,
         imageUrl: chosenImage
       };

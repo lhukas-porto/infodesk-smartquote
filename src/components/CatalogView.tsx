@@ -32,6 +32,7 @@ import { Product } from '../types';
 import { 
   saveProducts, 
   deduplicateProductsList,
+  mergeRemoteProductsWithLocal,
   isProductDeleted,
   getRegisteredUnits, 
   saveRegisteredUnit, 
@@ -226,7 +227,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             costPrice,
             unit,
             stock: 10,
-            lastUpdated: new Date().toISOString().split('T')[0]
+            lastUpdated: new Date().toISOString()
           });
         });
 
@@ -323,9 +324,11 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         const remote = await fetchProductsFromSupabase();
         if (isMounted && remote && Array.isArray(remote) && remote.length > 0) {
           const sanitized = remote.filter(p => !isProductDeleted(p));
-          const clean = deduplicateProductsList(sanitized);
-          setProducts(clean);
-          saveProducts(clean);
+          setProducts(prev => {
+            const merged = mergeRemoteProductsWithLocal(sanitized, prev);
+            saveProducts(merged);
+            return merged;
+          });
         }
       } catch (err) {
         console.warn('[AutoSync Catálogo] Sincronização em background:', err);
@@ -397,7 +400,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       costPrice: Number(newProd.costPrice) || 0,
       shippingCost: shippingCost || 0,
       unit: newProd.unit || 'Un.',
-      lastUpdated: new Date().toISOString().split('T')[0]
+      lastUpdated: new Date().toISOString()
     };
 
     if (created.unit) {
@@ -463,9 +466,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       partNumber: unifiedCode,
       name: updated.name.trim(),
       description: updated.description?.trim() || '',
+      category: normalizeToOfficialCategory(updated.category || 'Diversos & Sazonais'),
       costPrice: Number(updated.costPrice) || 0,
       shippingCost: shippingCost || 0,
-      lastUpdated: new Date().toISOString().split('T')[0]
+      lastUpdated: new Date().toISOString()
     };
 
     if (finalProd.unit) {
