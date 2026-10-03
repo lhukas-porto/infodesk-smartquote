@@ -711,10 +711,19 @@ export const App: React.FC = () => {
 
                 const purchaseStatus = isPurchased ? ('purchased' as const) : (remIt.purchaseStatus || locIt?.purchaseStatus);
 
+                // Se a proposta mãe estiver aprovada no banco ou localmente, os itens dela são considerados aprovados
+                // a menos que explicitamente rejeitados (approved === false E approvedQuantity === 0)
+                const isParentQuoteApproved = rq.status === 'approved' || localMatch?.status === 'approved';
+                const isExcluded = (remIt.approved === false && remIt.approvedQuantity === 0) ||
+                                   (locIt?.approved === false && locIt?.approvedQuantity === 0);
+                const approved = isExcluded
+                  ? false
+                  : (remIt.approved === true || locIt?.approved === true || isParentQuoteApproved);
+
                 return {
                   ...remIt,
                   purchaseStatus,
-                  approved: remIt.approved !== undefined ? remIt.approved : locIt?.approved,
+                  approved,
                   approvedQuantity: remIt.approvedQuantity !== undefined ? remIt.approvedQuantity : locIt?.approvedQuantity,
                   actualCostPrice: isPurchased
                     ? (locIt?.actualCostPrice ?? purchaseRecord?.actualCostPrice ?? remIt.actualCostPrice)
@@ -2396,9 +2405,20 @@ export const App: React.FC = () => {
                       newSentAt = q.sentAt || nowIso;
                     }
 
+                    const updatedItems = newStatus === 'approved'
+                      ? (q.items || []).map(it => ({
+                          ...it,
+                          approved: true,
+                          approvedQuantity: it.approvedQuantity !== undefined ? it.approvedQuantity : it.quantity,
+                          purchaseStatus: it.purchaseStatus || 'pending'
+                        }))
+                      : q.items;
+
                     const updated: Quote = {
                       ...q,
                       status: newStatus,
+                      items: updatedItems,
+                      approvedAt: newStatus === 'approved' ? (q.approvedAt || nowIso) : q.approvedAt,
                       sentAt: newSentAt,
                       date: (isMovingFromDraft && newStatus === 'sent') ? todayFormatted : (q.date || todayFormatted)
                     };

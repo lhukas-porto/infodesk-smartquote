@@ -269,7 +269,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       const isQuoteApproved = quote.status === 'approved';
 
       (quote.items || []).forEach(item => {
-        const isItemApproved = item.approved === true || (isQuoteApproved && item.approved !== false);
+        // Se a proposta mãe está aprovada, todos os seus itens vão para compras,
+        // a não ser que o item tenha sido expressamente desmarcado (approved === false E approvedQuantity === 0).
+        // Se a proposta mãe não estiver com status 'approved', o item entra se tiver aprovação individual (approved === true).
+        const isItemExplicitlyExcluded = item.approved === false && item.approvedQuantity === 0;
+        const isItemApproved = (isQuoteApproved && !isItemExplicitlyExcluded) || item.approved === true;
 
         if (isItemApproved) {
           const qty = item.approvedQuantity !== undefined ? item.approvedQuantity : item.quantity;
@@ -833,6 +837,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       if (isMatch) {
         return {
           ...it,
+          approved: true,
           purchaseStatus: 'purchased' as const,
           actualCostPrice: Number(purchaseForm.actualCost),
           actualUnitCostPrice: Number(purchaseForm.actualUnitCost),
@@ -959,10 +964,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         if (!targetQuote) return;
 
         const updatedItems = (targetQuote.items || []).map(it => {
-          if (it.id === item.itemId) {
+          if (it.id === item.itemId || it.id === item.id) {
             return {
               ...it,
               approved: false, // Retira da fila da Central de Compras
+              approvedQuantity: 0,
               purchaseStatus: 'pending' as const
             };
           }
@@ -1259,11 +1265,8 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="sq-page-title flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-sky-600" />
-              <span>Central de Compras & Suprimentos</span>
+              <span>Central de Compras</span>
             </h1>
-            <span className="sq-badge-code">
-              PROCUREMENT & LUCRO
-            </span>
           </div>
           <p className="sq-page-subtitle">
             Acompanhe compras aprovadas de propostas, cadastre novas compras, consulte preços pagos e concilie faturas.
@@ -1356,7 +1359,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider">
-              A Comprar (Pendentes)
+              A Comprar
             </span>
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
@@ -1418,7 +1421,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Lucro Líquido Realizado
+              Lucro Líquido
             </span>
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
@@ -1515,7 +1518,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
               <Building2 className="w-3 h-3 text-slate-400" />
-              Cliente / Destino
+              Cliente
             </label>
             <select
               value={selectedCompany}
@@ -1551,7 +1554,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
               <Filter className="w-3 h-3 text-slate-400" />
-              Fornecedor / Loja
+              Fornecedor
             </label>
             <select
               value={selectedSupplier}
@@ -2595,7 +2598,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">
-                    Cliente / Destino
+                    Cliente
                   </label>
                   <select
                     value={directPurchaseForm.clientCompany}
@@ -2624,7 +2627,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">
-                    Fornecedor / Loja
+                    Fornecedor
                   </label>
                   <input
                     type="text"

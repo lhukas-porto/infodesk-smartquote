@@ -427,7 +427,10 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       total_price: Number(item.totalPrice || 0),
       supplier: item.supplier || null,
       source_url: item.sourceUrl || null,
-      approved: Boolean(item.approved),
+      approved: Boolean(
+        item.approved === true || 
+        (quote.status === 'approved' && !(item.approved === false && item.approvedQuantity === 0))
+      ),
       approved_quantity: item.approvedQuantity !== undefined && item.approvedQuantity !== null ? Number(item.approvedQuantity) : null,
       purchase_status: item.purchaseStatus || 'pending',
       actual_cost_price: item.actualCostPrice !== undefined && item.actualCostPrice !== null ? Number(item.actualCostPrice) : null,

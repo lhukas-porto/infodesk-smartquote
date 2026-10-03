@@ -34,9 +34,10 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
   const [itemsState, setItemsState] = useState<Record<string, ItemApprovalState>>(() => {
     const initialState: Record<string, ItemApprovalState> = {};
     (quote.items || []).forEach(item => {
+      const isExcluded = item.approved === false && item.approvedQuantity === 0;
       initialState[item.id] = {
-        approved: item.approved !== undefined ? item.approved : true,
-        approvedQuantity: item.approvedQuantity !== undefined ? item.approvedQuantity : item.quantity
+        approved: !isExcluded,
+        approvedQuantity: (item.approvedQuantity !== undefined && item.approvedQuantity > 0) ? item.approvedQuantity : item.quantity
       };
     });
     return initialState;
@@ -56,9 +57,10 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
   React.useEffect(() => {
     const initialState: Record<string, ItemApprovalState> = {};
     (quote.items || []).forEach(item => {
+      const isExcluded = item.approved === false && item.approvedQuantity === 0;
       initialState[item.id] = {
-        approved: item.approved !== undefined ? item.approved : true,
-        approvedQuantity: item.approvedQuantity !== undefined ? item.approvedQuantity : item.quantity
+        approved: !isExcluded,
+        approvedQuantity: (item.approvedQuantity !== undefined && item.approvedQuantity > 0) ? item.approvedQuantity : item.quantity
       };
     });
     setItemsState(initialState);
