@@ -263,10 +263,33 @@
   padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* Evitar zoom automático do iOS Safari ao focar em inputs no mobile */
-@media (max-width: 640px) {
-  input, select, textarea {
-    font-size: 16px !important;
+/* Animação suave para Bottom Sheet / Menu Drawer Mobile */
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
 }
+
+@keyframes fadeInBackdrop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-up-sheet {
+  animation: slideUpSheet 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-backdrop {
+  animation: fadeInBackdrop 0.18s ease-out forwards;
+}
+
 
