@@ -486,7 +486,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     type="text"
                     required
                     value={draft.name || ''}
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    onChange={(e) => setDraft(prev => ({ ...prev, name: e.target.value }))}
                     onPaste={handlePasteImage}
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 transition shadow-2xs text-xs sm:text-sm"
                   />
@@ -538,7 +538,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 <textarea
                   rows={5}
                   value={draft.description || ''}
-                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                  onChange={(e) => setDraft(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full min-h-[110px] bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 text-xs transition leading-relaxed resize-y"
                 />
               </div>
@@ -552,7 +552,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   <input
                     type="text"
                     value={draft.sku || draft.partNumber || ''}
-                    onChange={(e) => setDraft({ ...draft, sku: e.target.value, partNumber: e.target.value })}
+                    onChange={(e) => setDraft(prev => ({ ...prev, sku: e.target.value, partNumber: e.target.value }))}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-sky-500"
                   />
                 </div>
@@ -755,7 +755,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   <input
                     type="text"
                     value={draft.supplier || ''}
-                    onChange={(e) => setDraft({ ...draft, supplier: e.target.value })}
+                    onChange={(e) => setDraft(prev => ({ ...prev, supplier: e.target.value }))}
                     className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 focus:outline-none focus:border-sky-500 text-xs"
                   />
                 </div>
@@ -809,6 +809,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               <button
                 type="submit"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSubmit();
+                }}
                 className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-xs hover:shadow-md transition flex items-center gap-2 cursor-pointer text-xs sm:text-sm active:scale-[0.98]"
                 title={saveButtonTitle}
               >

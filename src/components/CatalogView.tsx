@@ -510,11 +510,14 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       return finalNext;
     });
 
-    unrecordDeletedProduct(finalProd);
-    await syncProductToSupabase(finalProd);
     setEditingProduct(null);
     setImportStatus(`Produto "${finalProd.name}" atualizado com sucesso!`);
     setTimeout(() => setImportStatus(null), 4000);
+
+    unrecordDeletedProduct(finalProd);
+    syncProductToSupabase(finalProd).catch(err => {
+      console.warn('[Sync Catálogo] Erro ao sincronizar produto no Supabase:', err);
+    });
   };
 
   const handleDeleteProduct = (id: string) => {
