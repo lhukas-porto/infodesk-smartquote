@@ -47,7 +47,9 @@ import {
   Mail,
   MoreVertical,
   MessageSquare,
-  Tag
+  Tag,
+  Clock,
+  ChevronRight
 } from 'lucide-react';
 import { ClientCompany, ClientContact, CompanySettings, Product, Quote, QuoteItem } from '../types';
 import { 
@@ -127,6 +129,7 @@ interface QuoteBuilderProps {
   onUpdateSettings?: (newSettings: CompanySettings) => void;
   onNewQuote?: () => void;
   isEditingHistoricalQuote?: boolean;
+  onUpdateStatus?: (newStatus: Quote['status']) => void;
 }
 
 const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
@@ -147,7 +150,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   onDeleteContact: propsOnDeleteContact,
   onUpdateSettings,
   onNewQuote,
-  isEditingHistoricalQuote = false
+  isEditingHistoricalQuote = false,
+  onUpdateStatus
 }) => {
   const [globalMarkup, setGlobalMarkup] = useState<number>(() => {
     return currentQuote.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 23.5;
@@ -2049,6 +2053,47 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               ? `Alterações feitas aqui serão atualizadas nesta cotação para o cliente ${currentQuote.clientCompany || 'definido'}.`
               : 'Configure os dados do cliente, custos, alíquota de impostos e margem de lucro da Infodesk.'}
           </p>
+
+          {/* Pipeline de Estágios Direto no QuoteBuilder */}
+          <div className="mt-3 flex items-center gap-1 bg-slate-100/90 p-1.5 rounded-xl border border-slate-200/80 overflow-x-auto max-w-full">
+            {[
+              { id: 'draft', label: 'Rascunho', shortLabel: 'Rascunho', icon: Clock, activeBg: 'bg-amber-500', activeText: 'text-white' },
+              { id: 'sent', label: 'Enviada', shortLabel: 'Enviada', icon: Send, activeBg: 'bg-sky-600', activeText: 'text-white' },
+              { id: 'negotiating', label: 'Em Negociação', shortLabel: 'Negociação', icon: MessageSquare, activeBg: 'bg-purple-600', activeText: 'text-white' },
+              { id: 'approved', label: 'Aprovada / Ganha', shortLabel: 'Aprovada', icon: CheckCircle2, activeBg: 'bg-emerald-600', activeText: 'text-white' },
+              { id: 'lost', label: 'Perdida', shortLabel: 'Perdida', icon: X, activeBg: 'bg-rose-600', activeText: 'text-white' }
+            ].map((st, sIdx, sArr) => {
+              const currentStatus = currentQuote.status || 'draft';
+              const isCurrent = currentStatus === st.id;
+              const Icon = st.icon;
+              return (
+                <React.Fragment key={st.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onUpdateStatus) {
+                        onUpdateStatus(st.id as Quote['status']);
+                      } else {
+                        setCurrentQuote(prev => ({ ...prev, status: st.id as Quote['status'], updatedAt: new Date().toISOString() }));
+                      }
+                    }}
+                    className={`py-1 px-2.5 sm:px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                      isCurrent
+                        ? `${st.activeBg} ${st.activeText} shadow-xs`
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                    }`}
+                    title={`Mover proposta para: ${st.label}`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{st.shortLabel}</span>
+                  </button>
+                  {sIdx < sArr.length - 1 && (
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 mx-0.5" />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
 
         {isEditingHistoricalQuote && onNewQuote && (

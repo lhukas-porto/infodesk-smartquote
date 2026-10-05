@@ -669,16 +669,18 @@ export const App: React.FC = () => {
               const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
               const remoteTime = remoteUpdatedAt ? new Date(remoteUpdatedAt).getTime() : 0;
 
-              // Se a versão local foi modificada mais recentemente que a do banco remoto (com tolerância de 1s para desvio de relógio)
-              const isLocalAuthoritative = Boolean(localMatch && localTime > 0 && localTime > (remoteTime + 1000));
+              // Versão local é autoritativa se for mais recente ou se o local já tiver avançado além de draft
+              const isLocalAuthoritative = Boolean(localMatch && (localTime >= remoteTime || (localMatch.status && localMatch.status !== 'draft' && rq.status === 'draft')));
 
               let items = (isLocalAuthoritative && isValidRealItems(localMatch?.items))
                 ? localMatch!.items
-                : (isValidRealItems(rq.items) ? rq.items : []);
+                : (isValidRealItems(rq.items) ? rq.items : (localMatch?.items || []));
 
-              // Se o remoto não veio com itens reais, busca na memória local ou nos backups
-              if (!isValidRealItems(items) && localMatch && isValidRealItems(localMatch.items)) {
-                items = localMatch.items;
+              // Se o localMatch tiver itens reais e o banco não veio com itens reais ou o local for mais recente:
+              if (localMatch && isValidRealItems(localMatch.items)) {
+                if (!isValidRealItems(rq.items) || isLocalAuthoritative) {
+                  items = localMatch.items;
+                }
               }
               if (!isValidRealItems(items)) {
                 const bCode = rq.code ? getQuoteItemsBackup(rq.code) : null;
@@ -693,15 +695,16 @@ export const App: React.FC = () => {
               }
 
               // BLINDAGEM DE STATUS NO F5:
-              // Nunca regride uma proposta enviada/negociação/aprovada para rascunho se a versão local já tiver avançado
+              // NUNCA regride de sent, negotiating, approved ou lost para draft se o usuário já avançou localmente!
               let finalStatus = rq.status;
-              if (localMatch?.status === 'approved' && rq.status !== 'approved') {
+              if (localMatch?.status === 'approved') {
                 finalStatus = 'approved';
-              } else if (
-                (localMatch?.status === 'sent' || localMatch?.status === 'negotiating' || localMatch?.status === 'lost') && 
-                (rq.status === 'draft' || !rq.status || isLocalAuthoritative)
-              ) {
-                finalStatus = localMatch.status;
+              } else if (localMatch?.status === 'negotiating' && rq.status !== 'approved') {
+                finalStatus = 'negotiating';
+              } else if (localMatch?.status === 'sent' && (rq.status === 'draft' || !rq.status)) {
+                finalStatus = 'sent';
+              } else if (localMatch?.status === 'lost' && (rq.status === 'draft' || !rq.status)) {
+                finalStatus = 'lost';
               } else if (isLocalAuthoritative && localMatch?.status) {
                 finalStatus = localMatch.status;
               }
@@ -787,8 +790,8 @@ export const App: React.FC = () => {
                 updatedAt: isLocalAuthoritative ? (localMatch?.updatedAt || new Date().toISOString()) : (rq.updatedAt || rq.createdAt)
               };
 
-              // Se a versão local era mais recente ou recuperamos itens ausentes, sincroniza imediatamente com o Supabase
-              if (isLocalAuthoritative || (items.length > 0 && !isValidRealItems(rq.items))) {
+              // Se a versão local era mais recente, ou o status avançou, ou recuperamos itens ausentes, sincroniza imediatamente com o Supabase
+              if (isLocalAuthoritative || finalStatus !== rq.status || (items.length > 0 && !isValidRealItems(rq.items))) {
                 syncQuoteToSupabase(resultQuote).catch(e => {
                   console.warn('[SmartQuote] Falha ao sincronizar versão mais recente no Supabase:', e);
                 });
@@ -1050,6 +1053,36 @@ export const App: React.FC = () => {
   useEffect(() => {
     onLeaveBuilderRef.current = () => {
       if (editingHistoricalQuoteIdRef.current) {
+        const qToPersist: Quote = {
+          ...currentQuoteRef.current,
+          updatedAt: new Date().toISOString()
+        };
+
+        if (qToPersist.items && qToPersist.items.length > 0) {
+          if (qToPersist.code) saveQuoteItemsBackup(qToPersist.code, qToPersist.items);
+          if (qToPersist.id) saveQuoteItemsBackup(qToPersist.id, qToPersist.items);
+
+          setQuotes(prev => {
+            const idx = prev.findIndex(q => 
+              (q.id && qToPersist.id && q.id === qToPersist.id) || 
+              (q.code && qToPersist.code && q.code.trim().toUpperCase() === qToPersist.code.trim().toUpperCase())
+            );
+            let next: Quote[];
+            if (idx >= 0) {
+              next = [...prev];
+              next[idx] = qToPersist;
+            } else {
+              next = [qToPersist, ...prev];
+            }
+            saveQuotes(next);
+            return next;
+          });
+
+          syncQuoteToSupabase(qToPersist).catch(err => {
+            console.warn('Aviso sync ao sair do editor:', err);
+          });
+        }
+
         setEditingHistoricalQuoteId(null);
         editingHistoricalQuoteIdRef.current = null;
         const blank = createCleanBlankQuote();
@@ -1064,8 +1097,12 @@ export const App: React.FC = () => {
       saveSettings(settings, false); 
     }
   }, [settings]);
+
   const currentQuoteRef = useRef(currentQuote);
   currentQuoteRef.current = currentQuote;
+
+  const quotesRef = useRef(quotes);
+  quotesRef.current = quotes;
 
   useEffect(() => {
     const t = setTimeout(() => saveProducts(products), 400);
@@ -1090,11 +1127,28 @@ export const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [currentQuote]);
 
-  // Listener estável único de beforeunload (F5 instantâneo sem vazamento de memória)
+  // Listener estável único de beforeunload (F5 instantâneo sem perda de dados)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (currentQuoteRef.current) {
-        saveCurrentDraftQuote(currentQuoteRef.current);
+        const cur = currentQuoteRef.current;
+        saveCurrentDraftQuote(cur);
+        if (editingHistoricalQuoteIdRef.current && cur.items && cur.items.length > 0) {
+          if (cur.code) saveQuoteItemsBackup(cur.code, cur.items);
+          if (cur.id) saveQuoteItemsBackup(cur.id, cur.items);
+          const savedQuotes = getQuotes();
+          const idx = savedQuotes.findIndex(sq => 
+            (sq.id && cur.id && sq.id === cur.id) || 
+            (sq.code && cur.code && sq.code.trim().toUpperCase() === cur.code.trim().toUpperCase())
+          );
+          if (idx >= 0) {
+            savedQuotes[idx] = { ...savedQuotes[idx], ...cur, updatedAt: new Date().toISOString() };
+            saveQuotes(savedQuotes);
+          }
+        }
+      }
+      if (quotesRef.current && quotesRef.current.length > 0) {
+        saveQuotes(quotesRef.current);
       }
       const isBusy = isScannerBusyRef.current || (typeof window !== 'undefined' && Boolean((window as any).__INFODESK_SCANNER_BUSY__));
       if (activeTabRef.current === 'websearch' && isBusy) {
@@ -2300,13 +2354,24 @@ export const App: React.FC = () => {
     setActiveTab('builder');
   }, [quotes, setActiveTab]);
 
-  const handleUpdateQuoteStatusFromHistory = useCallback((quoteId: string, newStatus: Quote['status']) => {
+  const handleUpdateQuoteStatusFromHistory = useCallback((quoteId: string, newStatus: Quote['status'], quoteCode?: string) => {
     setQuotes(prev => {
       const nowIso = new Date().toISOString();
       const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
+      const targetId = (quoteId || '').trim().toUpperCase();
+      const targetCode = (quoteCode || '').trim().toUpperCase();
+
+      const isTarget = (q: Quote) => {
+        const qId = (q.id || '').trim().toUpperCase();
+        const qCode = (q.code || '').trim().toUpperCase();
+        return (targetId && qId === targetId) ||
+               (targetCode && qCode === targetCode) ||
+               (targetId && qCode === targetId);
+      };
+
       const next = prev.map(q => {
-        if (q.id === quoteId || (q.code && quoteId && q.code.trim().toUpperCase() === quoteId.trim().toUpperCase())) {
+        if (isTarget(q)) {
           const isMovingFromDraft = (q.status || 'draft') === 'draft';
 
           let newSentAt: string | undefined;
@@ -2341,9 +2406,14 @@ export const App: React.FC = () => {
         return q;
       });
       saveQuotes(next);
-      const updated = next.find(q => q.id === quoteId || (q.code && quoteId && q.code.trim().toUpperCase() === quoteId.trim().toUpperCase()));
+      const updated = next.find(isTarget);
       if (updated) {
-        if (currentQuoteRef.current.id === updated.id || (currentQuoteRef.current.code && updated.code && currentQuoteRef.current.code.trim().toUpperCase() === updated.code.trim().toUpperCase())) {
+        if (updated.items && updated.items.length > 0) {
+          if (updated.code) saveQuoteItemsBackup(updated.code, updated.items);
+          if (updated.id) saveQuoteItemsBackup(updated.id, updated.items);
+        }
+        const cur = currentQuoteRef.current;
+        if (cur && ((cur.id && updated.id && cur.id === updated.id) || (cur.code && updated.code && cur.code.trim().toUpperCase() === updated.code.trim().toUpperCase()))) {
           setCurrentQuote(updated);
           saveCurrentDraftQuote(updated);
         }
@@ -2355,6 +2425,49 @@ export const App: React.FC = () => {
       return next;
     });
   }, [notifySync]);
+
+  const handleUpdateStatusFromBuilder = useCallback((newStatus: Quote['status']) => {
+    const nowIso = new Date().toISOString();
+    const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const isMovingFromDraft = (currentQuote.status || 'draft') === 'draft';
+
+    const updated: Quote = {
+      ...currentQuote,
+      status: newStatus,
+      updatedAt: nowIso,
+      sentAt: (newStatus === 'sent' || newStatus === 'negotiating') ? (currentQuote.sentAt || nowIso) : currentQuote.sentAt,
+      approvedAt: newStatus === 'approved' ? (currentQuote.approvedAt || nowIso) : currentQuote.approvedAt,
+      date: (isMovingFromDraft && newStatus === 'sent') ? todayFormatted : (currentQuote.date || todayFormatted)
+    };
+
+    setCurrentQuote(updated);
+    saveCurrentDraftQuote(updated);
+
+    if (updated.items && updated.items.length > 0) {
+      if (updated.code) saveQuoteItemsBackup(updated.code, updated.items);
+      if (updated.id) saveQuoteItemsBackup(updated.id, updated.items);
+    }
+
+    setQuotes(prev => {
+      const idx = prev.findIndex(q => 
+        (q.id && updated.id && q.id === updated.id) ||
+        (q.code && updated.code && q.code.trim().toUpperCase() === updated.code.trim().toUpperCase())
+      );
+      let next: Quote[];
+      if (idx >= 0) {
+        next = [...prev];
+        next[idx] = updated;
+      } else {
+        next = [updated, ...prev];
+      }
+      saveQuotes(next);
+      return next;
+    });
+
+    syncQuoteToSupabase(updated).catch(err => {
+      console.warn('Aviso sync status pelo builder:', err);
+    });
+  }, [currentQuote]);
 
   const handleUpdateQuoteFromHistory = useCallback((updatedQuote: Quote) => {
     const nowIso = new Date().toISOString();
@@ -2507,6 +2620,7 @@ export const App: React.FC = () => {
             onUpdateSettings={handleSaveSettings}
             onNewQuote={handleNewQuote}
             isEditingHistoricalQuote={Boolean(editingHistoricalQuoteId)}
+            onUpdateStatus={handleUpdateStatusFromBuilder}
           />
         )}
 

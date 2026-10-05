@@ -42,7 +42,7 @@ interface SentHistoryViewProps {
   onEditQuote?: (quote: Quote) => void | Promise<void>;
   onDuplicateQuote?: (quote: Quote, updateCostsFromCatalog?: boolean) => void | Promise<void>;
   onDeleteQuote?: (quote: Quote) => void;
-  onUpdateQuoteStatus?: (quoteId: string, newStatus: Quote['status']) => void;
+  onUpdateQuoteStatus?: (quoteId: string, newStatus: Quote['status'], quoteCode?: string) => void;
   onUpdateQuote?: (updatedQuote: Quote) => void;
   onNavigateToPurchases?: () => void;
   initialStageFilter?: StageId | 'all';
@@ -866,7 +866,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                                 if (stage.id === 'approved') {
                                   setQuoteForApproval(q);
                                 } else if (onUpdateQuoteStatus) {
-                                  onUpdateQuoteStatus(q.id, stage.id);
+                                  onUpdateQuoteStatus(q.id, stage.id, q.code);
                                 }
                               }}
                               className={`py-1 px-2.5 sm:px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
@@ -909,7 +909,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                       onUpdateQuoteStatus && (
                         <button
                           type="button"
-                          onClick={() => onUpdateQuoteStatus(q.id, 'lost')}
+                          onClick={() => onUpdateQuoteStatus(q.id, 'lost', q.code)}
                           className="text-[11px] text-slate-400 hover:text-rose-600 transition flex items-center gap-1 px-2 py-1 hover:bg-rose-50 rounded-lg cursor-pointer"
                           title="Marcar como proposta perdida"
                         >
@@ -1094,7 +1094,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
             if (onUpdateQuote) {
               onUpdateQuote(updatedQuote);
             } else if (onUpdateQuoteStatus) {
-              onUpdateQuoteStatus(updatedQuote.id, 'approved');
+              onUpdateQuoteStatus(updatedQuote.id, 'approved', updatedQuote.code);
             }
             setQuoteForApproval(null);
           }}
