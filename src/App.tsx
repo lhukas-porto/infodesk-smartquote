@@ -2626,6 +2626,25 @@ export const App: React.FC = () => {
           />
         )}
 
+        {activeTab === 'preview' && (
+          <QuotePreview
+            quote={currentQuote}
+            settings={settings}
+            sourceTab={previewSourceTab}
+            isEmailModalOpen={isEmailModalOpen}
+            onBackToEdit={() => setActiveTab(previewSourceTab)}
+            onSendEmail={() => setIsEmailModalOpen(true)}
+          />
+        )}
+
+        {activeTab === 'catalog' && (
+          <CatalogView
+            products={products}
+            setProducts={setProducts}
+            onAddToQuote={handleAddProductToQuote}
+          />
+        )}
+
         <div style={{ display: activeTab === 'websearch' ? 'block' : 'none' }}>
           <PriceScannerView
             products={products}
