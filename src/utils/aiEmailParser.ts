@@ -3512,3 +3512,39 @@ export function normalizeSearchText(text: string | null | undefined): string {
     .trim();
 }
 
+/**
+ * Normaliza o código da proposta removendo acentos, caracteres invisíveis e padronizando maiúsculas.
+ * Ex: "Inframérica 290926-4" -> "INFRAMERICA 290926-4"
+ */
+export function normalizeQuoteCode(code?: string | null): string {
+  if (!code) return '';
+  return code
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+}
+
+/**
+ * Compara se duas propostas representam o mesmo registro no sistema (por ID ou Código normalizado com tolerância a acentos).
+ */
+export function isSameQuote(
+  q1?: { id?: string | null; code?: string | null } | null,
+  q2?: { id?: string | null; code?: string | null } | null
+): boolean {
+  if (!q1 || !q2) return false;
+  const id1 = (q1.id || '').trim();
+  const id2 = (q2.id || '').trim();
+  if (id1 && id2 && id1 === id2) return true;
+
+  const c1 = normalizeQuoteCode(q1.code);
+  const c2 = normalizeQuoteCode(q2.code);
+  if (c1 && c2 && c1 === c2) return true;
+
+  if (id1 && c2 && normalizeQuoteCode(id1) === c2) return true;
+  if (id2 && c1 && normalizeQuoteCode(id2) === c1) return true;
+
+  return false;
+}
+

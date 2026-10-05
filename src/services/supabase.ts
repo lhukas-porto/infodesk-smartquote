@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { deduplicateCompanyContacts } from '../utils/storage';
-import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory, formatProposalValidityText } from '../utils/aiEmailParser';
+import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory, formatProposalValidityText, normalizeQuoteCode } from '../utils/aiEmailParser';
 
 // Chaves de conexão com o Supabase da Infodesk
 // Acesso estático direto às variáveis de ambiente do Vite (essencial para substituição no build)
@@ -325,6 +325,7 @@ export async function fetchQuoteItemsByQuoteId(quoteId: string): Promise<QuoteIt
 
 // Trava contra concorrência por cotação (impede disparos simultâneos de sync da mesma proposta)
 const activeSyncQuoteLocks = new Set<string>();
+const pendingSyncQuotes = new Map<string, Quote>();
 
 export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
   if (!supabase) return;
@@ -352,9 +353,10 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
     return;
   }
 
-  const quoteKey = (quote.code || quote.id || '').trim().toUpperCase();
+  const quoteKey = normalizeQuoteCode(quote.code) || (quote.id || '').trim().toUpperCase();
   if (quoteKey && activeSyncQuoteLocks.has(quoteKey)) {
-    console.log(`[Supabase] Sincronização em andamento para ${quoteKey}, ignorando disparo concorrente.`);
+    console.log(`[Supabase] Sincronização em andamento para ${quoteKey}, agendando payload mais recente na fila.`);
+    pendingSyncQuotes.set(quoteKey, quote);
     return;
   }
   if (quoteKey) activeSyncQuoteLocks.add(quoteKey);
@@ -582,7 +584,16 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       }
     }
   } finally {
-    if (quoteKey) activeSyncQuoteLocks.delete(quoteKey);
+    if (quoteKey) {
+      activeSyncQuoteLocks.delete(quoteKey);
+      const nextPending = pendingSyncQuotes.get(quoteKey);
+      if (nextPending) {
+        pendingSyncQuotes.delete(quoteKey);
+        syncQuoteToSupabase(nextPending).catch(err => {
+          console.warn('[Supabase] Erro ao sincronizar versão pendente de quote:', err);
+        });
+      }
+    }
   }
 }
 

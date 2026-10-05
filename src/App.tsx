@@ -116,7 +116,9 @@ import {
   getNextUniqueQuoteCode,
   formatProductSentenceCase,
   generateProposalEmailHtml,
-  normalizeSearchText
+  normalizeSearchText,
+  normalizeQuoteCode,
+  isSameQuote
 } from './utils/aiEmailParser';
 import {
   isSupabaseConfigured,
@@ -252,15 +254,25 @@ export const App: React.FC = () => {
         setAuthenticatedUserEmail(session.user.email);
         try { localStorage.setItem('infodesk_auth_user', session.user.email); } catch {}
       } else {
-        setAuthenticatedUserEmail(null);
-        try { localStorage.removeItem('infodesk_auth_user'); } catch {}
+        const stored = (import.meta.env.DEV || !isSupabaseConfigured) ? localStorage.getItem('infodesk_auth_user') : null;
+        if (stored) {
+          setAuthenticatedUserEmail(stored);
+        } else {
+          setAuthenticatedUserEmail(null);
+          try { localStorage.removeItem('infodesk_auth_user'); } catch {}
+        }
       }
       setIsCheckingAuth(false);
     }).catch((err) => {
       console.warn('[Auth Check Error]:', err);
       if (mounted) {
-        setAuthenticatedUserEmail(null);
-        try { localStorage.removeItem('infodesk_auth_user'); } catch {}
+        const stored = (import.meta.env.DEV || !isSupabaseConfigured) ? localStorage.getItem('infodesk_auth_user') : null;
+        if (stored) {
+          setAuthenticatedUserEmail(stored);
+        } else {
+          setAuthenticatedUserEmail(null);
+          try { localStorage.removeItem('infodesk_auth_user'); } catch {}
+        }
         setIsCheckingAuth(false);
       }
     });
@@ -643,10 +655,7 @@ export const App: React.FC = () => {
               if (isConfirmedSent && (rq.status === 'draft' || !rq.status)) {
                 rq = { ...rq, status: 'sent', sentAt: rq.sentAt || new Date().toISOString() };
               }
-              const localMatch = prevQuotes.find(lq => 
-                (lq.id && rq.id && lq.id === rq.id) || 
-                (lq.code && rq.code && lq.code.trim().toUpperCase() === rq.code.trim().toUpperCase())
-              );
+              const localMatch = prevQuotes.find(lq => isSameQuote(lq, rq));
               const isValidRealItems = (itList?: QuoteItem[] | null): boolean => {
                 if (!itList || !Array.isArray(itList) || itList.length === 0) return false;
                 if (itList.length === 1) {
@@ -670,8 +679,14 @@ export const App: React.FC = () => {
               const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
               const remoteTime = remoteUpdatedAt ? new Date(remoteUpdatedAt).getTime() : 0;
 
-              // Versão local é autoritativa se for mais recente ou se o local já tiver avançado além de draft
-              const isLocalAuthoritative = Boolean(localMatch && (localTime >= remoteTime || (localMatch.status && localMatch.status !== 'draft' && rq.status === 'draft')));
+              // Versão local é autoritativa se for mais recente (com 5s de tolerância contra drift de relógio de servidor),
+              // ou se o local já tiver avançado além de draft enquanto o remoto ainda está em draft
+              const isLocalAuthoritative = Boolean(
+                localMatch && (
+                  (localTime + 5000) >= remoteTime ||
+                  (localMatch.status && localMatch.status !== 'draft' && rq.status === 'draft')
+                )
+              );
 
               let items = (isLocalAuthoritative && isValidRealItems(localMatch?.items))
                 ? localMatch!.items
@@ -805,8 +820,8 @@ export const App: React.FC = () => {
             // FILTRA E BLOQUEIA RIGOROSAMENTE QUALQUER PROPOSTA DE TESTE OU DELETADA
             const localOnlyQuotes = prevQuotes.filter(lq => 
               !isBlockedOrTestQuote(lq) &&
-              !deletedCodes.has((lq.code || '').trim().toUpperCase()) &&
-              !mergedRemote.some(rq => rq.id === lq.id || (rq.code && lq.code && rq.code.trim().toUpperCase() === lq.code.trim().toUpperCase()))
+              !deletedCodes.has(normalizeQuoteCode(lq.code)) &&
+              !mergedRemote.some(rq => isSameQuote(rq, lq))
             );
 
             // Sincroniza para o Supabase apenas propostas com itens reais e valor comercial
@@ -1064,10 +1079,7 @@ export const App: React.FC = () => {
           if (qToPersist.id) saveQuoteItemsBackup(qToPersist.id, qToPersist.items);
 
           setQuotes(prev => {
-            const idx = prev.findIndex(q => 
-              (q.id && qToPersist.id && q.id === qToPersist.id) || 
-              (q.code && qToPersist.code && q.code.trim().toUpperCase() === qToPersist.code.trim().toUpperCase())
-            );
+            const idx = prev.findIndex(q => isSameQuote(q, qToPersist));
             let next: Quote[];
             if (idx >= 0) {
               next = [...prev];
@@ -1120,10 +1132,24 @@ export const App: React.FC = () => {
     return () => clearTimeout(t);
   }, [quotes]);
 
-  // Debounce suave de 400ms para salvar rascunho de tela
+  // Debounce suave de 400ms para salvar rascunho de tela e espelhar edições de cotações históricas em tempo real
   useEffect(() => {
     const timer = setTimeout(() => {
       saveCurrentDraftQuote(currentQuote);
+      if (editingHistoricalQuoteIdRef.current && currentQuote && currentQuote.items && currentQuote.items.length > 0) {
+        if (currentQuote.code) saveQuoteItemsBackup(currentQuote.code, currentQuote.items);
+        if (currentQuote.id) saveQuoteItemsBackup(currentQuote.id, currentQuote.items);
+        setQuotes(prev => {
+          const idx = prev.findIndex(q => isSameQuote(q, currentQuote));
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = { ...next[idx], ...currentQuote, updatedAt: new Date().toISOString() };
+            saveQuotes(next);
+            return next;
+          }
+          return prev;
+        });
+      }
     }, 400);
     return () => clearTimeout(timer);
   }, [currentQuote]);
@@ -1138,13 +1164,15 @@ export const App: React.FC = () => {
           if (cur.code) saveQuoteItemsBackup(cur.code, cur.items);
           if (cur.id) saveQuoteItemsBackup(cur.id, cur.items);
           const savedQuotes = getQuotes();
-          const idx = savedQuotes.findIndex(sq => 
-            (sq.id && cur.id && sq.id === cur.id) || 
-            (sq.code && cur.code && sq.code.trim().toUpperCase() === cur.code.trim().toUpperCase())
-          );
+          const idx = savedQuotes.findIndex(sq => isSameQuote(sq, cur));
           if (idx >= 0) {
-            savedQuotes[idx] = { ...savedQuotes[idx], ...cur, updatedAt: new Date().toISOString() };
+            const updatedSq = { ...savedQuotes[idx], ...cur, updatedAt: new Date().toISOString() };
+            savedQuotes[idx] = updatedSq;
             saveQuotes(savedQuotes);
+            if (quotesRef.current) {
+              const qRefIdx = quotesRef.current.findIndex(sq => isSameQuote(sq, cur));
+              if (qRefIdx >= 0) quotesRef.current[qRefIdx] = updatedSq;
+            }
           }
         }
       }
@@ -1610,15 +1638,15 @@ export const App: React.FC = () => {
     let quoteToSave: Quote = { ...currentQuote };
 
     // 1. Busca cotação existente por ID ou por Código
-    const existing = quotes.find(q => 
-      (q.id && quoteToSave.id && q.id === quoteToSave.id) || 
-      (q.code && quoteToSave.code && q.code.trim().toUpperCase() === quoteToSave.code.trim().toUpperCase())
-    );
+    const existing = quotes.find(q => isSameQuote(q, quoteToSave));
 
     // Se encontrou cotação existente (por exemplo, UUID do Supabase), unifica ID e preserva status/sentAt
     if (existing) {
       if (existing.id) {
         quoteToSave.id = existing.id;
+      }
+      if (existing.code) {
+        quoteToSave.code = existing.code;
       }
       if (existing.status && existing.status !== 'draft' && quoteToSave.status === 'draft') {
         quoteToSave.status = existing.status;
@@ -1633,7 +1661,7 @@ export const App: React.FC = () => {
     const nowIso = new Date().toISOString();
     quoteToSave.updatedAt = nowIso;
 
-    const isSpecificallySent = Boolean(quoteToSave.sentAt) || (quoteToSave.code && quoteToSave.code.trim().toUpperCase() === 'CNC 210926-3');
+    const isSpecificallySent = Boolean(quoteToSave.sentAt) || (quoteToSave.code && normalizeQuoteCode(quoteToSave.code) === 'CNC 210926-3');
     if (isSpecificallySent && quoteToSave.status === 'draft') {
       quoteToSave.status = 'sent';
       if (!quoteToSave.sentAt) quoteToSave.sentAt = nowIso;
@@ -1646,10 +1674,9 @@ export const App: React.FC = () => {
 
     // Se o código colidir com outro orçamento já existente com ID diferente (que não seja a própria proposta editada), gera código incremental
     const codeCollision = quotes.find(q => 
-      q.id !== quoteToSave.id && 
-      (existing ? q.id !== existing.id : true) &&
-      q.code && quoteToSave.code && 
-      q.code.trim().toUpperCase() === quoteToSave.code.trim().toUpperCase()
+      !isSameQuote(q, quoteToSave) && 
+      (existing ? !isSameQuote(q, existing) : true) &&
+      normalizeQuoteCode(q.code) === normalizeQuoteCode(quoteToSave.code)
     );
     if (codeCollision) {
       quoteToSave.code = generateQuoteCode(quoteToSave.clientCompany, new Date(), quotes);
@@ -1666,10 +1693,7 @@ export const App: React.FC = () => {
 
     setQuotes(prev => {
       // Atualiza a proposta correspondente no array local (por ID ou código)
-      const idx = prev.findIndex(q => 
-        q.id === quoteToSave.id || 
-        (q.code && quoteToSave.code && q.code.trim().toUpperCase() === quoteToSave.code.trim().toUpperCase())
-      );
+      const idx = prev.findIndex(q => isSameQuote(q, quoteToSave));
       let next: Quote[];
       if (idx >= 0) {
         next = [...prev];
@@ -2256,7 +2280,7 @@ export const App: React.FC = () => {
     }
 
     // 2. Tentar recuperar da lista de cotações em memória
-    const matched = localQuotes.find(item => item.id === q.id || item.code === q.code);
+    const matched = localQuotes.find(item => isSameQuote(item, q));
     if (matched && isValidRealItems(matched.items)) {
       if (q.code) saveQuoteItemsBackup(q.code, matched.items);
       if (q.id) saveQuoteItemsBackup(q.id, matched.items);
@@ -2265,7 +2289,7 @@ export const App: React.FC = () => {
 
     // 3. Tentar recuperar do rascunho salvo no localStorage
     const draft = getCurrentDraftQuote();
-    if (draft && (draft.id === q.id || draft.code === q.code) && isValidRealItems(draft.items)) {
+    if (draft && isSameQuote(draft, q) && isValidRealItems(draft.items)) {
       if (q.code) saveQuoteItemsBackup(q.code, draft.items);
       if (q.id) saveQuoteItemsBackup(q.id, draft.items);
       return draft.items;
@@ -2324,7 +2348,7 @@ export const App: React.FC = () => {
   }, []);
 
   const handleOpenQuoteFromHistory = useCallback(async (q: Quote) => {
-    const matched = quotes.find(item => item.id === q.id || item.code === q.code);
+    const matched = quotes.find(item => isSameQuote(item, q));
     const itemsToUse = await resolveQuoteItems(q, quotes);
     const fullQuote = { ...matched, ...q, items: itemsToUse };
     if ((fullQuote.status || 'draft') === 'draft') {
@@ -2338,10 +2362,7 @@ export const App: React.FC = () => {
   }, [quotes, setActiveTab]);
 
   const handleEditQuoteFromHistory = useCallback(async (q: Quote) => {
-    const matched = quotes.find(item => 
-      (item.id && q.id && item.id === q.id) || 
-      (item.code && q.code && item.code.trim().toUpperCase() === q.code.trim().toUpperCase())
-    );
+    const matched = quotes.find(item => isSameQuote(item, q));
     const itemsToUse = await resolveQuoteItems(q, quotes);
     const quoteToEdit = { ...matched, ...q, items: itemsToUse };
     if ((quoteToEdit.status || 'draft') === 'draft') {
@@ -2360,16 +2381,7 @@ export const App: React.FC = () => {
       const nowIso = new Date().toISOString();
       const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-      const targetId = (quoteId || '').trim().toUpperCase();
-      const targetCode = (quoteCode || '').trim().toUpperCase();
-
-      const isTarget = (q: Quote) => {
-        const qId = (q.id || '').trim().toUpperCase();
-        const qCode = (q.code || '').trim().toUpperCase();
-        return (targetId && qId === targetId) ||
-               (targetCode && qCode === targetCode) ||
-               (targetId && qCode === targetId);
-      };
+      const isTarget = (q: Quote) => isSameQuote(q, { id: quoteId, code: quoteCode });
 
       const next = prev.map(q => {
         if (isTarget(q)) {
@@ -2414,7 +2426,7 @@ export const App: React.FC = () => {
           if (updated.id) saveQuoteItemsBackup(updated.id, updated.items);
         }
         const cur = currentQuoteRef.current;
-        if (cur && ((cur.id && updated.id && cur.id === updated.id) || (cur.code && updated.code && cur.code.trim().toUpperCase() === updated.code.trim().toUpperCase()))) {
+        if (cur && isSameQuote(cur, updated)) {
           setCurrentQuote(updated);
           saveCurrentDraftQuote(updated);
         }
@@ -2450,10 +2462,7 @@ export const App: React.FC = () => {
     }
 
     setQuotes(prev => {
-      const idx = prev.findIndex(q => 
-        (q.id && updated.id && q.id === updated.id) ||
-        (q.code && updated.code && q.code.trim().toUpperCase() === updated.code.trim().toUpperCase())
-      );
+      const idx = prev.findIndex(q => isSameQuote(q, updated));
       let next: Quote[];
       if (idx >= 0) {
         next = [...prev];
@@ -2477,11 +2486,7 @@ export const App: React.FC = () => {
       updatedAt: updatedQuote.updatedAt || nowIso
     };
     setQuotes(prev => {
-      const next = prev.map(q => 
-        (q.id === quoteToPersist.id || (q.code && quoteToPersist.code && q.code.trim().toUpperCase() === quoteToPersist.code.trim().toUpperCase()))
-          ? quoteToPersist 
-          : q
-      );
+      const next = prev.map(q => isSameQuote(q, quoteToPersist) ? quoteToPersist : q);
       saveQuotes(next);
       syncQuoteToSupabase(quoteToPersist).catch(err => {
         console.warn('Aviso sync quote aprovado:', err);
@@ -2489,7 +2494,7 @@ export const App: React.FC = () => {
       });
       return next;
     });
-    if (currentQuoteRef.current.id === quoteToPersist.id || (currentQuoteRef.current.code && quoteToPersist.code && currentQuoteRef.current.code.trim().toUpperCase() === quoteToPersist.code.trim().toUpperCase())) {
+    if (isSameQuote(currentQuoteRef.current, quoteToPersist)) {
       setCurrentQuote(quoteToPersist);
       saveCurrentDraftQuote(quoteToPersist);
     }
@@ -2682,11 +2687,7 @@ export const App: React.FC = () => {
             settings={settings}
             onUpdateQuote={(updatedQuote) => {
               setQuotes(prev => {
-                const next = prev.map(q => 
-                  (q.id === updatedQuote.id || (q.code && updatedQuote.code && q.code.trim().toUpperCase() === updatedQuote.code.trim().toUpperCase()))
-                    ? updatedQuote 
-                    : q
-                );
+                const next = prev.map(q => isSameQuote(q, updatedQuote) ? updatedQuote : q);
                 saveQuotes(next);
                 syncQuoteToSupabase(updatedQuote).catch(err => {
                   console.warn('Aviso sync compra:', err);
@@ -2694,7 +2695,7 @@ export const App: React.FC = () => {
                 });
                 return next;
               });
-              if (currentQuote.id === updatedQuote.id || currentQuote.code === updatedQuote.code) {
+              if (isSameQuote(currentQuote, updatedQuote)) {
                 setCurrentQuote(updatedQuote);
                 saveCurrentDraftQuote(updatedQuote);
               }
