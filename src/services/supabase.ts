@@ -486,17 +486,37 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         .select()
         .single();
 
-      // Fallback resiliente: caso as novas colunas de quotes ainda não existam no Supabase
-      if (quoteError && quoteError.message?.includes('column')) {
-        console.warn('[Supabase] Colunas de aprovação ainda não existem em quotes. Gravando sem campos extras...');
-        const { client_order_number, approved_at, approved_total_amount, ...baseQuotePayload } = sanitizedQuotePayload;
-        const retry = await supabase
-          .from('quotes')
-          .upsert(baseQuotePayload, { onConflict: 'code' })
-          .select()
-          .single();
-        savedQuote = retry.data;
-        quoteError = retry.error;
+      // Fallback resiliente auto-adaptativo: caso novas colunas de quotes ainda não existam no Supabase
+      let currentQuotePayload: any = { ...sanitizedQuotePayload };
+      let quoteRetryCount = 0;
+      while (quoteError && (quoteError.message?.includes('column') || quoteError.message?.includes('schema cache')) && quoteRetryCount < 5) {
+        quoteRetryCount++;
+        const match = quoteError.message.match(/['"]([a-zA-Z0-9_]+)['"]\s*column/) ||
+                      quoteError.message.match(/column\s*['"]([a-zA-Z0-9_]+)['"]/);
+        const missingColumn = match ? match[1] : null;
+
+        if (missingColumn && missingColumn in currentQuotePayload) {
+          console.warn(`[Supabase] Coluna '${missingColumn}' não existe em quotes no banco remoto. Removendo e retentando...`);
+          delete currentQuotePayload[missingColumn];
+          const retry = await supabase
+            .from('quotes')
+            .upsert(currentQuotePayload, { onConflict: 'code' })
+            .select()
+            .single();
+          savedQuote = retry.data;
+          quoteError = retry.error;
+        } else {
+          console.warn('[Supabase] Colunas de aprovação/extras ainda não existem em quotes. Gravando apenas campos essenciais...');
+          const { client_order_number, approved_at, approved_total_amount, ...baseQuotePayload } = currentQuotePayload;
+          const retry = await supabase
+            .from('quotes')
+            .upsert(baseQuotePayload, { onConflict: 'code' })
+            .select()
+            .single();
+          savedQuote = retry.data;
+          quoteError = retry.error;
+          break;
+        }
       }
 
       if (quoteError || !savedQuote) {
@@ -512,22 +532,47 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         quote_id: savedQuote.id
       }));
 
-      let { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
+      let currentItemsToInsert = itemsToInsert;
+      let { error: itemsInsertError } = await supabase.from('quote_items').insert(currentItemsToInsert);
 
-      // Fallback resiliente: caso as novas colunas de quote_items ainda não existam no Supabase
-      if (itemsInsertError && itemsInsertError.message?.includes('column')) {
-        console.warn('[Supabase] Colunas de compras ainda não existem em quote_items. Gravando apenas campos padrão...');
-        const legacyItems = itemsToInsert.map(it => {
-          const {
-            approved, approved_quantity, purchase_status, actual_cost_price, actual_unit_cost_price,
-            actual_purchase_url, actual_shipping_cost, shipping_pending, payment_method,
-            purchased_at, purchase_notes, actual_tax_percent, client_order_number,
-            ...legacy
-          } = it as any;
-          return legacy;
-        });
-        const retry = await supabase.from('quote_items').insert(legacyItems);
-        itemsInsertError = retry.error;
+      // Fallback resiliente auto-adaptativo: caso colunas recentes (como 'supplier') ainda não existam no schema cache do Supabase
+      let retryCount = 0;
+      while (itemsInsertError && (itemsInsertError.message?.includes('column') || itemsInsertError.message?.includes('schema cache')) && retryCount < 5) {
+        retryCount++;
+        // Tenta identificar o nome exato da coluna ausente no erro retornado pelo PostgREST
+        // Exemplos:
+        // "Could not find the 'supplier' column of 'quote_items' in the schema cache"
+        // 'column "supplier" of relation "quote_items" does not exist'
+        const match = itemsInsertError.message.match(/['"]([a-zA-Z0-9_]+)['"]\s*column/) ||
+                      itemsInsertError.message.match(/column\s*['"]([a-zA-Z0-9_]+)['"]/);
+        const missingColumn = match ? match[1] : null;
+
+        if (missingColumn && currentItemsToInsert.length > 0 && missingColumn in currentItemsToInsert[0]) {
+          console.warn(`[Supabase] Coluna '${missingColumn}' não existe em quote_items no banco remoto. Removendo do payload e retentando gravação...`);
+          currentItemsToInsert = currentItemsToInsert.map(it => {
+            const copy = { ...it };
+            delete (copy as any)[missingColumn];
+            return copy;
+          });
+          const retry = await supabase.from('quote_items').insert(currentItemsToInsert);
+          itemsInsertError = retry.error;
+        } else {
+          // Fallback estrutural abrangente: remove todos os campos não essenciais que podem faltar no banco remoto
+          console.warn('[Supabase] Gravando itens com campos estruturais compatíveis...', itemsInsertError.message);
+          currentItemsToInsert = currentItemsToInsert.map(it => {
+            const {
+              supplier,
+              approved, approved_quantity, purchase_status, actual_cost_price, actual_unit_cost_price,
+              actual_purchase_url, actual_shipping_cost, shipping_pending, payment_method,
+              purchased_at, purchase_notes, actual_tax_percent, client_order_number,
+              ...compatible
+            } = it as any;
+            return compatible;
+          });
+          const retry = await supabase.from('quote_items').insert(currentItemsToInsert);
+          itemsInsertError = retry.error;
+          break;
+        }
       }
 
       if (itemsInsertError) {
