@@ -484,9 +484,10 @@ interface PriceScannerViewProps {
   onUpdateQuoteItem?: (index: number, updatedData: Partial<QuoteItem>) => void;
   existingItem?: Partial<QuoteItem> | null;
   onScanningStateChange?: (isScanning: boolean) => void;
+  isVisible?: boolean;
 }
 
-export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
+const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   products = [],
   onAddToQuote,
   onStartNewQuoteWithItems,
@@ -497,7 +498,8 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
   targetItemIndex = null,
   onUpdateQuoteItem,
   existingItem = null,
-  onScanningStateChange
+  onScanningStateChange,
+  isVisible = true
 }) => {
   // Batch / Search Input
   const [batchRawInput, setBatchRawInput] = useState(initialQuery);
@@ -2368,3 +2370,5 @@ export const PriceScannerView: React.FC<PriceScannerViewProps> = ({
     </div>
   );
 };
+
+export const PriceScannerView = React.memo(PriceScannerViewComponent);

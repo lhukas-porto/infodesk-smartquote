@@ -828,11 +828,12 @@ export const saveQuotes = (quotes: Quote[]): void => {
       }));
     try {
       localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));
-      // Indexa imediatamente todas as compras realizadas para blindagem no F5
+      // Indexa imediatamente todas as compras realizadas em LOTE único de alto desempenho
+      const purchasedRecords: ProcurementPurchaseRecord[] = [];
       normalized.forEach(q => {
         (q.items || []).forEach(it => {
           if (it.purchaseStatus === 'purchased' || it.purchaseStatus === 'delivered') {
-            savePurchasedProcurementRecord({
+            purchasedRecords.push({
               itemId: it.id,
               itemNumber: it.itemNumber,
               quoteId: q.id,
@@ -852,6 +853,9 @@ export const saveQuotes = (quotes: Quote[]): void => {
           }
         });
       });
+      if (purchasedRecords.length > 0) {
+        savePurchasedProcurementRecordsBatch(purchasedRecords);
+      }
     } catch (quotaErr) {
       console.warn('Quota excedida ao salvar propostas. Executando limpeza automática...', quotaErr);
       pruneLocalStorage();
@@ -1781,6 +1785,52 @@ export const savePurchasedProcurementRecord = (record: ProcurementPurchaseRecord
     localStorage.setItem(PROCUREMENT_PURCHASES_KEY, JSON.stringify(map));
   } catch (err) {
     console.warn('Erro ao salvar registro de compra persistente:', err);
+  }
+};
+
+export const savePurchasedProcurementRecordsBatch = (records: ProcurementPurchaseRecord[]): void => {
+  if (!records || records.length === 0) return;
+  try {
+    const map = getPurchasedProcurementRecords();
+    let hasChanges = false;
+
+    for (const record of records) {
+      if (!record || (!record.itemId && !record.name)) continue;
+      hasChanges = true;
+
+      if (record.itemId) {
+        map[record.itemId] = record;
+      }
+      if (record.quoteId && record.itemId) {
+        map[`${record.quoteId}_${record.itemId}`] = record;
+      }
+      if (record.quoteCode && record.itemNumber !== undefined) {
+        const codeUpper = record.quoteCode.trim().toUpperCase();
+        map[`${codeUpper}#item_${record.itemNumber}`] = record;
+        map[`${codeUpper}#${record.itemNumber}`] = record;
+      }
+      if (record.quoteId && record.itemNumber !== undefined) {
+        map[`${record.quoteId}#item_${record.itemNumber}`] = record;
+      }
+      if (record.quoteCode && record.name) {
+        const codeUpper = record.quoteCode.trim().toUpperCase();
+        const rawSig = `${record.quoteCode}_${record.name}`.trim().toLowerCase();
+        const normSig = `${codeUpper}:::${normalizeSearchText(record.name)}`;
+        const cleanNameSig = `${codeUpper}:::${record.name.trim().toLowerCase()}`;
+        map[rawSig] = record;
+        map[normSig] = record;
+        map[cleanNameSig] = record;
+      }
+      if (record.quoteId && record.name) {
+        map[`${record.quoteId}:::${normalizeSearchText(record.name)}`] = record;
+      }
+    }
+
+    if (hasChanges) {
+      localStorage.setItem(PROCUREMENT_PURCHASES_KEY, JSON.stringify(map));
+    }
+  } catch (err) {
+    console.warn('Erro ao salvar lote de compras persistentes:', err);
   }
 };
 

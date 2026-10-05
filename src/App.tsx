@@ -1064,17 +1064,38 @@ export const App: React.FC = () => {
       saveSettings(settings, false); 
     }
   }, [settings]);
-  useEffect(() => { saveProducts(products); }, [products]);
-  useEffect(() => { saveEmails(emails); }, [emails]);
-  useEffect(() => { saveQuotes(quotes); }, [quotes]);
-  // Debounce suave de 400ms para salvar rascunho + salvamento imediato no beforeunload (F5 instantâneo)
+  const currentQuoteRef = useRef(currentQuote);
+  currentQuoteRef.current = currentQuote;
+
+  useEffect(() => {
+    const t = setTimeout(() => saveProducts(products), 400);
+    return () => clearTimeout(t);
+  }, [products]);
+
+  useEffect(() => {
+    const t = setTimeout(() => saveEmails(emails), 400);
+    return () => clearTimeout(t);
+  }, [emails]);
+
+  useEffect(() => {
+    const t = setTimeout(() => saveQuotes(quotes), 400);
+    return () => clearTimeout(t);
+  }, [quotes]);
+
+  // Debounce suave de 400ms para salvar rascunho de tela
   useEffect(() => {
     const timer = setTimeout(() => {
       saveCurrentDraftQuote(currentQuote);
     }, 400);
+    return () => clearTimeout(timer);
+  }, [currentQuote]);
 
+  // Listener estável único de beforeunload (F5 instantâneo sem vazamento de memória)
+  useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      saveCurrentDraftQuote(currentQuote);
+      if (currentQuoteRef.current) {
+        saveCurrentDraftQuote(currentQuoteRef.current);
+      }
       const isBusy = isScannerBusyRef.current || (typeof window !== 'undefined' && Boolean((window as any).__INFODESK_SCANNER_BUSY__));
       if (activeTabRef.current === 'websearch' && isBusy) {
         e.preventDefault();
@@ -1083,12 +1104,9 @@ export const App: React.FC = () => {
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [currentQuote]);
   useEffect(() => { saveActiveTab(activeTab); }, [activeTab]);
 
   // Sincroniza o histórico do navegador (permite que o botão Voltar/Avançar retorne para a tela anterior da aplicação)
@@ -2223,6 +2241,150 @@ export const App: React.FC = () => {
     return Array.isArray(q.items) ? q.items : [];
   };
 
+  const handleUpdateQuoteItemFromScanner = useCallback((idx: number, updatedData: Partial<QuoteItem>) => {
+    setCurrentQuote(prev => {
+      const updatedItems = [...prev.items];
+      if (updatedItems[idx]) {
+        const current = updatedItems[idx];
+        const costPrice = updatedData.costPrice !== undefined ? updatedData.costPrice : current.costPrice;
+        const shipping = current.shippingCost ?? prev.globalShipping ?? 0;
+        const markup = current.markupPercent ?? 35;
+        const tax = prev.globalTaxPercent ?? 6;
+        const unitPrice = calculateCommercialUnitPrice(costPrice, shipping, markup, tax);
+        const qty = updatedData.quantity || current.quantity || 1;
+        const totalPrice = Number((unitPrice * qty).toFixed(2));
+
+        updatedItems[idx] = {
+          ...current,
+          ...updatedData,
+          unitPrice,
+          totalPrice
+        };
+      }
+      return {
+        ...prev,
+        items: updatedItems
+      };
+    });
+  }, []);
+
+  const handleOpenQuoteFromHistory = useCallback(async (q: Quote) => {
+    const matched = quotes.find(item => item.id === q.id || item.code === q.code);
+    const itemsToUse = await resolveQuoteItems(q, quotes);
+    const fullQuote = { ...matched, ...q, items: itemsToUse };
+    if ((fullQuote.status || 'draft') === 'draft') {
+      const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+      fullQuote.date = todayFormatted;
+      fullQuote.createdAt = new Date().toISOString();
+    }
+    setCurrentQuote(fullQuote);
+    setPreviewSourceTab('history');
+    setActiveTab('preview');
+  }, [quotes, setActiveTab]);
+
+  const handleEditQuoteFromHistory = useCallback(async (q: Quote) => {
+    const matched = quotes.find(item => 
+      (item.id && q.id && item.id === q.id) || 
+      (item.code && q.code && item.code.trim().toUpperCase() === q.code.trim().toUpperCase())
+    );
+    const itemsToUse = await resolveQuoteItems(q, quotes);
+    const quoteToEdit = { ...matched, ...q, items: itemsToUse };
+    if ((quoteToEdit.status || 'draft') === 'draft') {
+      const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+      quoteToEdit.date = todayFormatted;
+    }
+    const quoteKey = quoteToEdit.id || quoteToEdit.code;
+    setEditingHistoricalQuoteId(quoteKey);
+    editingHistoricalQuoteIdRef.current = quoteKey;
+    setCurrentQuote(quoteToEdit);
+    setActiveTab('builder');
+  }, [quotes, setActiveTab]);
+
+  const handleUpdateQuoteStatusFromHistory = useCallback((quoteId: string, newStatus: Quote['status']) => {
+    setQuotes(prev => {
+      const nowIso = new Date().toISOString();
+      const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+      const next = prev.map(q => {
+        if (q.id === quoteId || (q.code && quoteId && q.code.trim().toUpperCase() === quoteId.trim().toUpperCase())) {
+          const isMovingFromDraft = (q.status || 'draft') === 'draft';
+
+          let newSentAt: string | undefined;
+          if (newStatus === 'draft') {
+            newSentAt = undefined;
+          } else if (newStatus === 'sent') {
+            newSentAt = isMovingFromDraft ? nowIso : (q.sentAt || nowIso);
+          } else {
+            newSentAt = q.sentAt || nowIso;
+          }
+
+          const updatedItems = newStatus === 'approved'
+            ? (q.items || []).map(it => ({
+                ...it,
+                approved: true,
+                approvedQuantity: it.approvedQuantity !== undefined ? it.approvedQuantity : it.quantity,
+                purchaseStatus: it.purchaseStatus || 'pending'
+              }))
+            : q.items;
+
+          const updated: Quote = {
+            ...q,
+            status: newStatus,
+            items: updatedItems,
+            approvedAt: newStatus === 'approved' ? (q.approvedAt || nowIso) : q.approvedAt,
+            sentAt: newSentAt,
+            updatedAt: nowIso,
+            date: (isMovingFromDraft && newStatus === 'sent') ? todayFormatted : (q.date || todayFormatted)
+          };
+          return updated;
+        }
+        return q;
+      });
+      saveQuotes(next);
+      const updated = next.find(q => q.id === quoteId || (q.code && quoteId && q.code.trim().toUpperCase() === quoteId.trim().toUpperCase()));
+      if (updated) {
+        if (currentQuoteRef.current.id === updated.id || (currentQuoteRef.current.code && updated.code && currentQuoteRef.current.code.trim().toUpperCase() === updated.code.trim().toUpperCase())) {
+          setCurrentQuote(updated);
+          saveCurrentDraftQuote(updated);
+        }
+        syncQuoteToSupabase(updated).catch(err => {
+          console.warn('Aviso sync status:', err);
+          notifySync(`Status de "${updated.code}" salvo no navegador. Sincronização com o banco será retomada ao restabelecer a conexão.`);
+        });
+      }
+      return next;
+    });
+  }, [notifySync]);
+
+  const handleUpdateQuoteFromHistory = useCallback((updatedQuote: Quote) => {
+    const nowIso = new Date().toISOString();
+    const quoteToPersist: Quote = {
+      ...updatedQuote,
+      updatedAt: updatedQuote.updatedAt || nowIso
+    };
+    setQuotes(prev => {
+      const next = prev.map(q => 
+        (q.id === quoteToPersist.id || (q.code && quoteToPersist.code && q.code.trim().toUpperCase() === quoteToPersist.code.trim().toUpperCase()))
+          ? quoteToPersist 
+          : q
+      );
+      saveQuotes(next);
+      syncQuoteToSupabase(quoteToPersist).catch(err => {
+        console.warn('Aviso sync quote aprovado:', err);
+        notifySync(`Aprovação de "${quoteToPersist.code}" salva localmente. Sincronização na nuvem pendente.`);
+      });
+      return next;
+    });
+    if (currentQuoteRef.current.id === quoteToPersist.id || (currentQuoteRef.current.code && quoteToPersist.code && currentQuoteRef.current.code.trim().toUpperCase() === quoteToPersist.code.trim().toUpperCase())) {
+      setCurrentQuote(quoteToPersist);
+      saveCurrentDraftQuote(quoteToPersist);
+    }
+  }, [notifySync]);
+
+  const handleNavigateToPurchases = useCallback(() => {
+    setActiveTab('purchases');
+  }, [setActiveTab]);
+
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
@@ -2356,176 +2518,23 @@ export const App: React.FC = () => {
             existingItem={webSearchExistingItem}
             onAddToQuote={handleAddWebSearchItemToQuote}
             onStartNewQuoteWithItems={handleStartNewQuoteWithItems}
-            onNavigateToQuote={() => setActiveTab('builder')}
-            quoteItemsCount={currentQuote.items.length}
-            onScanningStateChange={setIsScannerBusy}
-            onUpdateQuoteItem={(idx, updatedData) => {
-              setCurrentQuote(prev => {
-                const updatedItems = [...prev.items];
-                if (updatedItems[idx]) {
-                  const current = updatedItems[idx];
-                  const costPrice = updatedData.costPrice !== undefined ? updatedData.costPrice : current.costPrice;
-                  const shipping = current.shippingCost ?? prev.globalShipping ?? 0;
-                  const markup = current.markupPercent ?? 35;
-                  const tax = prev.globalTaxPercent ?? 6;
-                  const unitPrice = calculateCommercialUnitPrice(costPrice, shipping, markup, tax);
-                  const qty = updatedData.quantity || current.quantity || 1;
-                  const totalPrice = Number((unitPrice * qty).toFixed(2));
-
-                  updatedItems[idx] = {
-                    ...current,
-                    ...updatedData,
-                    unitPrice,
-                    totalPrice
-                  };
-                }
-                return {
-                  ...prev,
-                  items: updatedItems
-                };
-              });
-            }}
             onSaveToCatalog={handleSaveProductToCatalog}
+            quoteItemsCount={currentQuote.items.length}
+            onNavigateToQuote={() => setActiveTab('builder')}
+            onUpdateQuoteItem={handleUpdateQuoteItemFromScanner}
+            isVisible={activeTab === 'websearch'}
           />
         </div>
 
-        {activeTab === 'preview' && (
-          <QuotePreview
-            quote={currentQuote}
-            settings={settings}
-            sourceTab={previewSourceTab}
-            isEmailModalOpen={isEmailModalOpen}
-            onBackToEdit={() => setActiveTab(previewSourceTab)}
-            onSendEmail={() => setIsEmailModalOpen(true)}
-          />
-        )}
-
-        {activeTab === 'catalog' && (
-          <CatalogView
-            products={products}
-            setProducts={setProducts}
-            onAddToQuote={handleAddProductToQuote}
-          />
-        )}
-
         <div style={{ display: activeTab === 'history' ? 'block' : 'none' }}>
           <SentHistoryView
+            isVisible={activeTab === 'history'}
             quotes={quotes}
-            initialStageFilter={historyStageFilter}
-            onStageFilterChange={setHistoryStageFilter}
-            onOpenQuote={async (q) => {
-              const matched = quotes.find(item => item.id === q.id || item.code === q.code);
-              const itemsToUse = await resolveQuoteItems(q, quotes);
-              const fullQuote = { ...matched, ...q, items: itemsToUse };
-              if ((fullQuote.status || 'draft') === 'draft') {
-                const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-                fullQuote.date = todayFormatted;
-                fullQuote.createdAt = new Date().toISOString();
-              }
-              setCurrentQuote(fullQuote);
-              setPreviewSourceTab('history');
-              setActiveTab('preview');
-            }}
-            onEditQuote={async (q) => {
-              const matched = quotes.find(item => 
-                (item.id && q.id && item.id === q.id) || 
-                (item.code && q.code && item.code.trim().toUpperCase() === q.code.trim().toUpperCase())
-              );
-              const itemsToUse = await resolveQuoteItems(q, quotes);
-              const quoteToEdit = { ...matched, ...q, items: itemsToUse };
-              if ((quoteToEdit.status || 'draft') === 'draft') {
-                const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-                quoteToEdit.date = todayFormatted;
-              }
-              const quoteKey = quoteToEdit.id || quoteToEdit.code;
-              setEditingHistoricalQuoteId(quoteKey);
-              editingHistoricalQuoteIdRef.current = quoteKey;
-              setCurrentQuote(quoteToEdit);
-              setActiveTab('builder');
-            }}
-            onDuplicateQuote={handleDuplicateQuoteFromHistory}
-            onDeleteQuote={handleDeleteQuote}
-            onUpdateQuoteStatus={(quoteId, newStatus) => {
-              setQuotes(prev => {
-                const nowIso = new Date().toISOString();
-                const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
-                const next = prev.map(q => {
-                  if (q.id === quoteId || (q.code && quoteId && q.code.trim().toUpperCase() === quoteId.trim().toUpperCase())) {
-                    const isMovingFromDraft = (q.status || 'draft') === 'draft';
-
-                    // Se estiver em rascunho e mudar para enviado (ou qualquer estágio posterior), seta o horário exato dessa mudança
-                    let newSentAt: string | undefined;
-                    if (newStatus === 'draft') {
-                      newSentAt = undefined;
-                    } else if (newStatus === 'sent') {
-                      newSentAt = isMovingFromDraft ? nowIso : (q.sentAt || nowIso);
-                    } else {
-                      newSentAt = q.sentAt || nowIso;
-                    }
-
-                    const updatedItems = newStatus === 'approved'
-                      ? (q.items || []).map(it => ({
-                          ...it,
-                          approved: true,
-                          approvedQuantity: it.approvedQuantity !== undefined ? it.approvedQuantity : it.quantity,
-                          purchaseStatus: it.purchaseStatus || 'pending'
-                        }))
-                      : q.items;
-
-                    const updated: Quote = {
-                      ...q,
-                      status: newStatus,
-                      items: updatedItems,
-                      approvedAt: newStatus === 'approved' ? (q.approvedAt || nowIso) : q.approvedAt,
-                      sentAt: newSentAt,
-                      updatedAt: nowIso,
-                      date: (isMovingFromDraft && newStatus === 'sent') ? todayFormatted : (q.date || todayFormatted)
-                    };
-                    return updated;
-                  }
-                  return q;
-                });
-                saveQuotes(next);
-                const updated = next.find(q => q.id === quoteId || (q.code && quoteId && q.code.trim().toUpperCase() === quoteId.trim().toUpperCase()));
-                if (updated) {
-                  if (currentQuote.id === updated.id || (currentQuote.code && updated.code && currentQuote.code.trim().toUpperCase() === updated.code.trim().toUpperCase())) {
-                    setCurrentQuote(updated);
-                    saveCurrentDraftQuote(updated);
-                  }
-                  syncQuoteToSupabase(updated).catch(err => {
-                    console.warn('Aviso sync status:', err);
-                    notifySync(`Status de "${updated.code}" salvo no navegador. Sincronização com o banco será retomada ao restabelecer a conexão.`);
-                  });
-                }
-                return next;
-              });
-            }}
-            onUpdateQuote={(updatedQuote) => {
-              const nowIso = new Date().toISOString();
-              const quoteToPersist: Quote = {
-                ...updatedQuote,
-                updatedAt: updatedQuote.updatedAt || nowIso
-              };
-              setQuotes(prev => {
-                const next = prev.map(q => 
-                  (q.id === quoteToPersist.id || (q.code && quoteToPersist.code && q.code.trim().toUpperCase() === quoteToPersist.code.trim().toUpperCase()))
-                    ? quoteToPersist 
-                    : q
-                );
-                saveQuotes(next);
-                syncQuoteToSupabase(quoteToPersist).catch(err => {
-                  console.warn('Aviso sync quote aprovado:', err);
-                  notifySync(`Aprovação de "${quoteToPersist.code}" salva localmente. Sincronização na nuvem pendente.`);
-                });
-                return next;
-              });
-              if (currentQuote.id === quoteToPersist.id || (currentQuote.code && quoteToPersist.code && currentQuote.code.trim().toUpperCase() === quoteToPersist.code.trim().toUpperCase())) {
-                setCurrentQuote(quoteToPersist);
-                saveCurrentDraftQuote(quoteToPersist);
-              }
-            }}
-            onNavigateToPurchases={() => setActiveTab('purchases')}
+            onOpenQuote={handleOpenQuoteFromHistory}
+            onEditQuote={handleEditQuoteFromHistory}
+            onUpdateQuoteStatus={handleUpdateQuoteStatusFromHistory}
+            onUpdateQuote={handleUpdateQuoteFromHistory}
+            onNavigateToPurchases={handleNavigateToPurchases}
           />
         </div>
 

@@ -36,35 +36,57 @@ export interface ExtractedImageQuoteData {
  */
 export async function preprocessImageForOcr(imageSource: string | File): Promise<string> {
   return new Promise((resolve) => {
+    let createdUrl: string | null = null;
+    const cleanup = () => {
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+        createdUrl = null;
+      }
+    };
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(typeof imageSource === 'string' ? imageSource : URL.createObjectURL(imageSource));
-        return;
-      }
-      const scale = img.width < 1200 ? 2.0 : 1;
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       try {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const d = imageData.data;
-        for (let i = 0; i < d.length; i += 4) {
-          const avg = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
-          const enhanced = avg > 180 ? 255 : avg < 80 ? 0 : Math.round((avg - 80) / 100 * 255);
-          d[i] = enhanced; d[i+1] = enhanced; d[i+2] = enhanced;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(typeof imageSource === 'string' ? imageSource : (createdUrl || ''));
+          cleanup();
+          return;
         }
-        ctx.putImageData(imageData, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
-      } catch {
-        resolve(canvas.toDataURL('image/png'));
+        const scale = img.width < 1200 ? 2.0 : 1;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const d = imageData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const avg = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+            const enhanced = avg > 180 ? 255 : avg < 80 ? 0 : Math.round((avg - 80) / 100 * 255);
+            d[i] = enhanced; d[i+1] = enhanced; d[i+2] = enhanced;
+          }
+          ctx.putImageData(imageData, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(canvas.toDataURL('image/png'));
+        }
+      } finally {
+        cleanup();
       }
     };
-    img.onerror = () => resolve(typeof imageSource === 'string' ? imageSource : URL.createObjectURL(imageSource));
-    img.src = typeof imageSource === 'string' ? imageSource : URL.createObjectURL(imageSource);
+    img.onerror = () => {
+      cleanup();
+      resolve(typeof imageSource === 'string' ? imageSource : '');
+    };
+
+    if (typeof imageSource === 'string') {
+      img.src = imageSource;
+    } else {
+      createdUrl = URL.createObjectURL(imageSource);
+      img.src = createdUrl;
+    }
   });
 }
 

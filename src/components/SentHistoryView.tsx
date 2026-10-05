@@ -47,6 +47,7 @@ interface SentHistoryViewProps {
   onNavigateToPurchases?: () => void;
   initialStageFilter?: StageId | 'all';
   onStageFilterChange?: (stage: StageId | 'all') => void;
+  isVisible?: boolean;
 }
 
 type StageId = 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost';
@@ -117,7 +118,7 @@ export const normalizeStatus = (q: Quote): StageId => {
   return 'draft';
 };
 
-export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
+const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
   quotes,
   onOpenQuote,
   onEditQuote,
@@ -127,7 +128,8 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
   onUpdateQuote,
   onNavigateToPurchases,
   initialStageFilter = 'all',
-  onStageFilterChange
+  onStageFilterChange,
+  isVisible = true
 }) => {
   const [quoteForApproval, setQuoteForApproval] = useState<Quote | null>(null);
   const [quoteForWhatsApp, setQuoteForWhatsApp] = useState<Quote | null>(null);
@@ -254,6 +256,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
 
   // 1. Filtra as cotações por DATA / PERÍODO (Padrão: Histórico Completo)
   const dateFilteredQuotes = useMemo(() => {
+    if (isVisible === false) return [];
     const now = new Date();
     const todayFormatted = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -315,7 +318,7 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     }
 
     return validQuotes;
-  }, [quotes, dateFilter, specificDate, customStartDate, customEndDate]);
+  }, [quotes, dateFilter, specificDate, customStartDate, customEndDate, isVisible]);
 
   // 2. Totais e métricas por estágio calculados sobre o período ativo
   const stageStats = useMemo(() => {
@@ -1220,3 +1223,5 @@ export const SentHistoryView: React.FC<SentHistoryViewProps> = ({
     </div>
   );
 };
+
+export const SentHistoryView = React.memo(SentHistoryViewComponent);

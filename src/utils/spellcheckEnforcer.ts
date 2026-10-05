@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Ativa e garante a verificacao ortografica nativa (spellcheck) em portugues (pt-BR)
  * em todos os inputs, textareas e campos editaveis de todo o sistema.
  */
@@ -59,19 +59,16 @@ export function initGlobalSpellcheck(): void {
   }, true);
 
   if (typeof MutationObserver !== 'undefined') {
-    const observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        m.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const el = node as HTMLElement;
-            enableSpellcheck(el);
-            el.querySelectorAll?.<HTMLElement>('input, textarea, [contenteditable]').forEach(enableSpellcheck);
-          }
-        });
-      }
+    let rafId: number | null = null;
+    const observer = new MutationObserver(() => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(() => {
+        applyAll();
+        rafId = null;
+      });
     });
 
-    observer.observe(document.documentElement, {
+    observer.observe(document.body || document.documentElement, {
       childList: true,
       subtree: true
     });

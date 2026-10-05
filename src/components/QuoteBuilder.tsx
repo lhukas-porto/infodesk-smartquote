@@ -129,7 +129,7 @@ interface QuoteBuilderProps {
   isEditingHistoricalQuote?: boolean;
 }
 
-export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
+const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   currentQuote,
   setCurrentQuote,
   products,
@@ -5093,4 +5093,6 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     </div>
   );
 };
+
+export const QuoteBuilder = React.memo(QuoteBuilderComponent);
 
