@@ -47,6 +47,7 @@ interface SentHistoryViewProps {
   onNavigateToPurchases?: () => void;
   initialStageFilter?: StageId | 'all';
   onStageFilterChange?: (stage: StageId | 'all') => void;
+  stageFilterTrigger?: number;
   isVisible?: boolean;
 }
 
@@ -129,6 +130,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
   onNavigateToPurchases,
   initialStageFilter = 'all',
   onStageFilterChange,
+  stageFilterTrigger,
   isVisible = true
 }) => {
   const [quoteForApproval, setQuoteForApproval] = useState<Quote | null>(null);
@@ -158,6 +160,18 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
       setSelectedStageFilter(initialStageFilter);
     }
   }, [initialStageFilter]);
+
+  React.useEffect(() => {
+    if (stageFilterTrigger && stageFilterTrigger > 0) {
+      setSelectedStageFilter('draft');
+      setSearchTerm('');
+      setOnlyFollowUpDue(false);
+      setDateFilter('today');
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {}
+    }
+  }, [stageFilterTrigger]);
 
   const handleSelectStage = (stage: StageId | 'all') => {
     setSelectedStageFilter(stage);
@@ -339,8 +353,13 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
       stats[st].totalAmount += amt;
     });
 
+    // Diretriz: Rascunhos em aberto devem sempre contabilizar todos os rascunhos válidos existentes
+    const allValidDrafts = quotes.filter(q => normalizeStatus(q) === 'draft' && (Array.isArray(q.items) && q.items.length > 0));
+    stats.draft.count = allValidDrafts.length;
+    stats.draft.totalAmount = allValidDrafts.reduce((acc, q) => acc + (q.totalAmount || 0), 0);
+
     return stats;
-  }, [dateFilteredQuotes]);
+  }, [dateFilteredQuotes, quotes]);
 
   const followUpRequiredQuotes = useMemo(() => {
     return dateFilteredQuotes.filter(isFollowUpDue);

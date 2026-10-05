@@ -238,6 +238,7 @@ export const App: React.FC = () => {
     return updatedQuotes;
   });
   const [historyStageFilter, setHistoryStageFilter] = useState<'all' | 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost'>('all');
+  const [draftsFilterTrigger, setDraftsFilterTrigger] = useState<number>(0);
   const [previewSourceTab, setPreviewSourceTab] = useState<'builder' | 'history' | 'purchases'>('builder');
   const [syncNotice, setSyncNotice] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
   const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(null);
@@ -2541,6 +2542,7 @@ export const App: React.FC = () => {
           pendingPurchasesCount={pendingPurchasesCount}
           onOpenDraftsHistory={() => {
             setHistoryStageFilter('draft');
+            setDraftsFilterTrigger(prev => prev + 1);
             setActiveTab('history');
           }}
           onNavigateToBuilder={handleNavigateToBuilder}
@@ -2649,6 +2651,9 @@ export const App: React.FC = () => {
             onUpdateQuoteStatus={handleUpdateQuoteStatusFromHistory}
             onUpdateQuote={handleUpdateQuoteFromHistory}
             onNavigateToPurchases={handleNavigateToPurchases}
+            initialStageFilter={historyStageFilter}
+            onStageFilterChange={setHistoryStageFilter}
+            stageFilterTrigger={draftsFilterTrigger}
           />
         </div>
 

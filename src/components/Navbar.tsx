@@ -529,6 +529,32 @@ export const Navbar: React.FC<NavbarProps> = ({
               <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
             </button>
 
+            {draftsCount > 0 && onOpenDraftsHistory && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onOpenDraftsHistory();
+                }}
+                className={`w-full flex items-center justify-between p-3 rounded-2xl transition text-left cursor-pointer ${
+                  activeTab === 'history'
+                    ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                    : 'bg-amber-50/70 hover:bg-amber-100/70 text-amber-900 border border-amber-200/80'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-amber-950">Rascunhos em Elaboração</p>
+                    <p className="text-[11px] text-amber-700">{draftsCount} orçamento{draftsCount > 1 ? 's' : ''} aguardando envio</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-amber-600 shrink-0" />
+              </button>
+            )}
+
             {analysesCount > 0 && (
               <button
                 type="button"
