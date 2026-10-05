@@ -660,6 +660,95 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
     setTimeout(() => setLinkNotification(null), 4000);
   };
 
+  // Lista unificada e deduplicada de todas as localidades de entrega cadastradas
+  const allRegisteredLocations = useMemo(() => {
+    const locMap = new Map<string, string>();
+
+    // 1. Padrões de Brasília / DF
+    ['Brasília', 'Brasília - DF'].forEach(l => locMap.set(l.toLowerCase(), l));
+
+    // 2. Destinos da empresa selecionada
+    if (matchedCompany?.locations) {
+      matchedCompany.locations.forEach(loc => {
+        const trimmed = (loc || '').trim();
+        if (trimmed && !trimmed.startsWith('website:') && !trimmed.startsWith('logo:')) {
+          locMap.set(trimmed.toLowerCase(), trimmed);
+        }
+      });
+    }
+    if (matchedCompany?.defaultDeliveryLocation) {
+      const def = matchedCompany.defaultDeliveryLocation.trim();
+      if (def) locMap.set(def.toLowerCase(), def);
+    }
+
+    // 3. Destinos de todas as outras empresas cadastradas no sistema
+    clientCompanies.forEach(comp => {
+      if (Array.isArray(comp.locations)) {
+        comp.locations.forEach(loc => {
+          const trimmed = (loc || '').trim();
+          if (trimmed && !trimmed.startsWith('website:') && !trimmed.startsWith('logo:')) {
+            locMap.set(trimmed.toLowerCase(), trimmed);
+          }
+        });
+      }
+      if (comp.defaultDeliveryLocation) {
+        const def = comp.defaultDeliveryLocation.trim();
+        if (def) locMap.set(def.toLowerCase(), def);
+      }
+    });
+
+    return Array.from(locMap.values());
+  }, [matchedCompany, clientCompanies]);
+
+  const handleSelectLocation = (loc: string) => {
+    const clean = loc.trim();
+    if (!clean) return;
+
+    setCurrentQuote(prev => ({
+      ...prev,
+      deliveryLocation: clean,
+      shippingTerms: `Frete incluso p/ ${clean}.`
+    }));
+    setIsLocationSearchOpen(false);
+
+    // Se temos uma empresa vinculada e essa localidade ainda não constava, vincula e persiste
+    if (matchedCompany) {
+      const currentLocs = Array.isArray(matchedCompany.locations) ? [...matchedCompany.locations] : [];
+      if (!currentLocs.some(l => l.trim().toLowerCase() === clean.toLowerCase())) {
+        currentLocs.push(clean);
+        const updated = clientCompanies.map(c =>
+          c.id === matchedCompany.id ? { ...c, locations: currentLocs } : c
+        );
+        handleUpdateCompanies(updated);
+      }
+    }
+  };
+
+  const handleRegisterAndSelectLocation = (newLoc: string) => {
+    const clean = newLoc.trim();
+    if (!clean) return;
+
+    handleSelectLocation(clean);
+
+    // Se não há matchedCompany mas há clientCompany digitado, registra formalmente
+    if (!matchedCompany && currentQuote.clientCompany?.trim()) {
+      const updated = registerOrUpdateClient(
+        currentQuote.clientCompany,
+        currentQuote.contactPerson,
+        currentQuote.clientEmail,
+        currentQuote.clientPhone,
+        clean,
+        currentQuote.paymentTerms,
+        currentQuote.deliveryDays,
+        currentQuote.warrantyTerms
+      );
+      handleUpdateCompanies(updated);
+    }
+
+    setLinkNotification(`Localidade "${clean}" cadastrada e salva com sucesso!`);
+    setTimeout(() => setLinkNotification(null), 3500);
+  };
+
   // Helpers de formatação brasileira com separador de milhar (.) e 2 casas decimais (,): ex: 1.100,00
   const formatCurrencyPtBr = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) return '0,00';
@@ -2431,10 +2520,22 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div ref={locationSearchContainerRef} className="relative sm:col-span-6 lg:col-span-1">
-            <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-              <span className="truncate" title="Localidade do Frete / Destino da Entrega">Localidade do Frete</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <span className="truncate" title="Localidade do Frete / Destino da Entrega">Localidade do Frete</span>
+              </label>
+              {allRegisteredLocations.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsLocationSearchOpen(prev => !prev)}
+                  className="text-[10px] text-sky-600 hover:text-sky-700 font-semibold cursor-pointer"
+                  title="Ver todas as localidades cadastradas"
+                >
+                  Ver lista ({allRegisteredLocations.length})
+                </button>
+              )}
+            </div>
 
             <div className="relative">
               <input
@@ -2450,109 +2551,218 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                   setIsLocationSearchOpen(true);
                 }}
                 onFocus={() => {
-                  if (matchedCompany?.locations && matchedCompany.locations.length > 0) {
-                    setIsLocationSearchOpen(true);
+                  setIsLocationSearchOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (currentQuote.deliveryLocation?.trim()) {
+                      handleRegisterAndSelectLocation(currentQuote.deliveryLocation);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setIsLocationSearchOpen(false);
                   }
                 }}
-                className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
+                onBlur={() => {
+                  // Se o usuário digitou uma localidade não cadastrada e saiu do campo, cadastra automaticamente
+                  const typed = (currentQuote.deliveryLocation || '').trim();
+                  if (typed && !allRegisteredLocations.some(l => l.trim().toLowerCase() === typed.toLowerCase())) {
+                    handleRegisterAndSelectLocation(typed);
+                  }
+                }}
+                className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-14 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
               />
               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                 <MapPin className="w-4 h-4 text-slate-400" />
               </div>
 
-              {currentQuote.deliveryLocation && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                {currentQuote.deliveryLocation && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentQuote(prev => ({
+                        ...prev,
+                        deliveryLocation: '',
+                        shippingTerms: 'Frete incluso p/ sua localidade.'
+                      }));
+                      setIsLocationSearchOpen(false);
+                    }}
+                    className="p-1 hover:bg-slate-200/70 rounded-md text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                    title="Limpar localidade"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => {
-                    setCurrentQuote(prev => ({
-                      ...prev,
-                      deliveryLocation: '',
-                      shippingTerms: 'Frete incluso p/ sua localidade.'
-                    }));
-                    setIsLocationSearchOpen(false);
-                  }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200/70 rounded-md text-slate-400 hover:text-slate-600 transition"
-                  title="Limpar localidade"
+                  onClick={() => setIsLocationSearchOpen(prev => !prev)}
+                  className="p-1 hover:bg-slate-200/70 rounded-md text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                  title="Abrir lista de localidades cadastradas"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isLocationSearchOpen ? 'rotate-180 text-sky-600' : ''}`} />
                 </button>
-              )}
+              </div>
             </div>
 
-            {/* Dropdown de destinos de frete vinculados exclusivamente à empresa escolhida */}
-            {isLocationSearchOpen && matchedCompany && matchedCompany.locations && matchedCompany.locations.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-60 flex flex-col animate-scaleIn">
+            {/* Dropdown inteligente: Escolher da lista ou Cadastrar Nova Localidade */}
+            {isLocationSearchOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-72 flex flex-col animate-scaleIn">
                 <div className="p-2 overflow-y-auto divide-y divide-slate-100">
                   {(() => {
-                    const query = (currentQuote.deliveryLocation || '').trim().toLowerCase();
-                    const filteredLocations = matchedCompany.locations.filter(loc => {
-                      if (!query) return true;
-                      return loc.toLowerCase().includes(query);
+                    const query = (currentQuote.deliveryLocation || '').trim();
+                    const queryLower = query.toLowerCase();
+
+                    // 1. Destinos da empresa selecionada (prioritários)
+                    const companyLocs = (matchedCompany?.locations || [])
+                      .filter(l => {
+                        const clean = (l || '').trim();
+                        if (!clean || clean.startsWith('website:') || clean.startsWith('logo:')) return false;
+                        return !queryLower || clean.toLowerCase().includes(queryLower);
+                      });
+
+                    // 2. Outras localidades cadastradas no sistema
+                    const otherLocs = allRegisteredLocations.filter(loc => {
+                      if (companyLocs.some(cl => cl.toLowerCase() === loc.toLowerCase())) return false;
+                      return !queryLower || loc.toLowerCase().includes(queryLower);
                     });
 
-                    if (filteredLocations.length === 0) {
-                      return (
-                        <div className="p-3 text-center text-xs text-slate-500">
-                          <p className="font-semibold text-slate-700">Nenhum destino cadastrado com "{currentQuote.deliveryLocation}"</p>
-                          <p className="text-[10.5px] text-slate-400 mt-1">
-                            Você pode continuar digitando livremente para usar este destino.
-                          </p>
-                        </div>
-                      );
-                    }
+                    // Verifica se o termo digitado já existe exatamente cadastrado
+                    const isExactRegistered = allRegisteredLocations.some(l => l.trim().toLowerCase() === queryLower);
+                    const canRegisterNew = query.length > 0 && !isExactRegistered;
 
                     return (
-                      <div className="pt-0.5 space-y-1">
-                        <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                          <span>Destinos da {matchedCompany.name.split('—')[0].split('-')[0].trim()} ({filteredLocations.length})</span>
-                          <span className="text-[9px] font-normal text-slate-400">Clique para selecionar</span>
-                        </div>
-                        {filteredLocations.map(loc => {
-                          const isSelected = (currentQuote.deliveryLocation || '').toLowerCase().trim() === loc.toLowerCase().trim();
-                          return (
+                      <div className="space-y-1.5">
+                        {/* Opção Rápida de Cadastrar Nova Localidade */}
+                        {canRegisterNew && (
+                          <div className="pb-1.5 border-b border-slate-100">
                             <button
-                              key={loc}
                               type="button"
-                              onClick={() => {
-                                setCurrentQuote(prev => ({
-                                  ...prev,
-                                  deliveryLocation: loc,
-                                  shippingTerms: `Frete incluso p/ ${loc}.`
-                                }));
-                                setIsLocationSearchOpen(false);
-                              }}
-                              className={`w-full text-left p-2.5 rounded-xl transition flex items-center justify-between gap-3 border cursor-pointer ${
-                                isSelected
-                                  ? 'bg-sky-50 border-sky-300'
-                                  : 'hover:bg-sky-50/80 border-transparent hover:border-sky-200'
-                              }`}
+                              onClick={() => handleRegisterAndSelectLocation(query)}
+                              className="w-full text-left p-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-900 transition flex items-center justify-between gap-2.5 cursor-pointer shadow-2xs group"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                                  isSelected ? 'bg-sky-600 text-white' : 'bg-sky-100 text-sky-700'
-                                }`}>
-                                  <MapPin className="w-3.5 h-3.5" />
+                                <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                                  <Plus className="w-4 h-4" />
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="text-xs font-bold text-slate-900 truncate">
-                                    {loc}
+                                  <div className="text-xs font-bold truncate">
+                                    Cadastrar "{query}"
                                   </div>
-                                  <div className="text-[10.5px] text-slate-500 truncate">
-                                    Frete incluso p/ {loc}
-                                  </div>
+                                  <p className="text-[10px] text-sky-700 truncate font-normal">
+                                    {matchedCompany 
+                                      ? `Salvar novo destino de ${matchedCompany.name.split('—')[0].split('-')[0].trim()}`
+                                      : 'Salvar nas localidades cadastradas do sistema'}
+                                  </p>
                                 </div>
                               </div>
-
-                              <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-md shrink-0 transition ${
-                                isSelected
-                                  ? 'bg-sky-600 text-white'
-                                  : 'text-sky-600 bg-white border border-sky-200'
-                              }`}>
-                                {isSelected ? 'Selecionado' : 'Selecionar'}
+                              <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-sky-600 text-white shrink-0 group-hover:bg-sky-700 shadow-2xs transition">
+                                + Cadastrar
                               </span>
                             </button>
-                          );
-                        })}
+                          </div>
+                        )}
+
+                        {/* Grupo 1: Destinos da empresa selecionada */}
+                        {companyLocs.length > 0 && (
+                          <div className="space-y-1">
+                            <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                              <span>Destinos de {matchedCompany?.name.split('—')[0].split('-')[0].trim()} ({companyLocs.length})</span>
+                              <span className="text-[9px] font-normal text-slate-400">Clique para selecionar</span>
+                            </div>
+                            {companyLocs.map(loc => {
+                              const isSelected = queryLower === loc.toLowerCase().trim();
+                              return (
+                                <button
+                                  key={`comp-${loc}`}
+                                  type="button"
+                                  onClick={() => handleSelectLocation(loc)}
+                                  className={`w-full text-left p-2 rounded-xl transition flex items-center justify-between gap-3 border cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-sky-50 border-sky-300'
+                                      : 'hover:bg-sky-50/80 border-transparent hover:border-sky-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                                      isSelected ? 'bg-sky-600 text-white' : 'bg-sky-100 text-sky-700'
+                                    }`}>
+                                      <MapPin className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-bold text-slate-900 truncate">
+                                        {loc}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 truncate">
+                                        Frete incluso p/ {loc}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 transition ${
+                                    isSelected ? 'bg-sky-600 text-white' : 'text-sky-600 bg-white border border-sky-200'
+                                  }`}>
+                                    {isSelected ? 'Selecionado' : 'Selecionar'}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Grupo 2: Outras localidades cadastradas */}
+                        {otherLocs.length > 0 && (
+                          <div className="space-y-1 pt-1">
+                            <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                              <span>{matchedCompany ? 'Outras Localidades Cadastradas' : 'Localidades Cadastradas'} ({otherLocs.length})</span>
+                              {!matchedCompany && <span className="text-[9px] font-normal text-slate-400">Clique para selecionar</span>}
+                            </div>
+                            {otherLocs.map(loc => {
+                              const isSelected = queryLower === loc.toLowerCase().trim();
+                              return (
+                                <button
+                                  key={`other-${loc}`}
+                                  type="button"
+                                  onClick={() => handleSelectLocation(loc)}
+                                  className={`w-full text-left p-2 rounded-xl transition flex items-center justify-between gap-3 border cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-sky-50 border-sky-300'
+                                      : 'hover:bg-sky-50/80 border-transparent hover:border-sky-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                                      isSelected ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      <MapPin className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-semibold text-slate-800 truncate">
+                                        {loc}
+                                      </div>
+                                      <div className="text-[10px] text-slate-400 truncate">
+                                        Frete incluso p/ {loc}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 transition ${
+                                    isSelected ? 'bg-sky-600 text-white' : 'text-slate-600 bg-white border border-slate-200'
+                                  }`}>
+                                    {isSelected ? 'Selecionado' : 'Selecionar'}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Estado Vazio (sem nenhuma localidade e sem texto para cadastrar) */}
+                        {companyLocs.length === 0 && otherLocs.length === 0 && !canRegisterNew && (
+                          <div className="p-4 text-center text-xs text-slate-500">
+                            <MapPin className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                            <p className="font-semibold text-slate-700">Nenhuma localidade encontrada</p>
+                            <p className="text-[10.5px] text-slate-400 mt-0.5">Digite o nome da cidade ou região para cadastrar</p>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -4868,6 +5078,16 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           quote={currentQuote}
           settings={settings}
         />
+      )}
+
+      {/* Notificação Flutuante de Vínculo e Cadastro de Destinos/Compradores */}
+      {linkNotification && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/95 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold backdrop-blur-xs border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
+          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Check className="w-3.5 h-3.5" />
+          </div>
+          <span>{linkNotification}</span>
+        </div>
       )}
 
     </div>
