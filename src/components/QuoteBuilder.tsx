@@ -2828,14 +2828,14 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
           {/* Barra de Operações Rápidas em Lote (Bulk Actions) */}
           {currentQuote.items && currentQuote.items.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2 flex-nowrap overflow-x-auto no-scrollbar max-w-full py-0.5">
+              <div className="flex items-center gap-2 flex-wrap max-w-full py-0.5 relative z-20">
                 <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 shrink-0">
                   <Sparkles className="w-3.5 h-3.5 text-sky-600" />
                   <span>Ações em Lote:</span>
                 </span>
 
                 {/* Botão de Formatação Word (Maiúsculas/Minúsculas) em Lote */}
-                <div className="relative shrink-0" ref={quoteCaseMenuRef}>
+                <div className="relative shrink-0 z-30" ref={quoteCaseMenuRef}>
                   <button
                     type="button"
                     onClick={() => setIsQuoteCaseMenuOpen(prev => !prev)}
@@ -2849,11 +2849,11 @@ export const QuoteBuilder: React.FC<QuoteBuilderProps> = ({
                     <span className="font-serif font-bold text-xs tracking-tight text-sky-700 bg-sky-100 px-1 py-0.2 rounded">
                       Aa
                     </span>
-                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                    <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${isQuoteCaseMenuOpen ? 'rotate-180 text-sky-600' : ''}`} />
                   </button>
 
                   {isQuoteCaseMenuOpen && (
-                    <div className="absolute left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-40 animate-in fade-in slide-in-from-top-1">
+                    <div className="absolute left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-top-1">
                       <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                         {selectedItemIds.length > 0 ? `Formatar ${selectedItemIds.length} Item(s) Selecionado(s)` : 'Formatar Todos os Itens (Word)'}
                       </div>
