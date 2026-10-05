@@ -107,9 +107,9 @@ export interface Quote {
   followUpAt?: string;
   lastFollowUpSentAt?: string;
   notes?: string;
-  // Campos de aprovação e fechamento parcial
   approvedTotalAmount?: number;
   approvedAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProcurementItem {

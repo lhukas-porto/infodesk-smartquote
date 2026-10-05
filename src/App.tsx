@@ -642,7 +642,10 @@ export const App: React.FC = () => {
               if (isConfirmedSent && (rq.status === 'draft' || !rq.status)) {
                 rq = { ...rq, status: 'sent', sentAt: rq.sentAt || new Date().toISOString() };
               }
-              const localMatch = prevQuotes.find(lq => lq.id === rq.id || (lq.code && rq.code && lq.code.trim().toUpperCase() === rq.code.trim().toUpperCase()));
+              const localMatch = prevQuotes.find(lq => 
+                (lq.id && rq.id && lq.id === rq.id) || 
+                (lq.code && rq.code && lq.code.trim().toUpperCase() === rq.code.trim().toUpperCase())
+              );
               const isValidRealItems = (itList?: QuoteItem[] | null): boolean => {
                 if (!itList || !Array.isArray(itList) || itList.length === 0) return false;
                 if (itList.length === 1) {
@@ -659,7 +662,19 @@ export const App: React.FC = () => {
                 return true;
               };
 
-              let items = isValidRealItems(rq.items) ? rq.items : [];
+              // BLINDAGEM CONTRA REGRESSÃO NO F5:
+              // Compara os timestamps de modificação para decidir se a versão local é mais recente
+              const localUpdatedAt = localMatch?.updatedAt || localMatch?.createdAt;
+              const remoteUpdatedAt = rq.updatedAt || rq.createdAt;
+              const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
+              const remoteTime = remoteUpdatedAt ? new Date(remoteUpdatedAt).getTime() : 0;
+
+              // Se a versão local foi modificada mais recentemente que a do banco remoto (com tolerância de 1s para desvio de relógio)
+              const isLocalAuthoritative = Boolean(localMatch && localTime > 0 && localTime > (remoteTime + 1000));
+
+              let items = (isLocalAuthoritative && isValidRealItems(localMatch?.items))
+                ? localMatch!.items
+                : (isValidRealItems(rq.items) ? rq.items : []);
 
               // Se o remoto não veio com itens reais, busca na memória local ou nos backups
               if (!isValidRealItems(items) && localMatch && isValidRealItems(localMatch.items)) {
@@ -677,12 +692,22 @@ export const App: React.FC = () => {
                 else if (isValidRealItems(blmId)) items = blmId!;
               }
 
-              // Se recuperamos itens reais que estavam ausentes no banco, cura o Supabase em background
-              if (items.length > 0 && !isValidRealItems(rq.items)) {
-                syncQuoteToSupabase({ ...rq, items }).catch(e => {
-                  console.warn('[SmartQuote] Falha ao curar itens no Supabase:', e);
-                });
+              // BLINDAGEM DE STATUS NO F5:
+              // Nunca regride uma proposta enviada/negociação/aprovada para rascunho se a versão local já tiver avançado
+              let finalStatus = rq.status;
+              if (localMatch?.status === 'approved' && rq.status !== 'approved') {
+                finalStatus = 'approved';
+              } else if (
+                (localMatch?.status === 'sent' || localMatch?.status === 'negotiating' || localMatch?.status === 'lost') && 
+                (rq.status === 'draft' || !rq.status || isLocalAuthoritative)
+              ) {
+                finalStatus = localMatch.status;
+              } else if (isLocalAuthoritative && localMatch?.status) {
+                finalStatus = localMatch.status;
               }
+
+              const finalApprovedAt = rq.approvedAt || (finalStatus === 'approved' ? (localMatch?.approvedAt || new Date().toISOString()) : undefined);
+              const finalSentAt = rq.sentAt || localMatch?.sentAt || ((finalStatus === 'sent' || finalStatus === 'negotiating' || finalStatus === 'approved') ? (localMatch?.sentAt || new Date().toISOString()) : undefined);
 
               // BLINDAGEM DE COMPRAS NO F5:
               // Recupera registros de compras salvos localmente e no storage dedicado
@@ -712,9 +737,7 @@ export const App: React.FC = () => {
 
                 const purchaseStatus = isPurchased ? ('purchased' as const) : (remIt.purchaseStatus || locIt?.purchaseStatus);
 
-                // Se a proposta mãe estiver aprovada no banco ou localmente, os itens dela são considerados aprovados
-                // a menos que explicitamente rejeitados (approved === false E approvedQuantity === 0)
-                const isParentQuoteApproved = rq.status === 'approved' || localMatch?.status === 'approved';
+                const isParentQuoteApproved = finalStatus === 'approved';
                 const isExcluded = (remIt.approved === false && remIt.approvedQuantity === 0) ||
                                    (locIt?.approved === false && locIt?.approvedQuantity === 0);
                 const approved = isExcluded
@@ -749,11 +772,29 @@ export const App: React.FC = () => {
                 };
               });
 
-              // Preserva status de aprovação da proposta se ela estiver aprovada localmente
-              const finalStatus = (localMatch?.status === 'approved' && rq.status !== 'approved') ? 'approved' : rq.status;
-              const finalApprovedAt = rq.approvedAt || (finalStatus === 'approved' ? localMatch?.approvedAt : undefined);
+              const resultQuote: Quote = {
+                ...rq,
+                status: finalStatus,
+                approvedAt: finalApprovedAt,
+                sentAt: finalSentAt,
+                items,
+                totalAmount: (isLocalAuthoritative && localMatch?.totalAmount !== undefined) ? localMatch.totalAmount : rq.totalAmount,
+                totalCost: (isLocalAuthoritative && localMatch?.totalCost !== undefined) ? localMatch.totalCost : rq.totalCost,
+                totalProfit: (isLocalAuthoritative && localMatch?.totalProfit !== undefined) ? localMatch.totalProfit : rq.totalProfit,
+                totalShipping: (isLocalAuthoritative && localMatch?.totalShipping !== undefined) ? localMatch.totalShipping : rq.totalShipping,
+                totalTaxes: (isLocalAuthoritative && localMatch?.totalTaxes !== undefined) ? localMatch.totalTaxes : rq.totalTaxes,
+                averageMargin: (isLocalAuthoritative && localMatch?.averageMargin !== undefined) ? localMatch.averageMargin : rq.averageMargin,
+                updatedAt: isLocalAuthoritative ? (localMatch?.updatedAt || new Date().toISOString()) : (rq.updatedAt || rq.createdAt)
+              };
 
-              return { ...rq, status: finalStatus, approvedAt: finalApprovedAt, items };
+              // Se a versão local era mais recente ou recuperamos itens ausentes, sincroniza imediatamente com o Supabase
+              if (isLocalAuthoritative || (items.length > 0 && !isValidRealItems(rq.items))) {
+                syncQuoteToSupabase(resultQuote).catch(e => {
+                  console.warn('[SmartQuote] Falha ao sincronizar versão mais recente no Supabase:', e);
+                });
+              }
+
+              return resultQuote;
             });
 
             // Preserva propostas que existem apenas localmente (evita perda de dados locais)
@@ -1494,27 +1535,35 @@ export const App: React.FC = () => {
     setClientCompanies(updatedComps);
 
     let quoteToSave: Quote = { ...currentQuote };
-    if (!quoteToSave.id) {
-      quoteToSave.id = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    }
 
-    // Preserva o status caso esta proposta já tenha sido enviada ou avançada no pipeline
+    // 1. Busca cotação existente por ID ou por Código
     const existing = quotes.find(q => 
-      q.id === quoteToSave.id || 
+      (q.id && quoteToSave.id && q.id === quoteToSave.id) || 
       (q.code && quoteToSave.code && q.code.trim().toUpperCase() === quoteToSave.code.trim().toUpperCase())
     );
+
+    // Se encontrou cotação existente (por exemplo, UUID do Supabase), unifica ID e preserva status/sentAt
     if (existing) {
+      if (existing.id) {
+        quoteToSave.id = existing.id;
+      }
       if (existing.status && existing.status !== 'draft' && quoteToSave.status === 'draft') {
         quoteToSave.status = existing.status;
       }
       if (existing.sentAt && !quoteToSave.sentAt) {
         quoteToSave.sentAt = existing.sentAt;
       }
+    } else if (!quoteToSave.id) {
+      quoteToSave.id = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     }
+
+    const nowIso = new Date().toISOString();
+    quoteToSave.updatedAt = nowIso;
+
     const isSpecificallySent = Boolean(quoteToSave.sentAt) || (quoteToSave.code && quoteToSave.code.trim().toUpperCase() === 'CNC 210926-3');
     if (isSpecificallySent && quoteToSave.status === 'draft') {
       quoteToSave.status = 'sent';
-      if (!quoteToSave.sentAt) quoteToSave.sentAt = new Date().toISOString();
+      if (!quoteToSave.sentAt) quoteToSave.sentAt = nowIso;
     }
 
     const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -1522,9 +1571,10 @@ export const App: React.FC = () => {
       quoteToSave.date = todayFormatted;
     }
 
-    // Se o código colidir com outro orçamento já existente com ID diferente, gera código incremental
+    // Se o código colidir com outro orçamento já existente com ID diferente (que não seja a própria proposta editada), gera código incremental
     const codeCollision = quotes.find(q => 
       q.id !== quoteToSave.id && 
+      (existing ? q.id !== existing.id : true) &&
       q.code && quoteToSave.code && 
       q.code.trim().toUpperCase() === quoteToSave.code.trim().toUpperCase()
     );
@@ -1542,8 +1592,11 @@ export const App: React.FC = () => {
     setCurrentQuote(quoteToSave);
 
     setQuotes(prev => {
-      // Atualiza apenas a proposta de mesmo ID exclusivo; se for nova, adiciona ao início
-      const idx = prev.findIndex(q => q.id === quoteToSave.id);
+      // Atualiza a proposta correspondente no array local (por ID ou código)
+      const idx = prev.findIndex(q => 
+        q.id === quoteToSave.id || 
+        (q.code && quoteToSave.code && q.code.trim().toUpperCase() === quoteToSave.code.trim().toUpperCase())
+      );
       let next: Quote[];
       if (idx >= 0) {
         next = [...prev];
@@ -2374,13 +2427,15 @@ export const App: React.FC = () => {
               setActiveTab('preview');
             }}
             onEditQuote={async (q) => {
-              const matched = quotes.find(item => item.id === q.id || item.code === q.code);
+              const matched = quotes.find(item => 
+                (item.id && q.id && item.id === q.id) || 
+                (item.code && q.code && item.code.trim().toUpperCase() === q.code.trim().toUpperCase())
+              );
               const itemsToUse = await resolveQuoteItems(q, quotes);
               const quoteToEdit = { ...matched, ...q, items: itemsToUse };
               if ((quoteToEdit.status || 'draft') === 'draft') {
                 const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
                 quoteToEdit.date = todayFormatted;
-                quoteToEdit.createdAt = new Date().toISOString();
               }
               const quoteKey = quoteToEdit.id || quoteToEdit.code;
               setEditingHistoricalQuoteId(quoteKey);
@@ -2392,11 +2447,12 @@ export const App: React.FC = () => {
             onDeleteQuote={handleDeleteQuote}
             onUpdateQuoteStatus={(quoteId, newStatus) => {
               setQuotes(prev => {
+                const nowIso = new Date().toISOString();
+                const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
                 const next = prev.map(q => {
-                  if (q.id === quoteId) {
+                  if (q.id === quoteId || (q.code && quoteId && q.code.trim().toUpperCase() === quoteId.trim().toUpperCase())) {
                     const isMovingFromDraft = (q.status || 'draft') === 'draft';
-                    const nowIso = new Date().toISOString();
-                    const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
                     // Se estiver em rascunho e mudar para enviado (ou qualquer estágio posterior), seta o horário exato dessa mudança
                     let newSentAt: string | undefined;
@@ -2423,6 +2479,7 @@ export const App: React.FC = () => {
                       items: updatedItems,
                       approvedAt: newStatus === 'approved' ? (q.approvedAt || nowIso) : q.approvedAt,
                       sentAt: newSentAt,
+                      updatedAt: nowIso,
                       date: (isMovingFromDraft && newStatus === 'sent') ? todayFormatted : (q.date || todayFormatted)
                     };
                     return updated;
@@ -2430,9 +2487,9 @@ export const App: React.FC = () => {
                   return q;
                 });
                 saveQuotes(next);
-                const updated = next.find(q => q.id === quoteId);
+                const updated = next.find(q => q.id === quoteId || (q.code && quoteId && q.code.trim().toUpperCase() === quoteId.trim().toUpperCase()));
                 if (updated) {
-                  if (currentQuote.id === quoteId || currentQuote.code === updated.code) {
+                  if (currentQuote.id === updated.id || (currentQuote.code && updated.code && currentQuote.code.trim().toUpperCase() === updated.code.trim().toUpperCase())) {
                     setCurrentQuote(updated);
                     saveCurrentDraftQuote(updated);
                   }
@@ -2445,22 +2502,27 @@ export const App: React.FC = () => {
               });
             }}
             onUpdateQuote={(updatedQuote) => {
+              const nowIso = new Date().toISOString();
+              const quoteToPersist: Quote = {
+                ...updatedQuote,
+                updatedAt: updatedQuote.updatedAt || nowIso
+              };
               setQuotes(prev => {
                 const next = prev.map(q => 
-                  (q.id === updatedQuote.id || (q.code && updatedQuote.code && q.code.trim().toUpperCase() === updatedQuote.code.trim().toUpperCase()))
-                    ? updatedQuote 
+                  (q.id === quoteToPersist.id || (q.code && quoteToPersist.code && q.code.trim().toUpperCase() === quoteToPersist.code.trim().toUpperCase()))
+                    ? quoteToPersist 
                     : q
                 );
                 saveQuotes(next);
-                syncQuoteToSupabase(updatedQuote).catch(err => {
+                syncQuoteToSupabase(quoteToPersist).catch(err => {
                   console.warn('Aviso sync quote aprovado:', err);
-                  notifySync(`Aprovação de "${updatedQuote.code}" salva localmente. Sincronização na nuvem pendente.`);
+                  notifySync(`Aprovação de "${quoteToPersist.code}" salva localmente. Sincronização na nuvem pendente.`);
                 });
                 return next;
               });
-              if (currentQuote.id === updatedQuote.id || currentQuote.code === updatedQuote.code) {
-                setCurrentQuote(updatedQuote);
-                saveCurrentDraftQuote(updatedQuote);
+              if (currentQuote.id === quoteToPersist.id || (currentQuote.code && quoteToPersist.code && currentQuote.code.trim().toUpperCase() === quoteToPersist.code.trim().toUpperCase())) {
+                setCurrentQuote(quoteToPersist);
+                saveCurrentDraftQuote(quoteToPersist);
               }
             }}
             onNavigateToPurchases={() => setActiveTab('purchases')}

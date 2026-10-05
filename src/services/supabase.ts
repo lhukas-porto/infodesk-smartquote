@@ -257,6 +257,7 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
         approvedAt: q.approved_at || undefined,
         approvedTotalAmount: q.approved_total_amount !== undefined && q.approved_total_amount !== null ? Number(q.approved_total_amount) : undefined,
         createdAt: q.created_at,
+        updatedAt: q.updated_at || q.created_at,
         sentAt: q.sent_at || ((q.code && q.code.trim().toUpperCase() === 'CNC 210926-3') ? q.created_at || new Date().toISOString() : undefined)
       };
     });
