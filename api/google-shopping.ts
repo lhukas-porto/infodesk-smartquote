@@ -82,11 +82,12 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ success: false, reason: 'empty_query', offers: [] });
     }
 
-    const apiKey = (req.query?.apiKey as string) || 
-      (req.body?.apiKey as string) || 
+    // Chave gerenciada estritamente no ambiente do servidor (não aceita via GET query string pública)
+    const apiKey = 
       process.env.SERPAPI_API_KEY || 
       process.env.VITE_SERPAPI_API_KEY || 
       process.env.VALUESERP_API_KEY || 
+      (req.body?.apiKey as string) || 
       '';
 
     if (!apiKey) {

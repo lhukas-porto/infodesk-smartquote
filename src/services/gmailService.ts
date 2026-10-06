@@ -12,28 +12,25 @@ const GMAIL_TOKEN_KEY = 'infodesk_gmail_access_token';
 const GMAIL_TOKEN_EXPIRY = 'infodesk_gmail_token_expiry';
 const GMAIL_USER_EMAIL = 'infodesk_gmail_user_email';
 
-export const getStoredAccessToken = (): string | null => {
-  // Limpar qualquer resquício antigo de localStorage por segurança e migrar para sessionStorage se ainda válido
-  const legacyToken = localStorage.getItem(GMAIL_TOKEN_KEY);
-  const legacyExpiry = localStorage.getItem(GMAIL_TOKEN_EXPIRY);
-  if (legacyToken) {
-    if (!legacyExpiry || Date.now() <= Number(legacyExpiry)) {
-      sessionStorage.setItem(GMAIL_TOKEN_KEY, legacyToken);
-      if (legacyExpiry) sessionStorage.setItem(GMAIL_TOKEN_EXPIRY, legacyExpiry);
-    }
-    localStorage.removeItem(GMAIL_TOKEN_KEY);
-    localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
-  }
+let memoryAccessToken: string | null = null;
+let memoryTokenExpiry: number = 0;
 
-  const token = sessionStorage.getItem(GMAIL_TOKEN_KEY);
-  const expiry = sessionStorage.getItem(GMAIL_TOKEN_EXPIRY);
-  if (!token) return null;
-  if (expiry && Date.now() > Number(expiry)) {
+export const getStoredAccessToken = (): string | null => {
+  // Limpar resquícios antigos de storage persistente por segurança
+  try {
     sessionStorage.removeItem(GMAIL_TOKEN_KEY);
     sessionStorage.removeItem(GMAIL_TOKEN_EXPIRY);
+    localStorage.removeItem(GMAIL_TOKEN_KEY);
+    localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
+  } catch {}
+
+  if (!memoryAccessToken) return null;
+  if (memoryTokenExpiry && Date.now() > memoryTokenExpiry) {
+    memoryAccessToken = null;
+    memoryTokenExpiry = 0;
     return null;
   }
-  return token;
+  return memoryAccessToken;
 };
 
 export const getStoredUserEmail = (): string | null => {
@@ -46,11 +43,15 @@ export const getStoredUserEmail = (): string | null => {
 };
 
 export const disconnectGmailAccount = () => {
-  sessionStorage.removeItem(GMAIL_TOKEN_KEY);
-  sessionStorage.removeItem(GMAIL_TOKEN_EXPIRY);
-  localStorage.removeItem(GMAIL_TOKEN_KEY);
-  localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
-  localStorage.removeItem(GMAIL_USER_EMAIL);
+  memoryAccessToken = null;
+  memoryTokenExpiry = 0;
+  try {
+    sessionStorage.removeItem(GMAIL_TOKEN_KEY);
+    sessionStorage.removeItem(GMAIL_TOKEN_EXPIRY);
+    localStorage.removeItem(GMAIL_TOKEN_KEY);
+    localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
+    localStorage.removeItem(GMAIL_USER_EMAIL);
+  } catch {}
 };
 
 export const requestGmailAccessToken = async (
@@ -111,10 +112,14 @@ export const requestGmailAccessToken = async (
           const expiresIn = response.expires_in || 3600;
           const expiryTime = Date.now() + Number(expiresIn) * 1000;
 
-          sessionStorage.setItem(GMAIL_TOKEN_KEY, accessToken);
-          sessionStorage.setItem(GMAIL_TOKEN_EXPIRY, String(expiryTime));
-          localStorage.removeItem(GMAIL_TOKEN_KEY);
-          localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
+          memoryAccessToken = accessToken;
+          memoryTokenExpiry = expiryTime;
+          try {
+            sessionStorage.removeItem(GMAIL_TOKEN_KEY);
+            sessionStorage.removeItem(GMAIL_TOKEN_EXPIRY);
+            localStorage.removeItem(GMAIL_TOKEN_KEY);
+            localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
+          } catch {}
 
           try {
             // Validar perfil e e-mail real da conta selecionada

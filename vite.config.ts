@@ -1,6 +1,7 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import googleShoppingHandler from './api/google-shopping';
+import geminiProxyHandler from './api/gemini-proxy';
 
 function googleShoppingPlugin(): Plugin {
   return {
@@ -79,8 +80,38 @@ function imageSearchPlugin(): Plugin {
   };
 }
 
+function geminiProxyPlugin(): Plugin {
+  return {
+    name: 'gemini-proxy-plugin',
+    configureServer(server) {
+      server.middlewares.use('/api/gemini-proxy', async (req, res) => {
+        try {
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', (chunk: any) => { body += chunk; });
+            req.on('end', async () => {
+              try {
+                (req as any).body = JSON.parse(body);
+              } catch {
+                (req as any).body = {};
+              }
+              await geminiProxyHandler(req, res);
+            });
+          } else {
+            await geminiProxyHandler(req, res);
+          }
+        } catch (err: any) {
+          console.error('[Gemini Proxy Middleware Error]:', err?.message);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: err?.message }));
+        }
+      });
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), imageSearchPlugin(), googleShoppingPlugin()],
+  plugins: [react(), imageSearchPlugin(), googleShoppingPlugin(), geminiProxyPlugin()],
   server: {
     port: 5173,
     host: true

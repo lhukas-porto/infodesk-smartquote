@@ -1,4 +1,5 @@
 import { extractItemsFromEmailContent, ParsedItem } from '../utils/aiEmailParser';
+import { fetchGeminiWithTimeout } from './priceScannerService';
 
 export interface ExtractedMultiItem {
   name: string;
@@ -85,26 +86,22 @@ Regras:
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeApiKey}`;
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: `${systemInstruction}\n\n${prompt}` }]
-            }
-          ],
-          generationConfig: {
-            response_mime_type: 'application/json',
-            temperature: 0.1
+      const res = await fetchGeminiWithTimeout(endpoint, {
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `${systemInstruction}\n\n${prompt}` }]
           }
-        })
-      });
+        ],
+        generationConfig: {
+          response_mime_type: 'application/json',
+          temperature: 0.1
+        }
+      }, 25000);
 
-      if (!response.ok) continue;
+      if (!res.ok || !res.data) continue;
 
-      const data = await response.json();
+      const data = res.data;
       const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!candidateText) continue;
 

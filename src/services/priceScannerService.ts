@@ -111,6 +111,46 @@ export async function fetchGeminiWithTimeout(
     return { ok: false, status: 429, errorText: 'Circuit breaker ativo (cota de IA em resfriamento rápido)', rateLimited: true };
   }
 
+  // 1. Em ambiente de navegador, tenta primeiro via proxy seguro da Vercel (/api/gemini-proxy)
+  // Isso protege a chave de API e evita bloqueios de CORS e exposição no bundle
+  if (typeof window !== 'undefined' && endpoint.includes('generativelanguage.googleapis.com')) {
+    try {
+      const urlObj = new URL(endpoint);
+      const match = urlObj.pathname.match(/\/models\/([^:]+):generateContent/);
+      const model = match ? match[1] : 'gemini-flash-lite-latest';
+      const keyFromUrl = urlObj.searchParams.get('key') || '';
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      const proxyRes = await fetch('/api/gemini-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          contents: body.contents,
+          systemInstruction: body.systemInstruction,
+          generationConfig: body.generationConfig,
+          tools: body.tools,
+          apiKey: keyFromUrl || undefined
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      if (proxyRes.ok) {
+        const data = await proxyRes.json().catch(() => null);
+        if (data) return { ok: true, status: 200, data };
+      } else if (proxyRes.status === 429) {
+        console.warn('[Gemini Proxy] Rate limit 429 retornado.');
+        return { ok: false, status: 429, errorText: 'Quota exceeded for model', rateLimited: true };
+      }
+    } catch {
+      // Se falhar a chamada do proxy (ex: offline), prossegue com fallback direto
+    }
+  }
+
+  // 2. Chamada direta ao endpoint original (fallback e testes unitários Node)
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 

@@ -265,13 +265,7 @@ export const App: React.FC = () => {
   const [draftsFilterTrigger, setDraftsFilterTrigger] = useState<number>(0);
   const [previewSourceTab, setPreviewSourceTab] = useState<'builder' | 'history' | 'purchases'>('builder');
   const [syncNotice, setSyncNotice] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
-  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('infodesk_auth_user') || (import.meta.env.DEV ? 'lucas@infodesk.net.br' : null);
-    } catch {
-      return import.meta.env.DEV ? 'lucas@infodesk.net.br' : null;
-    }
-  });
+  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
@@ -280,39 +274,22 @@ export const App: React.FC = () => {
       if (!mounted) return;
       if (session?.user?.email) {
         setAuthenticatedUserEmail(session.user.email);
-        try { localStorage.setItem('infodesk_auth_user', session.user.email); } catch {}
       } else {
-        const stored = localStorage.getItem('infodesk_auth_user') || (import.meta.env.DEV ? 'lucas@infodesk.net.br' : null);
-        if (stored) {
-          setAuthenticatedUserEmail(stored);
-        } else {
-          setAuthenticatedUserEmail(null);
-          try { localStorage.removeItem('infodesk_auth_user'); } catch {}
-        }
+        setAuthenticatedUserEmail(null);
       }
       setIsCheckingAuth(false);
     }).catch((err) => {
       console.warn('[Auth Check Error]:', err);
       if (mounted) {
-        const stored = localStorage.getItem('infodesk_auth_user') || (import.meta.env.DEV ? 'lucas@infodesk.net.br' : null);
-        if (stored) {
-          setAuthenticatedUserEmail(stored);
-        } else {
-          setAuthenticatedUserEmail(null);
-          try { localStorage.removeItem('infodesk_auth_user'); } catch {}
-        }
+        setAuthenticatedUserEmail(null);
         setIsCheckingAuth(false);
       }
     });
 
     const subscription = onCorporateAuthStateChange((session) => {
       if (mounted) {
-        const email = session?.user?.email || (import.meta.env.DEV ? (localStorage.getItem('infodesk_auth_user') || 'lucas@infodesk.net.br') : null);
+        const email = session?.user?.email || null;
         setAuthenticatedUserEmail(email);
-        try {
-          if (email) localStorage.setItem('infodesk_auth_user', email);
-          else localStorage.removeItem('infodesk_auth_user');
-        } catch {}
       }
     });
 
@@ -331,7 +308,6 @@ export const App: React.FC = () => {
   };
 
   const handleLoginSuccess = (userEmail: string) => {
-    try { localStorage.setItem('infodesk_auth_user', userEmail); } catch {}
     setAuthenticatedUserEmail(userEmail);
   };
 

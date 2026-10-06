@@ -33,6 +33,7 @@ import { EmailPeriodFilter } from '../services/gmailService';
 import { registerOrUpdateClient } from '../utils/storage';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
 import { extractQuoteItemsWithAI } from '../services/multiItemExtractorService';
+import DOMPurify from 'dompurify';
 
 interface InboxViewProps {
   emails: IncomingEmail[];
@@ -1294,7 +1295,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   <iframe 
                     title={`E-mail de ${selectedEmail.senderCompany || 'Cliente'}`}
                     sandbox="allow-same-origin"
-                    srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:12px;line-height:1.5;color:#1e293b;padding:12px;margin:0;word-break:break-word;background:#ffffff;}table{border-collapse:collapse;width:100%;max-width:100%;margin-bottom:12px;}th,td{padding:6px 8px;border:1px solid #cbd5e1;font-size:11px;}img{max-width:100%;height:auto;}</style></head><body>${selectedEmail.bodyHtml}</body></html>`}
+                    srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:12px;line-height:1.5;color:#1e293b;padding:12px;margin:0;word-break:break-word;background:#ffffff;}table{border-collapse:collapse;width:100%;max-width:100%;margin-bottom:12px;}th,td{padding:6px 8px;border:1px solid #cbd5e1;font-size:11px;}img{max-width:100%;height:auto;}</style></head><body>${DOMPurify.sanitize(selectedEmail.bodyHtml, { ADD_TAGS: ['style'], ADD_ATTR: ['target'] })}</body></html>`}
                     className="w-full h-[380px] bg-white border border-slate-200 rounded-xl"
                   />
                 ) : (
