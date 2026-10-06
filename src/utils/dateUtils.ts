@@ -105,8 +105,7 @@ export function updateDraftQuotesToToday(quotes: Quote[]): { updatedQuotes: Quot
         hasChanges = true;
         return {
           ...q,
-          date: todayStr,
-          createdAt: now.toISOString()
+          date: todayStr
         };
       }
     }

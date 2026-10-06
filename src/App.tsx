@@ -222,13 +222,35 @@ export const App: React.FC = () => {
   const [emails, setEmails] = useState<IncomingEmail[]>(getEmails());
   const [quotes, setQuotes] = useState<Quote[]>(() => {
     const raw = getQuotes();
-    const healed = raw.map(q => {
-      const isConfirmedSent = Boolean(q.sentAt) || (q.code && q.code.trim().toUpperCase() === 'CNC 210926-3');
+    const sanitized = raw.map(q => {
+      const code = (q.code || '').trim().toUpperCase();
+      if (code === 'UBEC 280926') {
+        return {
+          ...q,
+          status: 'draft' as const,
+          sentAt: undefined,
+          date: '28 de setembro de 2026',
+          totalAmount: 4298,
+          totalCost: 3740,
+          totalProfit: 558
+        };
+      }
+      const isSeptember = /\b\d{2}0926\b/.test(code) || /setembro/i.test(q.date || '');
+      if (isSeptember && q.sentAt && q.sentAt.includes('2026-10-06')) {
+        return {
+          ...q,
+          sentAt: q.createdAt && !q.createdAt.includes('2026-10-06') ? q.createdAt : undefined
+        };
+      }
+      return q;
+    });
+    const healed = sanitized.map(q => {
+      const isConfirmedSent = (Boolean(q.sentAt) || (q.code && q.code.trim().toUpperCase() === 'CNC 210926-3')) && (q.code?.trim().toUpperCase() !== 'UBEC 280926');
       if (isConfirmedSent && (q.status === 'draft' || !q.status)) {
         return {
           ...q,
           status: 'sent' as const,
-          sentAt: q.sentAt || new Date().toISOString()
+          sentAt: q.sentAt || q.createdAt || undefined
         };
       }
       return q;
@@ -651,9 +673,9 @@ export const App: React.FC = () => {
           // Merge seguro: se o banco retornar a cotação sem itens, preserva os itens salvos localmente ou do backup
           setQuotes(prevQuotes => {
             const mergedRemote = validRemoteQuotes.map(rq => {
-              const isConfirmedSent = Boolean(rq.sentAt) || (rq.code && rq.code.trim().toUpperCase() === 'CNC 210926-3');
+              const isConfirmedSent = (Boolean(rq.sentAt) || (rq.code && rq.code.trim().toUpperCase() === 'CNC 210926-3')) && (rq.code?.trim().toUpperCase() !== 'UBEC 280926');
               if (isConfirmedSent && (rq.status === 'draft' || !rq.status)) {
-                rq = { ...rq, status: 'sent', sentAt: rq.sentAt || new Date().toISOString() };
+                rq = { ...rq, status: 'sent', sentAt: rq.sentAt || rq.createdAt || undefined };
               }
               const localMatch = prevQuotes.find(lq => isSameQuote(lq, rq));
               const isValidRealItems = (itList?: QuoteItem[] | null): boolean => {
@@ -713,7 +735,9 @@ export const App: React.FC = () => {
               // BLINDAGEM DE STATUS NO F5:
               // NUNCA regride de sent, negotiating, approved ou lost para draft se o usuário já avançou localmente!
               let finalStatus = rq.status;
-              if (localMatch?.status === 'approved') {
+              if (rq.code && rq.code.trim().toUpperCase() === 'UBEC 280926') {
+                finalStatus = 'draft';
+              } else if (localMatch?.status === 'approved') {
                 finalStatus = 'approved';
               } else if (localMatch?.status === 'negotiating' && rq.status !== 'approved') {
                 finalStatus = 'negotiating';
@@ -725,8 +749,12 @@ export const App: React.FC = () => {
                 finalStatus = localMatch.status;
               }
 
-              const finalApprovedAt = rq.approvedAt || (finalStatus === 'approved' ? (localMatch?.approvedAt || new Date().toISOString()) : undefined);
-              const finalSentAt = rq.sentAt || localMatch?.sentAt || ((finalStatus === 'sent' || finalStatus === 'negotiating' || finalStatus === 'approved') ? (localMatch?.sentAt || new Date().toISOString()) : undefined);
+              const finalApprovedAt = finalStatus === 'approved'
+                ? (rq.approvedAt || localMatch?.approvedAt || rq.createdAt || localMatch?.createdAt)
+                : undefined;
+              const finalSentAt = finalStatus === 'draft'
+                ? undefined
+                : (rq.sentAt || (localMatch?.sentAt && !localMatch.sentAt.includes('2026-10-06') ? localMatch.sentAt : undefined) || rq.createdAt || localMatch?.createdAt);
 
               // BLINDAGEM DE COMPRAS NO F5:
               // Recupera registros de compras salvos localmente e no storage dedicado

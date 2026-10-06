@@ -403,7 +403,7 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       global_tax_percent: Number(quote.globalTaxPercent ?? 6),
       global_shipping: Number(quote.globalShipping ?? 0),
       status: (quote.sentAt && (!quote.status || quote.status === 'draft')) || (quote.code && quote.code.trim().toUpperCase() === 'CNC 210926-3') ? 'sent' : (quote.status || 'draft'),
-      sent_at: quote.sentAt || ((quote.status === 'sent' || (quote.code && quote.code.trim().toUpperCase() === 'CNC 210926-3')) ? new Date().toISOString() : null),
+      sent_at: quote.sentAt || (quote.status === 'sent' ? (quote.createdAt || null) : null),
       client_order_number: quote.clientOrderNumber || null,
       approved_at: quote.approvedAt || null,
       approved_total_amount: quote.approvedTotalAmount !== undefined && quote.approvedTotalAmount !== null ? Number(quote.approvedTotalAmount) : null,
