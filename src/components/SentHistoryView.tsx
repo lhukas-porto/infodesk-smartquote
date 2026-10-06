@@ -1018,7 +1018,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setQuoteToDelete(q)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition shadow-2xs cursor-pointer"
+                        className="px-2.5 py-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200/80 hover:border-rose-200 rounded-xl transition flex items-center justify-center shadow-2xs cursor-pointer active:scale-95"
                         title="Excluir proposta"
                       >
                         <Trash2 className="w-4 h-4 text-rose-500" />

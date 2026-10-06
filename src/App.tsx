@@ -2677,6 +2677,8 @@ export const App: React.FC = () => {
             quotes={quotes}
             onOpenQuote={handleOpenQuoteFromHistory}
             onEditQuote={handleEditQuoteFromHistory}
+            onDuplicateQuote={handleDuplicateQuoteFromHistory}
+            onDeleteQuote={handleDeleteQuote}
             onUpdateQuoteStatus={handleUpdateQuoteStatusFromHistory}
             onUpdateQuote={handleUpdateQuoteFromHistory}
             onNavigateToPurchases={handleNavigateToPurchases}
