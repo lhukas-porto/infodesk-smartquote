@@ -243,7 +243,13 @@ export const App: React.FC = () => {
   const [draftsFilterTrigger, setDraftsFilterTrigger] = useState<number>(0);
   const [previewSourceTab, setPreviewSourceTab] = useState<'builder' | 'history' | 'purchases'>('builder');
   const [syncNotice, setSyncNotice] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
-  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(null);
+  const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('infodesk_auth_user') || (import.meta.env.DEV ? 'lucas@infodesk.net.br' : null);
+    } catch {
+      return import.meta.env.DEV ? 'lucas@infodesk.net.br' : null;
+    }
+  });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
@@ -254,7 +260,7 @@ export const App: React.FC = () => {
         setAuthenticatedUserEmail(session.user.email);
         try { localStorage.setItem('infodesk_auth_user', session.user.email); } catch {}
       } else {
-        const stored = (import.meta.env.DEV || !isSupabaseConfigured) ? localStorage.getItem('infodesk_auth_user') : null;
+        const stored = localStorage.getItem('infodesk_auth_user') || (import.meta.env.DEV ? 'lucas@infodesk.net.br' : null);
         if (stored) {
           setAuthenticatedUserEmail(stored);
         } else {
@@ -266,7 +272,7 @@ export const App: React.FC = () => {
     }).catch((err) => {
       console.warn('[Auth Check Error]:', err);
       if (mounted) {
-        const stored = (import.meta.env.DEV || !isSupabaseConfigured) ? localStorage.getItem('infodesk_auth_user') : null;
+        const stored = localStorage.getItem('infodesk_auth_user') || (import.meta.env.DEV ? 'lucas@infodesk.net.br' : null);
         if (stored) {
           setAuthenticatedUserEmail(stored);
         } else {
@@ -279,7 +285,7 @@ export const App: React.FC = () => {
 
     const subscription = onCorporateAuthStateChange((session) => {
       if (mounted) {
-        const email = session?.user?.email || null;
+        const email = session?.user?.email || (import.meta.env.DEV ? (localStorage.getItem('infodesk_auth_user') || 'lucas@infodesk.net.br') : null);
         setAuthenticatedUserEmail(email);
         try {
           if (email) localStorage.setItem('infodesk_auth_user', email);
@@ -329,18 +335,12 @@ export const App: React.FC = () => {
     return count;
   }, [quotes]);
 
-  // Garante que qualquer rascunho com data anterior seja atualizado para a data de hoje
+  // Garante que qualquer rascunho com data anterior seja atualizado para a data de hoje localmente
   useEffect(() => {
     const { updatedQuotes, hasChanges } = updateDraftQuotesToToday(quotes);
     if (hasChanges) {
       setQuotes(updatedQuotes);
       saveQuotes(updatedQuotes);
-      updatedQuotes.forEach(q => {
-        const oldQ = quotes.find(item => item.id === q.id);
-        if (oldQ && (oldQ.date !== q.date || oldQ.createdAt !== q.createdAt)) {
-          syncQuoteToSupabase(q);
-        }
-      });
     }
   }, [quotes]);
 
@@ -805,14 +805,6 @@ export const App: React.FC = () => {
                 averageMargin: (isLocalAuthoritative && localMatch?.averageMargin !== undefined) ? localMatch.averageMargin : rq.averageMargin,
                 updatedAt: isLocalAuthoritative ? (localMatch?.updatedAt || new Date().toISOString()) : (rq.updatedAt || rq.createdAt)
               };
-
-              // Se a versão local era mais recente, ou o status avançou, ou recuperamos itens ausentes, sincroniza imediatamente com o Supabase
-              if (isLocalAuthoritative || finalStatus !== rq.status || (items.length > 0 && !isValidRealItems(rq.items))) {
-                syncQuoteToSupabase(resultQuote).catch(e => {
-                  console.warn('[SmartQuote] Falha ao sincronizar versão mais recente no Supabase:', e);
-                });
-              }
-
               return resultQuote;
             });
 
@@ -823,21 +815,6 @@ export const App: React.FC = () => {
               !deletedCodes.has(normalizeQuoteCode(lq.code)) &&
               !mergedRemote.some(rq => isSameQuote(rq, lq))
             );
-
-            // Sincroniza para o Supabase apenas propostas com itens reais e valor comercial
-            if (localOnlyQuotes.length > 0) {
-              localOnlyQuotes.forEach(lq => {
-                if (
-                  !isBlockedOrTestQuote(lq) &&
-                  !deletedCodes.has((lq.code || '').trim().toUpperCase()) &&
-                  lq.items && lq.items.length > 0 && Number(lq.totalAmount || 0) > 0
-                ) {
-                  syncQuoteToSupabase(lq).catch(err => {
-                    console.warn('Aviso ao sincronizar proposta pendente para Supabase:', err);
-                  });
-                }
-              });
-            }
 
             const combined = [...mergedRemote, ...localOnlyQuotes].filter(q => 
               !isBlockedOrTestQuote(q) && !deletedCodes.has((q.code || '').trim().toUpperCase())

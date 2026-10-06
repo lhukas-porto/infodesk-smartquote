@@ -132,7 +132,7 @@ function normalizeEmailListString(val: any): string | undefined {
   return undefined;
 }
 
-export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<Quote[] | null> {
+export async function fetchQuotesFromSupabase(limitCount: number = 500): Promise<Quote[] | null> {
   if (!supabase) return null;
   try {
     const { data: quotesData, error: quotesError } = await supabase
@@ -188,7 +188,7 @@ export async function fetchQuotesFromSupabase(limitCount: number = 60): Promise<
         rawSearchQuery: row.raw_search_query || row.name,
         partNumber: row.part_number || '',
         ncm: row.ncm || '',
-        imageUrl: row.image_url || '',
+        imageUrl: (row.image_url && row.image_url.startsWith('data:') && row.image_url.length > 5000) ? '' : (row.image_url || ''),
         showImage: Boolean(row.show_image),
         quantity: row.quantity,
         unit: row.unit || 'Un.',

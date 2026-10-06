@@ -210,7 +210,11 @@ export const saveQuoteItemsBackup = (key: string, items: QuoteItem[]): void => {
   if (!key || !Array.isArray(items) || items.length === 0) return;
   try {
     const cleanKey = key.trim().replace(/\s+/g, '_').toUpperCase();
-    localStorage.setItem(`infodesk_backup_items_${cleanKey}`, JSON.stringify(items));
+    const cleanItems = items.map(it => ({
+      ...it,
+      imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:')) ? '' : it.imageUrl
+    }));
+    localStorage.setItem(`infodesk_backup_items_${cleanKey}`, JSON.stringify(cleanItems));
   } catch (e) {
     console.warn('Quota excedida ao salvar backup de itens. Ignorando para não travar a aplicação.');
   }
@@ -742,38 +746,30 @@ export const saveEmails = (emails: IncomingEmail[]): void => {
   if (!emails || !Array.isArray(emails)) return;
 
   try {
-    // 1. Prepara lista leve (máximo 40 e-mails recentes, sem imagens base64 e texto de corpo limitado)
-    const lightweight = emails.slice(0, 40).map(e => {
+    // 1. Prepara lista leve (máximo 15 e-mails recentes, sem bodyHtml pesado e texto de corpo limitado a 5000 chars)
+    const lightweight = emails.slice(0, 15).map(e => {
       const sanitized = sanitizeEmailObject(e);
       return {
         ...sanitized,
         senderEmail: (sanitized.senderEmail || '').toLowerCase().trim(),
-        bodyHtml: stripHeavyDataUrls(sanitized.bodyHtml),
-        body: (sanitized.body || '').slice(0, 40000)
+        bodyHtml: undefined,
+        body: (sanitized.body || '').slice(0, 5000)
       };
     });
 
     try {
       localStorage.setItem(EMAILS_KEY, JSON.stringify(lightweight));
     } catch (quotaErr) {
-      console.warn('Limite de quota do localStorage atingido ao salvar e-mails. Aplicando compressão nível 1...', quotaErr);
-
-      // Fallback 1: Remove bodyHtml completamente de todos os e-mails
-      const noHtml = lightweight.map(e => ({ ...e, bodyHtml: undefined }));
+      console.warn('Limite de quota do localStorage atingido ao salvar e-mails. Aplicando compressão compacta...', quotaErr);
+      const compact = lightweight.slice(0, 5).map(e => ({
+        ...e,
+        body: (e.body || '').slice(0, 1000)
+      }));
       try {
-        localStorage.setItem(EMAILS_KEY, JSON.stringify(noHtml));
+        localStorage.setItem(EMAILS_KEY, JSON.stringify(compact));
       } catch (quotaErr2) {
-        console.warn('Limite de quota do localStorage ainda atingido. Aplicando compressão nível 2...', quotaErr2);
-        // Fallback 2: Mantém apenas os 20 e-mails mais recentes com corpo de 10kb
-        const compact = noHtml.slice(0, 20).map(e => ({
-          ...e,
-          body: (e.body || '').slice(0, 10000)
-        }));
-        try {
-          localStorage.setItem(EMAILS_KEY, JSON.stringify(compact));
-        } catch (quotaErr3) {
-          console.error('Quota do navegador esgotada. Os e-mails serão mantidos em memória:', quotaErr3);
-        }
+        console.warn('Quota esgotada, descartando e-mails do localStorage para priorizar cotações:', quotaErr2);
+        try { localStorage.removeItem(EMAILS_KEY); } catch {}
       }
     }
   } catch (err) {
@@ -824,7 +820,12 @@ export const saveQuotes = (quotes: Quote[]): void => {
         ...q,
         clientEmail: (q.clientEmail || '').toLowerCase().trim(),
         recipientEmails: safeEmailString(q.recipientEmails),
-        ccEmails: safeEmailString(q.ccEmails)
+        ccEmails: safeEmailString(q.ccEmails),
+        items: (q.items || []).map(it => ({
+          ...it,
+          // Blindagem de quota: descarta base64 inline para que as 125+ cotações caibam com folga no localStorage
+          imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:')) ? '' : it.imageUrl
+        }))
       }));
     try {
       localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));
@@ -859,10 +860,23 @@ export const saveQuotes = (quotes: Quote[]): void => {
     } catch (quotaErr) {
       console.warn('Quota excedida ao salvar propostas. Executando limpeza automática...', quotaErr);
       pruneLocalStorage();
+      try { localStorage.removeItem(EMAILS_KEY); } catch {}
       try {
         localStorage.setItem(QUOTES_KEY, JSON.stringify(normalized));
       } catch (retryErr) {
-        console.warn('Não foi possível persistir todas as propostas no localStorage:', retryErr);
+        console.warn('Não foi possível persistir todas as propostas no localStorage, tentando versão sem fotos base64:', retryErr);
+        try {
+          const lightweightQuotes = normalized.map(q => ({
+            ...q,
+            items: (q.items || []).map(it => ({
+              ...it,
+              imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:') && it.imageUrl.length > 5000) ? '' : it.imageUrl
+            }))
+          }));
+          localStorage.setItem(QUOTES_KEY, JSON.stringify(lightweightQuotes));
+        } catch (finalErr) {
+          console.error('Falha crítica ao persistir propostas no localStorage:', finalErr);
+        }
       }
     }
   } catch (err) {
