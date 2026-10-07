@@ -480,6 +480,9 @@ interface PriceScannerViewProps {
   onNavigateToQuote?: () => void;
   quoteItemsCount?: number;
   initialQuery?: string;
+  initialPhotos?: string[];
+  autoStartPhase1?: boolean;
+  scannerTriggerKey?: number | string;
   targetItemIndex?: number | null;
   onUpdateQuoteItem?: (index: number, updatedData: Partial<QuoteItem>) => void;
   existingItem?: Partial<QuoteItem> | null;
@@ -495,6 +498,9 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   onNavigateToQuote,
   quoteItemsCount = 0,
   initialQuery = '',
+  initialPhotos = [],
+  autoStartPhase1 = false,
+  scannerTriggerKey,
   targetItemIndex = null,
   onUpdateQuoteItem,
   existingItem = null,
@@ -596,10 +602,16 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   const [recentCachedPrice, setRecentCachedPrice] = useState<CachedPriceOffer | null>(null);
 
   useEffect(() => {
-    if (initialQuery) {
+    if (initialQuery !== undefined) {
       setBatchRawInput(initialQuery);
     }
   }, [initialQuery]);
+
+  useEffect(() => {
+    if (initialPhotos && initialPhotos.length > 0) {
+      setAttachedProductPhotos(initialPhotos);
+    }
+  }, [initialPhotos]);
 
   // Monitora digitação para encontrar ofertas recentes no cache/histórico (MEL-02)
   useEffect(() => {
@@ -729,6 +741,29 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       setPhase1StatusMessage('');
     }
   };
+
+  const lastProcessedTriggerRef = useRef<number | string | null>(null);
+
+  useEffect(() => {
+    if (scannerTriggerKey && scannerTriggerKey !== lastProcessedTriggerRef.current) {
+      lastProcessedTriggerRef.current = scannerTriggerKey;
+      if (initialPhotos && initialPhotos.length > 0) {
+        setAttachedProductPhotos(initialPhotos);
+      }
+      if (initialQuery?.trim()) {
+        setBatchRawInput(initialQuery);
+      }
+      if (autoStartPhase1 && initialQuery?.trim()) {
+        const queryText = initialQuery;
+        const photos = initialPhotos && initialPhotos.length > 0 ? initialPhotos : undefined;
+        showToast('Produtos recebidos do Inbox! Identificando com IA...');
+        const timer = setTimeout(() => {
+          handleStartPhase1Discovery(queryText, photos);
+        }, 120);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [scannerTriggerKey, autoStartPhase1, initialQuery, initialPhotos]);
 
   // ─── FASE 2: Buscar Preços e Enriquecer (Sistemática Infodesk Store) ───────────
   const handleStartPhase2Enrichment = async () => {

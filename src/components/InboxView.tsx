@@ -54,6 +54,15 @@ interface InboxViewProps {
   onRefreshEmails?: (period?: EmailPeriodFilter) => void;
   onOpenClientManagement?: () => void;
   onUpdateEmailDetails?: (emailId: string, updates: Partial<IncomingEmail>) => void;
+  onSendToScanner?: (items: IncomingEmail['suggestedItems'], options?: {
+    photoUrl?: string;
+    senderCompany?: string;
+    senderName?: string;
+    senderEmail?: string;
+    senderPhone?: string;
+    deliveryLocation?: string;
+    subject?: string;
+  }) => void;
 }
 
 export const InboxView: React.FC<InboxViewProps> = ({
@@ -74,7 +83,8 @@ export const InboxView: React.FC<InboxViewProps> = ({
   onDisconnectGoogle,
   onRefreshEmails,
   onOpenClientManagement,
-  onUpdateEmailDetails
+  onUpdateEmailDetails,
+  onSendToScanner
 }) => {
   const [selectedEmail, setSelectedEmail] = useState<IncomingEmail | null>(emails[0] || null);
   const [filterText, setFilterText] = useState('');
@@ -512,6 +522,34 @@ export const InboxView: React.FC<InboxViewProps> = ({
     }
   };
 
+  const handleSendToScanner = () => {
+    if (!selectedEmail || editableItems.length === 0) return;
+
+    let photoUrl: string | undefined = undefined;
+    if (pastedImageDataUrl) {
+      photoUrl = pastedImageDataUrl;
+    } else if (selectedEmail.bodyHtml) {
+      const match = selectedEmail.bodyHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (match && match[1] && !match[1].startsWith('cid:') && match[1].length > 10) {
+        photoUrl = match[1];
+      }
+    }
+
+    if (onSendToScanner) {
+      onSendToScanner(editableItems, {
+        photoUrl,
+        senderCompany: selectedEmail.senderCompany,
+        senderName: selectedEmail.senderName,
+        senderEmail: selectedEmail.senderEmail,
+        senderPhone: selectedEmail.senderPhone,
+        deliveryLocation: selectedEmail.deliveryLocation,
+        subject: selectedEmail.subject
+      });
+    } else {
+      handleLoadToQuote();
+    }
+  };
+
   const handleLoadToQuote = () => {
     if (!selectedEmail) return;
     onSelectEmailToQuote({
@@ -520,8 +558,11 @@ export const InboxView: React.FC<InboxViewProps> = ({
     });
   };
 
+  const unreadCount = safeEmails.filter(m => Boolean(m.unread)).length;
+
   const filteredEmails = safeEmails.filter(m => {
     if (!m) return false;
+    if (currentPeriod === 'unread' && !m.unread) return false;
     const q = (filterText || '').toLowerCase().trim();
     if (!q) return true;
     const subject = (m.subject || '').toLowerCase();
@@ -971,7 +1012,8 @@ export const InboxView: React.FC<InboxViewProps> = ({
                 { id: '7d', label: '7 dias' },
                 { id: '15d', label: '15 dias' },
                 { id: '30d', label: '30 dias' },
-                { id: 'all', label: 'Tudo' }
+                { id: 'all', label: 'Tudo' },
+                { id: 'unread', label: 'Não lidos' }
               ].map(p => {
                 const active = currentPeriod === p.id;
                 return (
@@ -980,14 +1022,26 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     type="button"
                     onClick={() => onRefreshEmails?.(p.id as EmailPeriodFilter)}
                     disabled={isSyncing}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition text-[11px] shrink-0 ${
+                    className={`px-2.5 py-1 rounded-lg font-bold transition text-[11px] shrink-0 flex items-center gap-1.5 cursor-pointer ${
                       active
                         ? 'bg-sky-600 text-white shadow-2xs'
-                        : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 hover:border-slate-300'
+                        : p.id === 'unread'
+                          ? 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200'
+                          : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 hover:border-slate-300'
                     } ${isSyncing ? 'opacity-50 cursor-wait' : ''}`}
-                    title={`Sincronizar e-mails dos últimos ${p.label}`}
+                    title={p.id === 'unread' ? 'Filtrar apenas e-mails não lidos' : `Sincronizar e-mails dos últimos ${p.label}`}
                   >
-                    {p.label}
+                    {p.id === 'unread' && (
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${active ? 'bg-white' : 'bg-sky-500'}`} />
+                    )}
+                    <span>{p.label}</span>
+                    {p.id === 'unread' && unreadCount > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                        active ? 'bg-white/20 text-white' : 'bg-sky-200 text-sky-900'
+                      }`}>
+                        {unreadCount}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -1001,9 +1055,13 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   <Mail className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-800">Nenhum e-mail na caixa</p>
-                  <p className="text-[11px] text-slate-500 mt-1 max-w-[220px] mx-auto">
-                    Conecte sua conta do Gmail para carregar cotações reais ou cole uma solicitação avulsa.
+                  <p className="text-xs font-bold text-slate-800">
+                    {currentPeriod === 'unread' ? 'Nenhum e-mail não lido' : 'Nenhum e-mail na caixa'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1 max-w-[240px] mx-auto">
+                    {currentPeriod === 'unread'
+                      ? 'Todas as mensagens recebidas já foram visualizadas ou estão em dia.'
+                      : 'Conecte sua conta do Gmail para carregar cotações reais ou cole uma solicitação avulsa.'}
                   </p>
                 </div>
               </div>
@@ -1112,12 +1170,13 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
                     <button
                       type="button"
-                      onClick={handleLoadToQuote}
+                      onClick={handleSendToScanner}
                       disabled={editableItems.length === 0}
-                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 active:scale-95 cursor-pointer"
+                      className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 active:scale-95 cursor-pointer"
+                      title="Jogar itens identificados diretamente no Scanner IA para busca de preços e especificações completas"
                     >
                       <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>Gerar Orçamento IA</span>
+                      <span>Jogar no Scanner IA</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1416,15 +1475,29 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     <span>Adicionar Item Manual</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={handleLoadToQuote}
-                    disabled={editableItems.length === 0}
-                    className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95"
-                  >
-                    <span>Carregar na Cotação com Margens</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={handleLoadToQuote}
+                      disabled={editableItems.length === 0}
+                      className="px-3 py-2 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl font-medium transition cursor-pointer"
+                      title="Abrir cotação diretamente com os itens atuais sem passar pelo Scanner"
+                    >
+                      Carregar direto na Cotação
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSendToScanner}
+                      disabled={editableItems.length === 0}
+                      className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95"
+                      title="Enviar todos os itens identificados para dedução técnica e busca de preços no Scanner IA"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      <span>Jogar no Scanner IA ({editableItems.length} {editableItems.length === 1 ? 'item' : 'itens'})</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 

@@ -382,6 +382,17 @@ export const App: React.FC = () => {
   const [webSearchQuery, setWebSearchQuery] = useState('');
   const [webSearchTargetIndex, setWebSearchTargetIndex] = useState<number | null>(null);
   const [webSearchExistingItem, setWebSearchExistingItem] = useState<Partial<QuoteItem> | null>(null);
+  const [scannerInitialPhotos, setScannerInitialPhotos] = useState<string[]>([]);
+  const [scannerAutoStart, setScannerAutoStart] = useState<boolean>(false);
+  const [scannerTriggerKey, setScannerTriggerKey] = useState<number>(0);
+  const [pendingScannerClient, setPendingScannerClient] = useState<{
+    clientCompany?: string;
+    contactPerson?: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    deliveryLocation?: string;
+    subject?: string;
+  } | null>(null);
 
   const handleToggleScanner = (open?: boolean) => {
     setIsScannerOpen(prev => {
@@ -1452,6 +1463,58 @@ export const App: React.FC = () => {
     setActiveTab('builder');
   };
 
+  const handleSendInboxToScanner = useCallback((
+    items: IncomingEmail['suggestedItems'],
+    options?: {
+      photoUrl?: string;
+      senderCompany?: string;
+      senderName?: string;
+      senderEmail?: string;
+      senderPhone?: string;
+      deliveryLocation?: string;
+      subject?: string;
+    }
+  ) => {
+    if (!items || items.length === 0) return;
+
+    const formattedLines = items.map(it => {
+      const cleanName = (it.name || '').trim();
+      const codePart = it.partNumber ? ` [Ref: ${it.partNumber}]` : '';
+      const qtyPart = ` | Qtd: ${it.quantity || 1} ${it.unit || 'Un.'}`;
+      return `${cleanName}${codePart}${qtyPart}`.trim();
+    }).filter(Boolean);
+
+    const fullText = formattedLines.join('\n');
+    const photos = options?.photoUrl ? [options.photoUrl] : [];
+
+    if (options?.senderCompany || options?.senderName) {
+      setPendingScannerClient({
+        clientCompany: options.senderCompany,
+        contactPerson: options.senderName,
+        clientEmail: options.senderEmail,
+        clientPhone: options.senderPhone,
+        deliveryLocation: options.deliveryLocation,
+        subject: options.subject
+      });
+      registerOrUpdateClient(
+        options.senderCompany || '',
+        options.senderName || '',
+        options.senderEmail,
+        options.senderPhone,
+        options.deliveryLocation
+      );
+    }
+
+    setWebSearchQuery(fullText);
+    setWebSearchTargetIndex(null);
+    setWebSearchExistingItem(null);
+    setScannerInitialPhotos(photos);
+    setScannerAutoStart(true);
+    setScannerTriggerKey(Date.now());
+
+    setActiveTab('websearch');
+  }, [setActiveTab]);
+
   const handleParseCustomEmail = (rawText: string) => {
     const parsedItems = extractItemsFromEmailContent(rawText);
     const markup = settings.defaultMarkupPercent ?? 23.5;
@@ -2167,14 +2230,22 @@ export const App: React.FC = () => {
     const directCosts = totalCost + totalShipping;
     const averageMargin = directCosts > 0 ? (totalProfit / directCosts) * 100 : markup;
 
+    const clientCompany = pendingScannerClient?.clientCompany || '';
+    const contactPerson = pendingScannerClient?.contactPerson || '';
+    const clientEmail = (pendingScannerClient?.clientEmail || '').toLowerCase().trim();
+    const clientPhone = pendingScannerClient?.clientPhone || '';
+    const deliveryLocation = pendingScannerClient?.deliveryLocation || '';
+    const subject = pendingScannerClient?.subject || 'Fornecimento de Materiais';
+
     const newQuote: Quote = {
       id: `quote-${Date.now()}`,
-      code: generateQuoteCode('COTACAO'),
-      clientCompany: '',
-      contactPerson: '',
-      clientEmail: '',
-      clientPhone: '',
-      subject: 'Fornecimento de Materiais',
+      code: generateQuoteCode(clientCompany || 'COTACAO', new Date(), quotes),
+      clientCompany: formatCompanyPrefix(clientCompany),
+      contactPerson: formatContactPerson(contactPerson),
+      clientEmail,
+      clientPhone,
+      deliveryLocation: deliveryLocation || undefined,
+      subject,
       city: 'Brasília',
       date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
       validityDays: formatProposalValidityText(settings.defaultValidityDays),
@@ -2196,6 +2267,8 @@ export const App: React.FC = () => {
       status: 'draft',
       createdAt: new Date().toISOString()
     };
+
+    setPendingScannerClient(null);
 
     setCurrentQuote(newQuote);
     saveCurrentDraftQuote(newQuote);
@@ -2620,6 +2693,7 @@ export const App: React.FC = () => {
                 saveClientCompanies(updatedComps);
               }
             }}
+            onSendToScanner={handleSendInboxToScanner}
           />
         )}
 
@@ -2678,6 +2752,9 @@ export const App: React.FC = () => {
           <PriceScannerView
             products={products}
             initialQuery={webSearchQuery}
+            initialPhotos={scannerInitialPhotos}
+            autoStartPhase1={scannerAutoStart}
+            scannerTriggerKey={scannerTriggerKey}
             targetItemIndex={webSearchTargetIndex}
             existingItem={webSearchExistingItem}
             onAddToQuote={handleAddWebSearchItemToQuote}

@@ -292,7 +292,7 @@ async function resolveInlineImagesAndHtml(msgId: string, payload: any, accessTok
   return { html, text };
 }
 
-export type EmailPeriodFilter = '3d' | '7d' | '15d' | '30d' | 'all';
+export type EmailPeriodFilter = '3d' | '7d' | '15d' | '30d' | 'all' | 'unread';
 
 export const fetchRealGmailMessages = async (
   accessToken: string, 
@@ -301,7 +301,10 @@ export const fetchRealGmailMessages = async (
   let q = 'in:inbox';
   let maxCount = 25;
 
-  if (period === '3d') {
+  if (period === 'unread') {
+    q = 'in:inbox is:unread';
+    maxCount = 50;
+  } else if (period === '3d') {
     q = 'in:inbox newer_than:3d';
     maxCount = 25;
   } else if (period === '7d') {
