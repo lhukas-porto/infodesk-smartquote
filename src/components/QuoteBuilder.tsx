@@ -109,6 +109,7 @@ import { ItemSupplierScanModal } from './ItemSupplierScanModal';
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
 import { reportError } from '../services/errorReporter';
 import { WhatsAppQuoteModal } from './WhatsAppQuoteModal';
+import { healAndRecoverQuote } from '../services/quoteHealingService';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -194,6 +195,25 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const itemsWithoutCostCount = useMemo(() => {
     return (currentQuote.items || []).filter(it => !it.costPrice || it.costPrice === 0).length;
   }, [currentQuote.items]);
+
+  // Auto-cura e recuperação imediata caso a proposta tenha valores financeiros mas itens vazios
+  useEffect(() => {
+    let isMounted = true;
+    const hasFinancials = Number(currentQuote.totalCost || 0) > 0 || Number(currentQuote.totalAmount || 0) > 0;
+    const isEmptyItems = !currentQuote.items || currentQuote.items.length === 0;
+
+    if (isEmptyItems && hasFinancials) {
+      healAndRecoverQuote(currentQuote, propsQuotes).then(res => {
+        if (isMounted && res.healed && res.quote.items.length > 0) {
+          setCurrentQuote(res.quote);
+        }
+      }).catch(err => {
+        console.warn('Erro ao auto-curar itens no QuoteBuilder:', err);
+      });
+    }
+
+    return () => { isMounted = false; };
+  }, [currentQuote.id, currentQuote.code]);
 
   // Estado da regra de exceção no prazo de entrega (ex: Exceto para os itens 1 e 2 em até 25 dias úteis)
   const [showDeliveryException, setShowDeliveryException] = useState(() => {
@@ -3274,8 +3294,36 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             <tbody>
               {currentQuote.items.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-10 text-slate-400">
-                    Nenhum produto adicionado. Use o botão acima ou selecione um e-mail no Inbox para carregar itens com IA.
+                  <td colSpan={10} className="text-center py-10 px-4">
+                    {(Number(currentQuote.totalCost || 0) > 0 || Number(currentQuote.totalAmount || 0) > 0) ? (
+                      <div className="max-w-md mx-auto bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center shadow-xs">
+                        <div className="w-9 h-9 mx-auto mb-2 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center font-bold text-sm">
+                          ⚡
+                        </div>
+                        <p className="text-xs font-bold text-amber-900 mb-1">
+                          Proposta com valores cadastrados (R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                        </p>
+                        <p className="text-[11px] text-amber-700 mb-3 leading-relaxed">
+                          Os produtos estão sendo restaurados automaticamente do histórico comercial.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const res = await healAndRecoverQuote(currentQuote, propsQuotes);
+                            if (res.healed && res.quote.items.length > 0) {
+                              setCurrentQuote(res.quote);
+                            }
+                          }}
+                          className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+                        >
+                          Restaurar Produtos Desta Cotação Agora
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">
+                        Nenhum produto adicionado. Use o botão acima ou selecione um e-mail no Inbox para carregar itens com IA.
+                      </span>
+                    )}
                   </td>
                 </tr>
               ) : (

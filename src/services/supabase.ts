@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { deduplicateCompanyContacts } from '../utils/storage';
 import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory, formatProposalValidityText, normalizeQuoteCode } from '../utils/aiEmailParser';
+import { reportError } from './errorReporter';
 
 // Chaves de conexão com o Supabase da Infodesk
 // Acesso estático direto às variáveis de ambiente do Vite (essencial para substituição no build)
@@ -149,18 +150,30 @@ export async function fetchQuotesFromSupabase(limitCount: number = 500): Promise
     const quoteIds = quotesData.map((q: any) => q.id).filter(Boolean);
     let itemsData: any[] = [];
 
-    // Otimização: busca itens somente das propostas carregadas, evitando N+1 ou carregar a tabela inteira
+    // Otimização e Blindagem de URL: busca itens em lotes (chunks) de 30 IDs para nunca estourar URL (414)
     if (quoteIds.length > 0) {
-      const { data, error: itemsError } = await supabase
-        .from('quote_items')
-        .select('*')
-        .in('quote_id', quoteIds)
-        .order('item_number', { ascending: true });
+      const CHUNK_SIZE = 30;
+      const chunks: string[][] = [];
+      for (let i = 0; i < quoteIds.length; i += CHUNK_SIZE) {
+        chunks.push(quoteIds.slice(i, i + CHUNK_SIZE));
+      }
 
-      if (itemsError) {
-        console.warn('Erro ao carregar itens de orçamentos do Supabase:', itemsError);
-      } else if (data) {
-        itemsData = data;
+      const chunkPromises = chunks.map(chunk => 
+        supabase
+          .from('quote_items')
+          .select('*')
+          .in('quote_id', chunk)
+          .order('item_number', { ascending: true })
+      );
+
+      const chunkResults = await Promise.all(chunkPromises);
+      for (const res of chunkResults) {
+        if (res.error) {
+          console.warn('[Supabase] Erro ao carregar lote de quote_items:', res.error);
+          reportError('Falha ao Carregar Itens do Supabase', res.error, `Total quotes: ${quoteIds.length}`);
+        } else if (res.data) {
+          itemsData.push(...res.data);
+        }
       }
     }
 
@@ -263,6 +276,7 @@ export async function fetchQuotesFromSupabase(limitCount: number = 500): Promise
     });
   } catch (err) {
     console.warn('Erro ao consultar orçamentos no Supabase:', err);
+    reportError('Falha ao Carregar Orçamentos do Supabase', err);
     return null;
   }
 }
@@ -272,14 +286,50 @@ function isValidUuid(val?: string | null): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 }
 
-export async function fetchQuoteItemsByQuoteId(quoteId: string): Promise<QuoteItem[]> {
-  if (!supabase || !quoteId) return [];
+export async function fetchQuoteItemsByQuoteId(quoteId: string, quoteCode?: string): Promise<QuoteItem[]> {
+  if (!supabase || (!quoteId && !quoteCode)) return [];
   try {
-    const { data: itemsData, error } = await supabase
+    let targetQuoteId = quoteId;
+
+    // Se o quoteId fornecido não for UUID válido e tivermos o código comercial (ex: 'UBEC 290926-5')
+    if (!isValidUuid(targetQuoteId) && quoteCode) {
+      const { data: qData } = await supabase
+        .from('quotes')
+        .select('id')
+        .eq('code', quoteCode.trim())
+        .maybeSingle();
+      if (qData?.id) {
+        targetQuoteId = qData.id;
+      }
+    }
+
+    if (!isValidUuid(targetQuoteId) && !quoteId) return [];
+
+    let { data: itemsData, error } = await supabase
       .from('quote_items')
       .select('*')
-      .eq('quote_id', quoteId)
+      .eq('quote_id', targetQuoteId)
       .order('item_number', { ascending: true });
+
+    // Fallback: se não encontrou pelo targetQuoteId mas temos quoteCode, tenta achar o quote pelo código
+    if ((!itemsData || itemsData.length === 0) && quoteCode && targetQuoteId === quoteId) {
+      const { data: qData } = await supabase
+        .from('quotes')
+        .select('id')
+        .eq('code', quoteCode.trim())
+        .maybeSingle();
+      if (qData?.id && qData.id !== targetQuoteId) {
+        const retryRes = await supabase
+          .from('quote_items')
+          .select('*')
+          .eq('quote_id', qData.id)
+          .order('item_number', { ascending: true });
+        if (retryRes.data && retryRes.data.length > 0) {
+          itemsData = retryRes.data;
+          error = null;
+        }
+      }
+    }
 
     if (error || !itemsData) return [];
     return itemsData.map((row: any) => ({
@@ -428,7 +478,7 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       markup_percent: Number(item.markupPercent || 35),
       unit_price: Number(item.unitPrice || 0),
       total_price: Number(item.totalPrice || 0),
-      supplier: item.supplier || null,
+      supplier: item.actualSupplier || item.supplier || null,
       source_url: item.sourceUrl || null,
       approved: Boolean(
         item.approved === true || 
@@ -1462,7 +1512,7 @@ export async function syncDirectPurchasesToSupabase(items: import('../types').Pr
       quoted_cost_price: item.quotedCostPrice,
       quoted_unit_price: item.quotedUnitPrice,
       quoted_total_price: item.quotedTotalPrice,
-      supplier: item.supplier || null,
+      supplier: item.actualSupplier || item.supplier || null,
       source_url: item.sourceUrl || null,
       purchase_status: item.purchaseStatus || 'pending',
       tax_percent: item.taxPercent !== undefined ? item.taxPercent : 9.1,

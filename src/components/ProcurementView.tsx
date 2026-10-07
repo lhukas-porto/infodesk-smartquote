@@ -35,7 +35,9 @@ import {
   AlertCircle,
   AlertTriangle,
   Boxes,
-  Truck
+  Truck,
+  Store,
+  FileText
 } from 'lucide-react';
 import { Quote, ProcurementItem, Product, CompanySettings } from '../types';
 import { 
@@ -53,7 +55,7 @@ import {
   removePurchasedProcurementRecord,
   getSettings
 } from '../utils/storage';
-import { normalizeSearchText } from '../utils/aiEmailParser';
+import { normalizeSearchText, extractStoreNameFromUrl } from '../utils/aiEmailParser';
 import { fetchDirectPurchasesFromSupabase } from '../services/supabase';
 
 interface ProcurementViewProps {
@@ -252,6 +254,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     actualShipping: 0,
     shippingPending: false,
     actualPurchaseUrl: '',
+    actualSupplier: '',
     paymentMethod: 'PIX',
     purchaseDate: '',
     taxPercent: defaultTax,
@@ -301,6 +304,14 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
           const itemTax = item.actualTaxPercent ?? item.taxPercent ?? quote.globalTaxPercent ?? defaultTax;
 
+          const effectiveActualPurchaseUrl = item.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl;
+          const detectedStoreFromPurchaseUrl = extractStoreNameFromUrl(effectiveActualPurchaseUrl);
+          const effectiveActualSupplier = item.actualSupplier || purchaseRecord?.actualSupplier || (isPurchased && detectedStoreFromPurchaseUrl ? detectedStoreFromPurchaseUrl : undefined);
+          const effectiveSupplier = isPurchased
+            ? (effectiveActualSupplier || item.supplier || purchaseRecord?.supplier || detectedStoreFromPurchaseUrl || '')
+            : (item.supplier || '');
+          const effectiveQuotedSupplier = item.quotedSupplier || purchaseRecord?.quotedSupplier || (isPurchased && effectiveSupplier !== item.supplier ? item.supplier : undefined);
+
           list.push({
             id: `${quote.id}_${item.id}`,
             quoteId: quote.id,
@@ -321,12 +332,14 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             quotedCostPrice: item.costPrice,
             quotedUnitPrice,
             quotedTotalPrice,
-            supplier: item.supplier,
+            supplier: effectiveSupplier,
+            quotedSupplier: effectiveQuotedSupplier,
             sourceUrl: item.sourceUrl,
             purchaseStatus: effectivePurchaseStatus,
             actualCostPrice: effectiveActualCost,
             actualUnitCostPrice: effectiveActualUnit,
-            actualPurchaseUrl: item.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl,
+            actualPurchaseUrl: effectiveActualPurchaseUrl,
+            actualSupplier: effectiveActualSupplier,
             actualShippingCost: item.actualShippingCost !== undefined ? item.actualShippingCost : purchaseRecord?.actualShippingCost,
             shippingPending: item.shippingPending ?? purchaseRecord?.shippingPending ?? false,
             paymentMethod: item.paymentMethod || purchaseRecord?.paymentMethod,
@@ -342,8 +355,19 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
     // 2. Compras Diretas Avulsas
     (directPurchases || []).forEach(dp => {
+      const dpActualUrl = dp.actualPurchaseUrl || dp.sourceUrl;
+      const detectedStore = extractStoreNameFromUrl(dpActualUrl);
+      const isPurchased = dp.purchaseStatus === 'purchased';
+      const effectiveActualSupplier = dp.actualSupplier || (isPurchased && detectedStore ? detectedStore : undefined);
+      const effectiveSupplier = isPurchased 
+        ? (effectiveActualSupplier || dp.supplier || detectedStore || '')
+        : (dp.supplier || '');
+
       list.push({
         ...dp,
+        supplier: effectiveSupplier,
+        actualSupplier: effectiveActualSupplier,
+        actualPurchaseUrl: dpActualUrl,
         isDirectPurchase: true
       });
     });
@@ -408,7 +432,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           lastUnitCost: unitPaid,
           minUnitCost: unitPaid,
           maxUnitCost: unitPaid,
-          lastSupplier: item.supplier,
+          lastSupplier: item.actualSupplier || item.supplier || extractStoreNameFromUrl(item.actualPurchaseUrl || item.sourceUrl) || '',
           lastPurchaseUrl: item.actualPurchaseUrl || item.sourceUrl,
           lastPaymentMethod: item.paymentMethod,
           lastClient: item.clientCompany,
@@ -427,7 +451,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       if (dateStr && (!entry.lastPurchasedAt || dateStr >= entry.lastPurchasedAt)) {
         entry.lastPurchasedAt = dateStr;
         entry.lastUnitCost = unitPaid;
-        entry.lastSupplier = item.supplier || entry.lastSupplier;
+        entry.lastSupplier = item.actualSupplier || item.supplier || extractStoreNameFromUrl(item.actualPurchaseUrl || item.sourceUrl) || entry.lastSupplier;
         entry.lastPurchaseUrl = item.actualPurchaseUrl || item.sourceUrl || entry.lastPurchaseUrl;
         entry.lastPaymentMethod = item.paymentMethod || entry.lastPaymentMethod;
         entry.lastClient = item.clientCompany || entry.lastClient;
@@ -438,7 +462,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         unitCost: unitPaid,
         totalCost: item.actualCostPrice !== undefined ? item.actualCostPrice : unitPaid * item.quantity,
         quantity: item.quantity,
-        supplier: item.supplier,
+        supplier: item.actualSupplier || item.supplier || extractStoreNameFromUrl(item.actualPurchaseUrl || item.sourceUrl) || '',
         client: item.clientCompany,
         purchaseUrl: item.actualPurchaseUrl || item.sourceUrl,
         paymentMethod: item.paymentMethod,
@@ -647,7 +671,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     }>();
 
     filteredItems.forEach(item => {
-      const rawSupp = item.supplier?.trim();
+      const rawSupp = (item.purchaseStatus === 'purchased' ? (item.actualSupplier || item.supplier) : item.supplier)?.trim();
       const supp = rawSupp && rawSupp.length > 0 ? rawSupp : 'Fornecedor a Definir';
       let g = map.get(supp);
       if (!g) {
@@ -726,7 +750,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     };
   }, [pendingItems, purchasedItems]);
 
-  // Abrir Modal de Registro de Compra com valores unitários e links reais
+  // Abrir Modal de Registro de Compra com valores unitários, links e fornecedor real
   const handleOpenPurchaseModal = (item: ProcurementItem) => {
     setActiveItemForPurchase(item);
     setIsAddingNewPaymentMethod(false);
@@ -745,16 +769,42 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       ? item.purchasedAt.split('T')[0]
       : new Date().toISOString().split('T')[0];
 
+    const effectiveUrl = item.actualPurchaseUrl || item.sourceUrl || '';
+    const detectedFromUrl = extractStoreNameFromUrl(effectiveUrl);
+    const initialSupplier = item.actualSupplier || 
+      (detectedFromUrl || '') || 
+      item.supplier || 
+      '';
+
     setPurchaseForm({
       actualUnitCost: defaultUnitCost,
       actualCost: defaultTotalCost,
       actualShipping: item.actualShippingCost || 0,
       shippingPending: Boolean(item.shippingPending),
-      actualPurchaseUrl: item.actualPurchaseUrl || item.sourceUrl || '',
+      actualPurchaseUrl: effectiveUrl,
+      actualSupplier: initialSupplier,
       paymentMethod: item.paymentMethod || paymentMethodsList[0] || 'PIX',
       purchaseDate: defaultDate,
       taxPercent: item.actualTaxPercent ?? item.taxPercent ?? defaultTax,
       notes: item.purchaseNotes || ''
+    });
+  };
+
+  // Atualização Inteligente de URL de Compra e Detecção Automática do Fornecedor
+  const handlePurchaseUrlChange = (newUrl: string) => {
+    const detectedStore = extractStoreNameFromUrl(newUrl);
+    setPurchaseForm(prev => {
+      const prevDetected = extractStoreNameFromUrl(prev.actualPurchaseUrl);
+      const shouldAutoUpdateSupplier = Boolean(
+        detectedStore && 
+        (!prev.actualSupplier || prev.actualSupplier === prevDetected || prev.actualSupplier === activeItemForPurchase?.supplier)
+      );
+
+      return {
+        ...prev,
+        actualPurchaseUrl: newUrl,
+        ...(shouldAutoUpdateSupplier ? { actualSupplier: detectedStore } : {})
+      };
     });
   };
 
@@ -784,6 +834,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   const handleSavePurchase = () => {
     if (!activeItemForPurchase) return;
 
+    const resolvedSupplier = purchaseForm.actualSupplier?.trim() || 
+      extractStoreNameFromUrl(purchaseForm.actualPurchaseUrl) || 
+      activeItemForPurchase.supplier || 
+      '';
+
     if (activeItemForPurchase.isDirectPurchase) {
       // Compra direta avulsa
       const updatedDirectItem: ProcurementItem = {
@@ -792,6 +847,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         actualCostPrice: Number(purchaseForm.actualCost),
         actualUnitCostPrice: Number(purchaseForm.actualUnitCost),
         actualPurchaseUrl: purchaseForm.actualPurchaseUrl?.trim() || undefined,
+        actualSupplier: resolvedSupplier || undefined,
+        supplier: resolvedSupplier || activeItemForPurchase.supplier,
         actualShippingCost: Number(purchaseForm.actualShipping),
         shippingPending: Boolean(purchaseForm.shippingPending),
         paymentMethod: purchaseForm.paymentMethod,
@@ -807,6 +864,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         actualCostPrice: updatedDirectItem.actualCostPrice,
         actualUnitCostPrice: updatedDirectItem.actualUnitCostPrice,
         actualPurchaseUrl: updatedDirectItem.actualPurchaseUrl,
+        actualSupplier: resolvedSupplier || undefined,
+        supplier: resolvedSupplier || activeItemForPurchase.supplier,
         actualShippingCost: updatedDirectItem.actualShippingCost,
         shippingPending: updatedDirectItem.shippingPending,
         paymentMethod: updatedDirectItem.paymentMethod,
@@ -842,6 +901,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           actualCostPrice: Number(purchaseForm.actualCost),
           actualUnitCostPrice: Number(purchaseForm.actualUnitCost),
           actualPurchaseUrl: purchaseForm.actualPurchaseUrl?.trim() || undefined,
+          actualSupplier: resolvedSupplier || undefined,
+          supplier: resolvedSupplier || it.supplier,
+          quotedSupplier: it.quotedSupplier || it.supplier,
           actualShippingCost: Number(purchaseForm.actualShipping),
           shippingPending: Boolean(purchaseForm.shippingPending),
           paymentMethod: purchaseForm.paymentMethod,
@@ -864,6 +926,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       actualCostPrice: Number(purchaseForm.actualCost),
       actualUnitCostPrice: Number(purchaseForm.actualUnitCost),
       actualPurchaseUrl: purchaseForm.actualPurchaseUrl?.trim() || undefined,
+      actualSupplier: resolvedSupplier || undefined,
+      supplier: resolvedSupplier || activeItemForPurchase.supplier,
+      quotedSupplier: activeItemForPurchase.quotedSupplier || activeItemForPurchase.supplier,
       actualShippingCost: Number(purchaseForm.actualShipping),
       shippingPending: Boolean(purchaseForm.shippingPending),
       paymentMethod: purchaseForm.paymentMethod,
@@ -902,6 +967,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       delete cleaned.purchasedAt;
       delete cleaned.purchaseNotes;
       delete cleaned.shippingPending;
+      if (cleaned.quotedSupplier) {
+        cleaned.supplier = cleaned.quotedSupplier;
+      }
+      delete cleaned.actualSupplier;
+      delete cleaned.quotedSupplier;
       const updated = saveOrUpdateDirectPurchase(cleaned);
       setDirectPurchases(updated);
       showToast(`Registro de compra de "${item.name}" desfeito. Item retornou para "A Comprar".`);
@@ -932,6 +1002,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         delete cleaned.purchasedAt;
         delete cleaned.purchaseNotes;
         delete cleaned.actualTaxPercent;
+        if (cleaned.quotedSupplier) {
+          cleaned.supplier = cleaned.quotedSupplier;
+        }
+        delete cleaned.actualSupplier;
+        delete cleaned.quotedSupplier;
         return cleaned;
       }
       return it;
@@ -2107,46 +2182,81 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 </div>
               </div>
 
-              {/* Linha 2: Link de Onde Está Comprando (URL Real) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Link2 className="w-3.5 h-3.5 text-sky-600" />
-                    Link de Onde Está Comprando (URL de Compra)
-                  </span>
-                  {purchaseForm.actualPurchaseUrl && (
-                    <a
-                      href={purchaseForm.actualPurchaseUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sky-600 hover:text-sky-800 text-[11px] font-bold inline-flex items-center gap-1 transition"
-                    >
-                      <span>Testar Link</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </label>
-                <div className="flex gap-2">
+              {/* Linha 2: Link de Onde Está Comprando e Fornecedor / Loja Real */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Link2 className="w-3.5 h-3.5 text-sky-600" />
+                      Link de Compra (URL Real)
+                    </span>
+                    {purchaseForm.actualPurchaseUrl && (
+                      <a
+                        href={purchaseForm.actualPurchaseUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sky-600 hover:text-sky-800 text-[11px] font-bold inline-flex items-center gap-1 transition"
+                      >
+                        <span>Testar Link</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </label>
                   <input
                     type="url"
                     value={purchaseForm.actualPurchaseUrl}
-                    onChange={(e) => setPurchaseForm({ ...purchaseForm, actualPurchaseUrl: e.target.value })}
-                    className="flex-1 h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs text-slate-900"
+                    onChange={(e) => handlePurchaseUrlChange(e.target.value)}
+                    className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs text-slate-900"
                   />
+                  {activeItemForPurchase.sourceUrl && activeItemForPurchase.sourceUrl !== purchaseForm.actualPurchaseUrl && (
+                    <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                      Link cotado:{' '}
+                      <a 
+                        href={activeItemForPurchase.sourceUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-slate-500 hover:text-sky-700 underline truncate max-w-[200px]"
+                      >
+                        {activeItemForPurchase.sourceUrl}
+                      </a>
+                    </p>
+                  )}
                 </div>
-                {activeItemForPurchase.sourceUrl && activeItemForPurchase.sourceUrl !== purchaseForm.actualPurchaseUrl && (
-                  <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                    Link original cotado:{' '}
-                    <a 
-                      href={activeItemForPurchase.sourceUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-slate-500 hover:text-sky-700 underline truncate max-w-[320px]"
-                    >
-                      {activeItemForPurchase.sourceUrl}
-                    </a>
-                  </p>
-                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Store className="w-3.5 h-3.5 text-emerald-600" />
+                      Fornecedor / Loja Real da Compra *
+                    </span>
+                    {activeItemForPurchase.supplier && activeItemForPurchase.supplier !== purchaseForm.actualSupplier && (
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        Cotado: {activeItemForPurchase.supplier}
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    value={purchaseForm.actualSupplier}
+                    onChange={(e) => setPurchaseForm(prev => ({ ...prev, actualSupplier: e.target.value }))}
+                    className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs text-slate-900 font-medium"
+                  />
+                  <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 flex-wrap">
+                    <span>Lojas comuns:</span>
+                    {['Amazon', 'Mercado Livre', 'KaBuM!', 'Shopee', 'Kalunga'].map(store => (
+                      <button
+                        key={store}
+                        type="button"
+                        onClick={() => setPurchaseForm(prev => ({ ...prev, actualSupplier: store }))}
+                        className={`hover:underline cursor-pointer font-medium ${
+                          purchaseForm.actualSupplier === store ? 'text-emerald-700 font-bold' : 'text-sky-600 hover:text-sky-800'
+                        }`}
+                      >
+                        {store}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Linha 3: Forma de Pagamento com Adição Rápida */}
@@ -2934,7 +3044,14 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   <strong>{item.clientCompany}</strong>
                 </span>
                 {item.supplier && (
-                  <span>• Fornecedor: <strong className="text-slate-700">{item.supplier}</strong></span>
+                  <span>
+                    • Fornecedor: <strong className="text-slate-700">{item.supplier}</strong>
+                    {isPurchased && item.quotedSupplier && item.quotedSupplier !== item.supplier && (
+                      <span className="ml-1 text-[11px] text-slate-400 font-normal">
+                        (Cotado: {item.quotedSupplier})
+                      </span>
+                    )}
+                  </span>
                 )}
                 {item.partNumber && (
                   <span>• Part Number: <code className="font-mono text-[11px]">{item.partNumber}</code></span>
@@ -3008,6 +3125,13 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               {item.purchasedAt && (
                 <span className="text-slate-400 text-[11px]">
                   Comprado em: {formatDatePtBr(item.purchasedAt)}
+                </span>
+              )}
+
+              {item.purchaseNotes && (
+                <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-800 px-2 py-0.5 rounded-lg border border-sky-200 text-[11px] font-medium" title={item.purchaseNotes}>
+                  <FileText className="w-3 h-3 text-sky-600" />
+                  <span className="truncate max-w-[200px]">Obs/NF: {item.purchaseNotes}</span>
                 </span>
               )}
             </div>

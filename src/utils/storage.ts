@@ -1734,6 +1734,9 @@ export interface ProcurementPurchaseRecord {
   actualCostPrice?: number;
   actualUnitCostPrice?: number;
   actualPurchaseUrl?: string;
+  actualSupplier?: string;
+  supplier?: string;
+  quotedSupplier?: string;
   actualShippingCost?: number;
   shippingPending?: boolean;
   paymentMethod?: string;

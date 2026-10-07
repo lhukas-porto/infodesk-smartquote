@@ -118,6 +118,7 @@ import {
   generateProposalEmailHtml,
   normalizeSearchText,
   normalizeQuoteCode,
+  extractStoreNameFromUrl,
   isSameQuote
 } from './utils/aiEmailParser';
 import {
@@ -153,6 +154,12 @@ import {
   signOutCorporateUser,
   onCorporateAuthStateChange
 } from './services/supabase';
+import {
+  healAndRecoverQuote,
+  healAllQuotesBatch,
+  areLegitimateQuoteItems,
+  isLegitimateQuoteItem
+} from './services/quoteHealingService';
 import { 
   calculateCommercialUnitPrice, 
   calculateMarkupFromUnitPrice, 
@@ -341,6 +348,28 @@ export const App: React.FC = () => {
       saveQuotes(updatedQuotes);
     }
   }, [quotes]);
+
+  // AUTO-CURA DE INTEGRIDADE: Recupera, blinda e persiste qualquer cotação histórica que tenha ficado sem itens
+  useEffect(() => {
+    let isCancelled = false;
+    const hasUnhealed = quotes.some(q => 
+      (!q.items || q.items.length === 0) && (Number(q.totalCost || 0) > 0 || Number(q.totalAmount || 0) > 0)
+    );
+
+    if (hasUnhealed) {
+      healAllQuotesBatch(quotes, emails).then(({ quotes: healedList, healedCount }) => {
+        if (!isCancelled && healedCount > 0) {
+          setQuotes(healedList);
+          saveQuotes(healedList);
+          notifySync(`✅ ${healedCount} proposta(s) com itens ausentes foram recuperadas e consolidadas no histórico!`, 'success');
+        }
+      }).catch(err => {
+        console.warn('Erro ao auto-curar propostas históricas:', err);
+      });
+    }
+
+    return () => { isCancelled = true; };
+  }, [quotes, emails, notifySync]);
 
   const draftQuotesCount = useMemo(() => {
     return quotes.filter(q => (q.status || 'draft') === 'draft' && Array.isArray(q.items) && q.items.length > 0).length;
@@ -655,19 +684,7 @@ export const App: React.FC = () => {
               }
               const localMatch = prevQuotes.find(lq => isSameQuote(lq, rq));
               const isValidRealItems = (itList?: QuoteItem[] | null): boolean => {
-                if (!itList || !Array.isArray(itList) || itList.length === 0) return false;
-                if (itList.length === 1) {
-                  const it = itList[0];
-                  if (it.id?.includes('fallback')) return false;
-                  if (it.name && (
-                    it.name === rq.subject ||
-                    it.name.startsWith('Proposta Comercial') ||
-                    it.name.startsWith('Fornecimento para')
-                  )) {
-                    return false;
-                  }
-                }
-                return true;
+                return areLegitimateQuoteItems(itList);
               };
 
               // BLINDAGEM CONTRA REGRESSÃO NO F5:
@@ -767,6 +784,19 @@ export const App: React.FC = () => {
                   ? false
                   : (remIt.approved === true || locIt?.approved === true || isParentQuoteApproved);
 
+                const effectiveActualUrl = locIt?.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl || remIt.actualPurchaseUrl;
+                const detectedFromActualUrl = extractStoreNameFromUrl(effectiveActualUrl);
+
+                const effectiveActualSupplier = isPurchased
+                  ? (locIt?.actualSupplier ?? purchaseRecord?.actualSupplier ?? (detectedFromActualUrl || undefined) ?? remIt.actualSupplier)
+                  : (remIt.actualSupplier ?? locIt?.actualSupplier ?? purchaseRecord?.actualSupplier);
+
+                const effectiveSupplier = isPurchased
+                  ? (effectiveActualSupplier || locIt?.supplier || purchaseRecord?.supplier || remIt.supplier)
+                  : (remIt.supplier || locIt?.supplier || purchaseRecord?.supplier);
+
+                const effectiveQuotedSupplier = locIt?.quotedSupplier ?? purchaseRecord?.quotedSupplier ?? remIt.quotedSupplier ?? (isPurchased && effectiveSupplier !== remIt.supplier ? remIt.supplier : undefined);
+
                 return {
                   ...remIt,
                   purchaseStatus,
@@ -778,7 +808,10 @@ export const App: React.FC = () => {
                   actualUnitCostPrice: isPurchased
                     ? (locIt?.actualUnitCostPrice ?? purchaseRecord?.actualUnitCostPrice ?? remIt.actualUnitCostPrice)
                     : (remIt.actualUnitCostPrice !== undefined ? remIt.actualUnitCostPrice : (locIt?.actualUnitCostPrice ?? purchaseRecord?.actualUnitCostPrice)),
-                  actualPurchaseUrl: locIt?.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl || remIt.actualPurchaseUrl,
+                  actualPurchaseUrl: effectiveActualUrl,
+                  actualSupplier: effectiveActualSupplier,
+                  supplier: effectiveSupplier,
+                  quotedSupplier: effectiveQuotedSupplier,
                   actualShippingCost: isPurchased
                     ? (locIt?.actualShippingCost ?? purchaseRecord?.actualShippingCost ?? remIt.actualShippingCost)
                     : (remIt.actualShippingCost !== undefined ? remIt.actualShippingCost : (locIt?.actualShippingCost ?? purchaseRecord?.actualShippingCost)),
@@ -2238,19 +2271,7 @@ export const App: React.FC = () => {
 
   const resolveQuoteItems = async (q: Quote, localQuotes: Quote[]): Promise<QuoteItem[]> => {
     const isValidRealItems = (itList?: QuoteItem[] | null): boolean => {
-      if (!itList || !Array.isArray(itList) || itList.length === 0) return false;
-      if (itList.length === 1) {
-        const it = itList[0];
-        if (it.id?.includes('fallback')) return false;
-        if (it.name && (
-          it.name === q.subject ||
-          it.name.startsWith('Proposta Comercial') ||
-          it.name.startsWith('Fornecimento para')
-        )) {
-          return false;
-        }
-      }
-      return true;
+      return areLegitimateQuoteItems(itList);
     };
 
     // 1. Já possui itens reais na memória
@@ -2283,21 +2304,34 @@ export const App: React.FC = () => {
     const bId = q.id ? getQuoteItemsBackup(q.id) : null;
     if (isValidRealItems(bId)) return bId!;
 
-    // 5. Buscar diretamente no Supabase em tempo real caso tenha id no banco
-    if (q.id && isSupabaseConfigured) {
+    // 5. Buscar diretamente no Supabase em tempo real pelo ID e pelo Código
+    if ((q.id || q.code) && isSupabaseConfigured) {
       try {
-        const remoteItems = await fetchQuoteItemsByQuoteId(q.id);
+        const remoteItems = await fetchQuoteItemsByQuoteId(q.id, q.code);
         if (isValidRealItems(remoteItems)) {
           if (q.code) saveQuoteItemsBackup(q.code, remoteItems);
-          saveQuoteItemsBackup(q.id, remoteItems);
+          if (q.id) saveQuoteItemsBackup(q.id, remoteItems);
           return remoteItems;
         }
       } catch (e) {
-        console.warn('Erro ao carregar itens do Supabase para quote:', q.id, e);
+        console.warn('Erro ao carregar itens do Supabase para quote:', q.id || q.code, e);
       }
     }
 
-    // 6. Retorna itens existentes originais caso não haja recuperação melhor
+    // 6. Salvaguarda de Auto-Cura: se a cotação tem valor financeiro, cura imediatamente
+    const hasFinancials = Number(q.totalCost || 0) > 0 || Number(q.totalAmount || 0) > 0;
+    if (hasFinancials) {
+      try {
+        const healedRes = await healAndRecoverQuote(q, localQuotes, emails);
+        if (isValidRealItems(healedRes.quote.items)) {
+          return healedRes.quote.items;
+        }
+      } catch (healErr) {
+        console.warn('Erro na auto-cura de itens:', healErr);
+      }
+    }
+
+    // 7. Retorna itens existentes originais caso não haja recuperação melhor
     return Array.isArray(q.items) ? q.items : [];
   };
 
@@ -2330,7 +2364,11 @@ export const App: React.FC = () => {
 
   const handleOpenQuoteFromHistory = useCallback(async (q: Quote) => {
     const matched = quotes.find(item => isSameQuote(item, q));
-    const itemsToUse = await resolveQuoteItems(q, quotes);
+    let itemsToUse = await resolveQuoteItems(q, quotes);
+    if ((!itemsToUse || itemsToUse.length === 0) && (Number(q.totalCost || 0) > 0 || Number(q.totalAmount || 0) > 0)) {
+      const healedRes = await healAndRecoverQuote(q, quotes, emails);
+      itemsToUse = healedRes.quote.items;
+    }
     const fullQuote = { ...matched, ...q, items: itemsToUse };
     if ((fullQuote.status || 'draft') === 'draft') {
       const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -2340,11 +2378,15 @@ export const App: React.FC = () => {
     setCurrentQuote(fullQuote);
     setPreviewSourceTab('history');
     setActiveTab('preview');
-  }, [quotes, setActiveTab]);
+  }, [quotes, emails, setActiveTab]);
 
   const handleEditQuoteFromHistory = useCallback(async (q: Quote) => {
     const matched = quotes.find(item => isSameQuote(item, q));
-    const itemsToUse = await resolveQuoteItems(q, quotes);
+    let itemsToUse = await resolveQuoteItems(q, quotes);
+    if ((!itemsToUse || itemsToUse.length === 0) && (Number(q.totalCost || 0) > 0 || Number(q.totalAmount || 0) > 0)) {
+      const healedRes = await healAndRecoverQuote(q, quotes, emails);
+      itemsToUse = healedRes.quote.items;
+    }
     const quoteToEdit = { ...matched, ...q, items: itemsToUse };
     if ((quoteToEdit.status || 'draft') === 'draft') {
       const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -2354,8 +2396,9 @@ export const App: React.FC = () => {
     setEditingHistoricalQuoteId(quoteKey);
     editingHistoricalQuoteIdRef.current = quoteKey;
     setCurrentQuote(quoteToEdit);
+    saveCurrentDraftQuote(quoteToEdit);
     setActiveTab('builder');
-  }, [quotes, setActiveTab]);
+  }, [quotes, emails, setActiveTab]);
 
   const handleUpdateQuoteStatusFromHistory = useCallback((quoteId: string, newStatus: Quote['status'], quoteCode?: string) => {
     setQuotes(prev => {

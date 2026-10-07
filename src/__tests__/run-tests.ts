@@ -17,6 +17,7 @@ import './categoriesUnitsSync.test';
 import './procurementAndApproval.test';
 import './procurementAdvancedFeatures.test';
 import './specSearchOnline.test';
+import './quoteHealing.test';
 
 console.log('\n======================================================');
 console.log('🏁 SUÍTE COMPLETA DE TESTES EXECUTADA COM 100% DE SUCESSO!');

@@ -576,7 +576,7 @@ export async function exportPurchasesToExcel(
       }
 
       // G: Fornecedor
-      row.getCell('G').value = item.supplier || 'Mercado Livre';
+      row.getCell('G').value = item.actualSupplier || item.supplier || 'Mercado Livre';
 
       // H: Custo (Total pago na mercadoria)
       const costTotal = item.actualCostPrice !== undefined

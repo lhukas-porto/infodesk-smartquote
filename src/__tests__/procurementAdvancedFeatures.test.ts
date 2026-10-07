@@ -6,6 +6,7 @@ import {
   resetRegisteredPaymentMethods 
 } from '../utils/storage';
 import { Quote, ProcurementItem } from '../types';
+import { extractStoreNameFromUrl } from '../utils/aiEmailParser';
 
 // Mock localStorage se em ambiente Node sem browser
 if (typeof globalThis.localStorage === 'undefined') {
@@ -86,8 +87,9 @@ const actualTotalCost = mockProcurementItem.actualCostPrice!; // 1.950
 const saving = quotedTotalCost - actualTotalCost;
 assert.equal(saving, 250.00, 'Economia real deve ser exatamente R$ 250,00 (R$ 25/unidade)');
 assert.equal(mockProcurementItem.actualPurchaseUrl, 'https://www.amazon.com.br/dp/B01N5IB20Q', 'Link real de compra deve ser retido');
+assert.equal(extractStoreNameFromUrl(mockProcurementItem.actualPurchaseUrl), 'Amazon', 'Loja extraída da URL deve ser Amazon');
 assert.equal(mockProcurementItem.paymentMethod, 'Cartão Amazon', 'Forma de pagamento deve ser retida');
-console.log('  ✅ Gestão de Compras: Link real retido, unitário registrado e saving calculado com sucesso!');
+console.log('  ✅ Gestão de Compras: Link real retido, unitário registrado, loja Amazon detectada e saving calculado com sucesso!');
 
 // 4. Teste de Exclusão de Compra e Retorno para 'A Comprar'
 console.log('🔹 4. Validando Exclusão de Compra e Retorno para "A Comprar"...');

@@ -59,6 +59,8 @@ export interface QuoteItem {
   actualCostPrice?: number;
   actualUnitCostPrice?: number;
   actualPurchaseUrl?: string;
+  actualSupplier?: string;
+  quotedSupplier?: string;
   actualShippingCost?: number;
   shippingPending?: boolean;
   paymentMethod?: string;
@@ -134,6 +136,7 @@ export interface ProcurementItem {
   quotedUnitPrice: number;
   quotedTotalPrice: number;
   supplier?: string;
+  quotedSupplier?: string;
   sourceUrl?: string;
   
   // Dados reais de compra
@@ -141,6 +144,7 @@ export interface ProcurementItem {
   actualCostPrice?: number;
   actualUnitCostPrice?: number;
   actualPurchaseUrl?: string;
+  actualSupplier?: string;
   actualShippingCost?: number;
   shippingPending?: boolean;
   paymentMethod?: string;
