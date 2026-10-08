@@ -486,6 +486,8 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
         ? p.lastUpdated
         : (existing.lastUpdated || p.lastUpdated || new Date().toISOString());
 
+      const chosenCreatedAt = existing.createdAt || p.createdAt || existing.lastUpdated || p.lastUpdated || new Date().toISOString();
+
       result[existingIdx] = {
         ...existing,
         ...p,
@@ -515,6 +517,7 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
         costPrice: Number(p.costPrice) > 0 ? Number(p.costPrice) : (Number(existing.costPrice) || 0),
         unit: p.unit || existing.unit || 'Un.',
         stock: p.stock !== undefined ? Number(p.stock) : (existing.stock ?? 10),
+        createdAt: chosenCreatedAt,
         lastUpdated: chosenLastUpdated
       };
       continue;
@@ -527,6 +530,7 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
 
     result.push({
       ...p,
+      createdAt: p.createdAt || p.lastUpdated || new Date().toISOString(),
       category: normalizeToOfficialCategory(p.category)
     });
   }
@@ -733,6 +737,28 @@ export const saveProducts = (products: Product[]): void => {
   syncBatchProductsToSupabase(deduped).catch(err => {
     console.warn('[Storage] Erro ao sincronizar lote de produtos no Supabase:', err);
   });
+};
+
+// ==========================================
+// MEMÓRIA DE EXPORTAÇÃO DO CATÁLOGO (XLS)
+// ==========================================
+const LAST_CATALOG_EXPORT_AT_KEY = 'infodesk_last_catalog_export_at';
+
+export const getLastCatalogExportDate = (): string | null => {
+  try {
+    return localStorage.getItem(LAST_CATALOG_EXPORT_AT_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const saveLastCatalogExportDate = (dateStr?: string): void => {
+  try {
+    const val = dateStr || new Date().toISOString();
+    localStorage.setItem(LAST_CATALOG_EXPORT_AT_KEY, val);
+  } catch (e) {
+    console.warn('Erro ao salvar data da última exportação do catálogo:', e);
+  }
 };
 
 export const sanitizeEmailObject = (e: any): IncomingEmail => {

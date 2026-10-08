@@ -11,6 +11,7 @@ export interface Product {
   supplier?: string;
   stock?: number;
   lastUpdated: string;
+  createdAt?: string; // Data de inclusão original no catálogo
   sourceUrl?: string;
   imageUrl?: string;
   shippingCost?: number;

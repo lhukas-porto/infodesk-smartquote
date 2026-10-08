@@ -361,6 +361,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       unit: draft.unit || 'Un.',
       supplier: draft.supplier || 'Fornecedor Web / Mercado',
       stock: draft.stock !== undefined ? Number(draft.stock) : 10,
+      createdAt: draft.createdAt || product?.createdAt || draft.lastUpdated || new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
       sourceUrl: draft.sourceUrl || '',
       imageUrl: draft.imageUrl || '',

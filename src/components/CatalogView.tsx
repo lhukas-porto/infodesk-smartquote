@@ -25,7 +25,10 @@ import {
   ArrowDown,
   DollarSign,
   SlidersHorizontal,
-  Tag
+  Tag,
+  Calendar,
+  FileSpreadsheet,
+  Clock
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Product } from '../types';
@@ -39,7 +42,9 @@ import {
   getRegisteredCategories, 
   saveRegisteredCategory,
   recordDeletedProduct,
-  unrecordDeletedProduct
+  unrecordDeletedProduct,
+  getLastCatalogExportDate,
+  saveLastCatalogExportDate
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { ProductEditModal } from './ProductEditModal';
@@ -53,6 +58,32 @@ import { normalizeToOfficialCategory } from '../utils/aiEmailParser';
 import {
   normalizeSearchText
 } from '../utils/aiEmailParser';
+
+function formatDateTimePtBr(isoString?: string | null): string {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    const dia = String(d.getDate()).padStart(2, '0');
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const ano = d.getFullYear();
+    const hora = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dia}/${mes}/${ano} às ${hora}:${min}`;
+  } catch {
+    return isoString;
+  }
+}
+
+function formatDatePtBr(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const clean = dateStr.split('T')[0];
+  const parts = clean.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return clean;
+}
 
 interface CatalogViewProps {
   products: Product[];
@@ -73,6 +104,21 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [isExportingContaAzul, setIsExportingContaAzul] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
 
+  // Modal Inteligente de Exportação de Catálogo XLS (Opção B como Padrão Oficial)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportMode, setExportMode] = useState<'new_since_date' | 'all'>('new_since_date'); // OPÇÃO B PADRÃO!
+  const [lastExportAt, setLastExportAt] = useState<string | null>(() => getLastCatalogExportDate());
+  const [exportSinceDate, setExportSinceDate] = useState<string>(() => {
+    const saved = getLastCatalogExportDate();
+    if (saved) {
+      return saved.split('T')[0];
+    }
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
+  });
+
   // Paginação e Ordenação (Padrão: Ordem Alfabética A-Z)
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -91,13 +137,14 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           setZoomedImage(null);
           return;
         }
+        if (isExportModalOpen) setIsExportModalOpen(false);
         if (isAddModalOpen) setIsAddModalOpen(false);
         if (editingProduct) setEditingProduct(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAddModalOpen, editingProduct, zoomedImage]);
+  }, [isAddModalOpen, editingProduct, zoomedImage, isExportModalOpen]);
 
   const [registeredUnits, setRegisteredUnits] = useState<string[]>(() => getRegisteredUnits());
   const [registeredCategories, setRegisteredCategories] = useState<string[]>(() => getRegisteredCategories());
@@ -280,13 +327,54 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     });
   };
 
-  const handleExportContaAzul = async () => {
+  // Candidatos a exportação calculados em tempo real conforme a opção escolhida
+  const exportCandidateProducts = React.useMemo(() => {
+    if (exportMode === 'all') {
+      return products;
+    }
+    if (!exportSinceDate) {
+      return products;
+    }
+    return products.filter(p => {
+      const rawDate = p.createdAt || p.lastUpdated || '';
+      if (!rawDate) return false;
+      const cleanDate = rawDate.split('T')[0];
+      return cleanDate >= exportSinceDate;
+    });
+  }, [products, exportMode, exportSinceDate]);
+
+  const handleOpenExportModal = () => {
+    const saved = getLastCatalogExportDate();
+    setLastExportAt(saved);
+    if (saved) {
+      setExportSinceDate(saved.split('T')[0]);
+    }
+    setExportMode('new_since_date'); // Opção B por padrão!
+    setIsExportModalOpen(true);
+  };
+
+  const handleExecuteExportXls = async () => {
+    if (exportCandidateProducts.length === 0) {
+      alert('Nenhum produto encontrado para exportação com os critérios selecionados.');
+      return;
+    }
+
     try {
       setIsExportingContaAzul(true);
       const { exportContaAzulExcel } = await import('../utils/contaAzulExport');
-      await exportContaAzulExcel(products);
-      setImportStatus('Planilha exportada com sucesso no formato oficial do Conta Azul!');
-      setTimeout(() => setImportStatus(null), 4000);
+      await exportContaAzulExcel(exportCandidateProducts);
+      
+      const nowIso = new Date().toISOString();
+      saveLastCatalogExportDate(nowIso);
+      setLastExportAt(nowIso);
+      setIsExportModalOpen(false);
+
+      const msg = exportMode === 'new_since_date'
+        ? `Planilha XLS exportada com sucesso! ${exportCandidateProducts.length} produtos cadastrados a partir de ${formatDatePtBr(exportSinceDate)} foram incluídos.`
+        : `Planilha XLS exportada com sucesso! Todos os ${exportCandidateProducts.length} produtos do catálogo foram incluídos.`;
+      
+      setImportStatus(msg);
+      setTimeout(() => setImportStatus(null), 5000);
     } catch (err: any) {
       console.error('Erro ao exportar produtos para Conta Azul:', err);
       alert('Erro ao exportar produtos: ' + (err.message || 'Erro desconhecido'));
@@ -562,10 +650,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
 
           <button
-            onClick={handleExportContaAzul}
+            onClick={handleOpenExportModal}
             disabled={isExportingContaAzul}
             className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
-            title="Exportar produtos no modelo oficial Conta Azul"
+            title="Exportar produtos para planilha XLS (Conta Azul)"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600" />
             <span>{isExportingContaAzul ? 'Exportando...' : 'Exportar XLS'}</span>
@@ -1063,6 +1151,167 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-[13px] font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
               >
                 Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Inteligente de Exportação de Catálogo XLS (Item 2: Opção B como Padrão Oficial) */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-scaleIn flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span>Exportar Catálogo em Planilha XLS</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Formato oficial para importação no Conta Azul e controle de estoque
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition cursor-pointer"
+                title="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Corpo do Modal */}
+            <div className="p-5 space-y-4 text-xs">
+              {/* Opção B: Exportar a partir de uma data (PADRÃO SELECIONADO CONFORME DECISÃO DO LUCAS) */}
+              <div 
+                onClick={() => setExportMode('new_since_date')}
+                className={`p-4 rounded-2xl border transition cursor-pointer space-y-3 ${
+                  exportMode === 'new_since_date'
+                    ? 'bg-sky-50/70 border-sky-300 ring-2 ring-sky-100'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="exportMode"
+                    checked={exportMode === 'new_since_date'}
+                    onChange={() => setExportMode('new_since_date')}
+                    className="mt-0.5 w-4 h-4 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 text-xs">
+                        Exportar apenas produtos novos a partir de uma data
+                      </span>
+                      <span className="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-md text-[10px] font-bold">
+                        Recomendado
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Evita duplicações no Conta Azul exportando apenas a nova remessa de produtos cadastrados.
+                    </p>
+                  </div>
+                </div>
+
+                {exportMode === 'new_since_date' && (
+                  <div className="pt-2 pl-7 space-y-3 border-t border-sky-100 mt-2">
+                    {lastExportAt && (
+                      <div className="p-2.5 bg-white border border-sky-200 rounded-xl text-[11px] text-sky-800 flex items-center gap-2 shadow-2xs">
+                        <Clock className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span>
+                          Sua última exportação foi em <strong>{formatDateTimePtBr(lastExportAt)}</strong>.
+                        </span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-sky-600" />
+                        <span>Data de corte para exportação</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={exportSinceDate}
+                        onChange={(e) => setExportSinceDate(e.target.value)}
+                        className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs font-medium text-slate-900"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 border border-emerald-200/80 p-2.5 rounded-xl font-bold">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        {exportCandidateProducts.length} produto{exportCandidateProducts.length === 1 ? '' : 's'} cadastrado{exportCandidateProducts.length === 1 ? '' : 's'} a partir desta data {exportCandidateProducts.length === 1 ? 'será exportado' : 'serão exportados'}.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Opção A: Exportar Todos os Produtos */}
+              <div 
+                onClick={() => setExportMode('all')}
+                className={`p-4 rounded-2xl border transition cursor-pointer ${
+                  exportMode === 'all'
+                    ? 'bg-sky-50/70 border-sky-300 ring-2 ring-sky-100'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="exportMode"
+                    checked={exportMode === 'all'}
+                    onChange={() => setExportMode('all')}
+                    className="mt-0.5 w-4 h-4 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <span className="font-bold text-slate-900 text-xs block">
+                      Exportar todos os produtos do catálogo
+                    </span>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Gera a planilha completa com todos os {products.length} itens cadastrados atualmente.
+                    </p>
+                    {exportMode === 'all' && (
+                      <div className="mt-2 text-slate-700 font-semibold flex items-center gap-1.5 text-[11px]">
+                        <Package className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Todos os {products.length} produtos serão incluídos na planilha.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExecuteExportXls}
+                disabled={isExportingContaAzul || exportCandidateProducts.length === 0}
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                <span>
+                  {isExportingContaAzul 
+                    ? 'Exportando...' 
+                    : `Baixar Planilha XLS (${exportCandidateProducts.length} ${exportCandidateProducts.length === 1 ? 'item' : 'itens'})`}
+                </span>
               </button>
             </div>
           </div>
