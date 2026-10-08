@@ -2005,7 +2005,7 @@ export const findPurchasedProcurementRecord = (
 };
 
 export const removePurchasedProcurementRecord = (
-  itemId: string, 
+  itemId?: string, 
   quoteId?: string, 
   quoteCode?: string, 
   itemNumber?: number, 
@@ -2013,26 +2013,65 @@ export const removePurchasedProcurementRecord = (
 ): void => {
   try {
     const map = getPurchasedProcurementRecords();
-    delete map[itemId];
-    if (quoteId) {
-      delete map[`${quoteId}_${itemId}`];
-      if (itemNumber !== undefined) delete map[`${quoteId}#item_${itemNumber}`];
-      if (name) delete map[`${quoteId}:::${normalizeSearchText(name)}`];
-    }
-    if (quoteCode) {
-      const codeUpper = quoteCode.trim().toUpperCase();
-      if (itemNumber !== undefined) {
-        delete map[`${codeUpper}#item_${itemNumber}`];
-        delete map[`${codeUpper}#${itemNumber}`];
+    const codeUpper = quoteCode?.trim().toUpperCase();
+    const normName = name ? normalizeSearchText(name) : '';
+    const cleanName = name?.trim().toLowerCase();
+
+    const keysToDelete = Object.keys(map).filter(key => {
+      const r = map[key];
+      if (!r) return true;
+      if (itemId && (key === itemId || r.itemId === itemId)) return true;
+      if (quoteId && itemId && key === `${quoteId}_${itemId}`) return true;
+
+      const rCode = r.quoteCode?.trim().toUpperCase();
+      const isSameQuote = (codeUpper && rCode && codeUpper === rCode) || (quoteId && r.quoteId && quoteId === r.quoteId);
+      if (isSameQuote) {
+        if (itemNumber !== undefined && r.itemNumber !== undefined && itemNumber === r.itemNumber) return true;
+        if (normName && r.name && normalizeSearchText(r.name) === normName) return true;
+        if (cleanName && r.name && r.name.trim().toLowerCase() === cleanName) return true;
       }
-      if (name) {
-        delete map[`${codeUpper}:::${normalizeSearchText(name)}`];
-        delete map[`${codeUpper}:::${name.trim().toLowerCase()}`];
-        delete map[`${quoteCode}_${name}`.trim().toLowerCase()];
-      }
-    }
+      return false;
+    });
+
+    keysToDelete.forEach(k => delete map[k]);
     localStorage.setItem(PROCUREMENT_PURCHASES_KEY, JSON.stringify(map));
   } catch { /* noop */ }
+};
+
+// ==============================================================================
+// 14.1 CONTROLE DE ITENS EXCLUÍDOS DA CENTRAL DE COMPRAS (TOMBSTONES)
+// ==============================================================================
+const DELETED_PROCUREMENT_ITEMS_KEY = 'infodesk_deleted_procurement_items';
+
+export const getDeletedProcurementItemKeys = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_PROCUREMENT_ITEMS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr.map((k: string) => String(k).trim().toLowerCase()));
+    }
+  } catch { /* noop */ }
+  return new Set<string>();
+};
+
+export const recordDeletedProcurementItem = (itemKey: string): void => {
+  if (!itemKey) return;
+  try {
+    const set = getDeletedProcurementItemKeys();
+    set.add(itemKey.trim().toLowerCase());
+    localStorage.setItem(DELETED_PROCUREMENT_ITEMS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const isProcurementItemDeleted = (item: { id?: string; itemId?: string; quoteId?: string; quoteCode?: string; itemNumber?: number; name?: string }): boolean => {
+  const set = getDeletedProcurementItemKeys();
+  if (set.size === 0) return false;
+  if (item.id && set.has(item.id.toLowerCase())) return true;
+  if (item.itemId && set.has(item.itemId.toLowerCase())) return true;
+  if (item.quoteId && item.itemId && set.has(`${item.quoteId}_${item.itemId}`.toLowerCase())) return true;
+  if (item.quoteCode && item.itemNumber !== undefined && set.has(`${item.quoteCode}#${item.itemNumber}`.toLowerCase())) return true;
+  if (item.quoteCode && item.name && set.has(`${item.quoteCode}:::${normalizeSearchText(item.name)}`.toLowerCase())) return true;
+  return false;
 };
 
 // ==============================================================================

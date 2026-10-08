@@ -63,7 +63,10 @@ import {
   getSettings,
   findProductImageInCache,
   saveProductImageToCache,
-  getQuoteItemsBackup
+  getQuoteItemsBackup,
+  saveQuoteItemsBackup,
+  recordDeletedProcurementItem,
+  isProcurementItemDeleted
 } from '../utils/storage';
 import { normalizeSearchText, extractStoreNameFromUrl, formatCompanyPrefix } from '../utils/aiEmailParser';
 import { fetchDirectPurchasesFromSupabase } from '../services/supabase';
@@ -212,6 +215,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
   // 4.1 Imagens Comerciais & Autocura
   const [imageVersion, setImageVersion] = useState<number>(0);
+  const [purchaseVersion, setPurchaseVersion] = useState<number>(0);
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [imagePickerItem, setImagePickerItem] = useState<ProcurementItem | null>(null);
   const [imagePickerTargetMode, setImagePickerTargetMode] = useState<'card' | 'modal'>('card');
@@ -526,15 +530,36 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       }
 
       (effectiveItems || []).forEach((item, itemIdx) => {
-        // Se a proposta mãe está aprovada, TODOS os seus itens entram em compras automaticamente por padrão!
-        // Apenas exclui se a proposta NÃO for aprovada e o item não for aprovado individualmente,
-        // ou se o item tiver sido explicitamente desmarcado em propostas não aprovadas.
-        const isItemExplicitlyExcluded = !isQuoteApproved && item.approved === false && item.approvedQuantity === 0;
-        const isItemApproved = (isQuoteApproved && !isItemExplicitlyExcluded) || item.approved === true;
+        const itemId = item.id || `item_${quote.id || quote.code}_${item.itemNumber || itemIdx}`;
+        const baseId = `${quote.id || quote.code}_${itemId}`;
+
+        // 1. Verificação de exclusão definitiva da Central de Compras (tombstone)
+        const isItemDeleted = isProcurementItemDeleted({
+          id: baseId,
+          itemId: itemId,
+          quoteId: quote.id,
+          quoteCode: quote.code,
+          itemNumber: item.itemNumber,
+          name: item.name
+        });
+        if (isItemDeleted) {
+          return;
+        }
+
+        // 2. Se o item estiver explicitamente desaprovado/excluído (approved === false e approvedQuantity === 0),
+        // ele NÃO entra na Central de Compras
+        const isItemExplicitlyExcluded = item.approved === false && item.approvedQuantity === 0;
+        if (isItemExplicitlyExcluded) {
+          return;
+        }
+
+        // 3. Critério de aprovação: proposta aprovada OU item individualmente aprovado
+        const isItemApproved = isQuoteApproved || item.approved === true;
+        if (!isItemApproved) {
+          return;
+        }
 
         if (isItemApproved) {
-          const itemId = item.id || `item_${quote.id || quote.code}_${item.itemNumber || itemIdx}`;
-          const baseId = `${quote.id || quote.code}_${itemId}`;
           const rawQty = (item.approvedQuantity !== undefined && item.approvedQuantity > 0)
             ? item.approvedQuantity
             : (item.quantity > 0 ? item.quantity : 1);
@@ -780,7 +805,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     });
 
     return list;
-  }, [quotes, directPurchases, defaultTax, stockProducts, splitVersion, imageVersion]);
+  }, [quotes, directPurchases, defaultTax, stockProducts, splitVersion, imageVersion, purchaseVersion]);
 
   // Autocura Inteligente em Segundo Plano de Imagens Ausentes
   useEffect(() => {
@@ -1651,8 +1676,10 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     setImagePickerItem(null);
   };
 
+
   // 1. Desfazer Compra Realizada (retornando o item para o status 'A Comprar')
   const handleDeletePurchase = (item: ProcurementItem) => {
+    // 1. Limpa o registro persistente de compras (varredura profunda eliminando todas as chaves)
     removePurchasedProcurementRecord(
       item.splitFromId ? item.id : (item.itemId || item.id), 
       item.quoteId, 
@@ -1680,19 +1707,26 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       delete cleaned.quotedSupplier;
       const updated = saveOrUpdateDirectPurchase(cleaned);
       setDirectPurchases(updated);
+      setPurchaseVersion(v => v + 1);
       showToast(`Registro de compra de "${item.name}" desfeito. Item retornou para "A Comprar".`);
       return;
     }
 
-    // Compra de proposta: reverte para pending e limpa campos reais
+    // Compra de proposta: localiza a proposta por ID ou Código
     const targetQuote = quotes.find(q => 
       q.id === item.quoteId || 
       (q.code && item.quoteCode && q.code.trim().toUpperCase() === item.quoteCode.trim().toUpperCase())
     );
     if (!targetQuote) return;
 
-    const updatedItems = (targetQuote.items || []).map(it => {
+    // Resgata os itens com fallback para o backup caso estejam vazios no state
+    const sourceItems = (Array.isArray(targetQuote.items) && targetQuote.items.length > 0)
+      ? targetQuote.items
+      : (getQuoteItemsBackup(targetQuote.id) || (targetQuote.code ? getQuoteItemsBackup(targetQuote.code) : null) || []);
+
+    const updatedItems = sourceItems.map(it => {
       const isMatch = (it.id && item.itemId && it.id === item.itemId) ||
+                      (it.id && item.id && it.id === item.id) ||
                       (it.itemNumber !== undefined && item.itemNumber !== undefined && it.itemNumber === item.itemNumber) ||
                       (it.name && item.name && it.name.trim().toLowerCase() === item.name.trim().toLowerCase());
 
@@ -1718,10 +1752,15 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       return it;
     });
 
+    // Salva imediatamente no backup local
+    if (targetQuote.id) saveQuoteItemsBackup(targetQuote.id, updatedItems);
+    if (targetQuote.code) saveQuoteItemsBackup(targetQuote.code, updatedItems);
+
     onUpdateQuote({
       ...targetQuote,
       items: updatedItems
     });
+    setPurchaseVersion(v => v + 1);
     showToast(`Registro de compra de "${item.name}" desfeito. Item retornou para "A Comprar".`);
   };
 
@@ -1733,33 +1772,71 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       : `Deseja remover "${item.name}" definitivamente da Central de Compras?\n\nO item será desvinculado da lista de compras da proposta ${item.quoteCode}.`;
 
     if (window.confirm(msg)) {
+      // 1. Limpa qualquer registro de compra ou split desse item
+      removePurchasedProcurementRecord(
+        item.splitFromId ? item.id : (item.itemId || item.id), 
+        item.quoteId, 
+        item.quoteCode, 
+        item.itemNumber, 
+        item.name
+      );
+      if (item.splitFromId) {
+        removeProcurementSplit(item.splitFromId);
+      }
+
+      // 2. Grava na lista de itens excluídos da Central de Compras (tombstone definitivo)
+      const baseKey = item.id;
+      if (baseKey) recordDeletedProcurementItem(baseKey);
+      if (item.itemId) recordDeletedProcurementItem(item.itemId);
+      if (item.quoteId && item.itemId) recordDeletedProcurementItem(`${item.quoteId}_${item.itemId}`);
+      if (item.quoteCode && item.itemNumber !== undefined) recordDeletedProcurementItem(`${item.quoteCode}#${item.itemNumber}`);
+      if (item.quoteCode && item.name) recordDeletedProcurementItem(`${item.quoteCode}:::${normalizeSearchText(item.name)}`);
+
       if (isDirect) {
-        // 1. Atualização Otimista Imediata no React State
+        // Compra direta: remoção imediata
         setDirectPurchases(prev => prev.filter(i => i.id !== item.id && i.itemId !== item.id));
-        // 2. Remoção do Storage local (com registro em blacklist) e Supabase
         deleteDirectPurchaseItem(item.id);
+        setPurchaseVersion(v => v + 1);
         showToast(`Item "${item.name}" excluído definitivamente!`);
       } else {
-        // Item de proposta: desaprova para compras e atualiza proposta no Supabase/localStorage
-        const targetQuote = quotes.find(q => q.id === item.quoteId);
-        if (!targetQuote) return;
+        // Item de proposta: localiza a proposta por ID ou código
+        const targetQuote = quotes.find(q => 
+          q.id === item.quoteId || 
+          (q.code && item.quoteCode && q.code.trim().toUpperCase() === item.quoteCode.trim().toUpperCase())
+        );
+        if (targetQuote) {
+          const sourceItems = (Array.isArray(targetQuote.items) && targetQuote.items.length > 0)
+            ? targetQuote.items
+            : (getQuoteItemsBackup(targetQuote.id) || (targetQuote.code ? getQuoteItemsBackup(targetQuote.code) : null) || []);
 
-        const updatedItems = (targetQuote.items || []).map(it => {
-          if (it.id === item.itemId || it.id === item.id) {
-            return {
-              ...it,
-              approved: false, // Retira da fila da Central de Compras
-              approvedQuantity: 0,
-              purchaseStatus: 'pending' as const
-            };
-          }
-          return it;
-        });
+          const updatedItems = sourceItems.map(it => {
+            const isMatch = (it.id && item.itemId && it.id === item.itemId) ||
+                            (it.id && item.id && it.id === item.id) ||
+                            (it.itemNumber !== undefined && item.itemNumber !== undefined && it.itemNumber === item.itemNumber) ||
+                            (it.name && item.name && it.name.trim().toLowerCase() === item.name.trim().toLowerCase());
 
-        onUpdateQuote({
-          ...targetQuote,
-          items: updatedItems
-        });
+            if (isMatch) {
+              return {
+                ...it,
+                approved: false, // Retira da fila da Central de Compras
+                approvedQuantity: 0,
+                purchaseStatus: 'pending' as const
+              };
+            }
+            return it;
+          });
+
+          // Atualiza backup local
+          if (targetQuote.id) saveQuoteItemsBackup(targetQuote.id, updatedItems);
+          if (targetQuote.code) saveQuoteItemsBackup(targetQuote.code, updatedItems);
+
+          onUpdateQuote({
+            ...targetQuote,
+            items: updatedItems
+          });
+        }
+
+        setPurchaseVersion(v => v + 1);
         showToast(`Item "${item.name}" removido da Central de Compras!`);
       }
     }
