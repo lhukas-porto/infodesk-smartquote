@@ -527,7 +527,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 clientCompany: quote.clientCompany || 'Cliente sem nome',
                 contactPerson: quote.contactPerson,
                 approvedAt: effectiveApprovedAt,
-                itemId: itemId,
+                itemId: subId,
                 itemNumber: item.itemNumber,
                 name: item.name,
                 description: item.description,
@@ -670,6 +670,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           list.push({
             ...dp,
             id: subId,
+            itemId: subId,
             quantity: subQty,
             quotedTotalPrice: subQuotedTotalPrice,
             imageUrl: dp.imageUrl || subPurchaseRecord?.imageUrl || matchedStock?.imageUrl || findProductImageInCache(dp.name, dp.partNumber),
@@ -1413,7 +1414,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           taxPercent: Number(purchaseForm.taxPercent),
           purchaseNotes: purchaseForm.notes?.trim() || undefined
         };
-        saveOrUpdateDirectPurchase(updatedDirectItem);
+        const updated = saveOrUpdateDirectPurchase(updatedDirectItem);
+        setDirectPurchases(updated);
       }
 
       savePurchasedProcurementRecord({
@@ -1434,7 +1436,17 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         purchaseNotes: purchaseForm.notes?.trim() || undefined,
         actualTaxPercent: Number(purchaseForm.taxPercent)
       });
+
+      if (effectiveImg) {
+        saveProductImageToCache({
+          name: activeItemForPurchase.name,
+          partNumber: activeItemForPurchase.partNumber
+        }, effectiveImg);
+      }
+
       setActiveItemForPurchase(null);
+      setPurchaseVersion(v => v + 1);
+      setDirectPurchases(getDirectPurchases());
       showToast(`Compra de "${activeItemForPurchase.name}" registrada com sucesso!`);
       return;
     }
@@ -1518,6 +1530,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       clientOrderNumber: effectiveOrderNum || targetQuote.clientOrderNumber,
       items: updatedItems
     });
+    setPurchaseVersion(v => v + 1);
     setActiveItemForPurchase(null);
     showToast(`Compra de "${activeItemForPurchase.name}" registrada com sucesso!`);
   };
@@ -1598,7 +1611,15 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     );
 
     if (item.isDirectPurchase) {
-      // Compra direta: reverte para pending e limpa campos reais
+      if (item.splitFromId) {
+        // Lote fracionado: o registro de compra deste lote já foi apagado por removePurchasedProcurementRecord
+        setPurchaseVersion(v => v + 1);
+        setDirectPurchases(getDirectPurchases());
+        showToast(`Registro de compra de "${item.name}" desfeito. Lote retornou para "A Comprar".`);
+        return;
+      }
+
+      // Compra direta inteira: reverte para pending e limpa campos reais
       const cleaned: ProcurementItem = { ...item };
       cleaned.purchaseStatus = 'pending';
       delete cleaned.actualCostPrice;
@@ -1702,9 +1723,16 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       if (item.quoteCode && item.name) recordDeletedProcurementItem(`${item.quoteCode}:::${normalizeSearchText(item.name)}`);
 
       if (isDirect) {
-        // Compra direta: remoção imediata
-        setDirectPurchases(prev => prev.filter(i => i.id !== item.id && i.itemId !== item.id));
-        deleteDirectPurchaseItem(item.id);
+        // Compra direta: remoção imediata (se for split, remove tanto o lote quanto o item pai)
+        const parentId = item.splitFromId || item.id;
+        setDirectPurchases(prev => prev.filter(i => i.id !== parentId && i.itemId !== parentId && i.id !== item.id && i.itemId !== item.id));
+        deleteDirectPurchaseItem(parentId);
+        if (parentId !== item.id) {
+          deleteDirectPurchaseItem(item.id);
+        }
+        if (item.splitFromId) {
+          removeProcurementSplit(item.splitFromId);
+        }
         setPurchaseVersion(v => v + 1);
         showToast(`Item "${item.name}" excluído definitivamente!`);
       } else {

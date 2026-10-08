@@ -1847,37 +1847,41 @@ export const savePurchasedProcurementRecord = (record: ProcurementPurchaseRecord
       map[record.itemId] = record;
     }
 
-    // 2. Chave composta por quoteId + itemId
-    if (record.quoteId && record.itemId) {
-      map[`${record.quoteId}_${record.itemId}`] = record;
-    }
+    // Se for lote fracionado (_split_), salva estritamente pela chave única do lote para não sobrescrever nem vazar para o lote irmão
+    const isSplitLot = Boolean(record.itemId && record.itemId.includes('_split_'));
+    if (!isSplitLot) {
+      // 2. Chave composta por quoteId + itemId
+      if (record.quoteId && record.itemId) {
+        map[`${record.quoteId}_${record.itemId}`] = record;
+      }
 
-    // 3. Chave resiliente por quoteCode + itemNumber (o número do item NUNCA muda mesmo ao re-gerar UUID no banco!)
-    if (record.quoteCode && record.itemNumber !== undefined) {
-      const codeUpper = record.quoteCode.trim().toUpperCase();
-      map[`${codeUpper}#item_${record.itemNumber}`] = record;
-      map[`${codeUpper}#${record.itemNumber}`] = record;
-    }
+      // 3. Chave resiliente por quoteCode + itemNumber (o número do item NUNCA muda mesmo ao re-gerar UUID no banco!)
+      if (record.quoteCode && record.itemNumber !== undefined) {
+        const codeUpper = record.quoteCode.trim().toUpperCase();
+        map[`${codeUpper}#item_${record.itemNumber}`] = record;
+        map[`${codeUpper}#${record.itemNumber}`] = record;
+      }
 
-    // 4. Chave resiliente por quoteId + itemNumber
-    if (record.quoteId && record.itemNumber !== undefined) {
-      map[`${record.quoteId}#item_${record.itemNumber}`] = record;
-    }
+      // 4. Chave resiliente por quoteId + itemNumber
+      if (record.quoteId && record.itemNumber !== undefined) {
+        map[`${record.quoteId}#item_${record.itemNumber}`] = record;
+      }
 
-    // 5. Chave por quoteCode + nome normalizado
-    if (record.quoteCode && record.name) {
-      const codeUpper = record.quoteCode.trim().toUpperCase();
-      const rawSig = `${record.quoteCode}_${record.name}`.trim().toLowerCase();
-      const normSig = `${codeUpper}:::${normalizeSearchText(record.name)}`;
-      const cleanNameSig = `${codeUpper}:::${record.name.trim().toLowerCase()}`;
-      map[rawSig] = record;
-      map[normSig] = record;
-      map[cleanNameSig] = record;
-    }
+      // 5. Chave por quoteCode + nome normalizado
+      if (record.quoteCode && record.name) {
+        const codeUpper = record.quoteCode.trim().toUpperCase();
+        const rawSig = `${record.quoteCode}_${record.name}`.trim().toLowerCase();
+        const normSig = `${codeUpper}:::${normalizeSearchText(record.name)}`;
+        const cleanNameSig = `${codeUpper}:::${record.name.trim().toLowerCase()}`;
+        map[rawSig] = record;
+        map[normSig] = record;
+        map[cleanNameSig] = record;
+      }
 
-    // 6. Chave por quoteId + nome normalizado
-    if (record.quoteId && record.name) {
-      map[`${record.quoteId}:::${normalizeSearchText(record.name)}`] = record;
+      // 6. Chave por quoteId + nome normalizado
+      if (record.quoteId && record.name) {
+        map[`${record.quoteId}:::${normalizeSearchText(record.name)}`] = record;
+      }
     }
 
     localStorage.setItem(PROCUREMENT_PURCHASES_KEY, JSON.stringify(map));
@@ -1948,28 +1952,33 @@ export const findPurchasedProcurementRecord = (
   const normName = opts.name ? normalizeSearchText(opts.name) : '';
   const cleanName = opts.name?.trim().toLowerCase();
 
-  // 1. Busca direta por itemId
+  // 1. Para itens fracionados em lote (_split_), a busca é estritamente pelo ID do lote para não colidir com o lote irmão
+  if (opts.itemId && opts.itemId.includes('_split_')) {
+    return map[opts.itemId];
+  }
+
+  // 2. Busca direta por itemId
   if (opts.itemId && map[opts.itemId]) {
     return map[opts.itemId];
   }
 
-  // 2. Busca por quoteId_itemId
+  // 3. Busca por quoteId_itemId
   if (opts.quoteId && opts.itemId && map[`${opts.quoteId}_${opts.itemId}`]) {
     return map[`${opts.quoteId}_${opts.itemId}`];
   }
 
-  // 3. Busca por quoteCode + itemNumber (máxima confiabilidade contra novas UUIDs)
+  // 4. Busca por quoteCode + itemNumber (máxima confiabilidade contra novas UUIDs)
   if (codeUpper && opts.itemNumber !== undefined) {
     if (map[`${codeUpper}#item_${opts.itemNumber}`]) return map[`${codeUpper}#item_${opts.itemNumber}`];
     if (map[`${codeUpper}#${opts.itemNumber}`]) return map[`${codeUpper}#${opts.itemNumber}`];
   }
 
-  // 4. Busca por quoteId + itemNumber
+  // 5. Busca por quoteId + itemNumber
   if (opts.quoteId && opts.itemNumber !== undefined && map[`${opts.quoteId}#item_${opts.itemNumber}`]) {
     return map[`${opts.quoteId}#item_${opts.itemNumber}`];
   }
 
-  // 5. Busca por quoteCode + nome normalizado
+  // 6. Busca por quoteCode + nome normalizado
   if (codeUpper && normName) {
     if (map[`${codeUpper}:::${normName}`]) return map[`${codeUpper}:::${normName}`];
   }
@@ -1981,7 +1990,7 @@ export const findPurchasedProcurementRecord = (
     if (map[rawSig]) return map[rawSig];
   }
 
-  // 6. Varredura nos valores caso as chaves diretas não tenham casado
+  // 7. Varredura nos valores caso as chaves diretas não tenham casado
   const records = Object.values(map);
   const match = records.find(r => {
     const rCode = r.quoteCode?.trim().toUpperCase();
@@ -2016,12 +2025,16 @@ export const removePurchasedProcurementRecord = (
     const codeUpper = quoteCode?.trim().toUpperCase();
     const normName = name ? normalizeSearchText(name) : '';
     const cleanName = name?.trim().toLowerCase();
+    const isSplitLot = Boolean(itemId && itemId.includes('_split_'));
 
     const keysToDelete = Object.keys(map).filter(key => {
       const r = map[key];
       if (!r) return true;
       if (itemId && (key === itemId || r.itemId === itemId)) return true;
       if (quoteId && itemId && key === `${quoteId}_${itemId}`) return true;
+
+      // Se for lote fracionado (_split_), NUNCA deleta chaves por nome/proposta para não apagar o lote irmão
+      if (isSplitLot) return false;
 
       const rCode = r.quoteCode?.trim().toUpperCase();
       const isSameQuote = (codeUpper && rCode && codeUpper === rCode) || (quoteId && r.quoteId && quoteId === r.quoteId);
