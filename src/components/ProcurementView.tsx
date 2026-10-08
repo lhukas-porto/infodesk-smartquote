@@ -17,6 +17,7 @@ import {
   X, 
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
   Package,
   TrendingUp,
   Receipt,
@@ -157,6 +158,23 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
   const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Ordenação por Data ('desc' = Mais Recentes, 'asc' = Mais Antigos, 'none' = Original)
+  const [dateSortOrder, setDateSortOrder] = useState<'desc' | 'asc' | 'none'>(() => {
+    try {
+      const saved = localStorage.getItem('infodesk_procurement_sort_order');
+      if (saved === 'asc' || saved === 'desc' || saved === 'none') return saved;
+    } catch { /* noop */ }
+    return 'desc';
+  });
+
+  const handleDateSortOrderChange = (order: 'desc' | 'asc' | 'none') => {
+    setDateSortOrder(order);
+    try {
+      localStorage.setItem('infodesk_procurement_sort_order', order);
+    } catch { /* noop */ }
+    setCurrentPage(1);
+  };
 
   // 2. Modos de Exibição: Itens Individuais, Agrupado por Proposta, ou Referência de Preços Pagos
   const [viewMode, setViewMode] = useState<ViewModeOption>('items');
@@ -991,17 +1009,52 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     return contextItems.filter(item => item.purchaseStatus === 'purchased');
   }, [contextItems]);
 
-  // Itens da lista regular conforme aba ativa
+  // Itens da lista regular conforme aba ativa e ordenação por data
   const filteredItems = useMemo(() => {
-    if (statusFilter === 'pending') return pendingItems;
-    if (statusFilter === 'purchased') return purchasedItems;
-    return contextItems;
-  }, [statusFilter, pendingItems, purchasedItems, contextItems]);
+    let base: ProcurementItem[] = [];
+    if (statusFilter === 'pending') base = pendingItems;
+    else if (statusFilter === 'purchased') base = purchasedItems;
+    else base = contextItems;
 
-  // Reset da página atual ao alterar filtros
+    if (dateSortOrder === 'none') {
+      return base;
+    }
+
+    // Extrai timestamp relevante:
+    // Para comprados: prioriza data da compra (purchasedAt)
+    // Para a comprar/pendentes: prioriza data de aprovação (approvedAt) ou criação
+    const getItemTimestamp = (item: ProcurementItem): number => {
+      const dateStr = item.purchaseStatus === 'purchased'
+        ? (item.purchasedAt || item.approvedAt || (item as any).createdAt)
+        : (item.approvedAt || item.purchasedAt || (item as any).createdAt);
+
+      if (!dateStr) return 0;
+      const ts = new Date(dateStr).getTime();
+      return isNaN(ts) ? 0 : ts;
+    };
+
+    return [...base].sort((a, b) => {
+      const tsA = getItemTimestamp(a);
+      const tsB = getItemTimestamp(b);
+
+      // Itens sem data definida ficam ao final
+      if (tsA === 0 && tsB === 0) return 0;
+      if (tsA === 0) return 1;
+      if (tsB === 0) return -1;
+
+      if (dateSortOrder === 'asc') {
+        // Mais antigos primeiro (crescente)
+        return tsA - tsB;
+      }
+      // Mais recentes primeiro (decrescente - padrão)
+      return tsB - tsA;
+    });
+  }, [statusFilter, pendingItems, purchasedItems, contextItems, dateSortOrder]);
+
+  // Reset da página atual ao alterar filtros ou ordenação
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, periodPreset, referenceDate, searchTerm, selectedCompany, selectedPaymentMethod, selectedSupplier, itemsPerPage, groupByDay]);
+  }, [statusFilter, periodPreset, referenceDate, searchTerm, selectedCompany, selectedPaymentMethod, selectedSupplier, itemsPerPage, groupByDay, dateSortOrder]);
 
   // Agrupamento Inteligente por Dia (Hoje, Ontem, Data específica)
   const groupedByDate = useMemo(() => {
@@ -1061,9 +1114,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     return Array.from(map.values()).sort((a, b) => {
       if (a.dateKey === 'sem_data') return 1;
       if (b.dateKey === 'sem_data') return -1;
-      return b.dateKey.localeCompare(a.dateKey);
+      return dateSortOrder === 'asc'
+        ? a.dateKey.localeCompare(b.dateKey)
+        : b.dateKey.localeCompare(a.dateKey);
     });
-  }, [filteredItems]);
+  }, [filteredItems, dateSortOrder]);
 
   // Itens Paginados para Modo Individual
   const totalPages = itemsPerPage > 0 ? Math.max(1, Math.ceil(filteredItems.length / itemsPerPage)) : 1;
@@ -1133,9 +1188,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     return Array.from(map.values()).sort((a, b) => {
       if (a.dateKey === 'sem_data') return 1;
       if (b.dateKey === 'sem_data') return -1;
-      return b.dateKey.localeCompare(a.dateKey);
+      return dateSortOrder === 'asc'
+        ? a.dateKey.localeCompare(b.dateKey)
+        : b.dateKey.localeCompare(a.dateKey);
     });
-  }, [groupByDay, itemsPerPage, paginatedItems, filteredItems]);
+  }, [groupByDay, itemsPerPage, paginatedItems, filteredItems, dateSortOrder]);
 
   // Agrupamento por Proposta Comercial
   const groupedByQuote = useMemo(() => {
@@ -2896,6 +2953,22 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
             </div>
 
             <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+              {/* Seletor de Ordenação por Data */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                <ArrowUpDown className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Ordenar:</span>
+                <select
+                  value={dateSortOrder}
+                  onChange={(e) => handleDateSortOrderChange(e.target.value as 'desc' | 'asc' | 'none')}
+                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+                  title="Ordenar itens por data de compra ou aprovação"
+                >
+                  <option value="desc">Data: Mais Recentes ↓</option>
+                  <option value="asc">Data: Mais Antigos ↑</option>
+                  <option value="none">Ordem Padrão</option>
+                </select>
+              </div>
+
               {/* Botão Alternador: Agrupar por Dia */}
               <button
                 type="button"
@@ -4543,9 +4616,14 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               )}
             </div>
           ) : (
-            <div className="text-xs text-slate-400 flex items-center gap-1.5">
+            <div className="text-xs text-slate-400 flex items-center gap-1.5 flex-wrap">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Cotado a <strong>R$ {item.quotedCostPrice.toFixed(2)}/un</strong> • Aguardando aquisição</span>
+              {(item.approvedAt || (item as any).createdAt) && (
+                <span className="text-slate-400 text-[11px] font-normal">
+                  • Data: {formatDatePtBr(item.approvedAt || (item as any).createdAt)}
+                </span>
+              )}
             </div>
           )}
 
