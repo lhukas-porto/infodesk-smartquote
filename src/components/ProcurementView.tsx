@@ -15,8 +15,6 @@ import {
   ArrowUpRight, 
   Edit3, 
   X, 
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   Package,
@@ -148,11 +146,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   const defaultTax = settings?.defaultTaxPercent ?? getSettings().defaultTaxPercent ?? 9.1;
   // 1. Filtros Avançados
   const [statusFilter, setStatusFilter] = useState<'pending' | 'purchased' | 'all'>('pending');
-  // Seletor Oficial de Período estilo ERP / Conta Azul (< [ Mês de Ano v ] >)
+  // Filtro de Período Oficial (selecionável no painel de filtros abaixo das abas)
   const [periodPreset, setPeriodPreset] = useState<ProcurementPeriodPreset>('this_month');
   const [referenceDate, setReferenceDate] = useState<Date>(() => new Date());
-  const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
-  const periodDropdownRef = useRef<HTMLDivElement>(null);
 
   const [periodFilter, setPeriodFilter] = useState<PeriodOption>('this_month');
   const [customStartDate, setCustomStartDate] = useState<string>('');
@@ -309,93 +305,6 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     };
   }, [isProductDropdownOpen]);
 
-  // Fechar dropdown do seletor de período ao clicar fora
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (periodDropdownRef.current && !periodDropdownRef.current.contains(event.target as Node)) {
-        setIsPeriodDropdownOpen(false);
-      }
-    }
-    if (isPeriodDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isPeriodDropdownOpen]);
-
-  // Label amigável do botão central do seletor (< [ Outubro de 2026 v ] >)
-  const periodDisplayLabel = useMemo(() => {
-    const monthsPtBr = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ];
-
-    if (periodPreset === 'this_month') {
-      const monthName = monthsPtBr[referenceDate.getMonth()];
-      const year = referenceDate.getFullYear();
-      return `${monthName} de ${year}`;
-    }
-
-    if (periodPreset === 'today') {
-      const isActuallyToday = referenceDate.toDateString() === new Date().toDateString();
-      if (isActuallyToday) return 'Hoje';
-      return `Dia ${referenceDate.getDate().toString().padStart(2, '0')}/${(referenceDate.getMonth() + 1).toString().padStart(2, '0')}/${referenceDate.getFullYear()}`;
-    }
-
-    if (periodPreset === 'this_week') {
-      return 'Esta semana';
-    }
-
-    if (periodPreset === 'this_year') {
-      return `Ano de ${referenceDate.getFullYear()}`;
-    }
-
-    if (periodPreset === 'last_30_days') {
-      return 'Últimos 30 dias';
-    }
-
-    if (periodPreset === 'last_12_months') {
-      return 'Últimos 12 meses';
-    }
-
-    if (periodPreset === 'all') {
-      return 'Todo o período';
-    }
-
-    return 'Período';
-  }, [periodPreset, referenceDate]);
-
-  // Navegação pelas setas laterais (< e >)
-  const handlePrevPeriod = () => {
-    if (periodPreset === 'this_month') {
-      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    } else if (periodPreset === 'today') {
-      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 1));
-    } else if (periodPreset === 'this_week') {
-      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7));
-    } else if (periodPreset === 'this_year') {
-      setReferenceDate(prev => new Date(prev.getFullYear() - 1, 0, 1));
-    } else {
-      setPeriodPreset('this_month');
-      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    }
-  };
-
-  const handleNextPeriod = () => {
-    if (periodPreset === 'this_month') {
-      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    } else if (periodPreset === 'today') {
-      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
-    } else if (periodPreset === 'this_week') {
-      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7));
-    } else if (periodPreset === 'this_year') {
-      setReferenceDate(prev => new Date(prev.getFullYear() + 1, 0, 1));
-    } else {
-      setPeriodPreset('this_month');
-      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    }
-  };
 
   // Cálculo da faixa de datas exata (YYYY-MM-DD) para filtragem
   const periodDateRange = useMemo<{ startStr: string | null; endStr: string | null }>(() => {
@@ -2232,7 +2141,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         </div>
       </div>
 
-      {/* 2. Barra Superior de Período & Métricas (com Seletor Oficial de Período acima de Lucro Líquido) */}
+      {/* 2. Barra Superior de Balanço Financeiro & Indicadores */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div className="space-y-0.5">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -2242,156 +2151,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
           <p className="text-xs text-slate-400">
             Métricas e totais calculados conforme o período de compras selecionado
           </p>
-        </div>
-
-        {/* Seletor Oficial de Período (Estilo Conta Azul / ERP) posicionado no canto superior direito acima de Lucro Líquido */}
-        <div className="flex flex-col items-start sm:items-end relative">
-          <span className="text-[11px] font-semibold text-slate-500 mb-1">
-            Vencimento
-          </span>
-          <div className="relative inline-flex items-center bg-sky-50 border border-sky-200 rounded-xl p-0.5 shadow-2xs">
-            <button
-              type="button"
-              onClick={handlePrevPeriod}
-              className="p-2 hover:bg-white hover:text-sky-800 text-sky-700 rounded-lg transition cursor-pointer flex items-center justify-center"
-              title="Período anterior"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
-              className="px-3.5 py-1.5 text-xs sm:text-sm font-bold text-sky-900 hover:bg-white/80 rounded-lg transition cursor-pointer flex items-center gap-2 select-none"
-              title="Escolher período"
-            >
-              <span>{periodDisplayLabel}</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-sky-700 transition-transform duration-150 ${isPeriodDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleNextPeriod}
-              className="p-2 hover:bg-white hover:text-sky-800 text-sky-700 rounded-lg transition cursor-pointer flex items-center justify-center"
-              title="Próximo período"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Dropdown Flutuante de Período (idêntico à referência da imagem) */}
-          {isPeriodDropdownOpen && (
-            <div
-              ref={periodDropdownRef}
-              className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setPeriodPreset('today');
-                  setReferenceDate(new Date());
-                  setIsPeriodDropdownOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                  periodPreset === 'today' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span>Hoje</span>
-                {periodPreset === 'today' && <Check className="w-3.5 h-3.5 text-sky-600" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPeriodPreset('this_week');
-                  setReferenceDate(new Date());
-                  setIsPeriodDropdownOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                  periodPreset === 'this_week' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span>Esta semana</span>
-                {periodPreset === 'this_week' && <Check className="w-3.5 h-3.5 text-sky-600" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPeriodPreset('this_month');
-                  setReferenceDate(new Date());
-                  setIsPeriodDropdownOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                  periodPreset === 'this_month' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span>Este mês</span>
-                {periodPreset === 'this_month' && <Check className="w-3.5 h-3.5 text-sky-600" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPeriodPreset('this_year');
-                  setReferenceDate(new Date());
-                  setIsPeriodDropdownOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                  periodPreset === 'this_year' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span>Este ano</span>
-                {periodPreset === 'this_year' && <Check className="w-3.5 h-3.5 text-sky-600" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPeriodPreset('last_30_days');
-                  setReferenceDate(new Date());
-                  setIsPeriodDropdownOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                  periodPreset === 'last_30_days' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span>Últimos 30 dias</span>
-                {periodPreset === 'last_30_days' && <Check className="w-3.5 h-3.5 text-sky-600" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPeriodPreset('last_12_months');
-                  setReferenceDate(new Date());
-                  setIsPeriodDropdownOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                  periodPreset === 'last_12_months' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span>Últimos 12 meses</span>
-                {periodPreset === 'last_12_months' && <Check className="w-3.5 h-3.5 text-sky-600" />}
-              </button>
-
-              <div className="my-1 border-t border-slate-100" />
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPeriodPreset('all');
-                  setIsPeriodDropdownOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                  periodPreset === 'all' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span>Todo o período</span>
-                {periodPreset === 'all' && <Check className="w-3.5 h-3.5 text-sky-600" />}
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -2545,9 +2304,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               onChange={(e) => {
                 const val = e.target.value as ProcurementPeriodPreset;
                 setPeriodPreset(val);
-                if (val !== 'this_month') {
-                  setReferenceDate(new Date());
-                }
+                setReferenceDate(new Date());
               }}
               className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-800 text-xs font-medium rounded-xl px-2.5 py-2 focus:outline-none focus:border-sky-500"
             >
