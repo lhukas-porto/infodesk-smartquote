@@ -4,7 +4,18 @@
  * and high-fidelity image and product detail resolution.
  */
 
-import { resolveProductDetails, resolveImageForDescription, cleanAlphanumericCode, cleanNcmCode, formatProductSentenceCase, getCategoryFromNcm, buildCompleteProductDescription, buildDirectPurchaseUrl, isExactProductUrl } from '../utils/aiEmailParser';
+import { 
+  resolveProductDetails, 
+  resolveImageForDescription, 
+  cleanAlphanumericCode, 
+  cleanNcmCode, 
+  formatProductSentenceCase, 
+  getCategoryFromNcm, 
+  buildCompleteProductDescription, 
+  buildDirectPurchaseUrl, 
+  isExactProductUrl,
+  resolveProductModelAndPartNumber
+} from '../utils/aiEmailParser';
 import { extractImageFromStoreUrl, extractDirectImageFromUrlPatterns } from './imageExtractorService';
 import { DiscoveredProduct } from '../types';
 import { searchProductImages } from './imageSearchService';
@@ -2410,8 +2421,13 @@ DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
   4. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
 - "brand": Marca comercial oficial ou "Genérica" se sem marca visível.
 - "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
-- "model": Modelo oficial do fabricante APENAS se constar explicitamente do catálogo ou site oficial do fabricante. REGRA DE OURO: Se você não encontrar o modelo real divulgado oficialmente pelo fabricante, deixe ESTRITAMENTE VAZIO "" (NUNCA invente códigos, siglas ou modelos aleatórios!).
-- "partNumber": Part Number / Código SKU oficial do fabricante APENAS se constar explicitamente do fabricante. REGRA DE OURO: Se não achar o Part Number diretamente do fabricante, deixe ESTRITAMENTE VAZIO "" para o usuário preencher manualmente (NUNCA invente Part Numbers ou códigos alfanuméricos fictícios!).
+- "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA - REGRA INFODESK):
+  1. Extraia prioritariamente o MODELO que já consta na própria descrição do comprador (ex: em 'Microfone sem fio Hollyland Lark M2S', o modelo é 'Lark M2S'; em 'Monitor Dell P2723D', o modelo é 'P2723D'; em 'Projetor Epson PowerLite E20', o modelo é 'PowerLite E20'; em 'Teclado Logitech MX Keys Mini', o modelo é 'MX Keys Mini'; em 'Switch Cisco C9200L', o modelo é 'C9200L').
+  2. Se não constar explicitamente no texto, identifique nas especificações do fabricante e retorne o modelo comercial de verdade.
+- "partNumber": PART NUMBER / CÓDIGO DE REFERÊNCIA OFICIAL (PRIORIDADE MÁXIMA):
+  1. Extraia o Part Number, Código de Referência, SKU ou P/N se constar na descrição (ex: 'P/N: 920-009599', 'Ref: 23400198', 'Cód: 15724', 'SNV2S/1000G').
+  2. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D', 'E20'), use a sigla/código de referência do modelo como Part Number (ex: 'M2S', 'P2723D', 'E20') para servir como código oficial da peça.
+  3. Se não houver Part Number de fábrica, utilize o modelo identificado para o produto NUNCA ficar sem código de identificação.
 - "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. ATENÇÃO: Ventosas, fixadores, buchas e suportes pertencem a "Construção, Acabamento & Marcenaria" ou "Equipamentos & Insumos Industriais", NUNCA a "Monitores, Displays & TVs"! NUNCA crie categorias fora desta lista.
 - "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40).
 - "ean": Código de barras EAN se conhecido, senão "".
@@ -2616,14 +2632,23 @@ Retorne ESTRITAMENTE um JSON no formato:
               const directPurchase = buildDirectPurchaseUrl(stdName, item.buyUrl || item.sourceUrl);
               const resolvedSupplier = (item.supplier || item.store || directPurchase.store || brand || 'Mercado Livre').trim();
 
+              const resolvedCodes = resolveProductModelAndPartNumber({
+                nameOrQuery: stdName || rawText,
+                description: item.description,
+                brand: brand,
+                category: category,
+                scannerModel: item.model,
+                scannerPartNumber: item.partNumber
+              });
+
               return {
                 id: `disc-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
                 originalQuery: rawText,
                 standardizedName: stdName,
                 brand: brand,
                 manufacturer: (item.manufacturer || brand || 'Fabricante Nacional / Importado').trim(),
-                model: (item.model || '').trim(),
-                partNumber: cleanAlphanumericCode(item.partNumber || ''),
+                model: resolvedCodes.model,
+                partNumber: resolvedCodes.partNumber,
                 category: category,
                 ncm: cleanNcmCode(item.ncm || ''),
                 ean: (item.ean || '').trim(),
@@ -2929,8 +2954,14 @@ SUA MISSÃO NA FASE 2:
 1. ENRIQUECIMENTO TÉCNICO E COMERCIAL COMPLETO (METODOLOGIA INFODESK STORE):
    - "standardizedName": Nome comercial em português do Brasil, PRESERVANDO estritamente a acentuação correta e cedilhas (ex: "Lápis", "Memória", "Válvula", "Elétrica", "Proteção"). NUNCA desacentue termos em português!
    - "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, ideal para a proposta comercial do cliente, em português do Brasil com acentuação e cedilhas impecáveis, destacando diferenciais técnicos, durabilidade, tecnologia empregada e cenários de uso recomendados. NUNCA use vírgulas para separar atributos (use pontos, traços ou quebras de linha).
-   - "model": Modelo oficial do fabricante APENAS se for o modelo real e exato comprovado do fabricante. Se não constar do fabricante, retorne estritamente string vazia "". NUNCA invente modelos fictícios!
-   - "partNumber": Part Number oficial do fabricante APENAS se for o código/SKU real e autêntico do fabricante. Se não achar diretamente do fabricante, retorne estritamente string vazia "" para preenchimento manual do usuário. NUNCA invente códigos fictícios!
+   - "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA - REGRA INFODESK):
+     1. Extraia prioritariamente o MODELO que já consta na descrição ou título do produto (ex: 'Lark M2S', 'P2723D', 'PowerLite E20', 'MX Keys Mini', 'C9200L').
+     2. Se não constar no título, extraia das ofertas e páginas encontradas no mercado brasileiro.
+     3. Se o item for totalmente genérico, utilize a referência comercial do produto.
+   - "partNumber": PART NUMBER / CÓDIGO DE REFERÊNCIA OFICIAL (PRIORIDADE MÁXIMA):
+     1. Extraia o Part Number ou Código de Referência oficial das ofertas ou da descrição (ex: '920-009599', '23400198', 'SNV2S/1000G').
+     2. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D', 'E20'), use a sigla do modelo como Part Number (ex: 'M2S', 'P2723D', 'E20') para servir como código oficial da peça.
+     3. O produto NUNCA deve ficar sem código de identificação.
    - "specifications": Array com 4 a 8 especificações técnicas reais do produto no formato [{"label": "...", "value": "..."}] ou objeto {"Característica": "Valor"}.
    - "ncm": Código NCM oficial de 8 dígitos para classificação fiscal brasileira (ex: 8443.32.31, 8542.31.90, 8471.70.40, 8544.42.00).
    - "ean": Código de barras EAN/GTIN de 13 dígitos numéricos se conhecido no Brasil, senão string vazia "".
@@ -3093,13 +3124,23 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       const finalCostPrice = typeof parsed.costPrice === 'number' && parsed.costPrice > 0 ? parsed.costPrice : ((discovered as any).costPrice || bestPrice);
       const finalSuggested = typeof parsed.suggestedPrice === 'number' && parsed.suggestedPrice > 0 ? parsed.suggestedPrice : (discovered as any).suggestedPrice;
 
+      const resolvedCode = resolveProductModelAndPartNumber({
+        nameOrQuery: stdName || originalQuery,
+        description: finalDescription,
+        brand: parsed.brand || discovered.brand,
+        category: scannedCategory,
+        scannerModel: parsed.model || discovered.model,
+        scannerPartNumber: parsed.partNumber || discovered.partNumber,
+        scannerOffers: googleShoppingResult.offers
+      });
+
       return {
         id: `scan-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         originalQuery,
         standardizedName: stdName,
         brand: parsed.brand || discovered.brand,
-        modelOrCode: parsed.model || discovered.model,
-        partNumber: cleanAlphanumericCode(parsed.partNumber || discovered.partNumber),
+        modelOrCode: resolvedCode.model,
+        partNumber: resolvedCode.partNumber,
         ncm: scannedNcm,
         category: scannedCategory,
         bestPrice: bestPrice,
@@ -3136,13 +3177,23 @@ Retorne ESTRITAMENTE um objeto JSON válido:
     const scannedNcm = cleanNcmCode((discovered as any).ncm);
     const scannedCategory = getCategoryFromNcm(scannedNcm, discovered.category);
 
+    const resolvedCode = resolveProductModelAndPartNumber({
+      nameOrQuery: stdName || originalQuery,
+      description: (discovered as any).description,
+      brand: discovered.brand,
+      category: scannedCategory,
+      scannerModel: (discovered as any).model,
+      scannerPartNumber: discovered.partNumber,
+      scannerOffers: googleShoppingResult.offers
+    });
+
     return {
       id: `scan-shop-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       originalQuery,
       standardizedName: stdName,
       brand: discovered.brand,
-      modelOrCode: (discovered as any).model,
-      partNumber: cleanAlphanumericCode(discovered.partNumber),
+      modelOrCode: resolvedCode.model,
+      partNumber: resolvedCode.partNumber,
       ncm: scannedNcm,
       category: scannedCategory,
       bestPrice: shoppingBestOffer.price,
@@ -3200,7 +3251,6 @@ export async function runBatchPhase2Scan(
       res.quantity = product.quantity || 1;
       res.unit = product.unit || 'Un.';
       res.originalQuery = product.originalQuery || product.standardizedName;
-      if (product.partNumber && !res.partNumber) res.partNumber = product.partNumber;
       if (product.ncm && !res.ncm) res.ncm = product.ncm;
       if (!res.description && product.description) res.description = product.description;
       if ((!res.specifications || res.specifications.length === 0) && product.specifications?.length) {
@@ -3211,9 +3261,20 @@ export async function runBatchPhase2Scan(
       if (!res.ean && product.ean) res.ean = product.ean;
       if (!res.manufacturer && product.manufacturer) res.manufacturer = product.manufacturer;
       if (!res.brand && product.brand) res.brand = product.brand;
-      if (!res.modelOrCode && (product.model || product.partNumber)) {
-        res.modelOrCode = product.model || product.partNumber;
-      }
+
+      // Resolução oficial com prioridade máxima (Regra do Lucas)
+      const resolvedBatchCode = resolveProductModelAndPartNumber({
+        nameOrQuery: res.standardizedName || product.standardizedName,
+        description: res.description || product.description,
+        brand: res.brand || product.brand,
+        category: res.category || product.category,
+        scannerModel: res.modelOrCode || product.model,
+        scannerPartNumber: res.partNumber || product.partNumber,
+        scannerOffers: res.allOffers
+      });
+      res.partNumber = resolvedBatchCode.partNumber;
+      res.modelOrCode = resolvedBatchCode.model;
+
       if ((!res.costPrice || res.costPrice <= 0) && product.costPrice && product.costPrice > 0) {
         res.costPrice = product.costPrice;
       }

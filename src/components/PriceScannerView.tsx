@@ -34,7 +34,8 @@ import {
   buildCompleteProductDescription,
   buildDirectPurchaseUrl,
   normalizeSearchText,
-  normalizeToOfficialCategory
+  normalizeToOfficialCategory,
+  resolveProductModelAndPartNumber
 } from '../utils/aiEmailParser';
 import {
   DiscoveredProduct,
@@ -880,11 +881,20 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     const catalogMatch = findCatalogMatchDetails(prod, products);
     const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
 
+    const resolvedCode = resolveProductModelAndPartNumber({
+      nameOrQuery: prod.standardizedName,
+      description: fullDesc || prod.description,
+      brand: prod.brand,
+      category: prod.category,
+      scannerModel: prod.model,
+      scannerPartNumber: prod.partNumber
+    });
+
     const itemData: Partial<QuoteItem> = {
       productId: existingInCatalog ? existingInCatalog.id : undefined,
       name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
       description: fullDesc || prod.description || existingInCatalog?.description || '',
-      partNumber: existingInCatalog?.partNumber || cleanAlphanumericCode(prod.partNumber || ''),
+      partNumber: existingInCatalog?.partNumber || resolvedCode.partNumber,
       ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
       category: existingInCatalog?.category || prod.category,
       imageUrl: chosenImage || existingInCatalog?.imageUrl,
@@ -965,9 +975,16 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       showToast(`Ficha técnica do produto "${existing.name}" atualizada com sucesso no catálogo!`);
     } else {
       const isDuplicate = Boolean(existing);
-      const realPn = cleanAlphanumericCode(prod.partNumber || '');
-      // Se não achar Part Number ou SKU diretamente do fabricante, deixa em branco para o Lucas preencher manualmente
-      const newSku = realPn || '';
+      const resolved = resolveProductModelAndPartNumber({
+        nameOrQuery: prod.standardizedName,
+        description: fullDesc || prod.description,
+        brand: prod.brand,
+        category: prod.category,
+        scannerModel: prod.model,
+        scannerPartNumber: prod.partNumber
+      });
+      const realPn = resolved.partNumber;
+      const newSku = resolved.sku;
 
       const newProd: Product = {
         id: `prod-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -1068,10 +1085,20 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       const fullDesc = buildCompleteProductDescription(item);
       const directInfo = buildDirectPurchaseUrl(item.standardizedName, item.buyUrl);
 
+      const resolvedBatchCode = resolveProductModelAndPartNumber({
+        nameOrQuery: item.standardizedName,
+        description: fullDesc || item.description,
+        brand: item.brand,
+        category: item.category,
+        scannerModel: item.modelOrCode,
+        scannerPartNumber: item.partNumber,
+        scannerOffers: item.allOffers
+      });
+
       return {
         name: item.standardizedName,
         description: fullDesc || item.description || '',
-        partNumber: cleanAlphanumericCode(item.partNumber || ''),
+        partNumber: resolvedBatchCode.partNumber,
         ncm: cleanNcmCode(item.ncm || ''),
         imageUrl: chosenPhoto,
         showImage: !!chosenPhoto,
@@ -1104,10 +1131,20 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     const fullDesc = buildCompleteProductDescription(item);
     const directInfo = buildDirectPurchaseUrl(item.standardizedName, item.buyUrl);
 
+    const resolvedSingleCode = resolveProductModelAndPartNumber({
+      nameOrQuery: item.standardizedName,
+      description: fullDesc || item.description,
+      brand: item.brand,
+      category: item.category,
+      scannerModel: item.modelOrCode,
+      scannerPartNumber: item.partNumber,
+      scannerOffers: item.allOffers
+    });
+
     const itemData: Partial<QuoteItem> = {
       name: item.standardizedName,
       description: fullDesc || item.description || '',
-      partNumber: cleanAlphanumericCode(item.partNumber || ''),
+      partNumber: resolvedSingleCode.partNumber,
       ncm: cleanNcmCode(item.ncm || ''),
       imageUrl: chosenPhoto,
       showImage: !!chosenPhoto,

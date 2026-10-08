@@ -3,7 +3,8 @@ import {
   cleanAlphanumericCode,
   cleanNcmCode,
   normalizeToOfficialCategory,
-  buildCompleteProductDescription
+  buildCompleteProductDescription,
+  resolveProductModelAndPartNumber
 } from '../utils/aiEmailParser';
 
 export interface SpecSearchParams {
@@ -79,8 +80,8 @@ DIRETRIZES DE ENRIQUECIMENTO (MÁXIMA RIQUEZA E PROFUNDIDADE):
 1. "standardizedName": TÍTULO COMERCIAL PADRONIZADO E CONCISO (máximo 5 a 15 palavras). Padrão: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. Use acentuação e cedilhas completas da língua portuguesa. NUNCA use vírgulas no nome.
 2. "brand": Marca comercial autêntica do produto (ex: "Intelbras", "Dell", "Furukawa", "Logitech", "HP", "Aquário", etc.) ou "Genérica".
 3. "manufacturer": Fabricante ou Razão Social oficial da marca.
-4. "model": Modelo oficial autêntico do fabricante APENAS se constar explicitamente do catálogo oficial. REGRA DE OURO: Se não encontrar o modelo real divulgado oficialmente pelo fabricante, deixe ESTRITAMENTE VAZIO "" (NUNCA invente siglas ou modelos aleatórios!).
-5. "partNumber": Part Number / Código SKU oficial do fabricante APENAS se constar explicitamente do fabricante. REGRA DE OURO: Se não achar o Part Number oficial, deixe ESTRITAMENTE VAZIO "" para o usuário preencher manualmente (NUNCA invente Part Numbers fictícios!).
+4. "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA): Extraia prioritariamente o MODELO que já consta no nome do produto (ex: 'Lark M2S', 'P2723D', 'E20', 'MX Keys Mini', 'C9200L'). Se não constar, identifique o modelo oficial de fábrica.
+5. "partNumber": PART NUMBER / CÓDIGO DE REFERÊNCIA OFICIAL (PRIORIDADE MÁXIMA): Extraia o Part Number ou Código de Referência oficial das especificações ou do nome. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D'), use a sigla do modelo como Part Number (ex: 'M2S', 'P2723D') para servir como código oficial da peça. O produto NUNCA deve ficar sem código de identificação.
 6. "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as categorias oficiais do sistema:
    ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"].
 7. "ncm": NCM oficial do Brasil formatado com 8 dígitos (ex: 8471.70.40, 8528.52.00, 8517.62.54).
@@ -145,7 +146,7 @@ Retorne ESTRITAMENTE um JSON no seguinte formato:
       const rawOutput = callRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!rawOutput) continue;
 
-      const parsed = parseSpecJson(rawOutput);
+      const parsed = parseSpecJson(rawOutput, params);
       if (parsed && (parsed.description || parsed.specifications.length > 0)) {
         return parsed;
       }
@@ -157,7 +158,7 @@ Retorne ESTRITAMENTE um JSON no seguinte formato:
   throw new Error('Não foi possível obter as especificações completas com IA neste momento. Verifique sua conexão e tente novamente em instantes.');
 }
 
-function parseSpecJson(raw: string): SpecSearchResult | null {
+function parseSpecJson(raw: string, params?: SpecSearchParams): SpecSearchResult | null {
   try {
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return null;
@@ -176,14 +177,24 @@ function parseSpecJson(raw: string): SpecSearchResult | null {
     }
 
     const ncmClean = cleanNcmCode(obj.ncm || '');
-    const partClean = cleanAlphanumericCode(obj.partNumber || '');
-    const brandClean = obj.brand ? String(obj.brand).trim() : undefined;
-    const modelClean = obj.model ? String(obj.model).trim() : undefined;
+    const brandClean = obj.brand ? String(obj.brand).trim() : (params?.brand || undefined);
+    const categoryClean = obj.category ? normalizeToOfficialCategory(String(obj.category)) : (params?.category ? normalizeToOfficialCategory(params.category) : undefined);
+    const summaryText = typeof obj.description === 'string' ? obj.description.trim() : '';
+
+    const resolvedCode = resolveProductModelAndPartNumber({
+      nameOrQuery: obj.standardizedName ? String(obj.standardizedName).trim() : params?.productName,
+      description: summaryText,
+      brand: brandClean,
+      category: categoryClean,
+      scannerModel: obj.model ? String(obj.model).trim() : undefined,
+      scannerPartNumber: obj.partNumber ? String(obj.partNumber).trim() : params?.partNumber
+    });
+
+    const partClean = resolvedCode.partNumber;
+    const modelClean = resolvedCode.model;
     const manufacturerClean = obj.manufacturer ? String(obj.manufacturer).trim() : undefined;
     const weightClean = obj.weight ? String(obj.weight).trim() : undefined;
     const dimensionsClean = obj.dimensions ? String(obj.dimensions).trim() : undefined;
-    const categoryClean = obj.category ? normalizeToOfficialCategory(String(obj.category)) : undefined;
-    const summaryText = typeof obj.description === 'string' ? obj.description.trim() : '';
 
     // Gera a descrição consolidada completa no mesmo formato nobre do Scanner IA
     const richDescription = buildCompleteProductDescription({

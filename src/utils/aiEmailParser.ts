@@ -1,3 +1,9 @@
+import { 
+  resolveProductModelAndPartNumber, 
+  extractModelAndPartNumberFromText, 
+  generateFallbackProductCode 
+} from './productModelExtractor';
+
 export interface ParsedItem {
   name: string;
   description: string;
@@ -2604,12 +2610,13 @@ export function resolveProductDetails(nameOrQuery: string, specs?: string, exist
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Preservar o part number real explicitamente encontrado
-  let generatedPartNumber = explicitCode ? cleanAlphanumericCode(explicitCode) : '';
-  if (!generatedPartNumber) {
-    const pnMatch = query.match(/(?:pn|p\/n|part\s*number|código|ref|referência|modelo)[:\s]*([a-zA-Z0-9\-_]{2,20})/i);
-    generatedPartNumber = pnMatch ? cleanAlphanumericCode(pnMatch[1]) : '';
-  }
+  // Preservar modelo e part number com prioridade máxima (Regra do Lucas)
+  const resolvedCode = resolveProductModelAndPartNumber({
+    nameOrQuery: cleanName,
+    description: nameOrQuery,
+    scannerPartNumber: explicitCode
+  });
+  let generatedPartNumber = resolvedCode.partNumber;
 
   // Category, NCM, Cost & Image heuristics — Curadoria visual HD por categoria oficial
   let ncm = '';
@@ -3547,4 +3554,10 @@ export function isSameQuote(
 
   return false;
 }
+
+export { 
+  resolveProductModelAndPartNumber, 
+  extractModelAndPartNumberFromText, 
+  generateFallbackProductCode 
+};
 

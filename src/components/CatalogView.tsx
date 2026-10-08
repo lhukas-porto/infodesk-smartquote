@@ -54,9 +54,10 @@ import {
   deleteProductFromSupabase,
   fetchProductsFromSupabase
 } from '../services/supabase';
-import { normalizeToOfficialCategory } from '../utils/aiEmailParser';
-import {
-  normalizeSearchText
+import { 
+  normalizeToOfficialCategory,
+  normalizeSearchText,
+  resolveProductModelAndPartNumber
 } from '../utils/aiEmailParser';
 
 function formatDateTimePtBr(isoString?: string | null): string {
@@ -476,7 +477,16 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       return;
     }
 
-    const unifiedCode = (newProd.sku || newProd.partNumber || '').trim();
+    let unifiedCode = (newProd.sku || newProd.partNumber || '').trim();
+    if (!unifiedCode) {
+      const resolved = resolveProductModelAndPartNumber({
+        nameOrQuery: cleanName,
+        description: newProd.description,
+        category: newProd.category
+      });
+      unifiedCode = resolved.partNumber || resolved.sku;
+    }
+
     const created: Product = {
       ...newProd,
       id: `prod-${Date.now()}`,
@@ -547,7 +557,15 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   };
 
   const handleSaveEditedProductFromModal = async (updated: Product, shippingCost: number) => {
-    const unifiedCode = (updated.sku || updated.partNumber || '').trim();
+    let unifiedCode = (updated.sku || updated.partNumber || '').trim();
+    if (!unifiedCode) {
+      const resolved = resolveProductModelAndPartNumber({
+        nameOrQuery: updated.name,
+        description: updated.description,
+        category: updated.category
+      });
+      unifiedCode = resolved.partNumber || resolved.sku;
+    }
     const finalProd: Product = {
       ...updated,
       sku: unifiedCode || updated.sku || `SKU-${Date.now().toString().slice(-4)}`,
