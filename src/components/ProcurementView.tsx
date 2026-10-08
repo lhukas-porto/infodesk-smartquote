@@ -15,6 +15,7 @@ import {
   ArrowUpRight, 
   Edit3, 
   X, 
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -61,7 +62,8 @@ import {
   removeProcurementSplit,
   getSettings,
   findProductImageInCache,
-  saveProductImageToCache
+  saveProductImageToCache,
+  getQuoteItemsBackup
 } from '../utils/storage';
 import { normalizeSearchText, extractStoreNameFromUrl, formatCompanyPrefix } from '../utils/aiEmailParser';
 import { fetchDirectPurchasesFromSupabase } from '../services/supabase';
@@ -76,7 +78,23 @@ interface ProcurementViewProps {
 }
 
 type PeriodOption = 'all' | 'today' | 'yesterday' | '7days' | '30days' | 'this_month' | 'last_month' | 'custom';
+export type ProcurementPeriodPreset = 
+  | 'today' 
+  | 'this_week' 
+  | 'this_month' 
+  | 'this_year' 
+  | 'last_30_days' 
+  | 'last_12_months' 
+  | 'all';
+
 type ViewModeOption = 'items' | 'quotes' | 'suppliers' | 'reference';
+
+function formatYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function formatDatePtBr(dateStr?: string | null): string {
   if (!dateStr) return '';
@@ -127,7 +145,13 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   const defaultTax = settings?.defaultTaxPercent ?? getSettings().defaultTaxPercent ?? 9.1;
   // 1. Filtros Avançados
   const [statusFilter, setStatusFilter] = useState<'pending' | 'purchased' | 'all'>('pending');
-  const [periodFilter, setPeriodFilter] = useState<PeriodOption>('all');
+  // Seletor Oficial de Período estilo ERP / Conta Azul (< [ Mês de Ano v ] >)
+  const [periodPreset, setPeriodPreset] = useState<ProcurementPeriodPreset>('this_month');
+  const [referenceDate, setReferenceDate] = useState<Date>(() => new Date());
+  const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
+  const periodDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [periodFilter, setPeriodFilter] = useState<PeriodOption>('this_month');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
@@ -281,6 +305,146 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     };
   }, [isProductDropdownOpen]);
 
+  // Fechar dropdown do seletor de período ao clicar fora
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (periodDropdownRef.current && !periodDropdownRef.current.contains(event.target as Node)) {
+        setIsPeriodDropdownOpen(false);
+      }
+    }
+    if (isPeriodDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isPeriodDropdownOpen]);
+
+  // Label amigável do botão central do seletor (< [ Outubro de 2026 v ] >)
+  const periodDisplayLabel = useMemo(() => {
+    const monthsPtBr = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+
+    if (periodPreset === 'this_month') {
+      const monthName = monthsPtBr[referenceDate.getMonth()];
+      const year = referenceDate.getFullYear();
+      return `${monthName} de ${year}`;
+    }
+
+    if (periodPreset === 'today') {
+      const isActuallyToday = referenceDate.toDateString() === new Date().toDateString();
+      if (isActuallyToday) return 'Hoje';
+      return `Dia ${referenceDate.getDate().toString().padStart(2, '0')}/${(referenceDate.getMonth() + 1).toString().padStart(2, '0')}/${referenceDate.getFullYear()}`;
+    }
+
+    if (periodPreset === 'this_week') {
+      return 'Esta semana';
+    }
+
+    if (periodPreset === 'this_year') {
+      return `Ano de ${referenceDate.getFullYear()}`;
+    }
+
+    if (periodPreset === 'last_30_days') {
+      return 'Últimos 30 dias';
+    }
+
+    if (periodPreset === 'last_12_months') {
+      return 'Últimos 12 meses';
+    }
+
+    if (periodPreset === 'all') {
+      return 'Todo o período';
+    }
+
+    return 'Período';
+  }, [periodPreset, referenceDate]);
+
+  // Navegação pelas setas laterais (< e >)
+  const handlePrevPeriod = () => {
+    if (periodPreset === 'this_month') {
+      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    } else if (periodPreset === 'today') {
+      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 1));
+    } else if (periodPreset === 'this_week') {
+      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7));
+    } else if (periodPreset === 'this_year') {
+      setReferenceDate(prev => new Date(prev.getFullYear() - 1, 0, 1));
+    } else {
+      setPeriodPreset('this_month');
+      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    }
+  };
+
+  const handleNextPeriod = () => {
+    if (periodPreset === 'this_month') {
+      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    } else if (periodPreset === 'today') {
+      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
+    } else if (periodPreset === 'this_week') {
+      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7));
+    } else if (periodPreset === 'this_year') {
+      setReferenceDate(prev => new Date(prev.getFullYear() + 1, 0, 1));
+    } else {
+      setPeriodPreset('this_month');
+      setReferenceDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    }
+  };
+
+  // Cálculo da faixa de datas exata (YYYY-MM-DD) para filtragem
+  const periodDateRange = useMemo<{ startStr: string | null; endStr: string | null }>(() => {
+    if (periodPreset === 'all') {
+      return { startStr: null, endStr: null };
+    }
+
+    if (periodPreset === 'today') {
+      const s = formatYmd(referenceDate);
+      return { startStr: s, endStr: s };
+    }
+
+    if (periodPreset === 'this_week') {
+      const d = new Date(referenceDate);
+      const day = d.getDay();
+      const diffToMonday = (day === 0 ? -6 : 1) - day;
+      const monday = new Date(d);
+      monday.setDate(d.getDate() + diffToMonday);
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return { startStr: formatYmd(monday), endStr: formatYmd(sunday) };
+    }
+
+    if (periodPreset === 'this_month') {
+      const start = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+      const end = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0);
+      return { startStr: formatYmd(start), endStr: formatYmd(end) };
+    }
+
+    if (periodPreset === 'this_year') {
+      const start = new Date(referenceDate.getFullYear(), 0, 1);
+      const end = new Date(referenceDate.getFullYear(), 11, 31);
+      return { startStr: formatYmd(start), endStr: formatYmd(end) };
+    }
+
+    if (periodPreset === 'last_30_days') {
+      const now = new Date();
+      const start = new Date(now);
+      start.setDate(start.getDate() - 30);
+      return { startStr: formatYmd(start), endStr: formatYmd(now) };
+    }
+
+    if (periodPreset === 'last_12_months') {
+      const now = new Date();
+      const start = new Date(now);
+      start.setFullYear(start.getFullYear() - 1);
+      return { startStr: formatYmd(start), endStr: formatYmd(now) };
+    }
+
+    return { startStr: null, endStr: null };
+  }, [periodPreset, referenceDate]);
+
   // 5. Estado do Modal de Registro de Compra (para itens pendentes de propostas ou diretos)
   const [activeItemForPurchase, setActiveItemForPurchase] = useState<ProcurementItem | null>(null);
   const [purchaseForm, setPurchaseForm] = useState({
@@ -351,16 +515,30 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     (quotes || []).forEach(quote => {
       const isQuoteApproved = quote.status === 'approved';
 
-      (quote.items || []).forEach(item => {
-        // Se a proposta mãe está aprovada, todos os seus itens vão para compras,
-        // a não ser que o item tenha sido expressamente desmarcado (approved === false E approvedQuantity === 0).
-        // Se a proposta mãe não estiver com status 'approved', o item entra se tiver aprovação individual (approved === true).
-        const isItemExplicitlyExcluded = item.approved === false && item.approvedQuantity === 0;
+      // Resgate inteligente: se a proposta está aprovada mas veio sem items no state,
+      // busca do backup local por código ou ID
+      let effectiveItems = Array.isArray(quote.items) && quote.items.length > 0 ? quote.items : null;
+      if (!effectiveItems && isQuoteApproved) {
+        const bCode = quote.code ? getQuoteItemsBackup(quote.code) : null;
+        const bId = quote.id ? getQuoteItemsBackup(quote.id) : null;
+        if (bCode && bCode.length > 0) effectiveItems = bCode;
+        else if (bId && bId.length > 0) effectiveItems = bId;
+      }
+
+      (effectiveItems || []).forEach((item, itemIdx) => {
+        // Se a proposta mãe está aprovada, TODOS os seus itens entram em compras automaticamente por padrão!
+        // Apenas exclui se a proposta NÃO for aprovada e o item não for aprovado individualmente,
+        // ou se o item tiver sido explicitamente desmarcado em propostas não aprovadas.
+        const isItemExplicitlyExcluded = !isQuoteApproved && item.approved === false && item.approvedQuantity === 0;
         const isItemApproved = (isQuoteApproved && !isItemExplicitlyExcluded) || item.approved === true;
 
         if (isItemApproved) {
-          const baseId = `${quote.id}_${item.id}`;
-          const qty = item.approvedQuantity !== undefined ? item.approvedQuantity : item.quantity;
+          const itemId = item.id || `item_${quote.id || quote.code}_${item.itemNumber || itemIdx}`;
+          const baseId = `${quote.id || quote.code}_${itemId}`;
+          const rawQty = (item.approvedQuantity !== undefined && item.approvedQuantity > 0)
+            ? item.approvedQuantity
+            : (item.quantity > 0 ? item.quantity : 1);
+          const qty = rawQty;
           const quotedUnitPrice = item.unitPrice;
           const quotedTotalPrice = Number((quotedUnitPrice * qty).toFixed(2));
           const splitConfig = splitsMap[baseId];
@@ -372,6 +550,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             (item.name && p.name && normalizeSearchText(p.name) === normalizeSearchText(item.name))
           );
           const itemTax = item.actualTaxPercent ?? item.taxPercent ?? quote.globalTaxPercent ?? defaultTax;
+          const effectiveApprovedAt = quote.approvedAt || quote.createdAt || (quote.date && quote.date.includes('-') ? quote.date : new Date().toISOString());
 
           if (splitConfig && splitConfig.parts && splitConfig.parts.length > 0) {
             // ITEM FRACIONADO EM LOTES
@@ -413,8 +592,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 clientOrderNumber: effectiveClientOrderNumber,
                 clientCompany: quote.clientCompany || 'Cliente sem nome',
                 contactPerson: quote.contactPerson,
-                approvedAt: quote.approvedAt || quote.date,
-                itemId: item.id,
+                approvedAt: effectiveApprovedAt,
+                itemId: itemId,
                 itemNumber: item.itemNumber,
                 name: item.name,
                 description: item.description,
@@ -450,7 +629,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           } else {
             // ITEM ORIGINAL INTEIRO
             const purchaseRecord = findPurchasedProcurementRecord(purchasesMap, {
-              itemId: item.id,
+              itemId: itemId,
               quoteId: quote.id,
               quoteCode: quote.code,
               itemNumber: item.itemNumber,
@@ -486,8 +665,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
               clientOrderNumber: effectiveClientOrderNumber,
               clientCompany: quote.clientCompany || 'Cliente sem nome',
               contactPerson: quote.contactPerson,
-              approvedAt: quote.approvedAt || quote.date,
-              itemId: item.id,
+              approvedAt: effectiveApprovedAt,
+              itemId: itemId,
               itemNumber: item.itemNumber,
               name: item.name,
               description: item.description,
@@ -829,34 +1008,13 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         return false;
       }
 
-      // 4. Filtro de Período
-      if (periodFilter !== 'all') {
-        const dateStr = item.purchasedAt || item.approvedAt;
-        if (!dateStr) return false;
-        const itemDateStr = dateStr.split('T')[0];
-        const itemDate = new Date(dateStr);
-
-        if (periodFilter === 'today') {
-          if (itemDateStr !== todayStr) return false;
-        } else if (periodFilter === 'yesterday') {
-          if (itemDateStr !== yesterdayStr) return false;
-        } else if (periodFilter === '7days') {
-          if (itemDate < sevenDaysAgo) return false;
-        } else if (periodFilter === '30days') {
-          if (itemDate < thirtyDaysAgo) return false;
-        } else if (periodFilter === 'this_month') {
-          if (itemDate.getMonth() !== now.getMonth() || itemDate.getFullYear() !== now.getFullYear()) {
-            return false;
-          }
-        } else if (periodFilter === 'last_month') {
-          const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          if (itemDate.getMonth() !== lastMonthDate.getMonth() || itemDate.getFullYear() !== lastMonthDate.getFullYear()) {
-            return false;
-          }
-        } else if (periodFilter === 'custom') {
-          if (customStartDate && itemDateStr < customStartDate) return false;
-          if (customEndDate && itemDateStr > customEndDate) return false;
-        }
+      // 4. Filtro Oficial de Período (< [ Outubro de 2026 v ] >)
+      if (periodPreset !== 'all' && (periodDateRange.startStr || periodDateRange.endStr)) {
+        const rawDate = item.purchasedAt || item.approvedAt || (item as any).createdAt;
+        if (!rawDate) return false;
+        const itemDateStr = rawDate.split('T')[0];
+        if (periodDateRange.startStr && itemDateStr < periodDateRange.startStr) return false;
+        if (periodDateRange.endStr && itemDateStr > periodDateRange.endStr) return false;
       }
 
       // 5. Busca textual unificada
@@ -884,9 +1042,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     selectedCompany, 
     selectedPaymentMethod, 
     selectedSupplier, 
-    periodFilter, 
-    customStartDate, 
-    customEndDate, 
+    periodPreset, 
+    periodDateRange, 
     searchTerm
   ]);
 
@@ -909,7 +1066,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   // Reset da página atual ao alterar filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, periodFilter, searchTerm, selectedCompany, selectedPaymentMethod, selectedSupplier, itemsPerPage, groupByDay]);
+  }, [statusFilter, periodPreset, referenceDate, searchTerm, selectedCompany, selectedPaymentMethod, selectedSupplier, itemsPerPage, groupByDay]);
 
   // Agrupamento Inteligente por Dia (Hoje, Ontem, Data específica)
   const groupedByDate = useMemo(() => {
@@ -1884,6 +2041,8 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
   // Limpar todos os filtros
   const handleResetFilters = () => {
     setStatusFilter('all');
+    setPeriodPreset('all');
+    setReferenceDate(new Date());
     setPeriodFilter('all');
     setCustomStartDate('');
     setCustomEndDate('');
@@ -1894,7 +2053,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
   };
 
   const hasActiveFilters = statusFilter !== 'pending' || 
-    periodFilter !== 'all' || 
+    periodPreset !== 'this_month' || 
     selectedCompany !== 'all' || 
     selectedPaymentMethod !== 'all' || 
     selectedSupplier !== 'all' || 
@@ -1996,7 +2155,170 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         </div>
       </div>
 
-      {/* 2. Cards de Métricas Superiores Consolidadas do Filtro (Padrão AGENTS.md) */}
+      {/* 2. Barra Superior de Período & Métricas (com Seletor Oficial de Período acima de Lucro Líquido) */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div className="space-y-0.5">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-sky-600" />
+            Balanço Financeiro & Indicadores
+          </span>
+          <p className="text-xs text-slate-400">
+            Métricas e totais calculados conforme o período de compras selecionado
+          </p>
+        </div>
+
+        {/* Seletor Oficial de Período (Estilo Conta Azul / ERP) posicionado no canto superior direito acima de Lucro Líquido */}
+        <div className="flex flex-col items-start sm:items-end relative">
+          <span className="text-[11px] font-semibold text-slate-500 mb-1">
+            Vencimento
+          </span>
+          <div className="relative inline-flex items-center bg-sky-50 border border-sky-200 rounded-xl p-0.5 shadow-2xs">
+            <button
+              type="button"
+              onClick={handlePrevPeriod}
+              className="p-2 hover:bg-white hover:text-sky-800 text-sky-700 rounded-lg transition cursor-pointer flex items-center justify-center"
+              title="Período anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
+              className="px-3.5 py-1.5 text-xs sm:text-sm font-bold text-sky-900 hover:bg-white/80 rounded-lg transition cursor-pointer flex items-center gap-2 select-none"
+              title="Escolher período"
+            >
+              <span>{periodDisplayLabel}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-sky-700 transition-transform duration-150 ${isPeriodDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNextPeriod}
+              className="p-2 hover:bg-white hover:text-sky-800 text-sky-700 rounded-lg transition cursor-pointer flex items-center justify-center"
+              title="Próximo período"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Dropdown Flutuante de Período (idêntico à referência da imagem) */}
+          {isPeriodDropdownOpen && (
+            <div
+              ref={periodDropdownRef}
+              className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodPreset('today');
+                  setReferenceDate(new Date());
+                  setIsPeriodDropdownOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  periodPreset === 'today' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>Hoje</span>
+                {periodPreset === 'today' && <Check className="w-3.5 h-3.5 text-sky-600" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodPreset('this_week');
+                  setReferenceDate(new Date());
+                  setIsPeriodDropdownOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  periodPreset === 'this_week' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>Esta semana</span>
+                {periodPreset === 'this_week' && <Check className="w-3.5 h-3.5 text-sky-600" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodPreset('this_month');
+                  setReferenceDate(new Date());
+                  setIsPeriodDropdownOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  periodPreset === 'this_month' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>Este mês</span>
+                {periodPreset === 'this_month' && <Check className="w-3.5 h-3.5 text-sky-600" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodPreset('this_year');
+                  setReferenceDate(new Date());
+                  setIsPeriodDropdownOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  periodPreset === 'this_year' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>Este ano</span>
+                {periodPreset === 'this_year' && <Check className="w-3.5 h-3.5 text-sky-600" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodPreset('last_30_days');
+                  setReferenceDate(new Date());
+                  setIsPeriodDropdownOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  periodPreset === 'last_30_days' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>Últimos 30 dias</span>
+                {periodPreset === 'last_30_days' && <Check className="w-3.5 h-3.5 text-sky-600" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodPreset('last_12_months');
+                  setReferenceDate(new Date());
+                  setIsPeriodDropdownOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  periodPreset === 'last_12_months' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>Últimos 12 meses</span>
+                {periodPreset === 'last_12_months' && <Check className="w-3.5 h-3.5 text-sky-600" />}
+              </button>
+
+              <div className="my-1 border-t border-slate-100" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPeriodPreset('all');
+                  setIsPeriodDropdownOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  periodPreset === 'all' ? 'bg-sky-50 text-sky-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>Todo o período</span>
+                {periodPreset === 'all' && <Check className="w-3.5 h-3.5 text-sky-600" />}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Cards de Métricas Superiores Consolidadas do Filtro (Padrão AGENTS.md) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Itens a Comprar */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
@@ -2142,18 +2464,23 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               Período
             </label>
             <select
-              value={periodFilter}
-              onChange={(e) => setPeriodFilter(e.target.value as PeriodOption)}
+              value={periodPreset}
+              onChange={(e) => {
+                const val = e.target.value as ProcurementPeriodPreset;
+                setPeriodPreset(val);
+                if (val !== 'this_month') {
+                  setReferenceDate(new Date());
+                }
+              }}
               className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-800 text-xs font-medium rounded-xl px-2.5 py-2 focus:outline-none focus:border-sky-500"
             >
-              <option value="all">Todo o Histórico</option>
-              <option value="today">Hoje</option>
-              <option value="yesterday">Ontem</option>
-              <option value="7days">Últimos 7 dias</option>
-              <option value="30days">Últimos 30 dias</option>
               <option value="this_month">Este Mês</option>
-              <option value="last_month">Mês Passado</option>
-              <option value="custom">Personalizado (De / Até)...</option>
+              <option value="today">Hoje</option>
+              <option value="this_week">Esta semana</option>
+              <option value="this_year">Este ano</option>
+              <option value="last_30_days">Últimos 30 dias</option>
+              <option value="last_12_months">Últimos 12 meses</option>
+              <option value="all">Todo o período</option>
             </select>
           </div>
 

@@ -2498,10 +2498,11 @@ export const App: React.FC = () => {
           }
 
           const updatedItems = newStatus === 'approved'
-            ? (q.items || []).map(it => ({
+            ? (q.items || []).map((it, idx) => ({
                 ...it,
+                id: it.id || `item_${q.id || q.code}_${it.itemNumber || idx}`,
                 approved: true,
-                approvedQuantity: it.approvedQuantity !== undefined ? it.approvedQuantity : it.quantity,
+                approvedQuantity: (it.approvedQuantity !== undefined && it.approvedQuantity > 0) ? it.approvedQuantity : (it.quantity > 0 ? it.quantity : 1),
                 purchaseStatus: it.purchaseStatus || 'pending'
               }))
             : q.items;
@@ -2545,9 +2546,20 @@ export const App: React.FC = () => {
     const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const isMovingFromDraft = (currentQuote.status || 'draft') === 'draft';
 
+    const updatedItems = newStatus === 'approved'
+      ? (currentQuote.items || []).map((it, idx) => ({
+          ...it,
+          id: it.id || `item_${currentQuote.id || currentQuote.code}_${it.itemNumber || idx}`,
+          approved: true,
+          approvedQuantity: (it.approvedQuantity !== undefined && it.approvedQuantity > 0) ? it.approvedQuantity : (it.quantity > 0 ? it.quantity : 1),
+          purchaseStatus: it.purchaseStatus || 'pending'
+        }))
+      : currentQuote.items;
+
     const updated: Quote = {
       ...currentQuote,
       status: newStatus,
+      items: updatedItems,
       updatedAt: nowIso,
       sentAt: (newStatus === 'sent' || newStatus === 'negotiating') ? (currentQuote.sentAt || nowIso) : currentQuote.sentAt,
       approvedAt: newStatus === 'approved' ? (currentQuote.approvedAt || nowIso) : currentQuote.approvedAt,

@@ -24,20 +24,30 @@ interface ItemApprovalState {
   approvedQuantity: number;
 }
 
+const getItemKey = (item: QuoteItem, index: number): string => {
+  return item.id || `it_${index}_${item.itemNumber ?? ''}_${(item.name || '').slice(0, 15)}`;
+};
+
 export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
   quote,
   isOpen,
   onClose,
   onConfirmApproval
 }) => {
-  // Inicializa o estado de cada item (se já tinha estado anterior ou padrão todos aprovados)
+  // Inicializa o estado de cada item com aprovação garantida por padrão
   const [itemsState, setItemsState] = useState<Record<string, ItemApprovalState>>(() => {
     const initialState: Record<string, ItemApprovalState> = {};
-    (quote.items || []).forEach(item => {
-      const isExcluded = item.approved === false && item.approvedQuantity === 0;
-      initialState[item.id] = {
-        approved: !isExcluded,
-        approvedQuantity: (item.approvedQuantity !== undefined && item.approvedQuantity > 0) ? item.approvedQuantity : item.quantity
+    (quote.items || []).forEach((item, index) => {
+      const key = getItemKey(item, index);
+      // Se a proposta está sendo aprovada, o padrão comercial é aprovar os produtos cotados
+      const initialApproved = item.approved !== false;
+      const qty = (item.approvedQuantity !== undefined && item.approvedQuantity > 0) 
+        ? item.approvedQuantity 
+        : (item.quantity > 0 ? item.quantity : 1);
+
+      initialState[key] = {
+        approved: initialApproved,
+        approvedQuantity: qty
       };
     });
     return initialState;
@@ -56,11 +66,16 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
   // Atualiza estado se a proposta mudar
   React.useEffect(() => {
     const initialState: Record<string, ItemApprovalState> = {};
-    (quote.items || []).forEach(item => {
-      const isExcluded = item.approved === false && item.approvedQuantity === 0;
-      initialState[item.id] = {
-        approved: !isExcluded,
-        approvedQuantity: (item.approvedQuantity !== undefined && item.approvedQuantity > 0) ? item.approvedQuantity : item.quantity
+    (quote.items || []).forEach((item, index) => {
+      const key = getItemKey(item, index);
+      const initialApproved = item.approved !== false;
+      const qty = (item.approvedQuantity !== undefined && item.approvedQuantity > 0) 
+        ? item.approvedQuantity 
+        : (item.quantity > 0 ? item.quantity : 1);
+
+      initialState[key] = {
+        approved: initialApproved,
+        approvedQuantity: qty
       };
     });
     setItemsState(initialState);
@@ -73,11 +88,12 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
     let approvedAmount = 0;
     let approvedCost = 0;
 
-    (quote.items || []).forEach(item => {
-      const state = itemsState[item.id];
+    (quote.items || []).forEach((item, index) => {
+      const key = getItemKey(item, index);
+      const state = itemsState[key];
       if (state && state.approved) {
         approvedItemsCount++;
-        const qty = state.approvedQuantity || item.quantity;
+        const qty = state.approvedQuantity || (item.quantity > 0 ? item.quantity : 1);
         approvedAmount += item.unitPrice * qty;
         approvedCost += (item.costPrice + (item.shippingCost || 0)) * qty;
       }
@@ -99,13 +115,13 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleToggleItem = (itemId: string) => {
+  const handleToggleItem = (key: string) => {
     setItemsState(prev => {
-      const current = prev[itemId];
+      const current = prev[key];
       if (!current) return prev;
       return {
         ...prev,
-        [itemId]: {
+        [key]: {
           ...current,
           approved: !current.approved
         }
@@ -113,12 +129,12 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
     });
   };
 
-  const handleQuantityChange = (itemId: string, newQty: number, maxQty: number) => {
+  const handleQuantityChange = (key: string, newQty: number, maxQty: number) => {
     const validQty = Math.max(1, Math.min(newQty, maxQty));
     setItemsState(prev => ({
       ...prev,
-      [itemId]: {
-        ...prev[itemId],
+      [key]: {
+        ...prev[key],
         approvedQuantity: validQty
       }
     }));
@@ -139,16 +155,26 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
 
   const handleConfirm = () => {
     const oc = clientOrderNumber.trim() || undefined;
-    // Monta os itens atualizados com status de aprovação e envio para esteira de compras
-    const updatedItems: QuoteItem[] = (quote.items || []).map(item => {
-      const state = itemsState[item.id] || { approved: false, approvedQuantity: item.quantity };
+    // Monta os itens atualizados com status de aprovação e envio garantido para esteira de compras
+    const updatedItems: QuoteItem[] = (quote.items || []).map((item, index) => {
+      const key = getItemKey(item, index);
+      const state = itemsState[key] || { 
+        approved: true, 
+        approvedQuantity: item.quantity > 0 ? item.quantity : 1 
+      };
+      const isApproved = state.approved !== false;
+      const validQty = (state.approvedQuantity && state.approvedQuantity > 0)
+        ? state.approvedQuantity
+        : (item.quantity > 0 ? item.quantity : 1);
+
       return {
         ...item,
-        approved: state.approved,
-        approvedQuantity: state.approved ? state.approvedQuantity : 0,
+        id: item.id || key,
+        approved: isApproved,
+        approvedQuantity: isApproved ? validQty : 0,
         clientOrderNumber: oc || item.clientOrderNumber,
         // Itens aprovados entram com status de compra 'pending' caso ainda não tenham sido comprados
-        purchaseStatus: state.approved 
+        purchaseStatus: isApproved 
           ? (item.purchaseStatus || 'pending') 
           : undefined
       };
@@ -317,14 +343,15 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
         {/* Lista com Rolagem */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-2.5 divide-y divide-slate-100">
           {(quote.items || []).map((item, index) => {
-            const state = itemsState[item.id] || { approved: false, approvedQuantity: item.quantity };
-            const isApproved = state.approved;
-            const currentQty = state.approvedQuantity || item.quantity;
+            const key = getItemKey(item, index);
+            const state = itemsState[key] || { approved: true, approvedQuantity: item.quantity > 0 ? item.quantity : 1 };
+            const isApproved = state.approved !== false;
+            const currentQty = state.approvedQuantity || (item.quantity > 0 ? item.quantity : 1);
             const itemTotal = item.unitPrice * currentQty;
 
             return (
               <div
-                key={item.id}
+                key={key}
                 className={`pt-2.5 first:pt-0 transition-all rounded-2xl p-3 border ${
                   isApproved 
                     ? 'bg-white border-slate-200 shadow-2xs hover:border-emerald-300' 
@@ -336,9 +363,9 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
                   <div className="pt-1">
                     <input
                       type="checkbox"
-                      id={`chk-${item.id}`}
+                      id={`chk-${key}`}
                       checked={isApproved}
-                      onChange={() => handleToggleItem(item.id)}
+                      onChange={() => handleToggleItem(key)}
                       className="w-4 h-4 text-emerald-600 rounded-md border-slate-300 focus:ring-emerald-500 cursor-pointer"
                     />
                   </div>
@@ -366,7 +393,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <label 
-                          htmlFor={`chk-${item.id}`}
+                          htmlFor={`chk-${key}`}
                           className={`text-xs sm:text-sm font-bold block cursor-pointer transition ${
                             isApproved ? 'text-slate-900 hover:text-emerald-700' : 'text-slate-500 line-through'
                           }`}
@@ -404,7 +431,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
                           max={item.quantity}
                           disabled={!isApproved}
                           value={currentQty}
-                          onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1, item.quantity)}
+                          onChange={(e) => handleQuantityChange(key, parseInt(e.target.value) || 1, item.quantity)}
                           className={`w-16 h-7 text-xs font-mono font-bold text-center border rounded-lg focus:outline-none focus:border-emerald-500 ${
                             isApproved ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-100 border-slate-200 text-slate-400'
                           }`}
