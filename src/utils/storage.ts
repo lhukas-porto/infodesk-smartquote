@@ -2096,11 +2096,16 @@ export interface ProcurementSplitPart {
   id: string; // ex: `${originalItemId}_split_1`
   quantity: number;
   batchNumber: number;
+  quotedUnitPrice?: number;
+  quotedTotalPrice?: number;
+  quotedCostPrice?: number;
 }
 
 export interface ProcurementSplitConfig {
   originalItemId: string; // id do item base
   originalQuantity: number;
+  totalCostPrice?: number;
+  totalSellingPrice?: number;
   parts: ProcurementSplitPart[];
   createdAt: string;
 }
@@ -2119,7 +2124,13 @@ export const getProcurementSplits = (): Record<string, ProcurementSplitConfig> =
 export const saveProcurementSplit = (
   originalItemId: string,
   originalQuantity: number,
-  firstPartQty: number
+  firstPartQty: number,
+  customPartsData?: {
+    part1Cost?: number;
+    part1Revenue?: number;
+    part2Cost?: number;
+    part2Revenue?: number;
+  }
 ): boolean => {
   if (!originalItemId || originalQuantity <= 1) return false;
   const firstQty = Math.floor(firstPartQty);
@@ -2132,8 +2143,22 @@ export const saveProcurementSplit = (
       originalItemId,
       originalQuantity,
       parts: [
-        { id: `${originalItemId}_split_1`, quantity: firstQty, batchNumber: 1 },
-        { id: `${originalItemId}_split_2`, quantity: secondQty, batchNumber: 2 }
+        { 
+          id: `${originalItemId}_split_1`, 
+          quantity: firstQty, 
+          batchNumber: 1,
+          quotedCostPrice: customPartsData?.part1Cost !== undefined ? (firstQty > 0 ? Number((customPartsData.part1Cost / firstQty).toFixed(2)) : undefined) : undefined,
+          quotedTotalPrice: customPartsData?.part1Revenue !== undefined ? Number(customPartsData.part1Revenue.toFixed(2)) : undefined,
+          quotedUnitPrice: customPartsData?.part1Revenue !== undefined ? (firstQty > 0 ? Number((customPartsData.part1Revenue / firstQty).toFixed(2)) : undefined) : undefined
+        },
+        { 
+          id: `${originalItemId}_split_2`, 
+          quantity: secondQty, 
+          batchNumber: 2,
+          quotedCostPrice: customPartsData?.part2Cost !== undefined ? (secondQty > 0 ? Number((customPartsData.part2Cost / secondQty).toFixed(2)) : undefined) : undefined,
+          quotedTotalPrice: customPartsData?.part2Revenue !== undefined ? Number(customPartsData.part2Revenue.toFixed(2)) : undefined,
+          quotedUnitPrice: customPartsData?.part2Revenue !== undefined ? (secondQty > 0 ? Number((customPartsData.part2Revenue / secondQty).toFixed(2)) : undefined) : undefined
+        }
       ],
       createdAt: new Date().toISOString()
     };

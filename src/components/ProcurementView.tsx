@@ -404,24 +404,64 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     setCollapsedDays(prev => ({ ...prev, [dayKey]: !prev[dayKey] }));
   };
 
-  // 7. Divisão de Compras em Múltiplos Fornecedores (Splits)
+  // 7. Divisão de Compras em Múltiplos Fornecedores (Splits) com Rateio Proporcional
   const [splitVersion, setSplitVersion] = useState(0);
   const [itemToSplit, setItemToSplit] = useState<ProcurementItem | null>(null);
   const [splitFirstPartQty, setSplitFirstPartQty] = useState<number>(1);
+  const [splitCustomPart1Cost, setSplitCustomPart1Cost] = useState<number>(0);
+  const [splitCustomPart2Cost, setSplitCustomPart2Cost] = useState<number>(0);
+  const [splitCustomPart1Revenue, setSplitCustomPart1Revenue] = useState<number>(0);
+  const [splitCustomPart2Revenue, setSplitCustomPart2Revenue] = useState<number>(0);
 
   const handleOpenSplitModal = (item: ProcurementItem) => {
     setItemToSplit(item);
-    setSplitFirstPartQty(Math.floor(item.quantity / 2) || 1);
+    const half = Math.floor(item.quantity / 2) || 1;
+    setSplitFirstPartQty(half);
+
+    const totalQty = item.quantity > 0 ? item.quantity : 1;
+    const totalCost = Number((item.quotedCostPrice * totalQty).toFixed(2));
+    const totalRevenue = item.quotedTotalPrice;
+
+    const r1 = half / totalQty;
+    const r2 = (totalQty - half) / totalQty;
+
+    setSplitCustomPart1Cost(Number((totalCost * r1).toFixed(2)));
+    setSplitCustomPart2Cost(Number((totalCost * r2).toFixed(2)));
+    setSplitCustomPart1Revenue(Number((totalRevenue * r1).toFixed(2)));
+    setSplitCustomPart2Revenue(Number((totalRevenue * r2).toFixed(2)));
+  };
+
+  const handleSplitQtyChange = (newPart1Qty: number) => {
+    if (!itemToSplit) return;
+    const validQty = Math.max(1, Math.min(itemToSplit.quantity - 1, newPart1Qty));
+    setSplitFirstPartQty(validQty);
+
+    const totalQty = itemToSplit.quantity > 0 ? itemToSplit.quantity : 1;
+    const totalCost = Number((itemToSplit.quotedCostPrice * totalQty).toFixed(2));
+    const totalRevenue = itemToSplit.quotedTotalPrice;
+
+    const r1 = validQty / totalQty;
+    const r2 = (totalQty - validQty) / totalQty;
+
+    setSplitCustomPart1Cost(Number((totalCost * r1).toFixed(2)));
+    setSplitCustomPart2Cost(Number((totalCost * r2).toFixed(2)));
+    setSplitCustomPart1Revenue(Number((totalRevenue * r1).toFixed(2)));
+    setSplitCustomPart2Revenue(Number((totalRevenue * r2).toFixed(2)));
   };
 
   const handleConfirmSplit = () => {
     if (!itemToSplit) return;
     const baseId = itemToSplit.splitFromId || itemToSplit.id;
-    const ok = saveProcurementSplit(baseId, itemToSplit.quantity, splitFirstPartQty);
+    const ok = saveProcurementSplit(baseId, itemToSplit.quantity, splitFirstPartQty, {
+      part1Cost: splitCustomPart1Cost,
+      part1Revenue: splitCustomPart1Revenue,
+      part2Cost: splitCustomPart2Cost,
+      part2Revenue: splitCustomPart2Revenue
+    });
     if (ok) {
       setSplitVersion(v => v + 1);
       setItemToSplit(null);
-      showToast(`Item fracionado em 2 lotes com sucesso!`);
+      showToast(`Item fracionado em 2 lotes com valores rateados com sucesso!`);
     } else {
       alert('Quantidade inválida para divisão.');
     }
@@ -506,10 +546,23 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
           if (splitConfig && splitConfig.parts && splitConfig.parts.length > 0) {
             // ITEM FRACIONADO EM LOTES
+            const origTotalQty = splitConfig.originalQuantity || (splitConfig.parts ? splitConfig.parts.reduce((acc, p) => acc + p.quantity, 0) : qty) || 1;
+
             splitConfig.parts.forEach(part => {
               const subId = part.id;
               const subQty = part.quantity;
-              const subQuotedTotalPrice = Number((quotedUnitPrice * subQty).toFixed(2));
+
+              const subQuotedCostPrice = part.quotedCostPrice !== undefined
+                ? part.quotedCostPrice
+                : item.costPrice;
+
+              const subQuotedUnitPrice = part.quotedUnitPrice !== undefined
+                ? part.quotedUnitPrice
+                : quotedUnitPrice;
+
+              const subQuotedTotalPrice = part.quotedTotalPrice !== undefined
+                ? part.quotedTotalPrice
+                : Number((subQuotedUnitPrice * subQty).toFixed(2));
 
               const subPurchaseRecord = findPurchasedProcurementRecord(purchasesMap, {
                 itemId: subId,
@@ -524,7 +577,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
               const subActualCost = subPurchaseRecord?.actualCostPrice;
               const subActualUnit = subPurchaseRecord?.actualUnitCostPrice !== undefined
                 ? subPurchaseRecord.actualUnitCostPrice
-                : (subActualCost !== undefined && subQty > 0 ? Number((subActualCost / subQty).toFixed(2)) : undefined);
+                : (subActualCost !== undefined && subQty > 0 ? Number((subActualCost / subQty).toFixed(2)) : subQuotedCostPrice);
 
               const subActualUrl = subPurchaseRecord?.actualPurchaseUrl;
               const subStore = extractStoreNameFromUrl(subActualUrl);
@@ -554,8 +607,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 imageUrl: effectiveImageUrl,
                 quantity: subQty,
                 unit: item.unit || 'un',
-                quotedCostPrice: item.costPrice,
-                quotedUnitPrice,
+                quotedCostPrice: subQuotedCostPrice,
+                quotedUnitPrice: subQuotedUnitPrice,
                 quotedTotalPrice: subQuotedTotalPrice,
                 supplier: subSupplier,
                 quotedSupplier: item.supplier,
@@ -664,10 +717,30 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       );
 
       if (splitConfig && splitConfig.parts && splitConfig.parts.length > 0) {
+        const origTotalQty = splitConfig.originalQuantity || (splitConfig.parts ? splitConfig.parts.reduce((acc, p) => acc + p.quantity, 0) : dp.quantity) || 1;
+
         splitConfig.parts.forEach(part => {
           const subId = part.id;
           const subQty = part.quantity;
-          const subQuotedTotalPrice = Number((dp.quotedUnitPrice * subQty).toFixed(2));
+
+          // Rateio Proporcional do Custo das Peças:
+          // Se part tem quotedCostPrice gravado explicitamente, usa ele.
+          // Se não tem (casos já gravados onde dp.quotedCostPrice representava o custo total de todas as peças juntas):
+          // o custo unitário de cada peça é dp.quotedCostPrice / origTotalQty (ex: 772,69 / 2 = 386,35/un)!
+          const subQuotedCostPrice = part.quotedCostPrice !== undefined
+            ? part.quotedCostPrice
+            : (origTotalQty > 1 && dp.quotedCostPrice > 0 ? Number((dp.quotedCostPrice / origTotalQty).toFixed(2)) : dp.quotedCostPrice);
+
+          // Valor do pedido / venda do lote:
+          // Se part tem quotedUnitPrice ou quotedTotalPrice gravados explicitamente, usa eles.
+          // Se não tem, mantém o valor do pedido conforme configurado em dp.
+          const subQuotedUnitPrice = part.quotedUnitPrice !== undefined
+            ? part.quotedUnitPrice
+            : dp.quotedUnitPrice;
+          const subQuotedTotalPrice = part.quotedTotalPrice !== undefined
+            ? part.quotedTotalPrice
+            : Number((subQuotedUnitPrice * subQty).toFixed(2));
+
           const subPurchaseRecord = findPurchasedProcurementRecord(purchasesMap, { itemId: subId });
 
           const isSubPurchased = subPurchaseRecord?.purchaseStatus === 'purchased';
@@ -676,7 +749,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           const subActualCost = subPurchaseRecord?.actualCostPrice;
           const subActualUnit = subPurchaseRecord?.actualUnitCostPrice !== undefined
             ? subPurchaseRecord.actualUnitCostPrice
-            : (subActualCost !== undefined && subQty > 0 ? Number((subActualCost / subQty).toFixed(2)) : dp.quotedCostPrice);
+            : (subActualCost !== undefined && subQty > 0 ? Number((subActualCost / subQty).toFixed(2)) : subQuotedCostPrice);
 
           const subActualUrl = subPurchaseRecord?.actualPurchaseUrl || dp.sourceUrl;
           const subStore = extractStoreNameFromUrl(subActualUrl);
@@ -690,6 +763,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             id: subId,
             itemId: subId,
             quantity: subQty,
+            quotedCostPrice: subQuotedCostPrice,
+            quotedUnitPrice: subQuotedUnitPrice,
             quotedTotalPrice: subQuotedTotalPrice,
             imageUrl: dp.imageUrl || subPurchaseRecord?.imageUrl || matchedStock?.imageUrl || findProductImageInCache(dp.name, dp.partNumber),
             supplier: subSupplier,
@@ -3962,6 +4037,26 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 </div>
 
                 <div>
+                  <label className="block text-slate-700 font-bold mb-1 text-xs" title="Custo total de todas as peças somadas">
+                    Custo Total Peças (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={Number(((directPurchaseForm.costPrice || 0) * (directPurchaseForm.quantity || 1)).toFixed(2)) || ''}
+                    onChange={(e) => {
+                      const totalVal = parseFloat(e.target.value) || 0;
+                      const q = Math.max(1, directPurchaseForm.quantity || 1);
+                      setDirectPurchaseForm({ ...directPurchaseForm, costPrice: Number((totalVal / q).toFixed(2)) });
+                    }}
+                    className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-emerald-800 font-bold mb-1 text-xs flex items-center justify-between">
                     <span>Venda Unit. (R$) *</span>
                   </label>
@@ -3972,6 +4067,24 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     value={directPurchaseForm.sellingPrice || ''}
                     onChange={(e) => setDirectPurchaseForm({ ...directPurchaseForm, sellingPrice: parseFloat(e.target.value) || 0 })}
                     className="w-full h-9 px-3 bg-white border border-emerald-300 focus:border-emerald-500 rounded-xl text-xs font-mono font-bold text-emerald-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-emerald-800 font-bold mb-1 text-xs flex items-center justify-between" title="Valor faturado total do pedido">
+                    <span>Valor Total Pedido / Venda (R$)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={Number(((directPurchaseForm.sellingPrice || 0) * (directPurchaseForm.quantity || 1)).toFixed(2)) || ''}
+                    onChange={(e) => {
+                      const totalVal = parseFloat(e.target.value) || 0;
+                      const q = Math.max(1, directPurchaseForm.quantity || 1);
+                      setDirectPurchaseForm({ ...directPurchaseForm, sellingPrice: Number((totalVal / q).toFixed(2)) });
+                    }}
+                    className="w-full h-9 px-3 bg-emerald-50/50 border border-emerald-200 rounded-xl text-xs font-mono font-bold text-emerald-900"
                   />
                 </div>
               </div>
@@ -4281,7 +4394,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     onChange={(e) => {
                       const val = parseInt(e.target.value, 10);
                       if (!isNaN(val)) {
-                        setSplitFirstPartQty(Math.max(1, Math.min(itemToSplit.quantity - 1, val)));
+                        handleSplitQtyChange(val);
                       }
                     }}
                     className="w-32 h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 rounded-xl text-sm font-bold font-mono text-slate-900"
@@ -4292,35 +4405,49 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 </div>
               </div>
 
-              {/* Preview Comparativo dos 2 Lotes em Tempo Real */}
+              {/* Preview Comparativo dos 2 Lotes em Tempo Real com Rateio de Peças e Pedido */}
               <div className="grid grid-cols-2 gap-3 pt-2">
-                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-2xl space-y-1">
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-2xl space-y-1.5">
                   <div className="flex items-center justify-between text-indigo-900">
                     <span className="text-[11px] font-bold uppercase tracking-wider">Lote 1 (Imediato)</span>
                     <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md text-[10px] font-bold font-mono">
                       {splitFirstPartQty} {itemToSplit.unit}
                     </span>
                   </div>
-                  <span className="text-xs text-indigo-800 font-medium block">
-                    Venda: <strong className="font-mono font-bold">R$ {(itemToSplit.quotedUnitPrice * splitFirstPartQty).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                  </span>
-                  <span className="text-[10px] text-indigo-600/80 block">
-                    Pronto para comprar no 1º site
+                  <div className="space-y-0.5 text-xs text-indigo-900">
+                    <div className="flex items-center justify-between">
+                      <span className="text-indigo-700 text-[11px]">Custo Peças:</span>
+                      <strong className="font-mono font-bold">R$ {splitCustomPart1Cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-indigo-700 text-[11px]">Valor Pedido:</span>
+                      <strong className="font-mono font-bold">R$ {splitCustomPart1Revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-indigo-600/80 block pt-0.5">
+                    Cotado a R$ {(splitFirstPartQty > 0 ? splitCustomPart1Cost / splitFirstPartQty : 0).toFixed(2)}/un
                   </span>
                 </div>
 
-                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-1">
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-1.5">
                   <div className="flex items-center justify-between text-amber-900">
                     <span className="text-[11px] font-bold uppercase tracking-wider">Lote 2 (Saldo)</span>
                     <span className="px-2 py-0.5 bg-amber-600 text-white rounded-md text-[10px] font-bold font-mono">
                       {itemToSplit.quantity - splitFirstPartQty} {itemToSplit.unit}
                     </span>
                   </div>
-                  <span className="text-xs text-amber-800 font-medium block">
-                    Venda: <strong className="font-mono font-bold">R$ {(itemToSplit.quotedUnitPrice * (itemToSplit.quantity - splitFirstPartQty)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                  </span>
-                  <span className="text-[10px] text-amber-600/80 block">
-                    Ficará pendente para o 2º site
+                  <div className="space-y-0.5 text-xs text-amber-900">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-700 text-[11px]">Custo Peças:</span>
+                      <strong className="font-mono font-bold">R$ {splitCustomPart2Cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-700 text-[11px]">Valor Pedido:</span>
+                      <strong className="font-mono font-bold">R$ {splitCustomPart2Revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-amber-600/80 block pt-0.5">
+                    Cotado a R$ {((itemToSplit.quantity - splitFirstPartQty) > 0 ? splitCustomPart2Cost / (itemToSplit.quantity - splitFirstPartQty) : 0).toFixed(2)}/un
                   </span>
                 </div>
               </div>
