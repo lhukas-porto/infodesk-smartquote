@@ -84,8 +84,11 @@ import {
   getDeletedPaymentMethods,
   isProductDeleted,
   isBlockedOrTestQuote,
+  isQuoteDeleted,
   getDeletedQuoteCodes,
+  getDeletedQuoteIds,
   recordDeletedQuoteCode,
+  recordDeletedQuoteId,
   getPurchasedProcurementRecords,
   savePurchasedProcurementRecord,
   findPurchasedProcurementRecord
@@ -165,6 +168,7 @@ import {
   calculateMarkupFromUnitPrice, 
   recalculateQuoteTotals 
 } from './services/pricingEngine';
+import { reportError } from './services/errorReporter';
 
 export type TabType = 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard' | 'purchases';
 
@@ -229,19 +233,10 @@ export const App: React.FC = () => {
   const [emails, setEmails] = useState<IncomingEmail[]>(getEmails());
   const [quotes, setQuotes] = useState<Quote[]>(() => {
     const raw = getQuotes();
-    const sanitized = raw.map(q => {
+    // Expurga imediatamente quaisquer propostas deletadas ou bloqueadas
+    const active = raw.filter(q => !isQuoteDeleted(q));
+    const sanitized = active.map(q => {
       const code = (q.code || '').trim().toUpperCase();
-      if (code === 'UBEC 280926') {
-        return {
-          ...q,
-          status: 'draft' as const,
-          sentAt: undefined,
-          date: '28 de setembro de 2026',
-          totalAmount: 4298,
-          totalCost: 3740,
-          totalProfit: 558
-        };
-      }
       const isSeptember = /\b\d{2}0926\b/.test(code) || /setembro/i.test(q.date || '');
       if (isSeptember && q.sentAt && q.sentAt.includes('2026-10-06')) {
         return {
@@ -252,7 +247,7 @@ export const App: React.FC = () => {
       return q;
     });
     const healed = sanitized.map(q => {
-      const isConfirmedSent = (Boolean(q.sentAt) || (q.code && q.code.trim().toUpperCase() === 'CNC 210926-3')) && (q.code?.trim().toUpperCase() !== 'UBEC 280926');
+      const isConfirmedSent = Boolean(q.sentAt) || (q.code && q.code.trim().toUpperCase() === 'CNC 210926-3');
       if (isConfirmedSent && (q.status === 'draft' || !q.status)) {
         return {
           ...q,
@@ -664,32 +659,30 @@ export const App: React.FC = () => {
 
         // 2. Orçamentos
         if (remoteQuotes && remoteQuotes.length > 0) {
-          const deletedCodes = getDeletedQuoteCodes();
-
           // Descarta rascunhos fantasmas vazios e propostas de teste ou já deletadas
           const validRemoteQuotes = remoteQuotes.filter(rq => {
-            if (isBlockedOrTestQuote(rq) || deletedCodes.has((rq.code || '').trim().toUpperCase())) {
+            if (isQuoteDeleted(rq)) {
               return false;
             }
             const hasItems = Array.isArray(rq.items) && rq.items.length > 0;
-            const hasAmount = Number(rq.totalAmount || 0) > 0;
-            if ((rq.status || 'draft') === 'draft' && !hasItems && !hasAmount) {
+            // Se for draft e não tem nenhum item, é um rascunho fantasma vazio corrompido, descarta!
+            if ((rq.status || 'draft') === 'draft' && !hasItems) {
               return false;
             }
             return true;
           });
 
-          // Se veio alguma proposta de teste no Supabase durante a leitura, expurga imediatamente do banco
+          // Se veio alguma proposta deletada ou de teste no Supabase durante a leitura, expurga imediatamente do banco
           remoteQuotes.forEach(rq => {
-            if ((isBlockedOrTestQuote(rq) || deletedCodes.has((rq.code || '').trim().toUpperCase())) && rq.code) {
-              deleteQuoteFromSupabase(rq.code).catch(() => {});
+            if (isQuoteDeleted(rq)) {
+              deleteQuoteFromSupabase(rq.code, rq.id).catch(() => {});
             }
           });
 
           // Merge seguro: se o banco retornar a cotação sem itens, preserva os itens salvos localmente ou do backup
           setQuotes(prevQuotes => {
             const mergedRemote = validRemoteQuotes.map(rq => {
-              const isConfirmedSent = (Boolean(rq.sentAt) || (rq.code && rq.code.trim().toUpperCase() === 'CNC 210926-3')) && (rq.code?.trim().toUpperCase() !== 'UBEC 280926');
+              const isConfirmedSent = Boolean(rq.sentAt) || (rq.code && rq.code.trim().toUpperCase() === 'CNC 210926-3');
               if (isConfirmedSent && (rq.status === 'draft' || !rq.status)) {
                 rq = { ...rq, status: 'sent', sentAt: rq.sentAt || rq.createdAt || undefined };
               }
@@ -739,9 +732,7 @@ export const App: React.FC = () => {
               // BLINDAGEM DE STATUS NO F5:
               // NUNCA regride de sent, negotiating, approved ou lost para draft se o usuário já avançou localmente!
               let finalStatus = rq.status;
-              if (rq.code && rq.code.trim().toUpperCase() === 'UBEC 280926') {
-                finalStatus = 'draft';
-              } else if (localMatch?.status === 'approved') {
+              if (localMatch?.status === 'approved') {
                 finalStatus = 'approved';
               } else if (localMatch?.status === 'negotiating' && rq.status !== 'approved') {
                 finalStatus = 'negotiating';
@@ -859,13 +850,12 @@ export const App: React.FC = () => {
             // Preserva propostas que existem apenas localmente (evita perda de dados locais)
             // FILTRA E BLOQUEIA RIGOROSAMENTE QUALQUER PROPOSTA DE TESTE OU DELETADA
             const localOnlyQuotes = prevQuotes.filter(lq => 
-              !isBlockedOrTestQuote(lq) &&
-              !deletedCodes.has(normalizeQuoteCode(lq.code)) &&
+              !isQuoteDeleted(lq) &&
               !mergedRemote.some(rq => isSameQuote(rq, lq))
             );
 
             const combined = [...mergedRemote, ...localOnlyQuotes].filter(q => 
-              !isBlockedOrTestQuote(q) && !deletedCodes.has((q.code || '').trim().toUpperCase())
+              !isQuoteDeleted(q)
             );
             const { updatedQuotes: normalizedMerged } = updateDraftQuotesToToday(combined);
             saveQuotes(normalizedMerged);
@@ -876,9 +866,9 @@ export const App: React.FC = () => {
             const draft = getCurrentDraftQuote();
             // Apenas restaura rascunho ativo se ele possuir itens reais e não for teste
             let chosen: Quote = prev;
-            if (draft && Array.isArray(draft.items) && draft.items.length > 0 && !isBlockedOrTestQuote(draft)) {
+            if (draft && Array.isArray(draft.items) && draft.items.length > 0 && !isQuoteDeleted(draft)) {
               chosen = draft;
-            } else if ((isBlockedOrTestQuote(prev) || deletedCodes.has((prev.code || '').trim().toUpperCase())) && validRemoteQuotes[0]) {
+            } else if (isQuoteDeleted(prev) && validRemoteQuotes[0]) {
               chosen = validRemoteQuotes[0];
             }
             if (!chosen.openingText || chosen.openingText.trim() === 'Em atenção...' || chosen.openingText.trim() === 'Em atenção') {
@@ -1956,20 +1946,34 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteQuote = async (quoteToDelete: Quote) => {
+    // 1. Grava no tombstone permanente (tanto código quanto id)
+    if (quoteToDelete.code) {
+      recordDeletedQuoteCode(quoteToDelete.code, quoteToDelete.id);
+    }
+    if (quoteToDelete.id) {
+      recordDeletedQuoteId(quoteToDelete.id);
+    }
+
     setQuotes(prev => {
-      const next = prev.filter(q => q.id !== quoteToDelete.id);
+      const next = prev.filter(q => q.id !== quoteToDelete.id && (!quoteToDelete.code || q.code !== quoteToDelete.code));
       saveQuotes(next);
       return next;
     });
 
     // Se o orçamento excluído for o que estava ativo no rascunho/editor, reinicia para um novo
-    if (currentQuote.id === quoteToDelete.id || currentQuote.code === quoteToDelete.code) {
+    if (currentQuote.id === quoteToDelete.id || (quoteToDelete.code && currentQuote.code === quoteToDelete.code)) {
       handleNewQuote();
     }
 
-    if (quoteToDelete.code) {
-      recordDeletedQuoteCode(quoteToDelete.code);
-      await deleteQuoteFromSupabase(quoteToDelete.code);
+    // 2. Remove permanentemente do Supabase (itens filhos em cascata + quote)
+    try {
+      await deleteQuoteFromSupabase(quoteToDelete.code, quoteToDelete.id);
+    } catch (err: any) {
+      reportError(
+        'Falha ao excluir orçamento do banco de dados',
+        err,
+        `Código: ${quoteToDelete.code || 'N/A'}, ID: ${quoteToDelete.id || 'N/A'}`
+      );
     }
   };
 

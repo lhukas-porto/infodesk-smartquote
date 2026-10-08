@@ -647,10 +647,42 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
   }
 }
 
-export async function deleteQuoteFromSupabase(code: string): Promise<void> {
+export async function deleteQuoteFromSupabase(code?: string, id?: string): Promise<void> {
   if (!supabase) return;
   try {
-    await supabase.from('quotes').delete().eq('code', code);
+    // 1. Deleta itens filhos em quote_items primeiro para nunca quebrar FK constraints
+    if (id) {
+      await supabase.from('quote_items').delete().eq('quote_id', id);
+    }
+
+    if (code) {
+      const cleanCode = code.trim();
+      const normCode = normalizeQuoteCode(cleanCode);
+      const { data: matchedQuotes } = await supabase
+        .from('quotes')
+        .select('id')
+        .or(`code.eq.${cleanCode},code.ilike.%${cleanCode}%,code.ilike.%${normCode}%`);
+
+      if (matchedQuotes && matchedQuotes.length > 0) {
+        const ids = matchedQuotes.map((q: any) => q.id).filter(Boolean);
+        if (ids.length > 0) {
+          await supabase.from('quote_items').delete().in('quote_id', ids);
+          await supabase.from('quotes').delete().in('id', ids);
+        }
+      }
+    }
+
+    // 2. Deleta a proposta na tabela quotes por ID direto
+    if (id) {
+      await supabase.from('quotes').delete().eq('id', id);
+    }
+
+    // 3. Deleta a proposta na tabela quotes por código exato e variações
+    if (code) {
+      const cleanCode = code.trim();
+      await supabase.from('quotes').delete().eq('code', cleanCode);
+      await supabase.from('quotes').delete().ilike('code', `%${cleanCode}%`);
+    }
   } catch (err) {
     console.warn('Erro ao deletar orçamento no Supabase:', err);
   }

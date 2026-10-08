@@ -134,3 +134,43 @@ export async function searchProductImages(
   return [];
 }
 
+/**
+ * Localiza automaticamente a melhor imagem real de produto na web.
+ * Ideal para autocura e preenchimento de fotos ausentes no sistema.
+ */
+export async function autoFindProductImage(name: string, partNumber?: string): Promise<string | null> {
+  const cleanName = (name || '').trim();
+  const cleanPn = (partNumber || '').trim();
+  if (!cleanName && !cleanPn) return null;
+
+  // 1. Constrói query priorizando Part Number se disponível
+  const primaryQuery = cleanPn && cleanPn.length >= 3 
+    ? `${cleanName} ${cleanPn}` 
+    : cleanName;
+
+  const altQueries: string[] = [];
+  if (cleanPn && cleanPn.length >= 3) {
+    altQueries.push(cleanPn);
+    // 4 primeiras palavras do nome + Part Number
+    const shortName = cleanName.split(' ').slice(0, 4).join(' ');
+    if (shortName) altQueries.push(`${shortName} ${cleanPn}`);
+  }
+
+  try {
+    const images = await searchProductImages(primaryQuery, 5, {
+      alternativeQueries: altQueries
+    });
+
+    if (images && images.length > 0) {
+      // Retorna a primeira imagem válida (que comece com http)
+      const valid = images.find(img => img.startsWith('http://') || img.startsWith('https://'));
+      return valid || images[0] || null;
+    }
+  } catch (err) {
+    console.warn('[Image Search] Falha ao auto-localizar imagem para:', cleanName, err);
+  }
+
+  return null;
+}
+
+

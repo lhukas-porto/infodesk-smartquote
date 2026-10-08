@@ -52,40 +52,95 @@ export const isBlockedOrTestQuote = (q: { code?: string; clientCompany?: string;
   if (code.includes('empresa teste') || comp.includes('empresa teste')) return true;
   if (code.includes('teste alpha') || code.includes('teste beta')) return true;
   if (code === 'interativa 240826' || code === 'cnc 280826') return true;
+  if (code === 'inframerica 250926' || code === 'inframérica 250926' || code === 'ubec 280926') return true;
   if (q.id === 'quote-interativa-01' || q.id === 'quote-cnc-01') return true;
   return false;
 };
 
-export const getDeletedQuoteCodes = (): Set<string> => {
+const DELETED_QUOTE_IDS_KEY = 'infodesk_deleted_quote_ids';
+
+export const getDeletedQuoteIds = (): Set<string> => {
   try {
-    const raw = localStorage.getItem(DELETED_QUOTE_CODES_KEY);
+    const raw = localStorage.getItem(DELETED_QUOTE_IDS_KEY);
     if (raw) {
       const arr = JSON.parse(raw);
       if (Array.isArray(arr)) {
-        const set = new Set(arr.map((c: string) => String(c).trim().toUpperCase()));
-        set.add('EMPRESA TESTE ALPHA 190926');
-        set.add('EMPRESA TESTE BETA 190926');
-        set.add('INTERATIVA 240826');
-        set.add('CNC 280826');
-        return set;
+        return new Set(arr.filter(Boolean));
       }
     }
   } catch { /* noop */ }
+  return new Set<string>();
+};
+
+export const recordDeletedQuoteId = (id: string): void => {
+  if (!id) return;
+  try {
+    const set = getDeletedQuoteIds();
+    set.add(id);
+    localStorage.setItem(DELETED_QUOTE_IDS_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* noop */ }
+};
+
+export const getDeletedQuoteCodes = (): Set<string> => {
   const defaultSet = new Set<string>();
   defaultSet.add('EMPRESA TESTE ALPHA 190926');
   defaultSet.add('EMPRESA TESTE BETA 190926');
   defaultSet.add('INTERATIVA 240826');
   defaultSet.add('CNC 280826');
+  defaultSet.add('INFRAMÉRICA 250926');
+  defaultSet.add('INFRAMERICA 250926');
+  defaultSet.add('UBEC 280926');
+
+  try {
+    const raw = localStorage.getItem(DELETED_QUOTE_CODES_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        arr.forEach((c: string) => {
+          if (c) {
+            defaultSet.add(String(c).trim().toUpperCase());
+          }
+        });
+      }
+    }
+  } catch { /* noop */ }
   return defaultSet;
 };
 
-export const recordDeletedQuoteCode = (quoteCode: string): void => {
-  if (!quoteCode) return;
+export const recordDeletedQuoteCode = (quoteCode?: string, quoteId?: string): void => {
   try {
-    const set = getDeletedQuoteCodes();
-    set.add(quoteCode.trim().toUpperCase());
-    localStorage.setItem(DELETED_QUOTE_CODES_KEY, JSON.stringify(Array.from(set)));
+    if (quoteCode) {
+      const set = getDeletedQuoteCodes();
+      const upper = quoteCode.trim().toUpperCase();
+      set.add(upper);
+      // Salva também versão normalizada sem acentos
+      const norm = upper.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      set.add(norm);
+      localStorage.setItem(DELETED_QUOTE_CODES_KEY, JSON.stringify(Array.from(set)));
+    }
+    if (quoteId) {
+      recordDeletedQuoteId(quoteId);
+    }
   } catch { /* noop */ }
+};
+
+export const isQuoteDeleted = (q: { id?: string; code?: string; clientCompany?: string } | null | undefined): boolean => {
+  if (!q) return true;
+  if (isBlockedOrTestQuote(q)) return true;
+
+  if (q.id && getDeletedQuoteIds().has(q.id)) {
+    return true;
+  }
+
+  if (q.code) {
+    const deletedCodes = getDeletedQuoteCodes();
+    const cleanCode = q.code.trim().toUpperCase();
+    if (deletedCodes.has(cleanCode)) return true;
+    const normCode = cleanCode.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (deletedCodes.has(normCode)) return true;
+  }
+
+  return false;
 };
 
 /**
@@ -784,12 +839,11 @@ export const saveEmails = (emails: IncomingEmail[]): void => {
 
 export const getQuotes = (): Quote[] => {
   try {
-    const deletedCodes = getDeletedQuoteCodes();
     const saved = localStorage.getItem(QUOTES_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
-        return parsed.filter(q => !isBlockedOrTestQuote(q) && !deletedCodes.has((q.code || '').trim().toUpperCase()));
+        return parsed.filter(q => !isQuoteDeleted(q));
       }
     }
   } catch (e) {
@@ -813,9 +867,8 @@ function safeEmailString(val: any): string | undefined {
 
 export const saveQuotes = (quotes: Quote[]): void => {
   try {
-    const deletedCodes = getDeletedQuoteCodes();
     const normalized = quotes
-      .filter(q => !isBlockedOrTestQuote(q) && !deletedCodes.has((q.code || '').trim().toUpperCase()))
+      .filter(q => !isQuoteDeleted(q))
       .map(q => ({
         ...q,
         clientEmail: (q.clientEmail || '').toLowerCase().trim(),
@@ -1729,6 +1782,8 @@ export interface ProcurementPurchaseRecord {
   itemNumber?: number;
   quoteId?: string;
   quoteCode?: string;
+  clientOrderNumber?: string;
+  imageUrl?: string;
   name?: string;
   purchaseStatus: 'purchased' | 'delivered';
   actualCostPrice?: number;
@@ -1953,5 +2008,193 @@ export const removePurchasedProcurementRecord = (
     localStorage.setItem(PROCUREMENT_PURCHASES_KEY, JSON.stringify(map));
   } catch { /* noop */ }
 };
+
+// ==============================================================================
+// 15. GESTÃO DE DIVISÃO / FRACIONAMENTO DE COMPRAS (SPLIT PURCHASES)
+// Permite desmembrar um item com quantidade > 1 em múltiplos lotes com fornecedores e fretes diferentes
+// ==============================================================================
+
+export interface ProcurementSplitPart {
+  id: string; // ex: `${originalItemId}_split_1`
+  quantity: number;
+  batchNumber: number;
+}
+
+export interface ProcurementSplitConfig {
+  originalItemId: string; // id do item base
+  originalQuantity: number;
+  parts: ProcurementSplitPart[];
+  createdAt: string;
+}
+
+const PROCUREMENT_SPLITS_KEY = 'infodesk_procurement_splits_v1';
+
+export const getProcurementSplits = (): Record<string, ProcurementSplitConfig> => {
+  try {
+    const raw = localStorage.getItem(PROCUREMENT_SPLITS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const saveProcurementSplit = (
+  originalItemId: string,
+  originalQuantity: number,
+  firstPartQty: number
+): boolean => {
+  if (!originalItemId || originalQuantity <= 1) return false;
+  const firstQty = Math.floor(firstPartQty);
+  const secondQty = originalQuantity - firstQty;
+  if (firstQty < 1 || secondQty < 1) return false;
+
+  try {
+    const current = getProcurementSplits();
+    current[originalItemId] = {
+      originalItemId,
+      originalQuantity,
+      parts: [
+        { id: `${originalItemId}_split_1`, quantity: firstQty, batchNumber: 1 },
+        { id: `${originalItemId}_split_2`, quantity: secondQty, batchNumber: 2 }
+      ],
+      createdAt: new Date().toISOString()
+    };
+    localStorage.setItem(PROCUREMENT_SPLITS_KEY, JSON.stringify(current));
+    window.dispatchEvent(new CustomEvent('infodesk_procurement_splits_changed'));
+    return true;
+  } catch (err) {
+    console.error('Erro ao salvar split de compra:', err);
+    return false;
+  }
+};
+
+export const removeProcurementSplit = (originalItemId: string): void => {
+  try {
+    const current = getProcurementSplits();
+    if (current[originalItemId]) {
+      const parts = current[originalItemId].parts;
+      delete current[originalItemId];
+      localStorage.setItem(PROCUREMENT_SPLITS_KEY, JSON.stringify(current));
+      
+      // Limpa registros de compra dos sub-itens fracionados caso existam
+      parts.forEach(p => {
+        removePurchasedProcurementRecord(p.id);
+      });
+
+      window.dispatchEvent(new CustomEvent('infodesk_procurement_splits_changed'));
+    }
+  } catch (err) {
+    console.error('Erro ao remover split de compra:', err);
+  }
+};
+
+// ==============================================================================
+// 16. CACHE GLOBAL PERSISTENTE DE IMAGENS DE PRODUTOS
+// ==============================================================================
+const PRODUCT_IMAGES_CACHE_KEY = 'infodesk_product_images_cache_v1';
+
+export const getProductImageCache = (): Record<string, string> => {
+  try {
+    const raw = localStorage.getItem(PRODUCT_IMAGES_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const saveProductImageToCache = (
+  identifier: { name?: string; partNumber?: string; sku?: string },
+  imageUrl: string
+): void => {
+  if (!imageUrl || (!identifier.name && !identifier.partNumber && !identifier.sku)) return;
+  const cleanUrl = imageUrl.trim();
+  if (!cleanUrl || cleanUrl.startsWith('data:image/') && cleanUrl.length > 30000) return;
+
+  try {
+    const cache = getProductImageCache();
+    let hasChanges = false;
+
+    // 1. Chave por Part Number
+    if (identifier.partNumber) {
+      const pnKey = `pn:${identifier.partNumber.trim().toLowerCase()}`;
+      if (cache[pnKey] !== cleanUrl) {
+        cache[pnKey] = cleanUrl;
+        hasChanges = true;
+      }
+    }
+
+    // 2. Chave por SKU
+    if (identifier.sku) {
+      const skuKey = `sku:${identifier.sku.trim().toLowerCase()}`;
+      if (cache[skuKey] !== cleanUrl) {
+        cache[skuKey] = cleanUrl;
+        hasChanges = true;
+      }
+    }
+
+    // 3. Chave por Nome Normalizado
+    if (identifier.name) {
+      const normName = normalizeSearchText(identifier.name);
+      if (normName && normName.length >= 3) {
+        const nameKey = `name:${normName}`;
+        if (cache[nameKey] !== cleanUrl) {
+          cache[nameKey] = cleanUrl;
+          hasChanges = true;
+        }
+      }
+    }
+
+    if (hasChanges) {
+      localStorage.setItem(PRODUCT_IMAGES_CACHE_KEY, JSON.stringify(cache));
+      window.dispatchEvent(new CustomEvent('infodesk_product_images_updated', {
+        detail: {
+          imageUrl: cleanUrl,
+          name: identifier.name,
+          partNumber: identifier.partNumber,
+          sku: identifier.sku
+        }
+      }));
+    }
+  } catch (err) {
+    console.warn('Erro ao salvar imagem no cache persistente:', err);
+  }
+};
+
+export const findProductImageInCache = (
+  name?: string,
+  partNumber?: string,
+  sku?: string
+): string | undefined => {
+  try {
+    const cache = getProductImageCache();
+    if (!cache || Object.keys(cache).length === 0) return undefined;
+
+    // 1. Prioridade máxima: Part Number exato
+    if (partNumber) {
+      const pnKey = `pn:${partNumber.trim().toLowerCase()}`;
+      if (cache[pnKey]) return cache[pnKey];
+    }
+
+    // 2. Prioridade 2: SKU
+    if (sku) {
+      const skuKey = `sku:${sku.trim().toLowerCase()}`;
+      if (cache[skuKey]) return cache[skuKey];
+    }
+
+    // 3. Prioridade 3: Nome Normalizado
+    if (name) {
+      const normName = normalizeSearchText(name);
+      if (normName && normName.length >= 3) {
+        const nameKey = `name:${normName}`;
+        if (cache[nameKey]) return cache[nameKey];
+      }
+    }
+
+    return undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 
 

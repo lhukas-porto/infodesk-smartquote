@@ -15,6 +15,7 @@ export interface Product {
   imageUrl?: string;
   shippingCost?: number;
   dollarPrice?: number;
+  sellingPrice?: number;
 }
 
 export interface SupplierOffer {
@@ -153,6 +154,9 @@ export interface ProcurementItem {
   taxPercent: number; // padrão das configurações
   actualTaxPercent?: number;
   isDirectPurchase?: boolean;
+  splitFromId?: string; // id do item original quando fracionado
+  splitBatchNumber?: number; // lote 1, lote 2, etc.
+  splitTotalBatches?: number; // total de lotes divididos
 }
 
 export interface IncomingEmail {
