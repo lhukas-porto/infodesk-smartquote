@@ -166,17 +166,131 @@ export const pruneLocalStorage = (): void => {
   }
 };
 
+/**
+ * Sanitiza rigorosamente um item de cotação para duplicação ou criação de novo item.
+ * Garante que dados de aprovação seletiva, ordem de compra (OC) e compras da esteira
+ * JAMAIS sejam herdados da cotação original.
+ */
+export const sanitizeQuoteItemForDuplication = (item: QuoteItem, newIndex?: number): QuoteItem => {
+  const cleanId = `item-${Date.now()}-${newIndex ?? 0}-${Math.random().toString(36).substring(2, 6)}`;
+  return {
+    ...item,
+    id: cleanId,
+    itemNumber: newIndex !== undefined ? newIndex + 1 : (item.itemNumber || 1),
+    // Restaura o fornecedor cotado original caso tenha sido comprado em outro
+    supplier: item.quotedSupplier || item.supplier || undefined,
+    quotedSupplier: undefined,
+    // Limpeza mandatória de aprovação e esteira de compras
+    approved: undefined,
+    approvedQuantity: undefined,
+    purchaseStatus: undefined,
+    actualCostPrice: undefined,
+    actualUnitCostPrice: undefined,
+    actualPurchaseUrl: undefined,
+    actualSupplier: undefined,
+    actualShippingCost: undefined,
+    shippingPending: undefined,
+    paymentMethod: undefined,
+    purchasedAt: undefined,
+    purchaseNotes: undefined,
+    actualTaxPercent: undefined,
+    clientOrderNumber: undefined
+  };
+};
+
+/**
+ * Higieniza uma cotação para garantir consistência de regras de negócio:
+ * 1. Cotações que NÃO estão 'approved' nunca devem conter clientOrderNumber, approvedAt ou approvedTotalAmount.
+ * 2. Cotações com status 'draft' nunca devem conter status de envio (sentAt), follow-up ou itens com status de compra/aprovação herdados.
+ */
+export const sanitizeDraftQuote = (quote: Quote): Quote => {
+  const isApproved = quote.status === 'approved';
+  const isDraft = quote.status === 'draft';
+
+  const cleanedItems = (quote.items || []).map((it, idx) => {
+    if (isDraft) {
+      return {
+        ...it,
+        itemNumber: it.itemNumber || idx + 1,
+        approved: undefined,
+        approvedQuantity: undefined,
+        purchaseStatus: undefined,
+        actualCostPrice: undefined,
+        actualUnitCostPrice: undefined,
+        actualPurchaseUrl: undefined,
+        actualSupplier: undefined,
+        actualShippingCost: undefined,
+        shippingPending: undefined,
+        paymentMethod: undefined,
+        purchasedAt: undefined,
+        purchaseNotes: undefined,
+        actualTaxPercent: undefined,
+        clientOrderNumber: undefined,
+        supplier: it.quotedSupplier || it.supplier || undefined,
+        quotedSupplier: undefined
+      };
+    } else if (!isApproved) {
+      return {
+        ...it,
+        approved: undefined,
+        approvedQuantity: undefined,
+        purchaseStatus: undefined,
+        clientOrderNumber: undefined
+      };
+    }
+    return it;
+  });
+
+  return {
+    ...quote,
+    clientOrderNumber: isApproved ? quote.clientOrderNumber : undefined,
+    approvedAt: isApproved ? quote.approvedAt : undefined,
+    approvedTotalAmount: isApproved ? quote.approvedTotalAmount : undefined,
+    sentAt: isDraft ? undefined : quote.sentAt,
+    followUpAt: isDraft ? undefined : quote.followUpAt,
+    lastFollowUpSentAt: isDraft ? undefined : quote.lastFollowUpSentAt,
+    items: cleanedItems
+  };
+};
+
+export const doesQuoteNeedDraftSanitization = (q: Quote): boolean => {
+  if (q.status !== 'approved' && (q.clientOrderNumber || q.approvedAt || q.approvedTotalAmount !== undefined)) {
+    return true;
+  }
+  if (q.status === 'draft') {
+    if (q.sentAt || q.followUpAt || q.lastFollowUpSentAt) return true;
+    const hasResidualPurchaseData = (q.items || []).some(it => 
+      it.approved === true ||
+      it.purchaseStatus !== undefined ||
+      it.clientOrderNumber !== undefined ||
+      it.actualCostPrice !== undefined ||
+      it.purchasedAt !== undefined ||
+      it.paymentMethod !== undefined
+    );
+    if (hasResidualPurchaseData) return true;
+  }
+  return false;
+};
+
 export const getCurrentDraftQuote = (): Quote | null => {
   try {
     const saved = localStorage.getItem(CURRENT_DRAFT_QUOTE_KEY) || sessionStorage.getItem(CURRENT_DRAFT_QUOTE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved);
+      let parsed = JSON.parse(saved);
       if (parsed && typeof parsed === 'object') {
         if (isBlockedOrTestQuote(parsed) || getDeletedQuoteCodes().has((parsed.code || '').trim().toUpperCase())) {
           localStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
           sessionStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
           return null;
         }
+
+        if (parsed.status === 'draft' && doesQuoteNeedDraftSanitization(parsed)) {
+          parsed = sanitizeDraftQuote(parsed);
+          try {
+            localStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, JSON.stringify(parsed));
+          } catch { /* noop */ }
+        }
+
         if (Array.isArray(parsed.items)) {
           if (!parsed.openingText || parsed.openingText.trim() === 'Em atenção...' || parsed.openingText.trim() === 'Em atenção' || parsed.openingText.trim().startsWith('Em atenção ao que foi solicitado')) {
             parsed.openingText = defaultCompanySettings.defaultOpeningText;
@@ -220,7 +334,12 @@ export const saveCurrentDraftQuote = (quote: Quote | null): void => {
     return;
   }
 
-  const serialized = JSON.stringify(quote);
+  // Sanitiza preventivamente rascunhos para nunca persistir resíduos de OC ou compras
+  const quoteToSave = (quote.status === 'draft' && doesQuoteNeedDraftSanitization(quote))
+    ? sanitizeDraftQuote(quote)
+    : quote;
+
+  const serialized = JSON.stringify(quoteToSave);
 
   try {
     localStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, serialized);
@@ -869,7 +988,20 @@ export const getQuotes = (): Quote[] => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
-        return parsed.filter(q => !isQuoteDeleted(q));
+        let hasFixedAny = false;
+        const cleaned = parsed
+          .filter(q => !isQuoteDeleted(q))
+          .map(q => {
+            if (doesQuoteNeedDraftSanitization(q)) {
+              hasFixedAny = true;
+              return sanitizeDraftQuote(q);
+            }
+            return q;
+          });
+        if (hasFixedAny) {
+          saveQuotes(cleaned);
+        }
+        return cleaned;
       }
     }
   } catch (e) {

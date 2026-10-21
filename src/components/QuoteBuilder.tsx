@@ -92,7 +92,8 @@ import {
   getRegisteredUnits, 
   saveRegisteredUnit, 
   getRegisteredCategories, 
-  saveRegisteredCategory 
+  saveRegisteredCategory,
+  sanitizeQuoteItemForDuplication
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { UniversalListImportModal } from './UniversalListImportModal';
@@ -1688,7 +1689,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     const original = currentQuote.items[index];
     if (!original) return;
     const duplicated: QuoteItem = {
-      ...original,
+      ...sanitizeQuoteItemForDuplication(original, currentQuote.items.length),
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: `${original.name}`,
     };
@@ -3845,16 +3846,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           >
                             <Search className="w-2.5 h-2.5" />
                             <span>{item.imageUrl ? 'Trocar Foto' : 'Buscar Foto'}</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setItemForSupplierScan({ index: idx, item })}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
-                            title="Consultar preços em fornecedores e aplicar o menor custo neste item"
-                          >
-                            <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                            <span>Scanner Fornecedor</span>
                           </button>
 
                           {item.sourceUrl ? (

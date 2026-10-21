@@ -22,7 +22,8 @@ import {
   ArrowRight,
   Receipt,
   Database,
-  RefreshCw
+  RefreshCw,
+  FileSpreadsheet
 } from 'lucide-react';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
 import { Product, QuoteItem } from '../types';
@@ -46,6 +47,7 @@ import {
   phase1DiscoverProductsFromText
 } from '../services/priceScannerService';
 import { WebImagePickerModal } from './WebImagePickerModal';
+import { UniversalListImportModal } from './UniversalListImportModal';
 import { 
   findRecentPriceByPartNumber, 
   savePriceToCache, 
@@ -527,6 +529,9 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   const [ocrEditableText, setOcrEditableText] = useState('');
   const [ocrImagePreview, setOcrImagePreview] = useState<string | null>(null);
   const imageUploadInputRef = useRef<HTMLInputElement>(null);
+
+  // Modal de Importação Universal de Planilha
+  const [isUniversalImportOpen, setIsUniversalImportOpen] = useState(false);
 
   // Monitora se qualquer processo de identificação ou varredura está ativo
   const isScanningActive = isDiscoveringPhase1 || isScanningBatch || isOcrProcessing;
@@ -1298,6 +1303,28 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     setIsCaseMenuOpen(false);
   };
 
+  const handleImportSpreadsheetItems = (importedItems: Partial<QuoteItem>[]) => {
+    if (!importedItems || importedItems.length === 0) return;
+
+    // Converte os itens da planilha em linhas de busca prontas para o Scanner IA processar
+    const lines = importedItems.map(it => {
+      const name = (it.name || '').trim();
+      const pn = it.partNumber ? ` [Ref: ${it.partNumber.trim()}]` : '';
+      const qty = (it.quantity && it.quantity > 0) ? ` | Qtd: ${it.quantity} ${it.unit || 'Un.'}` : '';
+      const cost = (it.costPrice && it.costPrice > 0) ? ` | Custo: R$ ${it.costPrice.toFixed(2)}` : '';
+      return `${name}${pn}${qty}${cost}`.trim();
+    }).filter(Boolean);
+
+    const newText = lines.join('\n');
+    setBatchRawInput(prev => {
+      const trimmed = (prev || '').trim();
+      return trimmed ? `${trimmed}\n${newText}` : newText;
+    });
+
+    setIsUniversalImportOpen(false);
+    showToast(`✅ ${importedItems.length} produto(s) da planilha importado(s) para o Scanner!`);
+  };
+
   return (
     <div className="w-full space-y-6 animate-fadeIn pb-12">
       {/* Toast Feedback */}
@@ -1515,6 +1542,16 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             >
               <Camera className="w-4 h-4 text-slate-500" />
               <span>{isOcrProcessing ? 'Transcrevendo...' : 'Fazer OCR'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsUniversalImportOpen(true)}
+              className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/90 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-98"
+              title="Importar produtos em lote a partir de planilha Excel (.xlsx), CSV ou copiar e colar células (Ctrl+V)"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Importar Planilha</span>
             </button>
 
             {(batchRawInput || attachedProductPhotos.length > 0 || discoveredProducts.length > 0 || batchResults.length > 0) && (
@@ -2437,6 +2474,15 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
           initialImages={photoPickerTarget.images}
           currentImageUrl={photoPickerTarget.currentImageUrl}
           onSelectImage={handlePhotoPicked}
+        />
+      )}
+
+      {/* MODAL DE IMPORTAÇÃO DE PLANILHA EXCEL / CSV NO SCANNER */}
+      {isUniversalImportOpen && (
+        <UniversalListImportModal
+          isOpen={isUniversalImportOpen}
+          onClose={() => setIsUniversalImportOpen(false)}
+          onImportItems={handleImportSpreadsheetItems}
         />
       )}
     </div>

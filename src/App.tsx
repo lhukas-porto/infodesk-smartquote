@@ -91,7 +91,10 @@ import {
   recordDeletedQuoteId,
   getPurchasedProcurementRecords,
   savePurchasedProcurementRecord,
-  findPurchasedProcurementRecord
+  findPurchasedProcurementRecord,
+  sanitizeQuoteItemForDuplication,
+  sanitizeDraftQuote,
+  doesQuoteNeedDraftSanitization
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -254,6 +257,9 @@ export const App: React.FC = () => {
           status: 'sent' as const,
           sentAt: q.sentAt || q.createdAt || undefined
         };
+      }
+      if (doesQuoteNeedDraftSanitization(q)) {
+        return sanitizeDraftQuote(q);
       }
       return q;
     });
@@ -772,69 +778,77 @@ export const App: React.FC = () => {
                   name: remIt.name
                 }) || (locIt?.id ? purchasesMap[locIt.id] : undefined);
 
-                // Se houver qualquer dado de compra (local ou no registro persistente), preserva 100%!
-                const isPurchased = remIt.purchaseStatus === 'purchased' ||
-                  locIt?.purchaseStatus === 'purchased' ||
-                  purchaseRecord?.purchaseStatus === 'purchased';
-
-                const purchaseStatus = isPurchased ? ('purchased' as const) : (remIt.purchaseStatus || locIt?.purchaseStatus);
-
                 const isParentQuoteApproved = finalStatus === 'approved';
                 const isExcluded = (remIt.approved === false && remIt.approvedQuantity === 0) ||
                                    (locIt?.approved === false && locIt?.approvedQuantity === 0);
-                const approved = isExcluded
-                  ? false
-                  : (remIt.approved === true || locIt?.approved === true || isParentQuoteApproved);
+                const approved = isParentQuoteApproved && !isExcluded;
 
-                const effectiveActualUrl = locIt?.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl || remIt.actualPurchaseUrl;
+                // Se a proposta mãe NÃO estiver aprovada (ex: draft, sent), dados de compra NÃO se aplicam
+                const isPurchased = isParentQuoteApproved && (
+                  remIt.purchaseStatus === 'purchased' ||
+                  locIt?.purchaseStatus === 'purchased' ||
+                  purchaseRecord?.purchaseStatus === 'purchased'
+                );
+
+                const purchaseStatus = isParentQuoteApproved
+                  ? (isPurchased ? ('purchased' as const) : (remIt.purchaseStatus || locIt?.purchaseStatus))
+                  : undefined;
+
+                const effectiveActualUrl = isParentQuoteApproved ? (locIt?.actualPurchaseUrl || purchaseRecord?.actualPurchaseUrl || remIt.actualPurchaseUrl) : undefined;
                 const detectedFromActualUrl = extractStoreNameFromUrl(effectiveActualUrl);
 
                 const effectiveActualSupplier = isPurchased
                   ? (locIt?.actualSupplier ?? purchaseRecord?.actualSupplier ?? (detectedFromActualUrl || undefined) ?? remIt.actualSupplier)
-                  : (remIt.actualSupplier ?? locIt?.actualSupplier ?? purchaseRecord?.actualSupplier);
+                  : undefined;
 
                 const effectiveSupplier = isPurchased
                   ? (effectiveActualSupplier || locIt?.supplier || purchaseRecord?.supplier || remIt.supplier)
-                  : (remIt.supplier || locIt?.supplier || purchaseRecord?.supplier);
+                  : (remIt.quotedSupplier || remIt.supplier || locIt?.supplier || purchaseRecord?.supplier);
 
-                const effectiveQuotedSupplier = locIt?.quotedSupplier ?? purchaseRecord?.quotedSupplier ?? remIt.quotedSupplier ?? (isPurchased && effectiveSupplier !== remIt.supplier ? remIt.supplier : undefined);
+                const effectiveQuotedSupplier = isParentQuoteApproved
+                  ? (locIt?.quotedSupplier ?? purchaseRecord?.quotedSupplier ?? remIt.quotedSupplier ?? (isPurchased && effectiveSupplier !== remIt.supplier ? remIt.supplier : undefined))
+                  : undefined;
 
                 return {
                   ...remIt,
                   purchaseStatus,
                   approved,
-                  approvedQuantity: remIt.approvedQuantity !== undefined ? remIt.approvedQuantity : locIt?.approvedQuantity,
+                  approvedQuantity: isParentQuoteApproved ? (remIt.approvedQuantity !== undefined ? remIt.approvedQuantity : locIt?.approvedQuantity) : undefined,
                   actualCostPrice: isPurchased
                     ? (locIt?.actualCostPrice ?? purchaseRecord?.actualCostPrice ?? remIt.actualCostPrice)
-                    : (remIt.actualCostPrice !== undefined ? remIt.actualCostPrice : (locIt?.actualCostPrice ?? purchaseRecord?.actualCostPrice)),
+                    : undefined,
                   actualUnitCostPrice: isPurchased
                     ? (locIt?.actualUnitCostPrice ?? purchaseRecord?.actualUnitCostPrice ?? remIt.actualUnitCostPrice)
-                    : (remIt.actualUnitCostPrice !== undefined ? remIt.actualUnitCostPrice : (locIt?.actualUnitCostPrice ?? purchaseRecord?.actualUnitCostPrice)),
+                    : undefined,
                   actualPurchaseUrl: effectiveActualUrl,
                   actualSupplier: effectiveActualSupplier,
                   supplier: effectiveSupplier,
                   quotedSupplier: effectiveQuotedSupplier,
                   actualShippingCost: isPurchased
                     ? (locIt?.actualShippingCost ?? purchaseRecord?.actualShippingCost ?? remIt.actualShippingCost)
-                    : (remIt.actualShippingCost !== undefined ? remIt.actualShippingCost : (locIt?.actualShippingCost ?? purchaseRecord?.actualShippingCost)),
+                    : undefined,
                   shippingPending: isPurchased
                     ? (locIt?.shippingPending ?? purchaseRecord?.shippingPending ?? remIt.shippingPending)
-                    : (remIt.shippingPending !== undefined ? remIt.shippingPending : (locIt?.shippingPending ?? purchaseRecord?.shippingPending)),
-                  paymentMethod: locIt?.paymentMethod || purchaseRecord?.paymentMethod || remIt.paymentMethod,
-                  purchasedAt: locIt?.purchasedAt || purchaseRecord?.purchasedAt || remIt.purchasedAt,
-                  purchaseNotes: locIt?.purchaseNotes || purchaseRecord?.purchaseNotes || remIt.purchaseNotes,
+                    : undefined,
+                  paymentMethod: isPurchased ? (locIt?.paymentMethod || purchaseRecord?.paymentMethod || remIt.paymentMethod) : undefined,
+                  purchasedAt: isPurchased ? (locIt?.purchasedAt || purchaseRecord?.purchasedAt || remIt.purchasedAt) : undefined,
+                  purchaseNotes: isPurchased ? (locIt?.purchaseNotes || purchaseRecord?.purchaseNotes || remIt.purchaseNotes) : undefined,
                   actualTaxPercent: isPurchased
                     ? (locIt?.actualTaxPercent ?? purchaseRecord?.actualTaxPercent ?? remIt.actualTaxPercent)
-                    : (remIt.actualTaxPercent !== undefined ? remIt.actualTaxPercent : (locIt?.actualTaxPercent ?? purchaseRecord?.actualTaxPercent)),
-                  clientOrderNumber: remIt.clientOrderNumber || locIt?.clientOrderNumber
+                    : undefined,
+                  clientOrderNumber: isParentQuoteApproved ? (remIt.clientOrderNumber || locIt?.clientOrderNumber) : undefined
                 };
               });
 
-              const resultQuote: Quote = {
+              let resultQuote: Quote = {
                 ...rq,
                 status: finalStatus,
+                clientOrderNumber: finalStatus === 'approved' ? (rq.clientOrderNumber || localMatch?.clientOrderNumber) : undefined,
                 approvedAt: finalApprovedAt,
+                approvedTotalAmount: finalStatus === 'approved' ? (rq.approvedTotalAmount ?? localMatch?.approvedTotalAmount) : undefined,
                 sentAt: finalSentAt,
+                followUpAt: finalStatus === 'draft' ? undefined : (rq.followUpAt || localMatch?.followUpAt),
+                lastFollowUpSentAt: finalStatus === 'draft' ? undefined : (rq.lastFollowUpSentAt || localMatch?.lastFollowUpSentAt),
                 items,
                 totalAmount: (isLocalAuthoritative && localMatch?.totalAmount !== undefined) ? localMatch.totalAmount : rq.totalAmount,
                 totalCost: (isLocalAuthoritative && localMatch?.totalCost !== undefined) ? localMatch.totalCost : rq.totalCost,
@@ -844,6 +858,11 @@ export const App: React.FC = () => {
                 averageMargin: (isLocalAuthoritative && localMatch?.averageMargin !== undefined) ? localMatch.averageMargin : rq.averageMargin,
                 updatedAt: isLocalAuthoritative ? (localMatch?.updatedAt || new Date().toISOString()) : (rq.updatedAt || rq.createdAt)
               };
+
+              if (resultQuote.status === 'draft' && doesQuoteNeedDraftSanitization(resultQuote)) {
+                resultQuote = sanitizeDraftQuote(resultQuote);
+                syncQuoteToSupabase(resultQuote).catch(() => {});
+              }
               return resultQuote;
             });
 
@@ -1811,11 +1830,10 @@ export const App: React.FC = () => {
     // 2. Gera novo ID exclusivo para a cotação (garante que não sobrescreva a original)
     const newQuoteId = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
-    // 3. Clona os itens gerando IDs novos para cada um
-    const clonedItems = (currentQuote.items || []).map((it, idx) => ({
-      ...it,
-      id: `item-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`
-    }));
+    // 3. Clona os itens gerando IDs novos para cada um e expurgando dados de OC e compras
+    const clonedItems = (currentQuote.items || []).map((it, idx) => 
+      sanitizeQuoteItemForDuplication(it, idx)
+    );
 
     const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -1826,8 +1844,14 @@ export const App: React.FC = () => {
       code: newCode,
       date: todayFormatted,
       status: 'draft',
+      clientOrderNumber: undefined,
+      approvedAt: undefined,
+      approvedTotalAmount: undefined,
       sentAt: undefined,
+      followUpAt: undefined,
+      lastFollowUpSentAt: undefined,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       items: clonedItems
     };
 
@@ -1873,17 +1897,20 @@ export const App: React.FC = () => {
 
     let updatedCount = 0;
     const clonedItems = itemsToUse.map((it, idx) => {
-      let currentCost = it.costPrice;
-      let currentUnitPrice = it.unitPrice;
-      const currentShipping = it.shippingCost ?? 0;
-      const currentMarkup = it.markupPercent ?? 23.5;
-      const currentTax = it.taxPercent ?? settings.defaultTaxPercent ?? 9.1;
+      // Higieniza rigorosamente cada item para que nasça como item comercial limpo (sem OC, dados de compra ou aprovação)
+      const cleanItem = sanitizeQuoteItemForDuplication(it, idx);
+
+      let currentCost = cleanItem.costPrice;
+      let currentUnitPrice = cleanItem.unitPrice;
+      const currentShipping = cleanItem.shippingCost ?? 0;
+      const currentMarkup = cleanItem.markupPercent ?? 23.5;
+      const currentTax = cleanItem.taxPercent ?? settings.defaultTaxPercent ?? 9.1;
 
       if (updateCostsFromCatalog && catalogProducts.length > 0) {
         // Tenta achar pelo Part Number exato primeiro
-        const matchPn = it.partNumber ? catalogProducts.find(p => p.partNumber && p.partNumber.trim().toLowerCase() === it.partNumber?.trim().toLowerCase()) : null;
+        const matchPn = cleanItem.partNumber ? catalogProducts.find(p => p.partNumber && p.partNumber.trim().toLowerCase() === cleanItem.partNumber?.trim().toLowerCase()) : null;
         // Senão pelo nome normalizado
-        const matchName = !matchPn ? catalogProducts.find(p => normalizeSearchText(p.name) === normalizeSearchText(it.name)) : null;
+        const matchName = !matchPn ? catalogProducts.find(p => normalizeSearchText(p.name) === normalizeSearchText(cleanItem.name)) : null;
         const matched = matchPn || matchName;
 
         if (matched && matched.costPrice > 0) {
@@ -1893,13 +1920,12 @@ export const App: React.FC = () => {
         }
       }
 
-      const qty = it.quantity || 1;
+      const qty = cleanItem.quantity || 1;
       const totalPrice = Number((currentUnitPrice * qty).toFixed(2));
       const profit = Number(((currentUnitPrice - currentCost - currentShipping) * qty).toFixed(2));
 
       return {
-        ...it,
-        id: `item-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
+        ...cleanItem,
         costPrice: currentCost,
         unitPrice: currentUnitPrice,
         totalPrice,
@@ -1918,8 +1944,14 @@ export const App: React.FC = () => {
       code: newCode,
       date: todayFormatted,
       status: 'draft',
+      clientOrderNumber: undefined,
+      approvedAt: undefined,
+      approvedTotalAmount: undefined,
       sentAt: undefined,
+      followUpAt: undefined,
+      lastFollowUpSentAt: undefined,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       items: clonedItems,
       totalAmount: totals.totalAmount,
       totalProfit: totals.totalProfit,
