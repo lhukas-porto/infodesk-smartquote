@@ -22,7 +22,8 @@ import {
   formatCompanyPrefix, 
   formatContactPerson, 
   extractDeliveryExceptionDetails,
-  formatProposalValidityText
+  formatProposalValidityText,
+  shouldDisplayShippingInProposal
 } from './aiEmailParser';
 import { 
   INFODESK_LOGO_BASE64, 
@@ -125,7 +126,7 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
   const contactPersonFormatted = formatContactPerson(quote.contactPerson);
   const excDetails = extractDeliveryExceptionDetails(quote.deliveryDays);
 
-  const formattedShipping = (quote.showShippingInProposal !== false && quote.shippingTerms)
+  const formattedShipping = (shouldDisplayShippingInProposal(quote) && quote.shippingTerms)
     ? (quote.shippingTerms.toLowerCase().startsWith('frete')
         ? quote.shippingTerms
         : `Frete: ${quote.shippingTerms}`)

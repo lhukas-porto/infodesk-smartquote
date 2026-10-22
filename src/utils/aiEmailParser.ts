@@ -1039,6 +1039,74 @@ export function extractDeliveryLocation(emailBody: string = '', fullEmailContext
 }
 
 /**
+ * Verifica se a localidade de entrega informada corresponde a Brasília / Distrito Federal.
+ * Regra do Lucas: Toda vez que o lugar de entrega for Brasília, a opção de exibir frete na proposta vem desmarcada.
+ */
+export function isBrasiliaDelivery(location?: string | null): boolean {
+  if (!location) return true; // Por padrão na Infodesk, propostas sem destino explícito são para Brasília
+  const normalized = location
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (!normalized) return true;
+
+  // Cidades/regiões do Distrito Federal e termos comuns
+  return (
+    normalized.includes('brasilia') ||
+    normalized.includes('distrito federal') ||
+    /\b(bsb|df)\b/.test(normalized) ||
+    normalized.includes('asa norte') ||
+    normalized.includes('asa sul') ||
+    normalized.includes('taguatinga') ||
+    normalized.includes('aguas claras') ||
+    normalized.includes('ceilandia') ||
+    normalized.includes('guara') ||
+    normalized.includes('sobradinho') ||
+    normalized.includes('samambaia') ||
+    normalized.includes('sudoeste') ||
+    normalized.includes('octogonal') ||
+    normalized.includes('lago sul') ||
+    normalized.includes('lago norte') ||
+    normalized.includes('nucleo bandeirante') ||
+    normalized.includes('gama') ||
+    normalized.includes('planaltina') ||
+    normalized.includes('santa maria') ||
+    normalized.includes('recanto das emas') ||
+    normalized.includes('riacho fundo') ||
+    normalized.includes('vicente pires') ||
+    normalized.includes('scia') ||
+    normalized.includes('estrutural') ||
+    normalized.includes('park way') ||
+    normalized.includes('sia') ||
+    normalized.includes('snor') ||
+    normalized.includes('varjao') ||
+    normalized.includes('itapoa')
+  );
+}
+
+/**
+ * Determina se a cláusula de frete deve ser exibida na proposta impressa/PDF/Word/WhatsApp.
+ * Prioridade:
+ * 1. Escolha explícita do usuário (se showShippingInProposal for booleano true/false)
+ * 2. Se for indefinido: se for Brasília -> desmarcado (false); se for fora de Brasília -> marcado (true).
+ */
+export function shouldDisplayShippingInProposal(quote?: {
+  showShippingInProposal?: boolean;
+  deliveryLocation?: string;
+  city?: string;
+  shippingTerms?: string;
+}): boolean {
+  if (!quote) return false;
+  if (!quote.shippingTerms || !quote.shippingTerms.trim()) return false;
+  if (quote.showShippingInProposal !== undefined) {
+    return quote.showShippingInProposal;
+  }
+  return !isBrasiliaDelivery(quote.deliveryLocation || quote.city);
+}
+
+/**
  * Converte qualquer número inteiro para extenso em português brasileiro (ex: 1 -> "um", 40 -> "quarenta", 120 -> "cento e vinte")
  */
 export function getPortugueseNumberWord(n: number): string {
@@ -3313,7 +3381,7 @@ export function generateProposalEmailHtml(
     `;
   }).join('');
 
-  const formattedShipping = (quote.showShippingInProposal !== false && quote.shippingTerms)
+  const formattedShipping = (shouldDisplayShippingInProposal(quote) && quote.shippingTerms)
     ? (quote.shippingTerms.toLowerCase().startsWith('frete')
         ? quote.shippingTerms
         : `Frete: ${quote.shippingTerms}`)

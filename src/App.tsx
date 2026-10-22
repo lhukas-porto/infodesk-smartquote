@@ -125,7 +125,9 @@ import {
   normalizeSearchText,
   normalizeQuoteCode,
   extractStoreNameFromUrl,
-  isSameQuote
+  isSameQuote,
+  isBrasiliaDelivery,
+  shouldDisplayShippingInProposal
 } from './utils/aiEmailParser';
 import {
   learnSuppliersFromProducts,
@@ -1065,6 +1067,7 @@ export const App: React.FC = () => {
       globalMarkupPercent: defaultMarkup,
       globalTaxPercent: defaultTax,
       globalShipping: defaultShipping,
+      showShippingInProposal: false,
       status: 'draft',
       createdAt: new Date().toISOString()
     };
@@ -1109,6 +1112,7 @@ export const App: React.FC = () => {
       globalMarkupPercent: defaultMarkup,
       globalTaxPercent: defaultTax,
       globalShipping: defaultShipping,
+      showShippingInProposal: false,
       status: 'draft',
       createdAt: new Date().toISOString()
     };
@@ -1468,6 +1472,7 @@ export const App: React.FC = () => {
       globalMarkupPercent: markup,
       globalTaxPercent: tax,
       globalShipping: shipping,
+      showShippingInProposal: !isBrasiliaDelivery(detectedLocation),
       showProductImages: true,
       status: 'draft',
       createdAt: new Date().toISOString()
@@ -1642,6 +1647,7 @@ export const App: React.FC = () => {
       globalMarkupPercent: markup,
       globalTaxPercent: tax,
       globalShipping: shipping,
+      showShippingInProposal: !isBrasiliaDelivery(detectedLocation),
       status: 'draft',
       createdAt: new Date().toISOString()
     };
@@ -2315,6 +2321,7 @@ export const App: React.FC = () => {
       globalMarkupPercent: markup,
       globalTaxPercent: tax,
       globalShipping: shipping,
+      showShippingInProposal: !isBrasiliaDelivery(deliveryLocation),
       showProductImages: true,
       status: 'draft',
       createdAt: new Date().toISOString()

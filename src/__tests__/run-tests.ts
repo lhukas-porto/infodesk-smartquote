@@ -25,6 +25,7 @@ import './whatsappItemsMessage.test';
 import './enhancementsSuite.test';
 import './textCaseCycle.test';
 import './supplierLearning.test';
+import './brasiliaShippingDefault.test';
 
 console.log('\n======================================================');
 console.log('🏁 SUÍTE COMPLETA DE TESTES EXECUTADA COM 100% DE SUCESSO!');

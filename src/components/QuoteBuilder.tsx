@@ -84,7 +84,9 @@ import {
   buildDirectPurchaseUrl,
   buildCompleteProductDescription,
   normalizeSearchText,
-  normalizeToOfficialCategory
+  normalizeToOfficialCategory,
+  isBrasiliaDelivery,
+  shouldDisplayShippingInProposal
 } from '../utils/aiEmailParser';
 import { 
   getClientCompanies, 
@@ -884,11 +886,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const handleSelectLocation = (loc: string) => {
     const clean = loc.trim();
     if (!clean) return;
+    const isBsb = isBrasiliaDelivery(clean);
 
     setCurrentQuote(prev => ({
       ...prev,
       deliveryLocation: clean,
-      shippingTerms: `Frete incluso p/ ${clean}.`
+      shippingTerms: `Frete incluso p/ ${clean}.`,
+      showShippingInProposal: isBsb ? false : true
     }));
     setIsLocationSearchOpen(false);
 
@@ -2543,6 +2547,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                     q.clientCompany && 
                                     q.clientCompany.trim().toLowerCase() !== formatted.trim().toLowerCase()
                                   );
+                                  const defLoc = c.defaultDeliveryLocation || prev.deliveryLocation;
+                                  const isBsb = isBrasiliaDelivery(defLoc);
                                   return {
                                     ...prev,
                                     id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
@@ -2550,11 +2556,12 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                     contactPerson: '',
                                     clientEmail: '',
                                     clientPhone: '',
-                                    deliveryLocation: c.defaultDeliveryLocation || prev.deliveryLocation,
+                                    deliveryLocation: defLoc,
                                     paymentTerms: c.defaultPaymentTerms || prev.paymentTerms,
                                     deliveryDays: c.defaultDeliveryDays || prev.deliveryDays,
                                     warrantyTerms: c.defaultWarrantyTerms || prev.warrantyTerms,
-                                    shippingTerms: c.defaultDeliveryLocation ? `Frete incluso p/ ${c.defaultDeliveryLocation}.` : prev.shippingTerms,
+                                    shippingTerms: defLoc ? `Frete incluso p/ ${defLoc}.` : prev.shippingTerms,
+                                    showShippingInProposal: isBsb ? false : true,
                                     code: newCode
                                   };
                                 });
@@ -2796,10 +2803,12 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 value={currentQuote.deliveryLocation || ''}
                 onChange={(e) => {
                   const loc = e.target.value;
+                  const isBsb = isBrasiliaDelivery(loc);
                   setCurrentQuote(prev => ({
                     ...prev,
                     deliveryLocation: loc,
-                    shippingTerms: `Frete incluso p/ ${loc || 'sua localidade'}.`
+                    shippingTerms: `Frete incluso p/ ${loc || 'sua localidade'}.`,
+                    showShippingInProposal: isBsb ? false : true
                   }));
                   setIsLocationSearchOpen(true);
                 }}
@@ -2837,7 +2846,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       setCurrentQuote(prev => ({
                         ...prev,
                         deliveryLocation: '',
-                        shippingTerms: 'Frete incluso p/ sua localidade.'
+                        shippingTerms: 'Frete incluso p/ sua localidade.',
+                        showShippingInProposal: false
                       }));
                       setIsLocationSearchOpen(false);
                     }}
@@ -4263,7 +4273,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-semibold">
                 🛡️ {extractWarrantyMonthsNumber(currentQuote.warrantyTerms)}m ({extractWarrantyType(currentQuote.warrantyTerms) === 'autorizada' ? 'Autorizada' : 'Balcão'})
               </span>
-              {currentQuote.showShippingInProposal === false ? (
+              {!shouldDisplayShippingInProposal(currentQuote) ? (
                 <span className="bg-amber-50 text-amber-700 border border-amber-200/80 px-2 py-0.5 rounded-md font-semibold">
                   📦 Frete oculto
                 </span>
@@ -4702,7 +4712,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-semibold text-slate-600 hover:text-slate-900">
                 <input
                   type="checkbox"
-                  checked={currentQuote.showShippingInProposal !== false}
+                  checked={shouldDisplayShippingInProposal(currentQuote)}
                   onChange={(e) => setCurrentQuote(prev => ({
                     ...prev,
                     showShippingInProposal: e.target.checked
@@ -4714,11 +4724,11 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             </div>
             <input
               type="text"
-              disabled={currentQuote.showShippingInProposal === false}
+              disabled={!shouldDisplayShippingInProposal(currentQuote)}
               value={currentQuote.shippingTerms || `Frete incluso p/ ${currentQuote.deliveryLocation || 'Brasília'}.`}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, shippingTerms: e.target.value }))}
               className={`w-full border rounded-xl px-3 py-2 font-medium text-xs transition ${
-                currentQuote.showShippingInProposal === false
+                !shouldDisplayShippingInProposal(currentQuote)
                   ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
                   : 'bg-slate-50 border border-slate-300 text-slate-800 focus:outline-none focus:border-sky-500'
               }`}

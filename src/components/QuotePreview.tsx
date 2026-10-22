@@ -9,7 +9,13 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
-import { formatCompanyPrefix, formatContactPerson, extractDeliveryExceptionDetails, formatProposalValidityText } from '../utils/aiEmailParser';
+import { 
+  formatCompanyPrefix, 
+  formatContactPerson, 
+  extractDeliveryExceptionDetails, 
+  formatProposalValidityText,
+  shouldDisplayShippingInProposal 
+} from '../utils/aiEmailParser';
 
 interface QuotePreviewProps {
   quote: Quote;
@@ -86,7 +92,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       `- Pagamento: ${quote.paymentTerms}\n` +
       `- Prazo de Entrega: ${quote.deliveryDays}\n` +
       `- Garantia: ${quote.warrantyTerms}\n` +
-      (quote.showShippingInProposal !== false && quote.shippingTerms ? `- ${quote.shippingTerms.toLowerCase().startsWith('frete') ? quote.shippingTerms : `Frete: ${quote.shippingTerms}`}\n` : '') +
+      (shouldDisplayShippingInProposal(quote) && quote.shippingTerms ? `- ${quote.shippingTerms.toLowerCase().startsWith('frete') ? quote.shippingTerms : `Frete: ${quote.shippingTerms}`}\n` : '') +
       (() => {
         const clean = (quote.observations || quote.notes || '').trim().replace(/^(obs(\.|ervação|ervações)?\s*:\s*)/i, '').trim();
         return clean ? `- Obs: ${clean}\n\n` : '\n';
@@ -331,7 +337,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
               <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>➤&nbsp; Condições de pagamento: {quote.paymentTerms}</p>
               <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>➤&nbsp; Prazo de entrega: {quote.deliveryDays}</p>
               <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>➤&nbsp; Garantia: {quote.warrantyTerms}</p>
-              {quote.showShippingInProposal !== false && quote.shippingTerms && (
+              {shouldDisplayShippingInProposal(quote) && quote.shippingTerms && (
                 <p className="font-bold" style={{ fontSize: '10pt', lineHeight: '1.5' }}>
                   ➤&nbsp; {quote.shippingTerms.toLowerCase().startsWith('frete') ? quote.shippingTerms : `Frete: ${quote.shippingTerms}`}
                 </p>
