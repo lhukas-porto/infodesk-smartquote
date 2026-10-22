@@ -2095,39 +2095,38 @@ export function formatProductSentenceCase(text: string): string {
 
 /**
  * Determina o próximo estilo de capitalização em um ciclo inteligente e sem travas:
- * - Se palavra única: MAIÚSCULA -> minúscula -> Capitalizada (Title) -> MAIÚSCULA
- * - Se múltiplas palavras: MAIÚSCULA -> minúscula -> Primeira De Cada Palavra (Title) -> Primeira da frase (Sentence) -> MAIÚSCULA
+ * REGRA DO LUCAS: A PRIMEIRA AÇÃO ao apertar o botão Aa deve ser SEMPRE deixar MINÚSCULO!
+ * - Primeiro clique (texto misto, Title Case, maiúsculo, original) -> 'lowercase' (minúsculo)
+ * - Cliques contínuos: 'lowercase' -> 'title' -> 'sentence' -> 'uppercase' -> 'lowercase'
  */
-export function getNextTextCase(text: string): WordCaseStyle {
-  if (!text) return 'uppercase';
+export function getNextTextCase(text: string, currentCycleStyle?: WordCaseStyle): WordCaseStyle {
+  if (!text) return 'lowercase';
   const trimmed = text.trim();
   const hasMultipleWords = /\s+/.test(trimmed);
 
-  const isAllUpper = trimmed === trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase();
-  const isAllLower = trimmed === trimmed.toLowerCase() && trimmed !== trimmed.toUpperCase();
-
-  if (isAllUpper) {
-    return 'lowercase';
+  // Se faz parte de uma sequência ativa de cliques no botão Aa
+  if (currentCycleStyle) {
+    switch (currentCycleStyle) {
+      case 'lowercase':
+        return 'title';
+      case 'title':
+        return hasMultipleWords ? 'sentence' : 'uppercase';
+      case 'sentence':
+        return 'uppercase';
+      case 'uppercase':
+        return 'lowercase';
+    }
   }
 
+  const isAllLower = trimmed === trimmed.toLowerCase() && trimmed !== trimmed.toUpperCase();
+
+  // Se o texto já estiver 100% minúsculo antes de qualquer clique, avança para Title
   if (isAllLower) {
     return 'title';
   }
 
-  if (hasMultipleWords) {
-    const isTitle = trimmed === applyTextCase(trimmed, 'title');
-    if (isTitle) {
-      return 'sentence';
-    }
-    const isSentence = trimmed === applyTextCase(trimmed, 'sentence');
-    if (isSentence) {
-      return 'uppercase';
-    }
-    return 'uppercase';
-  }
-
-  // Palavra única já com 1ª letra maiúscula ou mista (ex: "Dutotec", "iPhone")
-  return 'uppercase';
+  // REGRA DO LUCAS: A PRIMEIRA AÇÃO ao apertar o botão Aa deve ser SEMPRE deixar minúsculo!
+  return 'lowercase';
 }
 
 /**

@@ -205,6 +205,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   } | null>(null);
   const isEnrichmentCancelledRef = useRef(false);
 
+  // Armazena o último estilo de caixa aplicado por item para permitir ciclo contínuo sem perder a regra do 1º clique minúsculo
+  const lastCycleStyleRef = useRef<Record<string, WordCaseStyle>>({});
+
   // Busca último preço praticado para o cliente selecionado
   const findLastClientPrice = useMemo(() => {
     return (item: QuoteItem) => {
@@ -2000,7 +2003,11 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     const targetPart = fullText.substring(start, end);
     if (!targetPart.trim()) return;
 
-    const nextStyle = getNextTextCase(targetPart);
+    // REGRA DO LUCAS: O 1º clique deixa sempre minúsculo. Cliques contínuos avançam o ciclo.
+    const prevCycleStyle = lastCycleStyleRef.current[itemId];
+    const nextStyle = getNextTextCase(targetPart, prevCycleStyle);
+    lastCycleStyleRef.current[itemId] = nextStyle;
+
     const transformedPart = applyTextCase(targetPart, nextStyle);
     const newFullText = fullText.substring(0, start) + transformedPart + fullText.substring(end);
 
