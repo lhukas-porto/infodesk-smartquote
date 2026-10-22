@@ -34,7 +34,7 @@ import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
 import { parseQuoteTimestamp, isSameDay } from '../utils/dateUtils';
 import { QuoteApprovalModal } from './QuoteApprovalModal';
-import { WhatsAppQuoteModal } from './WhatsAppQuoteModal';
+import { WhatsAppQuoteModal, WhatsAppMessageMode } from './WhatsAppQuoteModal';
 
 interface SentHistoryViewProps {
   quotes: Quote[];
@@ -154,6 +154,41 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
   const [quoteForDuplicate, setQuoteForDuplicate] = useState<Quote | null>(null);
   const [updateCostsOption, setUpdateCostsOption] = useState<boolean>(true);
   const [isDuplicating, setIsDuplicating] = useState<boolean>(false);
+  const [whatsAppInitialMode, setWhatsAppInitialMode] = useState<WhatsAppMessageMode>('full');
+  const [quoteForLoss, setQuoteForLoss] = useState<Quote | null>(null);
+  const [selectedLossReason, setSelectedLossReason] = useState<string>('Preço / Concorrente mais barato');
+  const [customLossReason, setCustomLossReason] = useState<string>('');
+
+  const LOSS_REASONS = [
+    'Preço / Concorrente mais barato',
+    'Prazo de entrega longo',
+    'Falta de estoque / Produto indisponível',
+    'Cancelamento / Desistência do cliente',
+    'Cliente optou por outro modelo/marca',
+    'Outro motivo'
+  ];
+
+  const handleConfirmLoss = () => {
+    if (!quoteForLoss) return;
+    const finalReason = selectedLossReason === 'Outro motivo' 
+      ? (customLossReason.trim() || 'Outro motivo')
+      : selectedLossReason;
+
+    const updated: Quote = {
+      ...quoteForLoss,
+      status: 'lost',
+      lossReason: finalReason
+    };
+
+    if (onUpdateQuote) {
+      onUpdateQuote(updated);
+    }
+    if (onUpdateQuoteStatus) {
+      onUpdateQuoteStatus(quoteForLoss.id, 'lost', quoteForLoss.code);
+    }
+    setQuoteForLoss(null);
+    setCustomLossReason('');
+  };
 
   React.useEffect(() => {
     if (initialStageFilter !== undefined) {
@@ -258,14 +293,14 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
     return parseQuoteTimestamp(q);
   };
 
-  // Verifica se uma proposta enviada ou em negociação tem mais de 48 horas (precisa de Follow-up)
+  // Verifica se uma proposta enviada ou em negociação tem mais de 72 horas (> 3 dias) sem retorno
   const isFollowUpDue = (q: Quote): boolean => {
     const status = normalizeStatus(q);
     if (status !== 'sent' && status !== 'negotiating') return false;
 
     const timestamp = parseQuoteTimestamp(q);
     const diffHours = (Date.now() - timestamp) / (1000 * 60 * 60);
-    return diffHours >= 48;
+    return diffHours >= 72;
   };
 
   // 1. Filtra as cotações por DATA / PERÍODO (Padrão: Histórico Completo)
@@ -456,27 +491,38 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
       </div>
 
       {/* Cards de Métricas & Filtros Interativos (Chips Superiores) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
         {[
-          { id: 'all', title: 'Todas as Propostas', count: stageStats.all.count, amount: stageStats.all.totalAmount, badge: 'text-slate-700 bg-slate-100', dot: 'bg-slate-400' },
+          { id: 'all', title: 'Todas', count: stageStats.all.count, amount: stageStats.all.totalAmount, badge: 'text-slate-700 bg-slate-100', dot: 'bg-slate-400' },
           { id: 'draft', title: 'Rascunhos', count: stageStats.draft.count, amount: stageStats.draft.totalAmount, badge: 'text-amber-800 bg-amber-50 border-amber-200', dot: 'bg-amber-500' },
           { id: 'sent', title: 'Enviadas', count: stageStats.sent.count, amount: stageStats.sent.totalAmount, badge: 'text-sky-800 bg-sky-50 border-sky-200', dot: 'bg-sky-500' },
           { id: 'negotiating', title: 'Em Negociação', count: stageStats.negotiating.count, amount: stageStats.negotiating.totalAmount, badge: 'text-purple-800 bg-purple-50 border-purple-200', dot: 'bg-purple-500' },
+          { id: 'followup', title: 'Retorno > 3d', count: followUpRequiredQuotes.length, amount: followUpRequiredQuotes.reduce((acc, q) => acc + (q.totalAmount || 0), 0), badge: 'text-amber-900 bg-amber-100 border-amber-300 font-bold', dot: 'bg-amber-500 animate-pulse' },
           { id: 'approved', title: 'Aprovadas 🏆', count: stageStats.approved.count, amount: stageStats.approved.totalAmount, badge: 'text-emerald-800 bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
           { id: 'lost', title: 'Perdidas', count: stageStats.lost.count, amount: stageStats.lost.totalAmount, badge: 'text-rose-800 bg-rose-50 border-rose-200', dot: 'bg-rose-400' },
         ].map(card => {
-          const isSelected = selectedStageFilter === card.id;
+          const isSelected = card.id === 'followup' 
+            ? onlyFollowUpDue 
+            : (selectedStageFilter === card.id && !onlyFollowUpDue);
+
           return (
             <button
               key={card.id}
               type="button"
               onClick={() => {
-                handleSelectStage(card.id as any);
-                setOnlyFollowUpDue(false);
+                if (card.id === 'followup') {
+                  setOnlyFollowUpDue(!onlyFollowUpDue);
+                  setSelectedStageFilter('all');
+                } else {
+                  handleSelectStage(card.id as any);
+                  setOnlyFollowUpDue(false);
+                }
               }}
               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                 isSelected
-                  ? 'bg-sky-50/80 border-sky-400 ring-2 ring-sky-200 shadow-xs'
+                  ? card.id === 'followup'
+                    ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-200 shadow-xs'
+                    : 'bg-sky-50/80 border-sky-400 ring-2 ring-sky-200 shadow-xs'
                   : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 shadow-2xs'
               }`}
             >
@@ -922,15 +968,16 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                     {/* Opção discreta de marcar como Perdida */}
                     {currentStage === 'lost' ? (
                       <span className="text-[10px] text-rose-700 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200 font-bold flex items-center gap-1">
-                        <X className="w-3 h-3 text-rose-600" /> Perdida / Declinada
+                        <X className="w-3 h-3 text-rose-600" />
+                        <span>Perdida {q.lossReason ? `(${q.lossReason})` : '/ Declinada'}</span>
                       </span>
                     ) : (
                       onUpdateQuoteStatus && (
                         <button
                           type="button"
-                          onClick={() => onUpdateQuoteStatus(q.id, 'lost', q.code)}
+                          onClick={() => setQuoteForLoss(q)}
                           className="text-[11px] text-slate-400 hover:text-rose-600 transition flex items-center gap-1 px-2 py-1 hover:bg-rose-50 rounded-lg cursor-pointer"
-                          title="Marcar como proposta perdida"
+                          title="Marcar como proposta perdida e registrar motivo"
                         >
                           <X className="w-3 h-3" />
                           <span>Perdida</span>
@@ -1004,15 +1051,33 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                       <span>Visualizar</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setQuoteForWhatsApp(q)}
-                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                      title="Copiar ou abrir proposta comercial direto no WhatsApp do comprador"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>WhatsApp</span>
-                    </button>
+                    {isFollowUpDue(q) ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWhatsAppInitialMode('followup');
+                          setQuoteForWhatsApp(q);
+                        }}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 animate-pulse"
+                        title="Enviar Follow-up amigável no WhatsApp (> 3 dias sem retorno)"
+                      >
+                        <Clock className="w-3.5 h-3.5 text-white" />
+                        <span>Follow-up</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWhatsAppInitialMode('full');
+                          setQuoteForWhatsApp(q);
+                        }}
+                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                        title="Copiar ou abrir proposta comercial direto no WhatsApp do comprador"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>WhatsApp</span>
+                      </button>
+                    )}
 
                     {onDeleteQuote && (
                       <button
@@ -1230,12 +1295,103 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
         </div>
       )}
 
+      {/* Modal de Registro de Motivo de Perda */}
+      {quoteForLoss && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-scaleIn">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+                  <X className="w-4 h-4 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Registrar Motivo de Perda
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    Proposta {quoteForLoss.code || quoteForLoss.id}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuoteForLoss(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <label className="block text-xs font-semibold text-slate-700">
+                Selecione o motivo pelo qual a proposta não foi fechada:
+              </label>
+
+              <div className="space-y-1.5">
+                {LOSS_REASONS.map(reason => (
+                  <label
+                    key={reason}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition text-xs font-medium ${
+                      selectedLossReason === reason
+                        ? 'bg-rose-50/70 border-rose-300 text-rose-950 font-bold'
+                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="lossReason"
+                      value={reason}
+                      checked={selectedLossReason === reason}
+                      onChange={() => setSelectedLossReason(reason)}
+                      className="text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    />
+                    <span>{reason}</span>
+                  </label>
+                ))}
+              </div>
+
+              {selectedLossReason === 'Outro motivo' && (
+                <div className="pt-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Descreva o motivo:
+                  </label>
+                  <input
+                    type="text"
+                    value={customLossReason}
+                    onChange={(e) => setCustomLossReason(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setQuoteForLoss(null)}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLoss}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
+              >
+                Confirmar Perda
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Envio e Copia para WhatsApp */}
       {quoteForWhatsApp && (
         <WhatsAppQuoteModal
           isOpen={Boolean(quoteForWhatsApp)}
           onClose={() => setQuoteForWhatsApp(null)}
           quote={quoteForWhatsApp}
+          initialMode={whatsAppInitialMode}
         />
       )}
 

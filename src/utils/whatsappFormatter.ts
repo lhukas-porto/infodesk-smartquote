@@ -125,6 +125,60 @@ export function buildWhatsAppItemsOnlyMessage(
 }
 
 /**
+ * Constrói mensagem de Follow-up amigável para propostas enviadas aguardando retorno
+ */
+export function buildWhatsAppFollowUpMessage(quote: Quote, settings?: CompanySettings): string {
+  const contactName = quote.contactPerson ? quote.contactPerson.trim() : '';
+  const companyName = quote.clientCompany ? quote.clientCompany.trim() : 'sua empresa';
+  const greeting = contactName ? `Olá, ${contactName}!` : `Olá!`;
+  
+  const repName = settings?.representativeName || 'Lucas Porto';
+  const companyTrade = settings?.tradeName || 'Infodesk';
+  const companyPhone = settings?.phone || '(61) 9 9627-2630';
+  const totalFormatted = quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const parts = [
+    `${greeting} Tudo bem?`,
+    '',
+    `Passando para verificar se você conseguiu avaliar a proposta comercial *#${quote.code || 'PROPOSTA'}* que enviamos para a *${companyName}* no valor de *R$ ${totalFormatted}*.`,
+    '',
+    `Estamos com as condições e disponibilidade reservadas para você. Caso precise de qualquer ajuste em quantidades, prazos ou formas de pagamento, conte com a gente!`,
+    '',
+    `Podemos prosseguir com o faturamento e envio?`,
+    '',
+    `Um abraço,`,
+    `*${repName}* | *${companyTrade}*`,
+    `WhatsApp: ${companyPhone}`
+  ];
+
+  return parts.filter(Boolean).join('\n');
+}
+
+/**
+ * Constrói texto rápido de 1 item para envio no WhatsApp
+ */
+export function buildSingleItemWhatsAppText(
+  item: { name: string; quantity: number; unit?: string; partNumber?: string; unitPrice?: number; totalPrice?: number }, 
+  index?: number
+): string {
+  const prefix = index !== undefined ? `*${index + 1}.* ` : '▪ ';
+  const qty = item.quantity || 1;
+  const unit = item.unit || 'un.';
+  const partNumberInfo = item.partNumber ? ` (PN: ${item.partNumber.trim()})` : '';
+
+  let text = `${prefix}${item.name}${partNumberInfo}\n  ▪ *Quantidade:* ${qty} ${unit}`;
+  if (item.unitPrice && item.unitPrice > 0) {
+    const unitFormatted = item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    text += ` | *Unitário:* R$ ${unitFormatted}/${unit}`;
+  }
+  if (item.totalPrice && item.totalPrice > 0) {
+    const totalFormatted = item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    text += `\n  ▪ *Total:* R$ ${totalFormatted}`;
+  }
+  return text;
+}
+
+/**
  * Abre o WhatsApp Web ou Desktop com uma mensagem pré-carregada
  */
 export function openWhatsAppWithMessage(message: string, customPhone?: string): void {

@@ -111,6 +111,7 @@ export interface Quote {
   followUpAt?: string;
   lastFollowUpSentAt?: string;
   notes?: string;
+  lossReason?: string;
   approvedTotalAmount?: number;
   approvedAt?: string;
   updatedAt?: string;

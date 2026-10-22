@@ -4512,6 +4512,8 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
     const tax = revenue * (item.taxPercent / 100);
     const profit = revenue - costPaid - fretePaid - tax;
     const roi = (costPaid + fretePaid + tax) > 0 ? (profit / (costPaid + fretePaid + tax)) * 100 : 0;
+    const quotedTotalCost = item.quotedCostPrice * item.quantity;
+    const costDelta = quotedTotalCost - costPaid;
     const effectivePurchaseUrl = item.actualPurchaseUrl || item.sourceUrl;
 
     return (
@@ -4716,6 +4718,29 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200 font-medium font-mono text-[11px]">
                 Unitário: <strong>R$ {unitPaid.toFixed(2)}/un</strong>
               </span>
+
+              {/* Termômetro Real vs Orçado */}
+              {item.actualCostPrice !== undefined && (
+                <span 
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-mono text-[11px] font-bold ${
+                    costDelta > 0.01 
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                      : costDelta < -0.01 
+                        ? 'bg-rose-50 text-rose-800 border-rose-300'
+                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                  title={`Orçado: R$ ${quotedTotalCost.toFixed(2)} | Real: R$ ${costPaid.toFixed(2)}`}
+                >
+                  <TrendingUp className="w-3 h-3" />
+                  <span>
+                    {costDelta > 0.01 
+                      ? `+R$ ${costDelta.toFixed(2)} economia` 
+                      : costDelta < -0.01 
+                        ? `-R$ ${Math.abs(costDelta).toFixed(2)} sobrecusto`
+                        : 'No orçado'}
+                  </span>
+                </span>
+              )}
 
               {/* Frete */}
               {item.shippingPending ? (

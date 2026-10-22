@@ -910,8 +910,30 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     <td className="p-3 text-center font-medium text-slate-500">
                       {p.unit}
                     </td>
-                    <td className="p-3 text-right font-mono font-bold text-slate-900">
-                      R$ {p.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <td className="p-3 text-right">
+                      {(() => {
+                        const daysSince = p.lastUpdated
+                          ? Math.floor((Date.now() - new Date(p.lastUpdated).getTime()) / (1000 * 60 * 60 * 24))
+                          : null;
+                        const isStale = daysSince !== null && daysSince >= 45;
+
+                        return (
+                          <div className="flex flex-col items-end">
+                            <span className="font-mono font-bold text-slate-900 text-xs">
+                              R$ {p.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            {isStale && (
+                              <span 
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 shadow-2xs"
+                                title={`Custo atualizado há ${daysSince} dias (${formatDatePtBr(p.lastUpdated)}). Recomenda-se confirmar com o fornecedor antes de orçar.`}
+                              >
+                                <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                <span>há {daysSince}d</span>
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="p-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">

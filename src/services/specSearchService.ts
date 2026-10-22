@@ -53,9 +53,9 @@ export interface SpecSearchResult {
  * - Peso e dimensões para frete
  */
 export async function fetchProductSpecsOnline(params: SpecSearchParams): Promise<SpecSearchResult> {
-  const query = (params.productName || '').trim();
+  const query = (params.productName || params.partNumber || '').trim();
   if (!query) {
-    throw new Error('Por favor, informe o nome do produto antes de buscar especificações.');
+    throw new Error('Por favor, informe o nome ou part number do produto antes de buscar especificações.');
   }
 
   const apiKey = params.geminiApiKey || getStoredGeminiKey();

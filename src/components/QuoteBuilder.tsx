@@ -49,7 +49,8 @@ import {
   MessageSquare,
   Tag,
   Clock,
-  ChevronRight
+  ChevronRight,
+  History
 } from 'lucide-react';
 import { ClientCompany, ClientContact, CompanySettings, Product, Quote, QuoteItem } from '../types';
 import { 
@@ -112,6 +113,8 @@ import { reportError } from '../services/errorReporter';
 import { WhatsAppQuoteModal } from './WhatsAppQuoteModal';
 import { healAndRecoverQuote } from '../services/quoteHealingService';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
+import { DiscountSimulatorModal } from './DiscountSimulatorModal';
+import { buildSingleItemWhatsAppText } from '../utils/whatsappFormatter';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -186,7 +189,83 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const [isSupplierMatrixOpen, setIsSupplierMatrixOpen] = useState(false);
   const [itemForSupplierScan, setItemForSupplierScan] = useState<{ index: number; item: QuoteItem } | null>(null);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
-  const [whatsAppInitialMode, setWhatsAppInitialMode] = useState<'items_only' | 'full'>('items_only');
+  const [whatsAppInitialMode, setWhatsAppInitialMode] = useState<'items_only' | 'full' | 'followup'>('items_only');
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [copiedItemRowId, setCopiedItemRowId] = useState<string | null>(null);
+
+  // Busca último preço praticado para o cliente selecionado
+  const findLastClientPrice = useMemo(() => {
+    return (item: QuoteItem) => {
+      if (!currentQuote.clientCompany || !propsQuotes || propsQuotes.length === 0) return null;
+      const cleanCompany = currentQuote.clientCompany.trim().toLowerCase();
+      if (!cleanCompany || cleanCompany.length < 2) return null;
+
+      const itemNameClean = (item.name || '').trim().toLowerCase();
+      const itemPnClean = (item.partNumber || '').trim().toLowerCase();
+
+      // Propostas passadas da mesma empresa, excluindo a proposta atual
+      const matchingQuotes = propsQuotes
+        .filter(q => q.id !== currentQuote.id && (q.clientCompany || '').trim().toLowerCase() === cleanCompany)
+        .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime());
+
+      for (const q of matchingQuotes) {
+        const match = (q.items || []).find(it => {
+          if (item.productId && it.productId && it.productId === item.productId) return true;
+          if (itemPnClean && it.partNumber && it.partNumber.trim().toLowerCase() === itemPnClean) return true;
+          if (itemNameClean && it.name && it.name.trim().toLowerCase() === itemNameClean) return true;
+          return false;
+        });
+
+        if (match && Number(match.unitPrice) > 0) {
+          const qDate = new Date(q.date || q.createdAt || Date.now()).getTime();
+          const daysAgo = Math.max(0, Math.floor((Date.now() - qDate) / (1000 * 60 * 60 * 24)));
+          return {
+            lastUnitPrice: Number(match.unitPrice),
+            daysAgo,
+            quoteCode: q.code || 'COTAÇÃO'
+          };
+        }
+      }
+      return null;
+    };
+  }, [currentQuote.clientCompany, currentQuote.id, propsQuotes]);
+
+  // Aplicação linear de desconto geral na proposta
+  const handleApplyGlobalDiscount = (discountFactor: number) => {
+    setCurrentQuote(prev => {
+      const updatedItems = (prev.items || []).map(item => {
+        const currentUnitP = item.unitPrice || 0;
+        const newUnitP = Math.round(currentUnitP * discountFactor * 100) / 100;
+        const newMarkup = calculateMarkupFromUnitPrice(
+          newUnitP,
+          item.costPrice,
+          item.shippingCost ?? globalShipping,
+          item.taxPercent ?? globalTax
+        );
+        return {
+          ...item,
+          unitPrice: newUnitP,
+          markupPercent: newMarkup,
+          totalPrice: newUnitP * (item.quantity || 1)
+        };
+      });
+
+      const newTotals = recalculateQuoteTotals(
+        updatedItems,
+        {
+          globalMarkup: prev.globalMarkupPercent ?? globalMarkup,
+          globalTax: prev.globalTaxPercent ?? globalTax,
+          globalShipping: prev.globalShipping ?? globalShipping
+        }
+      );
+
+      return {
+        ...prev,
+        ...newTotals,
+        items: updatedItems
+      };
+    });
+  };
 
   const handleApplyItemSupplierPrice = (index: number, newCost: number, supplier?: string, sourceUrl?: string) => {
     handleItemChange(index, 'costPrice', newCost);
@@ -2962,6 +3041,20 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 </button>
               )}
 
+              {/* Botão de Simulador de Desconto Geral */}
+              {currentQuote.items && currentQuote.items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsDiscountModalOpen(true)}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300/80 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+                  title="Simular e aplicar desconto linear ou valor fechado na proposta com proteção de margem"
+                >
+                  <Tag className="w-3.5 h-3.5 text-sky-600" />
+                  <span className="hidden sm:inline">Desconto Geral</span>
+                  <span className="sm:hidden">Desconto</span>
+                </button>
+              )}
+
               {currentQuote.items && currentQuote.items.length > 0 && (
                 <span className="text-[11px] text-slate-500 font-medium hidden md:inline shrink-0 whitespace-nowrap">
                   {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item' : 'itens'}
@@ -3739,6 +3832,32 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         const itemNetRevenue = (item.unitPrice || 0) * (1 - (itemTax / 100));
                         const itemUnitProfit = itemNetRevenue - itemBaseCost;
                         const itemTotalProfit = itemUnitProfit * (item.quantity || 1);
+                        const isNegative = itemUnitProfit < 0;
+                        const effectiveMargin = itemNetRevenue > 0 ? (itemUnitProfit / itemNetRevenue) * 100 : 0;
+                        const isLowMargin = !isNegative && effectiveMargin < 8 && Number(item.unitPrice || 0) > 0;
+
+                        if (isNegative) {
+                          return (
+                            <div
+                              className="text-[9.5px] font-mono font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-0.2 mt-1 whitespace-nowrap inline-flex items-center gap-0.5"
+                              title={`Atenção: Prejuízo neste item de R$ ${Math.abs(itemTotalProfit).toFixed(2)}`}
+                            >
+                              🚨 Prejuízo {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          );
+                        }
+
+                        if (isLowMargin) {
+                          return (
+                            <div
+                              className="text-[9.5px] font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1 py-0.2 mt-1 whitespace-nowrap inline-flex items-center gap-0.5"
+                              title={`Margem líquida baixa: ${effectiveMargin.toFixed(1)}%`}
+                            >
+                              ⚠️ Margem Baixa ({effectiveMargin.toFixed(1)}%)
+                            </div>
+                          );
+                        }
+
                         return (
                           <div
                             className="text-[10px] font-mono font-bold text-emerald-600 mt-1 whitespace-nowrap"
@@ -3942,6 +4061,56 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                               )}
                             </button>
                           )}
+
+                          {/* Botão de Cópia Rápida de 1 Item para WhatsApp */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const text = buildSingleItemWhatsAppText(item, idx);
+                              navigator.clipboard?.writeText(text);
+                              setCopiedItemRowId(item.id);
+                              setTimeout(() => setCopiedItemRowId(null), 2000);
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
+                            title="Copiar texto formatado deste item para WhatsApp"
+                          >
+                            {copiedItemRowId === item.id ? (
+                              <>
+                                <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>Copiar p/ WhatsApp</span>
+                              </>
+                            )}
+                          </button>
+
+                          {/* Memória de Último Preço do Cliente */}
+                          {(() => {
+                            const lastPrice = findLastClientPrice(item);
+                            if (!lastPrice) return null;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleItemChange(idx, 'unitPrice', lastPrice.lastUnitPrice);
+                                  setEditingInputs(prev => {
+                                    const copy = { ...prev };
+                                    delete copy[`${idx}-unitPrice`];
+                                    delete copy[`${idx}-markupPercent`];
+                                    return copy;
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
+                                title={`Última venda/cotação para ${currentQuote.clientCompany} (${lastPrice.quoteCode}). Clique para aplicar R$ ${lastPrice.lastUnitPrice.toFixed(2)}.`}
+                              >
+                                <History className="w-2.5 h-2.5 text-amber-600" />
+                                <span>Último p/ cliente: R$ {lastPrice.lastUnitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({lastPrice.daysAgo === 0 ? 'hoje' : `há ${lastPrice.daysAgo}d`})</span>
+                              </button>
+                            );
+                          })()}
                         </div>
                       </td>
                     </tr>
@@ -5211,6 +5380,18 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           settings={settings}
           selectedItemIds={selectedItemIds}
           initialMode={whatsAppInitialMode}
+        />
+      )}
+
+      {/* Modal de Simulação de Desconto Geral */}
+      {isDiscountModalOpen && (
+        <DiscountSimulatorModal
+          isOpen={isDiscountModalOpen}
+          onClose={() => setIsDiscountModalOpen(false)}
+          items={currentQuote.items || []}
+          globalTax={currentQuote.globalTaxPercent ?? globalTax}
+          globalShipping={currentQuote.globalShipping ?? globalShipping}
+          onApplyDiscount={handleApplyGlobalDiscount}
         />
       )}
 

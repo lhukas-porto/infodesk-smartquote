@@ -291,8 +291,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   const handleSearchSpecificationsOnline = async () => {
     const productName = (draft.name || '').trim();
-    if (!productName) {
-      alert('Por favor, informe ao menos o Nome Padronizado do produto antes de buscar as especificações com IA.');
+    const partNumber = (draft.partNumber || draft.sku || '').trim();
+    if (!productName && !partNumber) {
+      alert('Por favor, informe ao menos o Nome ou o Part Number / Modelo do produto antes de buscar as especificações com IA.');
       return;
     }
 
@@ -300,14 +301,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setSpecsMessage(null);
     try {
       const result = await fetchProductSpecsOnline({
-        productName,
+        productName: productName || partNumber,
         brand: draft.supplier,
-        partNumber: draft.partNumber || draft.sku,
+        partNumber: partNumber || undefined,
         category: draft.category
       });
 
       setDraft(prev => ({
         ...prev,
+        name: (!prev.name || !prev.name.trim()) && result.standardizedName
+          ? result.standardizedName
+          : prev.name,
         description: result.description || prev.description,
         ncm: (prev.ncm && prev.ncm.trim().length >= 8) ? prev.ncm : (result.ncm || prev.ncm || ''),
         partNumber: prev.partNumber?.trim() ? prev.partNumber : (result.partNumber || ''),
@@ -504,7 +508,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   <button
                     type="button"
                     onClick={handleSearchSpecificationsOnline}
-                    disabled={isSearchingSpecs || !draft.name?.trim()}
+                    disabled={isSearchingSpecs || (!draft.name?.trim() && !draft.sku?.trim() && !draft.partNumber?.trim())}
                     title="Consultar a IA para gerar a ficha técnica completa 360° do produto (mesma riqueza de informações do Scanner IA)"
                     className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 shadow-2xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
                   >
