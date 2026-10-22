@@ -27,6 +27,7 @@ import { compressImageDataUrl } from '../utils/imageCompressor';
 import { WebImagePickerModal } from './WebImagePickerModal';
 import { getSettings } from '../utils/storage';
 import { fetchProductSpecsOnline } from '../services/specSearchService';
+import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
 
 export interface ProductEditModalProps {
   isOpen: boolean;
@@ -784,11 +785,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   />
                   {draft.sourceUrl && (
                     <a
-                      href={draft.sourceUrl}
+                      href={sanitizeExternalUrl(draft.sourceUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => openInNewWindow(draft.sourceUrl, e)}
                       className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition cursor-pointer"
-                      title="Testar Link"
+                      title="Testar Link em nova janela"
                     >
                       <ExternalLink className="w-4 h-4 text-sky-600" />
                     </a>

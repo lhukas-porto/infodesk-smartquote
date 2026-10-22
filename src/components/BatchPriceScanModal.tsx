@@ -21,6 +21,7 @@ import {
   BatchItemProgress, 
   BatchScanOverallProgress 
 } from '../services/batchScannerService';
+import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
 
 interface BatchPriceScanModalProps {
   isOpen: boolean;
@@ -312,11 +313,15 @@ export const BatchPriceScanModal: React.FC<BatchPriceScanModalProps> = ({
                       )}
                       {status?.buyUrl && (
                         <a 
-                          href={status.buyUrl} 
+                          href={sanitizeExternalUrl(status.buyUrl)} 
                           target="_blank" 
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-sky-600 hover:underline flex items-center gap-0.5"
+                          rel="noopener noreferrer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openInNewWindow(status.buyUrl, e);
+                          }}
+                          className="text-sky-600 hover:underline flex items-center gap-0.5 cursor-pointer"
+                          title="Ver oferta em nova janela"
                         >
                           Ver oferta <ExternalLink className="w-2.5 h-2.5" />
                         </a>

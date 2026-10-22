@@ -11,6 +11,7 @@ import {
   Plus
 } from 'lucide-react';
 import { QuoteItem, SupplierOffer } from '../types';
+import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
 
 interface MultiSupplierMatrixModalProps {
   isOpen: boolean;
@@ -233,11 +234,15 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
 
                         {offer.sourceUrl && (
                           <a
-                            href={offer.sourceUrl}
+                            href={sanitizeExternalUrl(offer.sourceUrl)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-[10px] text-sky-600 hover:text-sky-800 flex items-center gap-1 mt-1 font-semibold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openInNewWindow(offer.sourceUrl, e);
+                            }}
+                            className="text-[10px] text-sky-600 hover:text-sky-800 flex items-center gap-1 mt-1 font-semibold cursor-pointer"
+                            title="Ver oferta em nova janela"
                           >
                             <span>Ver Oferta</span>
                             <ExternalLink className="w-2.5 h-2.5" />

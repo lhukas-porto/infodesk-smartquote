@@ -1,5 +1,5 @@
 // src/utils/whatsappFormatter.ts
-// Formatação de propostas comerciais para fechamento rápido via WhatsApp B2B
+// Formatação de propostas comerciais e listas de itens para fechamento rápido via WhatsApp B2B
 
 import { Quote, CompanySettings } from '../types';
 
@@ -25,9 +25,13 @@ export function formatPhoneForWhatsApp(rawPhone?: string): string {
 }
 
 /**
- * Constrói a mensagem comercial diagramada para WhatsApp
+ * Constrói a mensagem comercial diagramada para WhatsApp (Proposta Comercial Completa)
  */
-export function buildWhatsAppQuoteMessage(quote: Quote, settings?: CompanySettings): string {
+export function buildWhatsAppQuoteMessage(
+  quote: Quote, 
+  settings?: CompanySettings,
+  itemIdsToInclude?: string[]
+): string {
   const contactName = quote.contactPerson ? quote.contactPerson.trim() : '';
   const companyName = quote.clientCompany ? quote.clientCompany.trim() : 'sua empresa';
   const greeting = contactName ? `Olá, ${contactName}!` : `Olá!`;
@@ -36,15 +40,25 @@ export function buildWhatsAppQuoteMessage(quote: Quote, settings?: CompanySettin
   const companyTrade = settings?.tradeName || 'Infodesk';
   const companyPhone = settings?.phone || '(61) 9 9627-2630';
 
-  const totalFormatted = quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const allItems = quote.items || [];
+  const items = itemIdsToInclude && itemIdsToInclude.length > 0
+    ? allItems.filter(it => itemIdsToInclude.includes(it.id))
+    : allItems;
 
-  const itemsLines = (quote.items || []).map((item, index) => {
+  const totalAmount = itemIdsToInclude && itemIdsToInclude.length > 0
+    ? items.reduce((acc, it) => acc + ((it.unitPrice || 0) * (it.quantity || 1)), 0)
+    : quote.totalAmount;
+
+  const totalFormatted = totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const itemsLines = items.map((item, index) => {
     const qty = item.quantity || 1;
+    const unit = item.unit || 'un.';
     const unitPrice = item.unitPrice ? item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
     const subtotal = ((item.unitPrice || 0) * qty).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const partNumberInfo = item.partNumber ? ` (PN: ${item.partNumber})` : '';
 
-    return `*${index + 1}.* ${item.name}${partNumberInfo}\n   ▪ *Qtd:* ${qty} un. | *Unit:* R$ ${unitPrice} | *Subtotal:* R$ ${subtotal}`;
+    return `*${index + 1}.* ${item.name}${partNumberInfo}\n   ▪ *Qtd:* ${qty} ${unit} | *Unit:* R$ ${unitPrice} | *Subtotal:* R$ ${subtotal}`;
   });
 
   const parts = [
@@ -70,12 +84,51 @@ export function buildWhatsAppQuoteMessage(quote: Quote, settings?: CompanySettin
 }
 
 /**
- * Abre o WhatsApp Web ou Desktop com a mensagem pré-carregada
+ * Constrói texto limpo para WhatsApp contendo apenas Itens e Quantidades (sem valores),
+ * ideal para cotação rápida com fornecedores, logística ou conferência de lista de compras.
  */
-export function openWhatsAppWithQuote(quote: Quote, settings?: CompanySettings, customPhone?: string): void {
-  const phoneToUse = customPhone || quote.clientPhone || '';
-  const cleanPhone = formatPhoneForWhatsApp(phoneToUse);
-  const message = buildWhatsAppQuoteMessage(quote, settings);
+export function buildWhatsAppItemsOnlyMessage(
+  quote: Quote, 
+  settings?: CompanySettings, 
+  itemIdsToInclude?: string[]
+): string {
+  const allItems = quote.items || [];
+  const items = itemIdsToInclude && itemIdsToInclude.length > 0
+    ? allItems.filter(it => itemIdsToInclude.includes(it.id))
+    : allItems;
+
+  const repName = settings?.representativeName || 'Lucas Porto';
+  const companyTrade = settings?.tradeName || 'Infodesk';
+  const companyPhone = settings?.phone || '(61) 9 9627-2630';
+  const codeHeader = quote.code ? ` - Ref: #${quote.code}` : '';
+
+  const itemsLines = items.map((item, index) => {
+    const qty = item.quantity || 1;
+    const unit = item.unit || 'un.';
+    const partNumberInfo = item.partNumber ? ` (PN: ${item.partNumber.trim()})` : '';
+
+    return `*${index + 1}.* ${item.name}${partNumberInfo}\n   ▪ *Quantidade:* ${qty} ${unit}`;
+  });
+
+  const parts = [
+    `📦 *LISTA DE ITENS PARA COTAÇÃO${codeHeader}*`,
+    `Favor verificar disponibilidade e melhores valores para os seguintes itens:`,
+    '',
+    itemsLines.join('\n\n'),
+    '',
+    `Total: ${items.length} produto(s)`,
+    `Solicitado por: *${repName}* | *${companyTrade}*`,
+    `WhatsApp: ${companyPhone}`
+  ];
+
+  return parts.filter(Boolean).join('\n');
+}
+
+/**
+ * Abre o WhatsApp Web ou Desktop com uma mensagem pré-carregada
+ */
+export function openWhatsAppWithMessage(message: string, customPhone?: string): void {
+  const cleanPhone = formatPhoneForWhatsApp(customPhone);
   const encodedText = encodeURIComponent(message);
 
   let url = `https://api.whatsapp.com/send?text=${encodedText}`;
@@ -86,4 +139,12 @@ export function openWhatsAppWithQuote(quote: Quote, settings?: CompanySettings, 
   if (typeof window !== 'undefined') {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
+}
+
+/**
+ * Abre o WhatsApp Web ou Desktop com a proposta completa
+ */
+export function openWhatsAppWithQuote(quote: Quote, settings?: CompanySettings, customPhone?: string): void {
+  const message = buildWhatsAppQuoteMessage(quote, settings);
+  openWhatsAppWithMessage(message, customPhone || quote.clientPhone);
 }
