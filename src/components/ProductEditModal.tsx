@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Package,
   X,
@@ -28,6 +28,7 @@ import { WebImagePickerModal } from './WebImagePickerModal';
 import { getSettings } from '../utils/storage';
 import { fetchProductSpecsOnline } from '../services/specSearchService';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
+import { getAllRegisteredSuppliers, learnSupplier } from '../services/supplierLearningService';
 
 export interface ProductEditModalProps {
   isOpen: boolean;
@@ -38,6 +39,8 @@ export interface ProductEditModalProps {
   onAddUnit?: (newUnit: string) => void;
   availableCategories: string[];
   onAddCategory?: (newCategory: string) => void;
+  products?: Product[];
+  availableSuppliers?: string[];
   title?: string;
   subtitle?: string;
   badgeText?: string;
@@ -128,6 +131,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   onAddUnit,
   availableCategories,
   onAddCategory,
+  products,
+  availableSuppliers,
   title = 'Dados do Produto',
   subtitle = 'Revise os dados comerciais, foto e descrição. Depois de salvar o produto já entrará na base de dados.',
   badgeText,
@@ -149,6 +154,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const knownSuppliersList = useMemo(() => {
+    return availableSuppliers && availableSuppliers.length > 0
+      ? availableSuppliers
+      : getAllRegisteredSuppliers(products);
+  }, [availableSuppliers, products]);
 
   const effectiveDollarRate = Number(dailyDollarRate) > 0 ? Number(dailyDollarRate) : (getSettings().dailyDollarRate || 5.60);
 
@@ -372,6 +383,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       imageUrl: draft.imageUrl || '',
       shippingCost: parsedShipping
     };
+
+    // APRENDIZADO CONTÍNUO (Diretriz do Lucas): Aprende e memoriza o nome do fornecedor para a URL/loja
+    if (finalProd.sourceUrl && finalProd.supplier) {
+      learnSupplier(finalProd.sourceUrl, finalProd.supplier);
+    }
 
     onSave(finalProd, parsedShipping);
   };
@@ -758,11 +774,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                     Fornecedor
                   </label>
-                  <input
-                    type="text"
+                  <CreatableCombobox
                     value={draft.supplier || ''}
-                    onChange={(e) => setDraft(prev => ({ ...prev, supplier: e.target.value }))}
-                    className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 focus:outline-none focus:border-sky-500 text-xs"
+                    options={knownSuppliersList}
+                    onChange={(val) => {
+                      setDraft(prev => ({ ...prev, supplier: val }));
+                      if (draft.sourceUrl && val) {
+                        learnSupplier(draft.sourceUrl, val);
+                      }
+                    }}
+                    defaultValue="Fornecedor Web / Mercado"
+                    textAlign="left"
+                    inputClassName="h-10"
                   />
                 </div>
               </div>

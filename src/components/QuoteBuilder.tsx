@@ -117,6 +117,7 @@ import { DiscountSimulatorModal } from './DiscountSimulatorModal';
 import { buildSingleItemWhatsAppText } from '../utils/whatsappFormatter';
 import { parseQuoteTimestamp } from '../utils/dateUtils';
 import { enrichQuoteItemsWithOfficialSpecs, itemNeedsSpecEnrichment } from '../services/specSearchService';
+import { learnSupplier, learnSuppliersFromProducts } from '../services/supplierLearningService';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -725,6 +726,11 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
   const persistAndProceed = async (action: (customQuote?: Quote) => void, requiresValidation: boolean = false) => {
     persistClientDetails();
+
+    // APRENDIZADO CONTÍNUO (Diretriz do Lucas): Memoriza os fornecedores de todos os itens da cotação
+    if (currentQuote.items && currentQuote.items.length > 0) {
+      learnSuppliersFromProducts(currentQuote.items);
+    }
     if (requiresValidation) {
       const issues = runPreFlightCheck();
       if (issues.length > 0) {
@@ -1747,6 +1753,11 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     if (finalProd.category) {
       saveRegisteredCategory(finalProd.category);
       setRegisteredCategories(getRegisteredCategories());
+    }
+
+    // APRENDIZADO CONTÍNUO (Diretriz do Lucas): Aprende o fornecedor vinculado à URL da loja
+    if (finalProd.sourceUrl && finalProd.supplier) {
+      learnSupplier(finalProd.sourceUrl, finalProd.supplier);
     }
 
     // 1. Salvar ou atualizar na base de produtos (catálogo geral e Supabase)
@@ -4111,6 +4122,16 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             </a>
                           )}
 
+                          {item.supplier && item.supplier.trim() !== '' && (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md whitespace-nowrap shrink-0"
+                              title={`Fornecedor vinculado: ${item.supplier}`}
+                            >
+                              <Building className="w-2.5 h-2.5 text-slate-500" />
+                              <span>{item.supplier}</span>
+                            </span>
+                          )}
+
                           {onSaveToCatalog && (
                             <button
                               type="button"
@@ -4800,6 +4821,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               : 0
           }
           showShippingFields={true}
+          products={products}
           availableUnits={availableUnits}
           onAddUnit={(newUnit) => {
             saveRegisteredUnit(newUnit);

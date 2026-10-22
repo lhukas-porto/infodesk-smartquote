@@ -128,6 +128,10 @@ import {
   isSameQuote
 } from './utils/aiEmailParser';
 import {
+  learnSuppliersFromProducts,
+  learnSuppliersFromQuotes
+} from './services/supplierLearningService';
+import {
   isSupabaseConfigured,
   fetchCompanySettingsFromSupabase,
   syncCompanySettingsToSupabase,
@@ -349,6 +353,16 @@ export const App: React.FC = () => {
       saveQuotes(updatedQuotes);
     }
   }, [quotes]);
+
+  // APRENDIZADO CONTÍNUO DE FORNECEDORES: Aprende e memoriza nomes e domínios de fornecedores a partir dos produtos e cotações
+  useEffect(() => {
+    if (products && products.length > 0) {
+      learnSuppliersFromProducts(products);
+    }
+    if (quotes && quotes.length > 0) {
+      learnSuppliersFromQuotes(quotes);
+    }
+  }, [products, quotes]);
 
   // AUTO-CURA DE INTEGRIDADE: Recupera, blinda e persiste qualquer cotação histórica que tenha ficado sem itens
   useEffect(() => {

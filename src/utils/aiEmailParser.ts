@@ -3,6 +3,7 @@ import {
   extractModelAndPartNumberFromText, 
   generateFallbackProductCode 
 } from './productModelExtractor';
+import { getLearnedSupplierForUrl } from '../services/supplierLearningService';
 
 export interface ParsedItem {
   name: string;
@@ -2306,6 +2307,18 @@ export function extractStoreNameFromUrl(url?: string): string {
       return '';
     }
 
+    // 1. APRENDIZADO CONTÍNUO (Diretriz do Lucas): Consulta primeiro a memória de fornecedores salvos em outros produtos
+    const learned = getLearnedSupplierForUrl(cleanUrl);
+    if (learned) {
+      return learned;
+    }
+
+    if (hostname.includes('palaciodasferramentas')) return 'Palácio das Ferramentas';
+    if (hostname.includes('dutramaquinas')) return 'Dutra Máquinas';
+    if (hostname.includes('lojadomecanico')) return 'Loja do Mecânico';
+    if (hostname.includes('ferramentaskennedy')) return 'Ferramentas Kennedy';
+    if (hostname.includes('anhangueraferramentas')) return 'Anhanguera Ferramentas';
+    if (hostname.includes('dutotec')) return 'Dutotec';
     if (hostname.includes('mercadolivre') || hostname.includes('mercado-livre')) return 'Mercado Livre';
     if (hostname.includes('kabum')) return 'KaBuM!';
     if (hostname.includes('amazon')) return 'Amazon';
@@ -2343,9 +2356,12 @@ export function extractStoreNameFromUrl(url?: string): string {
     if (hostname.includes('sipolatti')) return 'Sipolatti';
     if (hostname.includes('intelbras')) return 'Intelbras';
 
-    // Para outros domínios, extrai o nome principal formatado (Ex: intelbras.com.br -> Intelbras)
+    // Para outros domínios, formata inteligentemente separando hífens ou capitalizando
     const basePart = hostname.split('.')[0];
     if (basePart && basePart.length > 2) {
+      if (basePart.includes('-')) {
+        return basePart.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      }
       return basePart.charAt(0).toUpperCase() + basePart.slice(1);
     }
     return '';
