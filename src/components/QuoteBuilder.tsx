@@ -1557,7 +1557,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         unitPrice,
         totalPrice,
         imageUrl: item.imageUrl || '',
-        showImage: false,
+        showImage: Boolean(item.imageUrl),
         supplier: item.supplier || '',
         sourceUrl: item.sourceUrl || ''
       };
