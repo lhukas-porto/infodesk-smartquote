@@ -2272,30 +2272,41 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     setIsCompanySearchOpen(true);
 
                   }}
-                  onFocus={() => {
-                    if (currentQuote.clientCompany?.trim()) {
-                      setIsCompanySearchOpen(true);
-                    }
-                  }}
-                  className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
+                  onClick={() => setIsCompanySearchOpen(true)}
+                  onFocus={() => setIsCompanySearchOpen(true)}
+                  className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-14 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
                 />
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                   <Building className="w-4 h-4 text-slate-400" />
                 </div>
 
-                {currentQuote.clientCompany && (
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {currentQuote.clientCompany && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentQuote(prev => ({ ...prev, clientCompany: '' }));
+                        setIsCompanySearchOpen(true);
+                      }}
+                      className="p-1 hover:bg-slate-200/70 rounded-md text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                      title="Limpar nome da empresa"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => {
-                      setCurrentQuote(prev => ({ ...prev, clientCompany: '' }));
-                      setIsCompanySearchOpen(false);
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsCompanySearchOpen(prev => !prev);
                     }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200/70 rounded-md text-slate-400 hover:text-slate-600 transition"
-                    title="Limpar nome da empresa"
+                    className="p-1 hover:bg-slate-200/70 rounded-md text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                    title="Mostrar lista de empresas cadastradas"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isCompanySearchOpen ? 'rotate-180 text-sky-600' : ''}`} />
                   </button>
-                )}
+                </div>
               </div>
 
               {/* Dropdown de resultados filtrados em tempo real ao digitar a empresa */}
@@ -2308,9 +2319,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         .trim()
                         .toLowerCase();
 
-                      const filtered = clientCompanies
+                      const filtered = (clientCompanies || [])
                         .filter(c => {
-                          if (!query) return false;
+                          if (!query) return true;
                           const nameMatch = (c.name || '').toLowerCase().includes(query);
                           const locMatch = (c.locations || []).some(l => l.toLowerCase().includes(query));
                           const contactMatch = (c.contacts || []).some(ct => ct.name.toLowerCase().includes(query) || (ct.email || '').toLowerCase().includes(query));
@@ -2318,11 +2329,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         })
                         .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 
-                      if (!query) {
+                      if ((clientCompanies || []).length === 0) {
                         return (
-                          <div className="p-3 text-center text-xs text-slate-400">
-                            <p className="font-semibold text-slate-600">Digite o nome da empresa...</p>
-                            <p className="text-[10.5px] text-slate-400 mt-0.5">Ex: "UBEC", "SABIN", "CNC" ou nome de comprador.</p>
+                          <div className="p-3.5 text-center text-xs text-slate-500">
+                            <p className="font-semibold text-slate-700">Nenhuma empresa cadastrada</p>
+                            <p className="text-[10.5px] text-slate-400 mt-1">
+                              Cadastre clientes na aba "Clientes" para selecioná-los rapidamente aqui ou continue digitando o nome.
+                            </p>
                           </div>
                         );
                       }
@@ -2340,8 +2353,17 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
                       return (
                         <div className="pt-0.5 space-y-1">
-                          <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            Empresas Encontradas ({filtered.length})
+                          <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                            <span>{query ? `Empresas Encontradas (${filtered.length})` : `Empresas Cadastradas (${filtered.length})`}</span>
+                            {query && (
+                              <button
+                                type="button"
+                                onClick={() => setCurrentQuote(prev => ({ ...prev, clientCompany: '' }))}
+                                className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold cursor-pointer underline"
+                              >
+                                Ver todas ({clientCompanies.length})
+                              </button>
+                            )}
                           </div>
                           {filtered.map(c => (
                             <button
