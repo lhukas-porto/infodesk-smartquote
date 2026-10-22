@@ -419,6 +419,33 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     return [...registeredUnits].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [registeredUnits]);
 
+  // Dropdown e Seletor de Unidades na tabela de itens
+  const [activeUnitDropdownIdx, setActiveUnitDropdownIdx] = useState<number | null>(null);
+  const [unitSearchText, setUnitSearchText] = useState<string>('');
+
+  useEffect(() => {
+    const handleClickOutsideUnit = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.sq-unit-dropdown-container')) {
+        setActiveUnitDropdownIdx(null);
+        setUnitSearchText('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutsideUnit);
+    return () => document.removeEventListener('mousedown', handleClickOutsideUnit);
+  }, []);
+
+  const filteredUnits = React.useMemo(() => {
+    const term = normalizeSearchText(unitSearchText);
+    if (!term) return availableUnits;
+    return availableUnits.filter(u => normalizeSearchText(u).includes(term));
+  }, [availableUnits, unitSearchText]);
+
+  const canAddNewUnit = Boolean(
+    unitSearchText.trim() &&
+    !availableUnits.some(u => normalizeSearchText(u) === normalizeSearchText(unitSearchText))
+  );
+
   const availableCategories = React.useMemo(() => {
     return [...registeredCategories].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [registeredCategories]);
@@ -3511,7 +3538,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 </th>
                 <th className="py-2.5 px-2 min-w-[180px] whitespace-nowrap">Descrição Detalhada do Produto</th>
                 <th className="py-2.5 px-1 w-14 min-w-[56px] text-center whitespace-nowrap">Qtd.</th>
-                <th className="py-2.5 px-1 w-14 min-w-[52px] text-center whitespace-nowrap">Un.</th>
+                <th className="py-2.5 px-1 w-16 min-w-[62px] text-center whitespace-nowrap">Un.</th>
                 <th className="py-2.5 px-1 w-20 min-w-[80px] text-center whitespace-nowrap">Custo (R$)</th>
                 <th className="py-2.5 px-1 w-20 min-w-[80px] text-center whitespace-nowrap">Frete (R$)</th>
                 <th className="py-2.5 px-1 w-24 min-w-[88px] text-center whitespace-nowrap">
@@ -3767,26 +3794,137 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     </td>
 
                     {/* Unidade */}
-                    <td className="py-2 px-1 w-14 min-w-[52px] text-center">
-                      <input
-                        type="text"
-                        list="quote-registered-units"
-                        value={item.unit || 'Un.'}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          handleItemChange(idx, 'unit', val);
-                          if (val.trim()) {
-                            saveRegisteredUnit(val.trim());
-                            setRegisteredUnits(getRegisteredUnits());
+                    <td className="py-2 px-1 w-16 min-w-[62px] text-center relative sq-unit-dropdown-container">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (activeUnitDropdownIdx === idx) {
+                            setActiveUnitDropdownIdx(null);
+                            setUnitSearchText('');
+                          } else {
+                            setActiveUnitDropdownIdx(idx);
+                            setUnitSearchText('');
                           }
                         }}
-                        onBlur={(e) => {
-                          if (!e.target.value.trim()) {
-                            handleItemChange(idx, 'unit', 'Un.');
-                          }
-                        }}
-                        className="w-full h-8 min-w-[46px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center text-slate-700 focus:outline-none focus:border-sky-500 font-medium leading-none"
-                      />
+                        className={`w-full h-8 min-w-[56px] px-1.5 rounded-lg text-xs font-semibold flex items-center justify-between gap-1 transition select-none cursor-pointer border ${
+                          activeUnitDropdownIdx === idx
+                            ? 'bg-sky-50 border-sky-500 text-sky-800 ring-2 ring-sky-100'
+                            : 'bg-slate-50 hover:bg-white border-slate-300 hover:border-sky-400 text-slate-800'
+                        }`}
+                        title="Clique para escolher entre todas as unidades cadastradas"
+                      >
+                        <span className="truncate flex-1 text-center font-mono font-bold text-xs">
+                          {item.unit || 'Un.'}
+                        </span>
+                        <ChevronDown className={`w-3 h-3 text-slate-400 shrink-0 transition-transform duration-150 ${activeUnitDropdownIdx === idx ? 'rotate-180 text-sky-600' : ''}`} />
+                      </button>
+
+                      {/* Dropdown com TODAS as unidades cadastradas */}
+                      {activeUnitDropdownIdx === idx && (
+                        <div
+                          className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 text-left animate-in fade-in zoom-in-95 duration-100"
+                        >
+                          <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1.5 flex items-center justify-between">
+                            <span>Unidades</span>
+                            <span className="text-[9px] font-normal text-slate-400">{availableUnits.length} cadastradas</span>
+                          </div>
+
+                          {/* Campo de busca ou digitação de nova unidade (sem placeholder) */}
+                          <div className="px-1 mb-1.5">
+                            <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                              Buscar ou Cadastrar
+                            </label>
+                            <div className="relative flex items-center">
+                              <input
+                                type="text"
+                                autoFocus
+                                value={unitSearchText}
+                                onChange={(e) => setUnitSearchText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = unitSearchText.trim();
+                                    if (val) {
+                                      handleItemChange(idx, 'unit', val);
+                                      saveRegisteredUnit(val);
+                                      setRegisteredUnits(getRegisteredUnits());
+                                      setActiveUnitDropdownIdx(null);
+                                      setUnitSearchText('');
+                                    }
+                                  } else if (e.key === 'Escape') {
+                                    setActiveUnitDropdownIdx(null);
+                                    setUnitSearchText('');
+                                  }
+                                }}
+                                className="w-full h-7 px-2 pr-6 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white font-medium"
+                              />
+                              {unitSearchText && (
+                                <button
+                                  type="button"
+                                  onClick={() => setUnitSearchText('')}
+                                  className="absolute right-1.5 p-0.5 text-slate-400 hover:text-slate-600"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Botão de cadastrar nova unidade se digitou algo inédito */}
+                          {canAddNewUnit && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const val = unitSearchText.trim();
+                                if (val) {
+                                  handleItemChange(idx, 'unit', val);
+                                  saveRegisteredUnit(val);
+                                  setRegisteredUnits(getRegisteredUnits());
+                                  setActiveUnitDropdownIdx(null);
+                                  setUnitSearchText('');
+                                }
+                              }}
+                              className="w-full text-left px-2 py-1.5 mb-1 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer border border-sky-200"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                              <span className="truncate">Cadastrar: "<strong>{unitSearchText.trim()}</strong>"</span>
+                            </button>
+                          )}
+
+                          {/* Lista com TODAS as unidades cadastradas */}
+                          <div className="max-h-52 overflow-y-auto space-y-0.5 pr-0.5">
+                            {filteredUnits.length > 0 ? (
+                              filteredUnits.map((u) => {
+                                const isSelected = (item.unit || 'Un.').toLowerCase() === u.toLowerCase();
+                                return (
+                                  <button
+                                    key={u}
+                                    type="button"
+                                    onClick={() => {
+                                      handleItemChange(idx, 'unit', u);
+                                      setActiveUnitDropdownIdx(null);
+                                      setUnitSearchText('');
+                                    }}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-sky-50 text-sky-700 font-bold'
+                                        : 'hover:bg-slate-100 text-slate-700 font-medium'
+                                    }`}
+                                  >
+                                    <span className="truncate font-mono">{u}</span>
+                                    {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />}
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <div className="px-2 py-2 text-center text-[11px] text-slate-400">
+                                Nenhuma unidade encontrada
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </td>
 
                     {/* Custo Unitário */}
@@ -4240,11 +4378,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               </tfoot>
             )}
           </table>
-          <datalist id="quote-registered-units">
-            {availableUnits.map(u => (
-              <option key={u} value={u} />
-            ))}
-          </datalist>
         </div>
       </div>
 
