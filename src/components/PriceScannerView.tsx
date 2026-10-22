@@ -23,7 +23,8 @@ import {
   Receipt,
   Database,
   RefreshCw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileUp
 } from 'lucide-react';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
 import { Product, QuoteItem } from '../types';
@@ -1322,7 +1323,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     });
 
     setIsUniversalImportOpen(false);
-    showToast(`✅ ${importedItems.length} produto(s) da planilha importado(s) para o Scanner!`);
+    showToast(`✅ ${importedItems.length} produto(s) importado(s) para o Scanner!`);
   };
 
   return (
@@ -1548,10 +1549,10 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               type="button"
               onClick={() => setIsUniversalImportOpen(true)}
               className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/90 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-98"
-              title="Importar produtos em lote a partir de planilha Excel (.xlsx), CSV ou copiar e colar células (Ctrl+V)"
+              title="Importar produtos em lote a partir de arquivos (PDF, Excel, CSV) ou colar listas de pedidos"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Importar Planilha</span>
+              <FileUp className="w-4 h-4 text-emerald-700" />
+              <span>Importar Arquivo</span>
             </button>
 
             {(batchRawInput || attachedProductPhotos.length > 0 || discoveredProducts.length > 0 || batchResults.length > 0) && (

@@ -2882,17 +2882,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               </span>
             </label>
             <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
-              {/* Botão de Importação Universal */}
-              <button
-                type="button"
-                onClick={() => setIsUniversalImportOpen(true)}
-                className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
-                title="Importar produtos em lote a partir de planilha Excel (.xlsx), CSV ou copiar e colar células (Ctrl+V)"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden sm:inline">Importar Planilha</span>
-                <span className="sm:hidden">Importar</span>
-              </button>
 
 
               {/* Botão de Varredura em Lote (MEL-03) */}

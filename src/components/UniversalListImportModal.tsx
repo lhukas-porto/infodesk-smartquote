@@ -8,14 +8,19 @@ import {
   AlertCircle, 
   ArrowRight,
   Sparkles,
-  Layers
+  Layers,
+  FileUp,
+  FileText,
+  MessageSquare,
+  Loader2
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { QuoteItem } from '../types';
 import { detectDistributorProfile, DistributorProfile } from '../services/supplierConnectorService';
 import { extractQuoteItemsWithAI } from '../services/multiItemExtractorService';
 import { extractItemsFromEmailContent } from '../utils/aiEmailParser';
-import { MessageSquare } from 'lucide-react';
+import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
+import { reportError } from '../services/errorReporter';
 
 interface UniversalListImportModalProps {
   isOpen: boolean;
@@ -50,6 +55,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
   const [freeText, setFreeText] = useState('');
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successCount, setSuccessCount] = useState<number | null>(null);
   const [detectedDistributor, setDetectedDistributor] = useState<DistributorProfile | null>(null);
@@ -239,6 +245,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setErrorMsg(null);
+    setProcessingMessage('');
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -246,20 +253,56 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
     try {
       const fileName = file.name.toLowerCase();
 
-      if (fileName.endsWith('.csv')) {
+      if (fileName.endsWith('.pdf')) {
+        setProcessingMessage('Lendo documento PDF com IA Gemini e extraindo itens...');
+        try {
+          const res = await extractDataFromQuotationImage(file, (_pct, msg) => {
+            if (msg) setProcessingMessage(msg);
+          });
+
+          if (res && res.items && res.items.length > 0) {
+            const rows: ParsedRow[] = res.items.map((it: any) => ({
+              partNumber: it.partNumber || it.itemCode || '',
+              name: it.name,
+              description: it.description || it.name,
+              quantity: it.quantity > 0 ? it.quantity : 1,
+              unit: it.unit || 'UN',
+              costPrice: it.estimatedCost || 0,
+              ncm: it.ncm || ''
+            }));
+            setParsedRows(rows);
+            setSuccessCount(rows.length);
+          } else {
+            setErrorMsg('Não foi possível identificar itens de produtos no arquivo PDF. Certifique-se de que o documento contém uma lista legível de produtos/materiais.');
+            setParsedRows([]);
+          }
+        } catch (pdfErr: any) {
+          reportError('Importação de Arquivo PDF', pdfErr, `Arquivo: ${file.name} (${file.size} bytes)`);
+          setErrorMsg(pdfErr?.message || 'Falha ao processar o arquivo PDF. Verifique se a sua chave Gemini está configurada.');
+          setParsedRows([]);
+        } finally {
+          setIsProcessing(false);
+          setProcessingMessage('');
+        }
+      } else if (fileName.endsWith('.csv')) {
+        setProcessingMessage('Interpretando dados do arquivo CSV...');
         Papa.parse(file, {
           complete: (results) => {
             const rows = detectAndMapColumns(results.data as string[][], fileName);
             setParsedRows(rows);
             setSuccessCount(rows.length);
             setIsProcessing(false);
+            setProcessingMessage('');
           },
           error: (err) => {
+            reportError('Importação de CSV', err, `Arquivo CSV: ${file.name}`);
             setErrorMsg(`Falha ao ler arquivo CSV: ${err.message}`);
             setIsProcessing(false);
+            setProcessingMessage('');
           }
         });
       } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        setProcessingMessage('Carregando planilha Excel e mapeando colunas...');
         const buffer = await file.arrayBuffer();
         const ExcelJS = (await import('exceljs')).default || await import('exceljs');
         const workbook = new ExcelJS.Workbook();
@@ -283,13 +326,17 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
         setParsedRows(rows);
         setSuccessCount(rows.length);
         setIsProcessing(false);
+        setProcessingMessage('');
       } else {
-        setErrorMsg('Por favor, selecione um arquivo válido (.xlsx, .xls ou .csv).');
+        setErrorMsg('Por favor, selecione um arquivo válido (.pdf, .xlsx, .xls ou .csv).');
         setIsProcessing(false);
+        setProcessingMessage('');
       }
     } catch (err: any) {
+      reportError('Importação de Arquivo', err, `Arquivo: ${file?.name || 'Desconhecido'}`);
       setErrorMsg(`Erro ao ler arquivo: ${err?.message || 'Arquivo corrompido ou incompatível'}`);
       setIsProcessing(false);
+      setProcessingMessage('');
     }
   };
 
@@ -330,11 +377,11 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-700">
-              <FileSpreadsheet className="w-5 h-5" />
+              <FileUp className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="sq-page-title text-base md:text-lg">Importador Universal de Listas</h2>
+                <h2 className="sq-page-title text-base md:text-lg">Importador de Arquivos & Listas</h2>
                 {detectedDistributor && detectedDistributor.id !== 'generic' && (
                   <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-md text-[11px] font-bold">
                     Tabela: {detectedDistributor.name}
@@ -342,7 +389,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                 )}
               </div>
               <p className="sq-page-subtitle">
-                Importe planilhas Excel, tabelas de distribuidores (Ingram, SND, Aldo) ou copie e cole células diretamente
+                Importe planilhas Excel (.xlsx), documentos PDF (.pdf), tabelas CSV ou copie e cole mensagens de cotação
               </p>
             </div>
           </div>
@@ -387,8 +434,8 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            <UploadCloud className="w-4 h-4" />
-            Carregar Arquivo (.xlsx / .csv)
+            <FileUp className="w-4 h-4" />
+            Carregar Arquivo (Excel / PDF / CSV)
           </button>
         </div>
 
@@ -484,18 +531,35 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
           {activeTab === 'file' && (
             <div className="space-y-4">
               <label htmlFor={fileInputId} className="border-2 border-dashed border-slate-200 hover:border-sky-400 rounded-2xl p-8 flex flex-col items-center justify-center text-center bg-slate-50/50 hover:bg-sky-50/30 transition-all cursor-pointer">
-                <FileSpreadsheet className="w-12 h-12 text-slate-400 mb-3" />
-                <span className="text-sm font-bold text-slate-800">
-                  Clique para selecionar a planilha ou arraste para cá
-                </span>
-                <span className="text-xs text-slate-500 mt-1">
-                  Formatos aceitos: Microsoft Excel (.xlsx, .xls) ou Texto Separado por Vírgula (.csv)
-                </span>
+                {isProcessing ? (
+                  <div className="flex flex-col items-center py-4 space-y-3">
+                    <Loader2 className="w-10 h-10 text-sky-600 animate-spin" />
+                    <span className="text-sm font-bold text-slate-800">
+                      {processingMessage || 'Processando arquivo...'}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      Isso pode levar alguns segundos dependendo do tamanho do documento.
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-700 mb-3">
+                      <FileUp className="w-7 h-7" />
+                    </div>
+                    <span className="text-sm font-bold text-slate-800">
+                      Clique para selecionar ou arraste o arquivo para cá
+                    </span>
+                    <span className="text-xs text-slate-500 mt-1">
+                      Formatos aceitos: Documentos PDF (.pdf), Microsoft Excel (.xlsx, .xls) ou CSV (.csv)
+                    </span>
+                  </>
+                )}
                 <input
                   id={fileInputId}
                   type="file"
-                  accept=".xlsx, .xls, .csv"
+                  accept=".xlsx, .xls, .csv, .pdf, application/pdf"
                   onChange={handleFileUpload}
+                  disabled={isProcessing}
                   className="hidden"
                 />
               </label>

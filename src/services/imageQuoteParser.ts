@@ -418,15 +418,15 @@ async function extractWithGeminiVision(
     onProgress?.(50, 'Gemini Vision analisando produtos, marcas e quantidades...');
 
     const prompt = 
-      'Você é um especialista sênior em cotações comerciais, suprimentos corporativos e compras públicas no Brasil.\n' +
-      'Analise a imagem desta cotação, pedido, tabela ou print com extrema precisão e respeitando rigorosamente a separação por linhas e itens.\n\n' +
+      'Você é um especialista sênior em cotações comerciais, suprimentos corporativos, compras públicas e editais no Brasil.\n' +
+      'Analise a imagem ou documento PDF desta cotação, edital, pedido, tabela ou print com extrema precisão e respeitando rigorosamente a separação por linhas e itens.\n\n' +
       'DIRETRIZES OBRIGATÓRIAS:\n' +
-      '0. TABELAS COM LINHAS HORIZONTAIS E BORDAS (PRIORIDADE MÁXIMA):\n' +
-      '   - Se a imagem contiver uma grade ou tabela separada por linhas horizontais (pretas ou cinzas):\n' +
+      '0. TABELAS COM LINHAS HORIZONTAIS, BORDAS OU PÁGINAS DE DOCUMENTO (PRIORIDADE MÁXIMA):\n' +
+      '   - Se o documento contiver uma grade, tabela ou lista de itens:\n' +
       '   - CADA LINHA DA TABELA REPRESENTA UM ITEM SEPARADO E INDEPENDENTE.\n' +
       '   - Em cada linha da tabela:\n' +
       '     * Se a célula de descrição tiver 2 ou mais linhas verticais de texto (ex: título e especificação), junte o texto DAQUELA CÉLULA como o nome/descrição daquele produto específico.\n' +
-      '     * A coluna da direita ou coluna numérica indica a QUANTIDADE EXATA DAQUELE PRODUTO.\n' +
+      '     * A coluna de quantidade indica a QUANTIDADE EXATA DAQUELE PRODUTO.\n' +
       '     * Exemplo prático de leitura correta:\n' +
       '       Linha 1 da tabela com texto: "Feltro - 10 Metros 2 de cada" e "feltro artesanato estampa natalina Cores variadas", e na coluna de quantidade o número "10"\n' +
       '       -> Item 1: Name: "Feltro Artesanato Estampa Natalina Cores Variadas 10 Metros", Quantity: 10, Unit: "Un."\n' +
@@ -548,14 +548,33 @@ export async function extractDataFromQuotationImage(
 ): Promise<ExtractedImageQuoteData> {
   const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('infodesk_gemini_api_key') || localStorage.getItem('gemini_api_key') || '').trim();
 
+  const isPdf = typeof imageSource === 'object' && imageSource !== null && (
+    (imageSource as File).type === 'application/pdf' || 
+    Boolean((imageSource as File).name && (imageSource as File).name.toLowerCase().endsWith('.pdf'))
+  );
+
   // ─── 1. Tentar Gemini Vision se a chave estiver configurada ─────────────────
   if (geminiKey) {
-    onProgress?.(10, 'Conectando ao Gemini Vision...');
+    onProgress?.(10, isPdf ? 'Conectando ao Gemini para leitura do PDF...' : 'Conectando ao Gemini Vision...');
     const visionResult = await extractWithGeminiVision(imageSource, geminiKey, onProgress);
     if (visionResult && visionResult.items.length > 0) {
       onProgress?.(100, `Concluído! ${visionResult.items.length} iten${visionResult.items.length !== 1 ? 's' : ''} identificado${visionResult.items.length !== 1 ? 's' : ''} pelo Gemini.`);
       return visionResult;
     }
+  }
+
+  if (isPdf) {
+    if (!geminiKey) {
+      throw new Error('Para ler e importar arquivos em PDF, configure sua chave do Google Gemini nas Configurações.');
+    }
+    return {
+      senderName: '',
+      senderEmail: '',
+      senderCompany: '',
+      deliveryLocation: 'Brasília',
+      subject: 'Cotação de Materiais',
+      items: []
+    };
   }
 
   // ─── 2. Fallback: OCR Local (Tesseract) ────────────────────────────────────
