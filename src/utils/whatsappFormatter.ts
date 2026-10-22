@@ -97,31 +97,15 @@ export function buildWhatsAppItemsOnlyMessage(
     ? allItems.filter(it => itemIdsToInclude.includes(it.id))
     : allItems;
 
-  const repName = settings?.representativeName || 'Lucas Porto';
-  const companyTrade = settings?.tradeName || 'Infodesk';
-  const companyPhone = settings?.phone || '(61) 9 9627-2630';
-  const codeHeader = quote.code ? ` - Ref: #${quote.code}` : '';
-
   const itemsLines = items.map((item, index) => {
     const qty = item.quantity || 1;
     const unit = item.unit || 'un.';
     const partNumberInfo = item.partNumber ? ` (PN: ${item.partNumber.trim()})` : '';
 
-    return `*${index + 1}.* ${item.name}${partNumberInfo}\n   ▪ *Quantidade:* ${qty} ${unit}`;
+    return `*${index + 1}.* ${item.name}${partNumberInfo} - *Qtd:* ${qty} ${unit}`;
   });
 
-  const parts = [
-    `📦 *LISTA DE ITENS PARA COTAÇÃO${codeHeader}*`,
-    `Favor verificar disponibilidade e melhores valores para os seguintes itens:`,
-    '',
-    itemsLines.join('\n\n'),
-    '',
-    `Total: ${items.length} produto(s)`,
-    `Solicitado por: *${repName}* | *${companyTrade}*`,
-    `WhatsApp: ${companyPhone}`
-  ];
-
-  return parts.filter(Boolean).join('\n');
+  return itemsLines.join('\n');
 }
 
 /**

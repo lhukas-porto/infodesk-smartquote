@@ -54,24 +54,22 @@ const itemsOnlyMsg = buildWhatsAppItemsOnlyMessage(mockQuote, {
   phone: '(61) 9 9627-2630'
 } as any);
 
-assert.ok(itemsOnlyMsg.includes('LISTA DE ITENS PARA COTAÇÃO'), 'Deve conter título de lista de itens');
-assert.ok(itemsOnlyMsg.includes('COT-2026-001'), 'Deve conter o código de referência da cotação');
-assert.ok(itemsOnlyMsg.includes('Switch Gigabit 24 Portas PoE+ Gerenciável'), 'Deve conter nome do item 1');
-assert.ok(itemsOnlyMsg.includes('*Quantidade:* 2 Un.'), 'Deve conter quantidade e unidade do item 1');
-assert.ok(itemsOnlyMsg.includes('(PN: SG2400P)'), 'Deve conter Part Number');
-assert.ok(itemsOnlyMsg.includes('Cabo de Rede UTP Cat6 Furukawa Azul 305m'), 'Deve conter nome do item 2');
-assert.ok(itemsOnlyMsg.includes('*Quantidade:* 5 Cx.'), 'Deve conter quantidade e unidade do item 2');
-assert.ok(itemsOnlyMsg.includes('Total: 2 produto(s)'), 'Deve conter totalizador de produtos');
+assert.ok(!itemsOnlyMsg.includes('LISTA DE ITENS PARA COTAÇÃO'), 'NÃO deve conter cabeçalho');
+assert.ok(!itemsOnlyMsg.includes('Solicitado por:'), 'NÃO deve conter solicitado por');
+assert.ok(!itemsOnlyMsg.includes('WhatsApp:'), 'NÃO deve conter linha de telefone no rodapé');
+assert.ok(!itemsOnlyMsg.includes('\n\n'), 'NÃO deve conter linhas vazias sem nada');
+assert.ok(itemsOnlyMsg.includes('*1.* Switch Gigabit 24 Portas PoE+ Gerenciável (PN: SG2400P) - *Qtd:* 2 Un.'), 'Item 1 deve conter nome, PN e quantidade na mesma linha');
+assert.ok(itemsOnlyMsg.includes('*2.* Cabo de Rede UTP Cat6 Furukawa Azul 305m (PN: 23200055) - *Qtd:* 5 Cx.'), 'Item 2 deve conter nome, PN e quantidade na mesma linha');
 assert.ok(!itemsOnlyMsg.includes('R$ 1250'), 'NÃO deve conter preços de venda para fornecedores');
 assert.ok(!itemsOnlyMsg.includes('R$ 5600'), 'NÃO deve conter valor total da proposta');
 
-console.log('  ✅ 1. buildWhatsAppItemsOnlyMessage gera lista limpa de itens e quantidades sem expor valores');
+console.log('  ✅ 1. buildWhatsAppItemsOnlyMessage gera lista compacta de itens e quantidades na mesma linha sem cabeçalho/rodapé');
 
 // 2. Teste de filtro com apenas item selecionado
 const filteredMsg = buildWhatsAppItemsOnlyMessage(mockQuote, undefined, ['item-2']);
 assert.ok(!filteredMsg.includes('Switch Gigabit'), 'Não deve incluir item-1');
-assert.ok(filteredMsg.includes('Cabo de Rede UTP Cat6'), 'Deve incluir item-2');
-assert.ok(filteredMsg.includes('Total: 1 produto(s)'), 'Totalizador deve refletir o item filtrado');
+assert.ok(filteredMsg.includes('Cabo de Rede UTP Cat6 Furukawa Azul 305m'), 'Deve incluir item-2');
+assert.ok(filteredMsg.includes('- *Qtd:* 5 Cx.'), 'Deve conter quantidade na mesma linha');
 
 console.log('  ✅ 2. Suporta perfeitamente seleção parcial de itens marcados com checkbox');
 
