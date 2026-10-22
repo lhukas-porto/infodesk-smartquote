@@ -1701,27 +1701,28 @@ export const App: React.FC = () => {
     await syncProductToSupabase(savedProduct);
   };
 
-  const handleSaveQuote = async () => {
-    if (!currentQuote.clientCompany || !currentQuote.clientCompany.trim()) {
+  const handleSaveQuote = async (customQuote?: Quote) => {
+    const baseQuote = customQuote || currentQuote;
+    if (!baseQuote.clientCompany || !baseQuote.clientCompany.trim()) {
       alert('Por favor, informe a empresa / cliente antes de salvar.');
       return;
     }
 
-    if (!currentQuote.items || !Array.isArray(currentQuote.items) || currentQuote.items.length === 0) {
+    if (!baseQuote.items || !Array.isArray(baseQuote.items) || baseQuote.items.length === 0) {
       alert('Por favor, adicione ao menos um produto antes de salvar a proposta comercial.');
       return;
     }
 
     const updatedComps = registerOrUpdateClient(
-      currentQuote.clientCompany,
-      currentQuote.contactPerson,
-      currentQuote.clientEmail,
-      currentQuote.clientPhone,
-      currentQuote.deliveryLocation
+      baseQuote.clientCompany,
+      baseQuote.contactPerson,
+      baseQuote.clientEmail,
+      baseQuote.clientPhone,
+      baseQuote.deliveryLocation
     );
     setClientCompanies(updatedComps);
 
-    let quoteToSave: Quote = { ...currentQuote };
+    let quoteToSave: Quote = { ...baseQuote };
 
     // 1. Busca cotação existente por ID ou por Código
     const existing = quotes.find(q => isSameQuote(q, quoteToSave));
@@ -1800,38 +1801,39 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleSaveAsNewQuote = async () => {
-    if (!currentQuote.clientCompany || !currentQuote.clientCompany.trim()) {
+  const handleSaveAsNewQuote = async (customQuote?: Quote) => {
+    const baseQuote = customQuote || currentQuote;
+    if (!baseQuote.clientCompany || !baseQuote.clientCompany.trim()) {
       alert('Por favor, informe a empresa / cliente antes de salvar como nova cotação.');
       return;
     }
 
-    if (!currentQuote.items || !Array.isArray(currentQuote.items) || currentQuote.items.length === 0) {
+    if (!baseQuote.items || !Array.isArray(baseQuote.items) || baseQuote.items.length === 0) {
       alert('Por favor, adicione ao menos um produto antes de salvar como nova cotação.');
       return;
     }
 
     const updatedComps = registerOrUpdateClient(
-      currentQuote.clientCompany,
-      currentQuote.contactPerson,
-      currentQuote.clientEmail,
-      currentQuote.clientPhone,
-      currentQuote.deliveryLocation
+      baseQuote.clientCompany,
+      baseQuote.contactPerson,
+      baseQuote.clientEmail,
+      baseQuote.clientPhone,
+      baseQuote.deliveryLocation
     );
     setClientCompanies(updatedComps);
 
     // 1. Gera código exclusivo garantido sem colisão (incrementa automaticamente se CNC 210926 e CNC 210926-2 já existirem)
     const newCode = getNextUniqueQuoteCode(
-      currentQuote.clientCompany,
+      baseQuote.clientCompany,
       quotes,
-      currentQuote.code
+      baseQuote.code
     );
 
     // 2. Gera novo ID exclusivo para a cotação (garante que não sobrescreva a original)
     const newQuoteId = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
     // 3. Clona os itens gerando IDs novos para cada um e expurgando dados de OC e compras
-    const clonedItems = (currentQuote.items || []).map((it, idx) => 
+    const clonedItems = (baseQuote.items || []).map((it, idx) => 
       sanitizeQuoteItemForDuplication(it, idx)
     );
 
@@ -1839,7 +1841,7 @@ export const App: React.FC = () => {
 
     // 4. Monta a nova cotação independente
     const newQuote: Quote = {
-      ...currentQuote,
+      ...baseQuote,
       id: newQuoteId,
       code: newCode,
       date: todayFormatted,

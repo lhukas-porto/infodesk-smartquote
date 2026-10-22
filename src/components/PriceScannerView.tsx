@@ -899,7 +899,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     const itemData: Partial<QuoteItem> = {
       productId: existingInCatalog ? existingInCatalog.id : undefined,
       name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
-      description: fullDesc || prod.description || existingInCatalog?.description || '',
+      description: existingInCatalog?.description || '',
       partNumber: existingInCatalog?.partNumber || resolvedCode.partNumber,
       ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
       category: existingInCatalog?.category || prod.category,
@@ -915,19 +915,19 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
       onUpdateQuoteItem(targetItemIndex, itemData);
-      showToast('Item atualizado na cotação com ficha técnica completa!');
+      showToast('Item atualizado na cotação! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     } else if (onStartNewQuoteWithItems) {
       onStartNewQuoteWithItems([itemData]);
       showToast(existingInCatalog 
         ? `Novo orçamento criado e vinculado ao item "${existingInCatalog.name}" do catálogo!`
-        : 'Novo orçamento criado com o produto e especificações completas!');
+        : 'Novo orçamento criado com o produto! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     } else {
       onAddToQuote(itemData);
       showToast(existingInCatalog 
         ? `Item vinculado a "${existingInCatalog.name}" (Cód: ${existingInCatalog.sku || existingInCatalog.partNumber}) e inserido na cotação!`
-        : 'Item inserido na sua cotação com ficha técnica completa!');
+        : 'Item inserido na sua cotação! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     }
   };
@@ -1034,7 +1034,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       return {
         productId: existingInCatalog ? existingInCatalog.id : undefined,
         name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
-        description: fullDesc || prod.description || existingInCatalog?.description || '',
+        description: existingInCatalog?.description || '',
         partNumber: existingInCatalog?.partNumber || cleanAlphanumericCode(prod.partNumber || ''),
         ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
         category: existingInCatalog?.category || prod.category,
@@ -1051,11 +1051,11 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     if (onStartNewQuoteWithItems) {
       onStartNewQuoteWithItems(itemsData);
-      showToast(`Novo orçamento criado com ${itemsData.length} produto(s) e fichas técnicas completas!`);
+      showToast(`Novo orçamento criado com ${itemsData.length} produto(s)! As especificações oficiais serão geradas ao salvar.`);
       onNavigateToQuote?.();
     } else {
       itemsData.forEach(item => onAddToQuote(item));
-      showToast(`${discoveredProducts.length} itens inseridos na sua cotação com fichas técnicas completas!`);
+      showToast(`${discoveredProducts.length} itens inseridos na sua cotação! As especificações oficiais serão geradas ao salvar.`);
       onNavigateToQuote?.();
     }
   };
@@ -1103,7 +1103,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
       return {
         name: item.standardizedName,
-        description: fullDesc || item.description || '',
+        description: '',
         partNumber: resolvedBatchCode.partNumber,
         ncm: cleanNcmCode(item.ncm || ''),
         imageUrl: chosenPhoto,
@@ -1119,11 +1119,11 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     if (onStartNewQuoteWithItems) {
       onStartNewQuoteWithItems(itemsToAdd);
-      showToast(`Novo orçamento criado com ${itemsToAdd.length} item(ns) e fichas técnicas completas!`);
+      showToast(`Novo orçamento criado com ${itemsToAdd.length} item(ns)! As especificações oficiais serão geradas ao salvar.`);
       onNavigateToQuote?.();
     } else {
       itemsToAdd.forEach(item => onAddToQuote(item));
-      showToast(`${selected.length} item(ns) adicionado(s) à cotação com fichas técnicas completas!`);
+      showToast(`${selected.length} item(ns) adicionado(s) à cotação! As especificações oficiais serão geradas ao salvar.`);
       onNavigateToQuote?.();
     }
   };
@@ -1149,7 +1149,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     const itemData: Partial<QuoteItem> = {
       name: item.standardizedName,
-      description: fullDesc || item.description || '',
+      description: '',
       partNumber: resolvedSingleCode.partNumber,
       ncm: cleanNcmCode(item.ncm || ''),
       imageUrl: chosenPhoto,
@@ -1164,15 +1164,15 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
       onUpdateQuoteItem(targetItemIndex, itemData);
-      showToast('Item atualizado na cotação com ficha técnica completa!');
+      showToast('Item atualizado na cotação! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     } else if (onStartNewQuoteWithItems) {
       onStartNewQuoteWithItems([itemData]);
-      showToast('Novo orçamento criado com o produto e especificações completas!');
+      showToast('Novo orçamento criado com o produto! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     } else {
       onAddToQuote(itemData);
-      showToast('Item inserido na sua cotação!');
+      showToast('Item inserido na sua cotação! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     }
   };

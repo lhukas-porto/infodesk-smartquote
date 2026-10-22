@@ -101,4 +101,42 @@ if (officialCat !== 'Informática, Hardware & Periféricos') {
 
 console.log('✓ Teste 4 aprovado: Consolidação de Ficha Técnica 360° no padrão Scanner IA validada com máxima fidelidade!');
 
+// 5. Testa identificação de itens que precisam de enriquecimento de especificações oficiais
+import { itemNeedsSpecEnrichment } from '../services/specSearchService';
+
+const itemWithoutDesc = {
+  id: 'it-1',
+  itemNumber: 1,
+  name: 'Switch Dell PowerSwitch N1524P',
+  description: '',
+  quantity: 1,
+  unit: 'Un.',
+  costPrice: 5000,
+  markupPercent: 30,
+  unitPrice: 6500,
+  totalPrice: 6500
+};
+
+const itemWithSameNameDesc = {
+  ...itemWithoutDesc,
+  description: 'Switch Dell PowerSwitch N1524P'
+};
+
+const itemWithRichSpecs = {
+  ...itemWithoutDesc,
+  description: 'O Dell EMC PowerSwitch N1524P oferece 24 portas Gigabit Ethernet PoE+ com alta eficiência energética.\n\nESPECIFICAÇÕES TÉCNICAS:\n• Portas: 24x 1GbE RJ45 PoE+\n• Uplinks: 4x 10GbE SFP+\n• Fabricante: Dell Technologies'
+};
+
+if (!itemNeedsSpecEnrichment(itemWithoutDesc)) {
+  throw new Error('Falha: item sem descrição deveria retornar true para necessidade de enriquecimento.');
+}
+if (!itemNeedsSpecEnrichment(itemWithSameNameDesc)) {
+  throw new Error('Falha: item cuja descrição é apenas o nome deveria retornar true para necessidade de enriquecimento.');
+}
+if (itemNeedsSpecEnrichment(itemWithRichSpecs)) {
+  throw new Error('Falha: item com especificações técnicas completas não deveria necessitar de enriquecimento.');
+}
+
+console.log('✓ Teste 5 aprovado: Detecção inteligente de itens que necessitam de ficha técnica oficial validada!');
+
 console.log('🎉 TODOS OS TESTES DE ESPECIFICAÇÕES TÉCNICAS ONLINE PASSARAM COM SUCESSO!\n');

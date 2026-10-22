@@ -116,6 +116,7 @@ import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
 import { DiscountSimulatorModal } from './DiscountSimulatorModal';
 import { buildSingleItemWhatsAppText } from '../utils/whatsappFormatter';
 import { parseQuoteTimestamp } from '../utils/dateUtils';
+import { enrichQuoteItemsWithOfficialSpecs, itemNeedsSpecEnrichment } from '../services/specSearchService';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -123,9 +124,9 @@ interface QuoteBuilderProps {
   products: Product[];
   settings: CompanySettings;
   quotes?: Quote[];
-  onPreview: () => void;
-  onSave: () => void;
-  onSaveAsNewQuote?: () => void;
+  onPreview: (customQuote?: Quote) => void;
+  onSave: (customQuote?: Quote) => void;
+  onSaveAsNewQuote?: (customQuote?: Quote) => void;
   onSendEmail: () => void;
   onOpenWebSearch: (query?: string, itemIdx?: number | null, existingItem?: Partial<QuoteItem>) => void;
   onSaveToCatalog?: (prod: Product) => void;
@@ -193,6 +194,16 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const [whatsAppInitialMode, setWhatsAppInitialMode] = useState<'items_only' | 'full' | 'followup'>('items_only');
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [copiedItemRowId, setCopiedItemRowId] = useState<string | null>(null);
+
+  // Estado para Enriquecimento Oficial de Especificações Técnicas no momento de Salvar (Diretriz do Lucas)
+  const [enrichmentProgress, setEnrichmentProgress] = useState<{
+    isOpen: boolean;
+    current: number;
+    total: number;
+    itemName: string;
+    statusText: string;
+  } | null>(null);
+  const isEnrichmentCancelledRef = useRef(false);
 
   // Busca último preço praticado para o cliente selecionado
   const findLastClientPrice = useMemo(() => {
@@ -709,7 +720,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     return issues;
   };
 
-  const persistAndProceed = (action: () => void, requiresValidation: boolean = false) => {
+  const persistAndProceed = async (action: (customQuote?: Quote) => void, requiresValidation: boolean = false) => {
     persistClientDetails();
     if (requiresValidation) {
       const issues = runPreFlightCheck();
@@ -717,12 +728,64 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         setValidationModal({
           isOpen: true,
           issues,
-          onConfirmAction: action
+          onConfirmAction: () => persistAndProceed(action, false)
         });
         return;
       }
     }
-    action();
+
+    const items = currentQuote.items || [];
+    const itemsToEnrich = items.filter(it => itemNeedsSpecEnrichment(it));
+
+    // Se todos os itens já possuem especificações completas ou a lista está vazia, salva na hora
+    if (itemsToEnrich.length === 0) {
+      action(currentQuote);
+      return;
+    }
+
+    // Inicia enriquecimento oficial no momento de salvar (Diretriz do Lucas)
+    isEnrichmentCancelledRef.current = false;
+    setEnrichmentProgress({
+      isOpen: true,
+      current: 1,
+      total: itemsToEnrich.length,
+      itemName: itemsToEnrich[0]?.name || '',
+      statusText: 'Consultando site oficial do fabricante...'
+    });
+
+    try {
+      const { updatedItems, enrichedCount } = await enrichQuoteItemsWithOfficialSpecs(items, {
+        onProgress: (cur, tot, item, stage) => {
+          setEnrichmentProgress(prev => prev ? {
+            ...prev,
+            current: cur,
+            total: tot,
+            itemName: item.name,
+            statusText: stage
+          } : null);
+        },
+        shouldCancel: () => isEnrichmentCancelledRef.current
+      });
+
+      const updatedQuote: Quote = {
+        ...currentQuote,
+        items: updatedItems
+      };
+
+      setCurrentQuote(updatedQuote);
+      setEnrichmentProgress(null);
+
+      if (enrichedCount > 0) {
+        setLinkNotification(`${enrichedCount} produto(s) enriquecido(s) com especificações oficiais!`);
+        setTimeout(() => setLinkNotification(null), 4000);
+      }
+
+      action(updatedQuote);
+    } catch (err) {
+      console.warn('[persistAndProceed] Erro ao enriquecer especificações:', err);
+      setEnrichmentProgress(null);
+      action(currentQuote);
+    }
   };
 
   const cleanCompName = (currentQuote.clientCompany || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
@@ -5399,6 +5462,57 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           globalShipping={currentQuote.globalShipping ?? globalShipping}
           onApplyDiscount={handleApplyGlobalDiscount}
         />
+      )}
+
+      {/* Modal de Progresso do Enriquecimento Oficial de Especificações (Diretriz do Lucas) */}
+      {enrichmentProgress && enrichmentProgress.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-md w-full p-6 text-center animate-in zoom-in-95 duration-150 relative">
+            <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center mx-auto mb-3 shadow-xs">
+              <Sparkles className="w-6 h-6 text-sky-600 animate-pulse" />
+            </div>
+
+            <h3 className="text-base font-bold text-slate-900">
+              Buscando Especificações Oficiais
+            </h3>
+
+            <p className="text-xs text-slate-500 mt-1">
+              Consultando prioritariamente o <strong>site oficial do fabricante</strong> e grandes e-commerces (Magalu, Carrefour, Amazon...) para enriquecer a ficha técnica com precisão máxima.
+            </p>
+
+            <div className="mt-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-left">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 mb-1.5">
+                <span>Progresso dos Itens</span>
+                <span className="font-mono text-slate-800">{enrichmentProgress.current} de {enrichmentProgress.total}</span>
+              </div>
+              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-sky-600 h-full rounded-full transition-all duration-300"
+                  style={{ width: `${Math.round((enrichmentProgress.current / Math.max(1, enrichmentProgress.total)) * 100)}%` }}
+                />
+              </div>
+              <p className="text-xs font-bold text-slate-800 mt-2.5 truncate" title={enrichmentProgress.itemName}>
+                {enrichmentProgress.itemName}
+              </p>
+              <p className="text-[11px] text-sky-700 mt-0.5 truncate">
+                {enrichmentProgress.statusText}
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  isEnrichmentCancelledRef.current = true;
+                  setEnrichmentProgress(null);
+                }}
+                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95"
+              >
+                Salvar Imediatamente sem Aguardar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Notificação Flutuante de Vínculo e Cadastro de Destinos/Compradores */}
