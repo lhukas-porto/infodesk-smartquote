@@ -52,7 +52,7 @@ export default async function handler(req: any, res: any) {
       body = {};
     }
 
-    const model = (body.model as string) || 'gemini-flash-lite-latest';
+    const model = (body.model as string) || 'gemini-2.5-flash';
     const contents = body.contents;
 
     if (!contents) {

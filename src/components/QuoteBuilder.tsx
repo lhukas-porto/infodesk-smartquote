@@ -1146,7 +1146,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       ...currentItem,
       productId: p.id,
       name: p.name,
-      description: p.description || currentItem.description || '',
+      description: p.description || currentItem.description || buildCompleteProductDescription(p) || '',
       imageUrl: p.imageUrl || currentItem.imageUrl || '',
       showImage: Boolean(p.imageUrl || currentItem.imageUrl),
       partNumber: p.partNumber || currentItem.partNumber || '',
@@ -1690,7 +1690,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         productId: prod.id,
         itemNumber: (currentQuote.items || []).length + 1,
         name: prod.name,
-        description: prod.description || '',
+        description: prod.description || buildCompleteProductDescription(prod) || '',
         imageUrl: prod.imageUrl || '',
         showImage: Boolean(prod.imageUrl),
         partNumber: prod.partNumber || '',
@@ -1739,10 +1739,11 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     const directInfo = buildDirectPurchaseUrl(freshItem.name, freshItem.sourceUrl);
 
     const fallbackSpecs = buildCompleteProductDescription({
-      description: '',
-      partNumber: freshItem.partNumber,
-      ncm: freshItem.ncm,
-      supplier: freshItem.supplier
+      description: (freshItem.description && freshItem.description.trim()) || (matchedCatalogProd?.description && matchedCatalogProd.description.trim()) || '',
+      partNumber: freshItem.partNumber || matchedCatalogProd?.partNumber,
+      ncm: freshItem.ncm || matchedCatalogProd?.ncm,
+      supplier: freshItem.supplier || matchedCatalogProd?.supplier,
+      category: initialCategory
     });
 
     const finalDescription = (freshItem.description && freshItem.description.trim()) || 

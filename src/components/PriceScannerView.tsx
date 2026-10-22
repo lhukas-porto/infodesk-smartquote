@@ -899,7 +899,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     const itemData: Partial<QuoteItem> = {
       productId: existingInCatalog ? existingInCatalog.id : undefined,
       name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
-      description: existingInCatalog?.description || '',
+      description: existingInCatalog?.description || fullDesc || prod.description || '',
       partNumber: existingInCatalog?.partNumber || resolvedCode.partNumber,
       ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
       category: existingInCatalog?.category || prod.category,
@@ -1034,7 +1034,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       return {
         productId: existingInCatalog ? existingInCatalog.id : undefined,
         name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
-        description: existingInCatalog?.description || '',
+        description: existingInCatalog?.description || fullDesc || prod.description || '',
         partNumber: existingInCatalog?.partNumber || cleanAlphanumericCode(prod.partNumber || ''),
         ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
         category: existingInCatalog?.category || prod.category,
@@ -1101,19 +1101,23 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         scannerOffers: item.allOffers
       });
 
+      const catalogMatch = findCatalogMatchDetails(item, products);
+      const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
+
       return {
-        name: item.standardizedName,
-        description: '',
-        partNumber: resolvedBatchCode.partNumber,
-        ncm: cleanNcmCode(item.ncm || ''),
-        imageUrl: chosenPhoto,
-        showImage: !!chosenPhoto,
-        costPrice: cost,
+        productId: existingInCatalog ? existingInCatalog.id : undefined,
+        name: existingInCatalog ? existingInCatalog.name : item.standardizedName,
+        description: existingInCatalog?.description || fullDesc || item.description || '',
+        partNumber: existingInCatalog?.partNumber || resolvedBatchCode.partNumber,
+        ncm: existingInCatalog?.ncm || cleanNcmCode(item.ncm || ''),
+        imageUrl: chosenPhoto || existingInCatalog?.imageUrl,
+        showImage: !!(chosenPhoto || existingInCatalog?.imageUrl),
+        costPrice: existingInCatalog && existingInCatalog.costPrice > 0 ? existingInCatalog.costPrice : cost,
         unitPrice,
         quantity: item.quantity || 1,
-        unit: item.unit || 'Un.',
-        supplier: item.store || directInfo.store,
-        sourceUrl: item.buyUrl || directInfo.url
+        unit: item.unit || existingInCatalog?.unit || 'Un.',
+        supplier: existingInCatalog?.supplier || item.store || directInfo.store,
+        sourceUrl: item.buyUrl || directInfo.url || existingInCatalog?.sourceUrl
       };
     });
 
@@ -1147,19 +1151,23 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       scannerOffers: item.allOffers
     });
 
+    const catalogMatch = findCatalogMatchDetails(item, products);
+    const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
+
     const itemData: Partial<QuoteItem> = {
-      name: item.standardizedName,
-      description: '',
-      partNumber: resolvedSingleCode.partNumber,
-      ncm: cleanNcmCode(item.ncm || ''),
-      imageUrl: chosenPhoto,
-      showImage: !!chosenPhoto,
-      costPrice: cost,
+      productId: existingInCatalog ? existingInCatalog.id : undefined,
+      name: existingInCatalog ? existingInCatalog.name : item.standardizedName,
+      description: existingInCatalog?.description || fullDesc || item.description || '',
+      partNumber: existingInCatalog?.partNumber || resolvedSingleCode.partNumber,
+      ncm: existingInCatalog?.ncm || cleanNcmCode(item.ncm || ''),
+      imageUrl: chosenPhoto || existingInCatalog?.imageUrl,
+      showImage: !!(chosenPhoto || existingInCatalog?.imageUrl),
+      costPrice: existingInCatalog && existingInCatalog.costPrice > 0 ? existingInCatalog.costPrice : cost,
       unitPrice,
       quantity: item.quantity || 1,
-      unit: item.unit || 'Un.',
-      supplier: item.store || directInfo.store,
-      sourceUrl: item.buyUrl || directInfo.url
+      unit: item.unit || existingInCatalog?.unit || 'Un.',
+      supplier: existingInCatalog?.supplier || item.store || directInfo.store,
+      sourceUrl: item.buyUrl || directInfo.url || existingInCatalog?.sourceUrl
     };
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
@@ -1389,9 +1397,13 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             <button
               type="button"
               onClick={() => {
+                const cachedMatch = findCatalogMatchDetails({ standardizedName: recentCachedPrice.name, partNumber: recentCachedPrice.partNumber }, products);
+                const catalogProd = cachedMatch && cachedMatch.score >= 60 ? cachedMatch.product : null;
+
                 onAddToQuote({
-                  name: recentCachedPrice.name,
-                  description: recentCachedPrice.name,
+                  productId: catalogProd ? catalogProd.id : undefined,
+                  name: catalogProd ? catalogProd.name : recentCachedPrice.name,
+                  description: catalogProd?.description || recentCachedPrice.name,
                   partNumber: recentCachedPrice.partNumber,
                   costPrice: recentCachedPrice.costPrice,
                   supplier: recentCachedPrice.supplier,
