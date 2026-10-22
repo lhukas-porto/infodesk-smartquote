@@ -152,6 +152,28 @@ const diffHoursNew = (Date.now() - sent1DayAgo) / (1000 * 60 * 60);
 
 assert.ok(diffHoursOld >= 72, 'Proposta de 4 dias atrás deve exigir follow-up');
 assert.ok(diffHoursNew < 72, 'Proposta de 1 dia atrás não deve exigir follow-up');
-console.log('  ✅ 7. Régua de Follow-up (> 72 horas) identifica propostas estagnadas');
+// =========================================================================
+// TESTE 8: Prevenção de NaNd no cálculo de Último Preço do Cliente (Datas PT-BR)
+// =========================================================================
+import { parseQuoteTimestamp } from '../utils/dateUtils';
+
+const mockPtBrQuotes = [
+  { id: 'q1', clientCompany: 'Grupo Paulo Octávio', date: '15/09/2026', items: [{ name: 'Nobreak', unitPrice: 2037 }] } as Quote,
+  { id: 'q2', clientCompany: 'Grupo Paulo Octávio', date: '17 de setembro de 2026', items: [{ name: 'Nobreak', unitPrice: 2100 }] } as Quote,
+  { id: 'q3', clientCompany: 'Grupo Paulo Octávio', date: '22/10/2026 10:30', items: [{ name: 'Nobreak', unitPrice: 2037 }] } as Quote,
+];
+
+for (const q of mockPtBrQuotes) {
+  const ts = parseQuoteTimestamp(q);
+  assert.ok(!isNaN(ts) && ts > 0, `Timestamp deve ser válido para data "${q.date}"`);
+  const diffMs = Date.now() - ts;
+  const rawDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const daysAgo = !isNaN(rawDays) && isFinite(rawDays) ? Math.max(0, rawDays) : 0;
+  assert.ok(!isNaN(daysAgo), `daysAgo não pode ser NaN para "${q.date}"`);
+  const daysText = (!daysAgo || daysAgo <= 0 || isNaN(daysAgo)) ? 'hoje' : `há ${daysAgo}d`;
+  assert.ok(!daysText.includes('NaN'), `Texto exibido não pode conter NaN: "${daysText}"`);
+}
+console.log('  ✅ 8. Prevenção de NaNd no Último Preço com datas pt-BR validada com sucesso');
 
 console.log('🎉 TODOS OS TESTES DAS MELHORIAS PASSARAM COM SUCESSO!\n');
+

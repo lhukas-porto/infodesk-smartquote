@@ -115,6 +115,7 @@ import { healAndRecoverQuote } from '../services/quoteHealingService';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
 import { DiscountSimulatorModal } from './DiscountSimulatorModal';
 import { buildSingleItemWhatsAppText } from '../utils/whatsappFormatter';
+import { parseQuoteTimestamp } from '../utils/dateUtils';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -203,10 +204,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       const itemNameClean = (item.name || '').trim().toLowerCase();
       const itemPnClean = (item.partNumber || '').trim().toLowerCase();
 
-      // Propostas passadas da mesma empresa, excluindo a proposta atual
+      // Propostas passadas da mesma empresa, excluindo a proposta atual (ordenadas da mais recente para a mais antiga)
       const matchingQuotes = propsQuotes
         .filter(q => q.id !== currentQuote.id && (q.clientCompany || '').trim().toLowerCase() === cleanCompany)
-        .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime());
+        .sort((a, b) => parseQuoteTimestamp(b) - parseQuoteTimestamp(a));
 
       for (const q of matchingQuotes) {
         const match = (q.items || []).find(it => {
@@ -217,8 +218,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         });
 
         if (match && Number(match.unitPrice) > 0) {
-          const qDate = new Date(q.date || q.createdAt || Date.now()).getTime();
-          const daysAgo = Math.max(0, Math.floor((Date.now() - qDate) / (1000 * 60 * 60 * 24)));
+          const qTimestamp = parseQuoteTimestamp(q);
+          const diffMs = Date.now() - qTimestamp;
+          const rawDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          const daysAgo = !isNaN(rawDays) && isFinite(rawDays) ? Math.max(0, rawDays) : 0;
           return {
             lastUnitPrice: Number(match.unitPrice),
             daysAgo,
@@ -4091,6 +4094,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           {(() => {
                             const lastPrice = findLastClientPrice(item);
                             if (!lastPrice) return null;
+                            const daysText = (!lastPrice.daysAgo || lastPrice.daysAgo <= 0 || isNaN(lastPrice.daysAgo))
+                              ? 'hoje'
+                              : `há ${lastPrice.daysAgo}d`;
                             return (
                               <button
                                 type="button"
@@ -4107,7 +4113,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                 title={`Última venda/cotação para ${currentQuote.clientCompany} (${lastPrice.quoteCode}). Clique para aplicar R$ ${lastPrice.lastUnitPrice.toFixed(2)}.`}
                               >
                                 <History className="w-2.5 h-2.5 text-amber-600" />
-                                <span>Último p/ cliente: R$ {lastPrice.lastUnitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({lastPrice.daysAgo === 0 ? 'hoje' : `há ${lastPrice.daysAgo}d`})</span>
+                                <span>Último p/ cliente: R$ {lastPrice.lastUnitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({daysText})</span>
                               </button>
                             );
                           })()}
