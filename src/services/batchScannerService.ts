@@ -15,6 +15,7 @@ export interface BatchItemTarget {
   partNumber?: string;
   quantity: number;
   currentCost?: number;
+  imageUrl?: string;
 }
 
 export type BatchItemStatus = 'pending' | 'searching' | 'cached' | 'found' | 'not_found' | 'error';
@@ -162,7 +163,7 @@ export async function executeConcurrentBatchScan(
         // 3. Camada 2: Varredura Web com IA e Google Search Grounding
         if (abortSignal?.aborted) break;
 
-        const scanResult: ScannedPriceResult = await scanSingleProductPrice(item.name);
+        const scanResult: ScannedPriceResult = await scanSingleProductPrice(item.name, undefined, item.imageUrl);
 
         if (scanResult && scanResult.bestPrice > 0) {
           foundCount++;

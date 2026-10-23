@@ -760,10 +760,13 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       if (initialQuery?.trim()) {
         setBatchRawInput(initialQuery);
       }
-      if (autoStartPhase1 && initialQuery?.trim()) {
-        const queryText = initialQuery;
+      if (autoStartPhase1 && (initialQuery?.trim() || (initialPhotos && initialPhotos.length > 0))) {
+        const queryText = initialQuery || '';
         const photos = initialPhotos && initialPhotos.length > 0 ? initialPhotos : undefined;
-        showToast('Produtos recebidos do Inbox! Identificando com IA...');
+        const msg = photos && photos.length > 0
+          ? `${photos.length} foto(s) de produto recebida(s) como referência visual! Identificando com IA...`
+          : 'Produtos recebidos! Identificando com IA...';
+        showToast(msg);
         const timer = setTimeout(() => {
           handleStartPhase1Discovery(queryText, photos);
         }, 120);

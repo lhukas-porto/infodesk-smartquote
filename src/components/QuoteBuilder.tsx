@@ -132,6 +132,7 @@ interface QuoteBuilderProps {
   onSaveAsNewQuote?: (customQuote?: Quote) => void;
   onSendEmail: () => void;
   onOpenWebSearch: (query?: string, itemIdx?: number | null, existingItem?: Partial<QuoteItem>) => void;
+  onSendToScanner?: (itemsText: string, photos: string[]) => void;
   onSaveToCatalog?: (prod: Product) => void;
   clientCompanies?: ClientCompany[];
   onSaveCompanies?: (companies: ClientCompany[]) => void;
@@ -154,6 +155,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   onSaveAsNewQuote,
   onSendEmail,
   onOpenWebSearch,
+  onSendToScanner,
   onSaveToCatalog,
   clientCompanies: propsClientCompanies,
   onSaveCompanies: propsOnSaveCompanies,
@@ -4245,6 +4247,21 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             <span>{item.imageUrl ? 'Trocar Foto' : 'Buscar Foto'}</span>
                           </button>
 
+                          {/* Botão de Cotar com Foto / Scanner IA */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onOpenWebSearch) {
+                                onOpenWebSearch(item.name, idx, item);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
+                            title={item.imageUrl ? "Pesquisar menor preço no Scanner IA usando a foto anexada como referência visual" : "Pesquisar menor preço no Scanner IA"}
+                          >
+                            <Zap className="w-2.5 h-2.5 text-amber-600 fill-amber-500" />
+                            <span>{item.imageUrl ? 'Cotar com Foto (IA)' : 'Pesquisar Preço'}</span>
+                          </button>
+
                           {item.sourceUrl && item.sourceUrl.trim() !== '' ? (
                             <a
                               href={sanitizeExternalUrl(item.sourceUrl)}
@@ -5325,6 +5342,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         isOpen={isUniversalImportOpen}
         onClose={() => setIsUniversalImportOpen(false)}
         onImportItems={handleImportUniversalItems}
+        onSendToScanner={(itemsText, photos, items) => {
+          handleImportUniversalItems(items);
+          setIsUniversalImportOpen(false);
+          if (onSendToScanner) {
+            onSendToScanner(itemsText, photos);
+          }
+        }}
         defaultMarkupPercent={globalMarkup}
       />
 

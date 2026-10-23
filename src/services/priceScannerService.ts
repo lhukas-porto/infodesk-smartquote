@@ -1131,23 +1131,47 @@ const HIGH_FIDELITY_FALLBACKS: Record<string, Partial<ScannedPriceResult>> = {
 /**
  * Searches for a single product using Gemini Search Grounding or local heuristic intelligence
  */
-export async function scanSingleProductPrice(query: string, geminiApiKey?: string): Promise<ScannedPriceResult> {
+export async function scanSingleProductPrice(
+  query: string, 
+  geminiApiKey?: string,
+  imageSource?: string | File | Blob
+): Promise<ScannedPriceResult> {
   // Normaliza e limpa ruído do termo antes de buscar (ex: remove "ITEM 01", "URGENTE")
   const cleanQ = normalizeSearchTerm(query.trim());
   const lowerQ = cleanQ.toLowerCase();
 
-  // 0. Verifica Cache Local de Alta Velocidade (Instantâneo)
-  const cached = getCachedScanResult(cleanQ);
-  if (cached) {
-    return {
-      ...cached,
-      id: `scan-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      originalQuery: query
-    };
+  // 0. Verifica Cache Local de Alta Velocidade (Instantâneo) se não tiver foto específica
+  if (!imageSource) {
+    const cached = getCachedScanResult(cleanQ);
+    if (cached) {
+      return {
+        ...cached,
+        id: `scan-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        originalQuery: query
+      };
+    }
   }
 
-  // 1. Check if Gemini API key is available for real-time live web scan
   const activeKey = geminiApiKey || getStoredGeminiKey();
+
+  // 1. PRIORIDADE VISUAL: Se tiver imagem de referência, identifica o produto via Gemini Vision
+  if (activeKey && imageSource) {
+    try {
+      const discovered = await phase1DiscoverProductsFromText(cleanQ, {
+        imageSource,
+        geminiApiKey: activeKey
+      });
+      if (discovered && discovered.length > 0) {
+        const enriched = await phase2EnrichAndScanPrice(discovered[0], cleanQ, activeKey);
+        if (enriched) {
+          saveScanResultToCache(cleanQ, enriched);
+          return enriched;
+        }
+      }
+    } catch (err) {
+      console.warn('[scanSingleProductPrice] Falha na identificação visual por foto:', err);
+    }
+  }
   if (activeKey) {
     try {
       const geminiResult = await executeGeminiSearchGrounding(cleanQ, activeKey);

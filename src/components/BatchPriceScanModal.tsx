@@ -101,7 +101,8 @@ export const BatchPriceScanModal: React.FC<BatchPriceScanModalProps> = ({
       name: it.name,
       partNumber: it.partNumber || (it as any).sku,
       quantity: it.quantity,
-      currentCost: it.costPrice
+      currentCost: it.costPrice,
+      imageUrl: it.imageUrl
     }));
 
     try {

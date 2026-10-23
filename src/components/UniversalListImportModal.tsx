@@ -28,6 +28,7 @@ interface UniversalListImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportItems: (newItems: Partial<QuoteItem>[]) => void;
+  onSendToScanner?: (itemsText: string, photos: string[], items: Partial<QuoteItem>[]) => void;
   defaultMarkupPercent?: number;
 }
 
@@ -408,6 +409,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
   isOpen,
   onClose,
   onImportItems,
+  onSendToScanner,
   defaultMarkupPercent = 23.5
 }) => {
   const pasteAreaId = useId();
@@ -679,6 +681,46 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
     });
 
     onImportItems(formattedQuoteItems);
+    onClose();
+  };
+
+  const handleSendToScannerWithPhotos = () => {
+    if (parsedRows.length === 0) return;
+
+    const itemsText = parsedRows
+      .map(r => `${r.quantity > 1 ? `${r.quantity}x ` : ''}${r.name}${r.partNumber ? ` (Cód: ${r.partNumber})` : ''}`)
+      .join('\n');
+
+    const photos = parsedRows
+      .map(r => r.imageUrl)
+      .filter((img): img is string => typeof img === 'string' && img.startsWith('data:image/'));
+
+    const formattedQuoteItems: Partial<QuoteItem>[] = parsedRows.map((row) => {
+      const markup = defaultMarkupPercent > 0 ? defaultMarkupPercent : 23.5;
+      const cost = row.costPrice || 0;
+      const unitPrice = cost > 0 ? Number((cost * (1 + markup / 100)).toFixed(2)) : 0;
+      const totalPrice = Number((unitPrice * row.quantity).toFixed(2));
+
+      return {
+        name: row.name,
+        description: row.description || row.name,
+        partNumber: row.partNumber || undefined,
+        quantity: row.quantity,
+        unit: row.unit || 'UN',
+        costPrice: cost,
+        markupPercent: markup,
+        unitPrice: unitPrice,
+        totalPrice: totalPrice,
+        imageUrl: row.imageUrl || undefined,
+        showImage: Boolean(row.imageUrl)
+      };
+    });
+
+    if (onSendToScanner) {
+      onSendToScanner(itemsText, photos, formattedQuoteItems);
+    } else {
+      onImportItems(formattedQuoteItems);
+    }
     onClose();
   };
 
@@ -1020,21 +1062,37 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
         </div>
 
         {/* Rodapé do Modal */}
-        <div className="px-6 py-3.5 border-t border-slate-200 flex items-center justify-between bg-slate-50/70">
+        <div className="px-6 py-3.5 border-t border-slate-200 flex items-center justify-between bg-slate-50/70 flex-wrap gap-2">
           <button
             onClick={onClose}
             className="sq-btn-neutral"
           >
             Cancelar
           </button>
-          <button
-            onClick={handleConfirmImport}
-            disabled={parsedRows.length === 0}
-            className="sq-btn-emerald flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Layers className="w-4 h-4" />
-            Inserir {parsedRows.length > 0 ? `${parsedRows.length} Itens` : 'Itens'} na Cotação
-          </button>
+          
+          <div className="flex items-center gap-2">
+            {parsedRows.some(r => r.imageUrl) && (
+              <button
+                type="button"
+                onClick={handleSendToScannerWithPhotos}
+                disabled={parsedRows.length === 0}
+                className="px-3.5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                title="Enviar para o Scanner IA usando todas as fotos extraídas da planilha como referência visual de busca"
+              >
+                <Sparkles className="w-4 h-4 fill-amber-200 text-amber-200" />
+                <span>Cotar no Scanner IA com Fotos ({parsedRows.filter(r => r.imageUrl).length})</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleConfirmImport}
+              disabled={parsedRows.length === 0}
+              className="sq-btn-emerald flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Layers className="w-4 h-4" />
+              Inserir {parsedRows.length > 0 ? `${parsedRows.length} Itens` : 'Itens'} na Cotação
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -2790,6 +2790,19 @@ export const App: React.FC = () => {
               setWebSearchQuery(query || '');
               setWebSearchTargetIndex(itemIdx !== undefined ? itemIdx : null);
               setWebSearchExistingItem(existingItem || null);
+              const photos = existingItem?.imageUrl ? [existingItem.imageUrl] : [];
+              setScannerInitialPhotos(photos);
+              setScannerAutoStart(photos.length > 0);
+              setScannerTriggerKey(Date.now());
+              setActiveTab('websearch');
+            }}
+            onSendToScanner={(itemsText: string, photos: string[]) => {
+              setWebSearchQuery(itemsText);
+              setWebSearchTargetIndex(null);
+              setWebSearchExistingItem(null);
+              setScannerInitialPhotos(photos);
+              setScannerAutoStart(photos.length > 0);
+              setScannerTriggerKey(Date.now());
               setActiveTab('websearch');
             }}
             onSaveToCatalog={handleSaveProductToCatalog}
