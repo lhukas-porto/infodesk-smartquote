@@ -21,6 +21,7 @@ import { extractImageFromStoreUrl, extractDirectImageFromUrlPatterns } from './i
 import { DiscoveredProduct } from '../types';
 import { searchProductImages } from './imageSearchService';
 import { compressImageDataUrl } from '../utils/imageCompressor';
+import { getSettings } from '../utils/storage';
 
 export type { DiscoveredProduct };
 export { searchProductImages };
@@ -1207,7 +1208,7 @@ export async function scanSingleProductPrice(
         imageUrl: best.thumbnail || resolveImageForDescription(details.standardizedName) || details.imageUrl,
         category: getCategoryFromNcm(details.ncm, details.category),
         costPrice: best.price,
-        suggestedPrice: Number((best.price * 1.35).toFixed(2)),
+        suggestedPrice: Number((best.price * (1 + (getSettings().defaultMarkupPercent ?? 23.5) / 100)).toFixed(2)),
         allOffers: shopping.offers,
         rating: best.rating || 4.8
       };
@@ -3236,7 +3237,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       specifications: normalizeSpecifications((discovered as any).specifications),
       weight: normalizeWeight((discovered as any).weight),
       dimensions: normalizeDimensions((discovered as any).dimensions),
-      suggestedPrice: (discovered as any).suggestedPrice || Number((shoppingBestOffer.price * 1.35).toFixed(2)),
+      suggestedPrice: (discovered as any).suggestedPrice || Number((shoppingBestOffer.price * (1 + (getSettings().defaultMarkupPercent ?? 23.5) / 100)).toFixed(2)),
       costPrice: shoppingBestOffer.price,
       ean: (discovered as any).ean || '',
       manufacturer: (discovered as any).manufacturer || discovered.brand || 'Fabricante Nacional / Importado',

@@ -31,6 +31,7 @@ import './excelMultiSheetAndImageImport.test';
 import './visualReferenceScannerIntegration.test';
 import './catalogDuplicatesDetection.test';
 import './supplierSanitization.test';
+import './scannerDefaultMarkupInheritance.test';
 
 console.log('\n======================================================');
 console.log('🏁 SUÍTE COMPLETA DE TESTES EXECUTADA COM 100% DE SUCESSO!');

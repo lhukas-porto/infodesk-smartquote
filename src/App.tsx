@@ -2163,11 +2163,22 @@ export const App: React.FC = () => {
 
   const handleAddWebSearchItemToQuote = (item: Partial<QuoteItem>) => {
     if (currentQuote.items.length > 0) {
-      const markup = settings.defaultMarkupPercent || 23.5;
-      const tax = settings.defaultTaxPercent || 9.1;
-      const shipping = settings.defaultShippingCost || 0;
+      const defaultSettingsMarkup = settings.defaultMarkupPercent ?? 23.5;
+      const quoteGlobalMarkup = currentQuote.globalMarkupPercent;
+      const activeMarkup = (quoteGlobalMarkup !== undefined && quoteGlobalMarkup > 0) 
+        ? quoteGlobalMarkup 
+        : defaultSettingsMarkup;
+      const markup = (item.markupPercent !== undefined && item.markupPercent > 0) ? item.markupPercent : activeMarkup;
+      const tax = (currentQuote.globalTaxPercent !== undefined && currentQuote.globalTaxPercent > 0)
+        ? currentQuote.globalTaxPercent
+        : (settings.defaultTaxPercent || 9.1);
+      const shipping = (currentQuote.globalShipping !== undefined && currentQuote.globalShipping > 0)
+        ? currentQuote.globalShipping
+        : (settings.defaultShippingCost || 0);
       const cost = item.costPrice || 0;
-      const unitPrice = item.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
+      const unitPrice = cost > 0 
+        ? calculateCommercialUnitPrice(cost, shipping, markup, tax)
+        : (item.unitPrice || 0);
       const qty = item.quantity || 1;
       const totalPrice = Number((unitPrice * qty).toFixed(2));
 
@@ -2231,16 +2242,18 @@ export const App: React.FC = () => {
   };
 
   const handleStartNewQuoteWithItems = (itemsToAdd: Partial<QuoteItem>[]) => {
-    const markup = settings.defaultMarkupPercent || 23.5;
+    const defaultSettingsMarkup = settings.defaultMarkupPercent ?? 23.5;
     const tax = settings.defaultTaxPercent || 9.1;
     const shipping = settings.defaultShippingCost || 0;
 
     const items: QuoteItem[] = itemsToAdd.map((item, idx) => {
       const cost = item.costPrice || 0;
-      const unitPrice = item.unitPrice || calculateCommercialUnitPrice(cost, shipping, markup, tax);
-      const markupPercent = (item.unitPrice && cost > 0)
-        ? calculateMarkupFromUnitPrice(item.unitPrice, cost, shipping, tax)
-        : (item.markupPercent || markup);
+      const markupPercent = (item.markupPercent !== undefined && item.markupPercent > 0)
+        ? item.markupPercent
+        : defaultSettingsMarkup;
+      const unitPrice = cost > 0 
+        ? calculateCommercialUnitPrice(cost, shipping, markupPercent, tax)
+        : (item.unitPrice || 0);
       const qty = item.quantity || 1;
       const totalPrice = Number((unitPrice * qty).toFixed(2));
 
@@ -2286,7 +2299,7 @@ export const App: React.FC = () => {
 
     const totalProfit = totalAmount - totalCost - totalShipping - totalTaxes;
     const directCosts = totalCost + totalShipping;
-    const averageMargin = directCosts > 0 ? (totalProfit / directCosts) * 100 : markup;
+    const averageMargin = directCosts > 0 ? (totalProfit / directCosts) * 100 : defaultSettingsMarkup;
 
     const clientCompany = pendingScannerClient?.clientCompany || '';
     const contactPerson = pendingScannerClient?.contactPerson || '';
@@ -2318,7 +2331,7 @@ export const App: React.FC = () => {
       totalProfit: Number(totalProfit.toFixed(2)),
       totalAmount: Number(totalAmount.toFixed(2)),
       averageMargin: Number(averageMargin.toFixed(1)),
-      globalMarkupPercent: markup,
+      globalMarkupPercent: defaultSettingsMarkup,
       globalTaxPercent: tax,
       globalShipping: shipping,
       showShippingInProposal: !isBrasiliaDelivery(deliveryLocation),
@@ -2473,9 +2486,9 @@ export const App: React.FC = () => {
       if (updatedItems[idx]) {
         const current = updatedItems[idx];
         const costPrice = updatedData.costPrice !== undefined ? updatedData.costPrice : current.costPrice;
-        const shipping = current.shippingCost ?? prev.globalShipping ?? 0;
-        const markup = current.markupPercent ?? 35;
-        const tax = prev.globalTaxPercent ?? 6;
+        const shipping = current.shippingCost ?? prev.globalShipping ?? settings.defaultShippingCost ?? 0;
+        const markup = updatedData.markupPercent ?? current.markupPercent ?? prev.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 23.5;
+        const tax = current.taxPercent ?? prev.globalTaxPercent ?? settings.defaultTaxPercent ?? 9.1;
         const unitPrice = calculateCommercialUnitPrice(costPrice, shipping, markup, tax);
         const qty = updatedData.quantity || current.quantity || 1;
         const totalPrice = Number((unitPrice * qty).toFixed(2));
@@ -2483,6 +2496,7 @@ export const App: React.FC = () => {
         updatedItems[idx] = {
           ...current,
           ...updatedData,
+          markupPercent: markup,
           unitPrice,
           totalPrice
         };
@@ -2492,7 +2506,7 @@ export const App: React.FC = () => {
         items: updatedItems
       };
     });
-  }, []);
+  }, [settings.defaultShippingCost, settings.defaultMarkupPercent, settings.defaultTaxPercent]);
 
   const handleOpenQuoteFromHistory = useCallback(async (q: Quote) => {
     const matched = quotes.find(item => isSameQuote(item, q));
@@ -2835,6 +2849,10 @@ export const App: React.FC = () => {
         <div style={{ display: activeTab === 'websearch' ? 'block' : 'none' }}>
           <PriceScannerView
             products={products}
+            defaultMarkupPercent={settings.defaultMarkupPercent ?? 23.5}
+            defaultTaxPercent={settings.defaultTaxPercent ?? 9.1}
+            defaultShippingCost={settings.defaultShippingCost ?? 0}
+            activeQuoteGlobalMarkup={currentQuote.globalMarkupPercent}
             initialQuery={webSearchQuery}
             initialPhotos={scannerInitialPhotos}
             autoStartPhase1={scannerAutoStart}

@@ -38,8 +38,10 @@ import {
   normalizeSearchText,
   normalizeToOfficialCategory,
   resolveProductModelAndPartNumber,
-  sanitizeSupplierName
+  sanitizeSupplierName,
+  calculateCommercialUnitPrice
 } from '../utils/aiEmailParser';
+import { getSettings } from '../utils/storage';
 import {
   DiscoveredProduct,
   ScannedPriceResult,
@@ -479,6 +481,10 @@ export function findExistingCatalogProduct(
 
 interface PriceScannerViewProps {
   products?: Product[];
+  defaultMarkupPercent?: number;
+  defaultTaxPercent?: number;
+  defaultShippingCost?: number;
+  activeQuoteGlobalMarkup?: number;
   onAddToQuote: (item: Partial<QuoteItem>) => void;
   onStartNewQuoteWithItems?: (items: Partial<QuoteItem>[]) => void;
   onSaveToCatalog: (prod: Product) => void;
@@ -497,6 +503,10 @@ interface PriceScannerViewProps {
 
 const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   products = [],
+  defaultMarkupPercent,
+  defaultTaxPercent,
+  defaultShippingCost,
+  activeQuoteGlobalMarkup,
   onAddToQuote,
   onStartNewQuoteWithItems,
   onSaveToCatalog,
@@ -584,8 +594,18 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   // Itens salvos ou atualizados nesta sessão (para feedback imediato)
   const [savedInSessionIds, setSavedInSessionIds] = useState<Set<string>>(new Set());
 
-  // Margem e Filtros
+  // Margem e Filtros (herdando como padrão a Margem de Lucro Padrão (%) de configurações)
+  const effectiveDefaultMarkup = (activeQuoteGlobalMarkup !== undefined && activeQuoteGlobalMarkup > 0)
+    ? activeQuoteGlobalMarkup
+    : (defaultMarkupPercent !== undefined && defaultMarkupPercent > 0)
+    ? defaultMarkupPercent
+    : (getSettings().defaultMarkupPercent ?? 23.5);
+
+  const effectiveTax = defaultTaxPercent !== undefined ? defaultTaxPercent : (getSettings().defaultTaxPercent ?? 9.1);
+  const effectiveShipping = defaultShippingCost !== undefined ? defaultShippingCost : (getSettings().defaultShippingCost ?? 0);
+
   const [targetMarginPercent, setTargetMarginPercent] = useState<number | null>(null);
+  const currentActiveMargin = targetMarginPercent !== null ? targetMarginPercent : effectiveDefaultMarkup;
   const [sortFilterMode, setSortFilterMode] = useState<'all' | 'lowestPrice'>('all');
   const [isCaseMenuOpen, setIsCaseMenuOpen] = useState(false);
   const [activeCaseStyle, setActiveCaseStyle] = useState<WordCaseStyle>('sentence');
@@ -882,8 +902,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   // Inserir produto identificado individualmente na cotação
   const handleAddSingleDiscoveredToQuote = (prod: DiscoveredProduct) => {
     const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
-    const price = prod.suggestedPrice || (prod.costPrice ? prod.costPrice * 1.35 : 0);
-    const cost = prod.costPrice || (prod.suggestedPrice ? prod.suggestedPrice / 1.35 : 0);
     const fullDesc = buildCompleteProductDescription(prod);
     const directInfo = buildDirectPurchaseUrl(prod.standardizedName, prod.sourceUrl);
 
@@ -900,6 +918,16 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       scannerPartNumber: prod.partNumber
     });
 
+    const cost = existingInCatalog && existingInCatalog.costPrice > 0
+      ? existingInCatalog.costPrice
+      : (prod.costPrice && prod.costPrice > 0
+        ? prod.costPrice
+        : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0));
+
+    const unitPrice = cost > 0
+      ? calculateCommercialUnitPrice(cost, effectiveShipping, currentActiveMargin, effectiveTax)
+      : (prod.suggestedPrice || undefined);
+
     const itemData: Partial<QuoteItem> = {
       productId: existingInCatalog ? existingInCatalog.id : undefined,
       name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
@@ -909,8 +937,11 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       category: existingInCatalog?.category || prod.category,
       imageUrl: chosenImage || existingInCatalog?.imageUrl,
       showImage: !!(chosenImage || existingInCatalog?.imageUrl),
-      costPrice: existingInCatalog && existingInCatalog.costPrice > 0 ? existingInCatalog.costPrice : (cost > 0 ? cost : price),
-      unitPrice: price > 0 ? price : undefined,
+      costPrice: cost,
+      shippingCost: effectiveShipping,
+      taxPercent: effectiveTax,
+      markupPercent: currentActiveMargin,
+      unitPrice,
       quantity: prod.quantity || 1,
       unit: prod.unit || existingInCatalog?.unit || 'Un.',
       supplier: sanitizeSupplierName(existingInCatalog?.supplier || prod.supplier || directInfo.store),
@@ -1027,13 +1058,21 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     const itemsData: Partial<QuoteItem>[] = discoveredProducts.map(prod => {
       const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
-      const price = prod.suggestedPrice || (prod.costPrice ? prod.costPrice * 1.35 : 0);
-      const cost = prod.costPrice || (prod.suggestedPrice ? prod.suggestedPrice / 1.35 : 0);
       const fullDesc = buildCompleteProductDescription(prod);
       const directInfo = buildDirectPurchaseUrl(prod.standardizedName, prod.sourceUrl);
 
       const catalogMatch = findCatalogMatchDetails(prod, products);
       const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
+
+      const cost = existingInCatalog && existingInCatalog.costPrice > 0 
+        ? existingInCatalog.costPrice 
+        : (prod.costPrice && prod.costPrice > 0 
+          ? prod.costPrice 
+          : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0));
+
+      const unitPrice = cost > 0 
+        ? calculateCommercialUnitPrice(cost, effectiveShipping, currentActiveMargin, effectiveTax)
+        : (prod.suggestedPrice || undefined);
 
       return {
         productId: existingInCatalog ? existingInCatalog.id : undefined,
@@ -1044,8 +1083,11 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         category: existingInCatalog?.category || prod.category,
         imageUrl: chosenImage || existingInCatalog?.imageUrl,
         showImage: !!(chosenImage || existingInCatalog?.imageUrl),
-        costPrice: existingInCatalog && existingInCatalog.costPrice > 0 ? existingInCatalog.costPrice : (cost > 0 ? cost : price),
-        unitPrice: price > 0 ? price : undefined,
+        costPrice: cost,
+        shippingCost: effectiveShipping,
+        taxPercent: effectiveTax,
+        markupPercent: currentActiveMargin,
+        unitPrice,
         quantity: prod.quantity || 1,
         unit: prod.unit || existingInCatalog?.unit || 'Un.',
         supplier: sanitizeSupplierName(existingInCatalog?.supplier || prod.supplier || directInfo.store),
@@ -1088,10 +1130,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     if (selected.length === 0) return;
 
     const itemsToAdd: Partial<QuoteItem>[] = selected.map(item => {
-      const margin = targetMarginPercent !== null ? targetMarginPercent : 35;
-      const cost = item.bestPrice > 0 ? item.bestPrice : 0;
-      const unitPrice = cost > 0 ? Number((cost * (1 + margin / 100)).toFixed(2)) : undefined;
-      const chosenPhoto = (item.images && item.images[item.selectedImageIndex ?? 0]) || item.imageUrl || '';
+      const margin = currentActiveMargin;
       const fullDesc = buildCompleteProductDescription(item);
       const directInfo = buildDirectPurchaseUrl(item.standardizedName, item.buyUrl);
 
@@ -1108,6 +1147,16 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       const catalogMatch = findCatalogMatchDetails(item, products);
       const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
 
+      const cost = existingInCatalog && existingInCatalog.costPrice > 0 
+        ? existingInCatalog.costPrice 
+        : (item.bestPrice > 0 ? item.bestPrice : 0);
+
+      const unitPrice = cost > 0 
+        ? calculateCommercialUnitPrice(cost, effectiveShipping, margin, effectiveTax) 
+        : undefined;
+
+      const chosenPhoto = (item.images && item.images[item.selectedImageIndex ?? 0]) || item.imageUrl || '';
+
       return {
         productId: existingInCatalog ? existingInCatalog.id : undefined,
         name: existingInCatalog ? existingInCatalog.name : item.standardizedName,
@@ -1116,7 +1165,10 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         ncm: existingInCatalog?.ncm || cleanNcmCode(item.ncm || ''),
         imageUrl: chosenPhoto || existingInCatalog?.imageUrl,
         showImage: !!(chosenPhoto || existingInCatalog?.imageUrl),
-        costPrice: existingInCatalog && existingInCatalog.costPrice > 0 ? existingInCatalog.costPrice : cost,
+        costPrice: cost,
+        shippingCost: effectiveShipping,
+        taxPercent: effectiveTax,
+        markupPercent: margin,
         unitPrice,
         quantity: item.quantity || 1,
         unit: item.unit || existingInCatalog?.unit || 'Un.',
@@ -1138,10 +1190,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
   // Inserir item único da Fase 2 na cotação
   const handleAddSingleBatchResultToQuote = (item: ScannedPriceResult) => {
-    const margin = targetMarginPercent !== null ? targetMarginPercent : 35;
-    const cost = item.bestPrice > 0 ? item.bestPrice : 0;
-    const unitPrice = cost > 0 ? Number((cost * (1 + margin / 100)).toFixed(2)) : undefined;
-    const chosenPhoto = (item.images && item.images[item.selectedImageIndex ?? 0]) || item.imageUrl || '';
+    const margin = currentActiveMargin;
     const fullDesc = buildCompleteProductDescription(item);
     const directInfo = buildDirectPurchaseUrl(item.standardizedName, item.buyUrl);
 
@@ -1158,6 +1207,16 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     const catalogMatch = findCatalogMatchDetails(item, products);
     const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
 
+    const cost = existingInCatalog && existingInCatalog.costPrice > 0 
+      ? existingInCatalog.costPrice 
+      : (item.bestPrice > 0 ? item.bestPrice : 0);
+
+    const unitPrice = cost > 0 
+      ? calculateCommercialUnitPrice(cost, effectiveShipping, margin, effectiveTax) 
+      : undefined;
+
+    const chosenPhoto = (item.images && item.images[item.selectedImageIndex ?? 0]) || item.imageUrl || '';
+
     const itemData: Partial<QuoteItem> = {
       productId: existingInCatalog ? existingInCatalog.id : undefined,
       name: existingInCatalog ? existingInCatalog.name : item.standardizedName,
@@ -1166,7 +1225,10 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       ncm: existingInCatalog?.ncm || cleanNcmCode(item.ncm || ''),
       imageUrl: chosenPhoto || existingInCatalog?.imageUrl,
       showImage: !!(chosenPhoto || existingInCatalog?.imageUrl),
-      costPrice: existingInCatalog && existingInCatalog.costPrice > 0 ? existingInCatalog.costPrice : cost,
+      costPrice: cost,
+      shippingCost: effectiveShipping,
+      taxPercent: effectiveTax,
+      markupPercent: margin,
       unitPrice,
       quantity: item.quantity || 1,
       unit: item.unit || existingInCatalog?.unit || 'Un.',
@@ -1935,7 +1997,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                               {prod.suggestedPrice && prod.suggestedPrice > 0
                                 ? `R$ ${prod.suggestedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                 : (prod.costPrice && prod.costPrice > 0
-                                  ? `R$ ${(prod.costPrice * 1.35).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  ? `R$ ${calculateCommercialUnitPrice(prod.costPrice, effectiveShipping, currentActiveMargin, effectiveTax).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                   : 'Sob Consulta')}
                             </span>
                             {Boolean(prod.costPrice && prod.costPrice > 0) && (
