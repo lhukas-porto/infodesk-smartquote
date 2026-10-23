@@ -584,7 +584,11 @@ export async function fetchGoogleShoppingOffers(
       params.append('apiKey', activeKey);
     }
 
-    const res = await fetch(`/api/google-shopping?${params.toString()}`);
+    const baseUrl = typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost:5173';
+
+    const res = await fetch(`${baseUrl}/api/google-shopping?${params.toString()}`);
     if (!res.ok) {
       return { bestOffer: null, offers: [] };
     }
@@ -2019,8 +2023,8 @@ const ARCHETYPE_RULES: Record<string, ArchetypeRule> = {
     ncm: '8471.60.53',
     weight: '0.120 kg',
     dimensions: '12cm x 7cm x 4cm',
-    costPrice: 40.00,
-    suggestedPrice: 65.00,
+    costPrice: 0,
+    suggestedPrice: 0,
     specs: [
       { label: 'Sensor', value: 'Óptico de alta precisão (1000 a 1600 DPI)' },
       { label: 'Design', value: 'Ambidestro ergonômico' },
@@ -2315,8 +2319,8 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       ncm,
       weight,
       dimensions,
-      suggestedPrice: isPhone ? 89.90 : 99.00,
-      costPrice: isPhone ? 55.00 : 65.00,
+      suggestedPrice: 0,
+      costPrice: 0,
       description: desc,
       specifications: specs,
       quantity: quantity > 0 ? quantity : 1,
@@ -2996,14 +3000,21 @@ SUA MISSÃO NA FASE 2:
    - "costPrice": Preço de custo médio estimado de atacado/distribuidor em Reais (número decimal, ex: 85.00).
    - "suggestedPrice": Preço de venda sugerido de varejo em Reais (número decimal, ex: 129.90).
 
-2. MENOR PREÇO REAL ATIVO NO BRASIL:
-   - "bestPrice": Menor preço ativo encontrado na internet brasileira em Reais (número decimal, ex: 119.90).
-   - "isPixPrice": true se for preço à vista/Pix.
-   - "store": Nome da loja ou distribuidora no Brasil com melhor oferta ativa (ex: Mercado Livre, Amazon Brasil, Kalunga, Farnell, Mouser Brasil, etc.).
-   - "observation": Resumo comercial da apuração (ex: "Menor preço apurado no mercado nacional (à vista/Pix)").
-   - "status": "exact" se produto com preço confirmado, ou "on_demand" se sob cotação.
-   - "buyUrl": URL de busca direta ou produto na loja encontrada.
+2. MENOR PREÇO REAL ATIVO NO BRASIL (PRIORIDADE: LINKS PATROCINADOS E GOOGLE SHOPPING):
+   - PESQUISE OBRIGATORIAMENTE NA WEB DO GOOGLE BRASIL:
+     1. Analise prioritariamente os LINKS PATROCINADOS (Google Shopping Ads, Google Ads e carrosséis patrocinados no topo da busca).
+     2. Analise os preços em grandes e-commerces e distribuidores nacionais (Mercado Livre, Amazon Brasil, Magalu, Kalunga, Dutra Máquinas, Leroy Merlin, Kabum, Shopee Brasil, etc.).
+   - "bestPrice": Capture o MENOR preço real e ativo anunciado nos links patrocinados ou lojas em Reais (número decimal, ex: 149.90).
+   - "costPrice": O preço de custo obtido na melhor oferta patrocinada/loja em Reais (número decimal, ex: 149.90).
+   - "suggestedPrice": Preço de venda sugerido ao cliente em Reais.
+   - "isPixPrice": true se for preço à vista/Pix anunciado.
+   - "store": Nome da loja ou anunciante do link patrocinado (ex: Mercado Livre, Amazon Brasil, Dutra Máquinas, Kalunga). NUNCA coloque "Nome da Loja" ou "Genérica".
+   - "observation": Resumo comercial da apuração (ex: "Menor preço apurado em links patrocinados do Google Shopping (Mercado Livre)").
+   - "status": "exact" se encontrou a oferta com preço real ativo, ou "on_demand" se o item não tiver preço publicado.
+   - "buyUrl": URL direta da oferta ou do anúncio patrocinado da loja encontrada.
    - "imageUrl": URL de foto real do produto.
+   - REGRA MANDATÓRIA (TOLERÂNCIA ZERO A VALORES ARBITRÁRIOS):
+     É TERMINANTEMENTE PROIBIDO inventar valores fictícios (como 65,00, 55,00 ou 99,00). Se o produto for sob encomenda ou não tiver preço anunciado na web brasileira, retorne estritamente 0.0 para "bestPrice" e "costPrice", com status "on_demand" e observation "Item sob consulta / Cotação necessária com fornecedor".
 
 Retorne ESTRITAMENTE um objeto JSON válido:
 {
@@ -3013,9 +3024,9 @@ Retorne ESTRITAMENTE um objeto JSON válido:
   "partNumber": "${discovered.partNumber || ''}",
   "ncm": "${(discovered as any).ncm || '8471.70.40'}",
   "ean": "${(discovered as any).ean || ''}",
-  "bestPrice": ${(discovered as any).costPrice || 0.0},
-  "costPrice": ${(discovered as any).costPrice || 0.0},
-  "suggestedPrice": ${(discovered as any).suggestedPrice || 0.0},
+  "bestPrice": ${(discovered as any).costPrice && (discovered as any).costPrice !== 65 && (discovered as any).costPrice !== 55 ? (discovered as any).costPrice : 0.0},
+  "costPrice": ${(discovered as any).costPrice && (discovered as any).costPrice !== 65 && (discovered as any).costPrice !== 55 ? (discovered as any).costPrice : 0.0},
+  "suggestedPrice": ${(discovered as any).suggestedPrice && (discovered as any).suggestedPrice !== 99 && (discovered as any).suggestedPrice !== 65 ? (discovered as any).suggestedPrice : 0.0},
   "isPixPrice": true,
   "store": "Nome da Loja",
   "observation": "Menor preço apurado no mercado nacional",
@@ -3035,15 +3046,21 @@ Retorne ESTRITAMENTE um objeto JSON válido:
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-      // 1. Tenta com busca ao vivo via Google Search (google_search formato atual)
+      // 1. Tenta com busca ao vivo via Google Search Grounding (suporte aos formatos googleSearch e google_search)
       let requestBody: any = {
         contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ google_search: {} }],
+        tools: [{ googleSearch: {} }],
         generationConfig: { temperature: 0.1 }
       };
 
       let usedGoogleSearch = true;
       let callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 35000);
+
+      // Se o endpoint rejeitar googleSearch em camelCase, tenta snake_case
+      if (!callRes.ok && callRes.status !== 408 && callRes.status !== 429) {
+        requestBody.tools = [{ google_search: {} }];
+        callRes = await fetchGeminiWithTimeout(endpoint, requestBody, 35000);
+      }
 
       if (callRes.rateLimited) {
         console.warn(`[Phase2][${model}] Rate limited (429) no modelo ${model}, tentando próximo da cascata...`);
@@ -3077,12 +3094,14 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       
       let bestPrice = shoppingBestOffer ? shoppingBestOffer.price : (typeof parsed.bestPrice === 'number' && parsed.bestPrice > 0
         ? parsed.bestPrice
-        : (typeof parsed.costPrice === 'number' && parsed.costPrice > 0 ? parsed.costPrice : ((discovered as any).costPrice || 0)));
+        : (typeof parsed.costPrice === 'number' && parsed.costPrice > 0
+            ? parsed.costPrice
+            : ((discovered as any).costPrice && (discovered as any).costPrice !== 65 && (discovered as any).costPrice !== 55 ? (discovered as any).costPrice : 0)));
 
       let status = shoppingBestOffer ? 'exact' : (parsed.status || (bestPrice > 0 ? 'exact' : 'on_demand'));
       let observation = shoppingBestOffer
         ? `Menor preço apurado no Google Shopping (${shoppingBestOffer.store})`
-        : (parsed.observation || (bestPrice > 0 ? 'Menor preço apurado no mercado nacional' : ''));
+        : (parsed.observation || (bestPrice > 0 ? 'Menor preço apurado no mercado nacional' : 'Item sob consulta / Cotação necessária'));
 
       if (!shoppingBestOffer && !usedGoogleSearch && bestPrice > 0) {
         status = 'equivalent';
