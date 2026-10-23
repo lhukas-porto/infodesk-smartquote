@@ -2439,11 +2439,66 @@ export function extractStoreNameFromUrl(url?: string): string {
 }
 
 /**
+ * Higieniza o nome de fornecedor/loja.
+ * Se o fornecedor for genérico, ausente ou placeholder (ex: 'Genérica', 'Sem Fornecedor', 'Fornecedor Local'),
+ * retorna estritamente em branco ('') conforme a diretriz do Lucas.
+ */
+export function sanitizeSupplierName(supplier?: string | null): string {
+  if (!supplier) return '';
+  const clean = supplier.trim();
+  const lower = clean.toLowerCase();
+
+  const invalidNames = [
+    'genérica',
+    'generica',
+    'genérico',
+    'generico',
+    'marca genérica',
+    'marca generica',
+    'fornecedor genérico',
+    'fornecedor generico',
+    'loja genérica',
+    'loja generica',
+    'sem marca',
+    'sem fornecedor',
+    'não informado',
+    'nao informado',
+    'não localizada',
+    'nao localizada',
+    'sob consulta',
+    'n/a',
+    'n/d',
+    'fabricante nacional / importado',
+    'nacional / importado',
+    'fornecedor local',
+    'fornecedor',
+    'local',
+    'e-commerce nacional',
+    'mercado nacional',
+    'mercado local',
+    'nome da loja',
+    'undefined',
+    'null'
+  ];
+
+  if (invalidNames.includes(lower)) {
+    return '';
+  }
+
+  if (/^gen[eé]ric[ao]s?$/i.test(clean) || /^loja\s+gen[eé]ric[ao]s?$/i.test(clean)) {
+    return '';
+  }
+
+  return clean;
+}
+
+/**
  * Resolve o fornecedor de um item com fallback em cascata inteligente:
- * 1. Fornecedor preenchido explicitamente (diferente de 'Fornecedor Local')
+ * 1. Fornecedor preenchido explicitamente (diferente de 'Fornecedor Local' ou 'Genérica')
  * 2. Loja/distribuidor extraído do Link de Compra (sourceUrl)
  * 3. Dados do produto vinculado no Catálogo de Produtos
  * 4. Marcas e fabricantes conhecidos no título/descrição
+ * Se não houver fornecedor válido, retorna estritamente em branco ('').
  */
 export function resolveSupplierName(
   item: {
@@ -2467,13 +2522,13 @@ export function resolveSupplierName(
   }>
 ): string {
   // 1. Fornecedor explícito preenchido no item
-  const supp = (item.supplier || '').trim();
-  if (supp && !['fornecedor local', 'fornecedor', 'local', 'sem fornecedor'].includes(supp.toLowerCase())) {
+  const supp = sanitizeSupplierName(item.supplier);
+  if (supp) {
     return supp;
   }
 
   // 2. Extração inteligente via Link Direto de Compra (sourceUrl)
-  const fromUrl = extractStoreNameFromUrl(item.sourceUrl || item.source_url);
+  const fromUrl = sanitizeSupplierName(extractStoreNameFromUrl(item.sourceUrl || item.source_url));
   if (fromUrl) {
     return fromUrl;
   }
@@ -2489,11 +2544,11 @@ export function resolveSupplierName(
     );
 
     if (prod) {
-      const prodSupp = (prod.supplier || '').trim();
-      if (prodSupp && !['fornecedor local', 'fornecedor', 'local', 'sem fornecedor'].includes(prodSupp.toLowerCase())) {
+      const prodSupp = sanitizeSupplierName(prod.supplier);
+      if (prodSupp) {
         return prodSupp;
       }
-      const prodUrlStore = extractStoreNameFromUrl(prod.sourceUrl || prod.source_url);
+      const prodUrlStore = sanitizeSupplierName(extractStoreNameFromUrl(prod.sourceUrl || prod.source_url));
       if (prodUrlStore) return prodUrlStore;
     }
   }
@@ -2512,7 +2567,8 @@ export function resolveSupplierName(
   if (nameLower.includes('electrolux') || nameLower.includes('eletrolux')) return 'Electrolux';
   if (nameLower.includes('brastemp')) return 'Brastemp';
 
-  return 'Fornecedor Local';
+  // Se não encontrou fornecedor legítimo, retorna em branco conforme diretriz do Lucas
+  return '';
 }
 
 /**

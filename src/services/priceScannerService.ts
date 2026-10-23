@@ -14,7 +14,8 @@ import {
   buildCompleteProductDescription, 
   buildDirectPurchaseUrl, 
   isExactProductUrl,
-  resolveProductModelAndPartNumber
+  resolveProductModelAndPartNumber,
+  sanitizeSupplierName
 } from '../utils/aiEmailParser';
 import { extractImageFromStoreUrl, extractDirectImageFromUrlPatterns } from './imageExtractorService';
 import { DiscoveredProduct } from '../types';
@@ -1230,7 +1231,7 @@ export async function scanSingleProductPrice(
         bestPrice: price,
         priceFormatted: formatBRL(price),
         isPixPrice: item.isPixPrice,
-        store: item.store || 'E-commerce Nacional',
+        store: sanitizeSupplierName(item.store),
         observation: item.observation || 'Oferta localizada',
         status: item.status || (price > 0 ? 'exact' : 'on_demand'),
         buyUrl: item.buyUrl || `https://www.google.com/search?q=${encodeURIComponent(cleanQ)}&tbm=shop`,
@@ -1256,7 +1257,7 @@ export async function scanSingleProductPrice(
     ncm: ncmCalculated,
     bestPrice: cost,
     priceFormatted: formatBRL(cost),
-    store: details.supplier || 'Google Shopping / Mercado Livre',
+    store: sanitizeSupplierName(details.supplier),
     observation: cost > 0 ? 'Melhor preço de referência apurado' : '⚠️ Sob orçamento ou modelo não especificado',
     status: cost > 0 ? 'exact' : 'on_demand',
     buyUrl: (details.sourceUrl && isExactProductUrl(details.sourceUrl)) ? details.sourceUrl : '',
@@ -2654,7 +2655,7 @@ Retorne ESTRITAMENTE um JSON no formato:
                 : baseGallery;
 
               const directPurchase = buildDirectPurchaseUrl(stdName, item.buyUrl || item.sourceUrl);
-              const resolvedSupplier = (item.supplier || item.store || directPurchase.store || brand || 'Mercado Livre').trim();
+              const resolvedSupplier = sanitizeSupplierName(item.supplier || item.store || directPurchase.store);
 
               const resolvedCodes = resolveProductModelAndPartNumber({
                 nameOrQuery: stdName || rawText,
@@ -2789,7 +2790,7 @@ Retorne ESTRITAMENTE um JSON no formato:
         imageUrl: gallery[0] || '',
         selectedImageIndex: 0,
         customerPhotoUrl: customerPhotoUrl || undefined,
-        supplier: directPurchase.store || enriched.brand,
+        supplier: sanitizeSupplierName(directPurchase.store),
         sourceUrl: directPurchase.url
       };
     })
@@ -3125,10 +3126,12 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       const directPurchase = buildDirectPurchaseUrl(stdName, finalBuyUrl || (discovered as any).sourceUrl);
       finalBuyUrl = shoppingBestOffer ? shoppingBestOffer.link : directPurchase.url;
       const finalStore = shoppingBestOffer
-        ? shoppingBestOffer.store
-        : ((parsed.store && parsed.store !== 'Nome da Loja' && parsed.store !== 'E-commerce Nacional')
-          ? parsed.store
-          : directPurchase.store);
+        ? sanitizeSupplierName(shoppingBestOffer.store)
+        : sanitizeSupplierName(
+            (parsed.store && parsed.store !== 'Nome da Loja' && parsed.store !== 'E-commerce Nacional')
+              ? parsed.store
+              : directPurchase.store
+          );
 
       const scannedNcm = cleanNcmCode(parsed.ncm || (discovered as any).ncm);
       let scannedCategory = getCategoryFromNcm(scannedNcm, discovered.category);
@@ -3340,7 +3343,7 @@ export async function runBatchPhase2Scan(
         manufacturer: product.manufacturer || product.brand || '',
         bestPrice: product.costPrice || 0,
         priceFormatted: product.costPrice ? formatBRL(product.costPrice) : '—',
-        store: 'Sob Consulta',
+        store: '',
         observation: 'Ficha técnica preservada (cotação de preço pendente)',
         status: product.costPrice ? ('equivalent' as const) : ('not_found' as const),
         buyUrl: buildDirectPurchaseUrl(product.standardizedName, (product as any).sourceUrl).url,
@@ -3448,7 +3451,7 @@ async function executeGeminiSearchGrounding(query: string, apiKey: string): Prom
     costPrice: (discovered as any).costPrice || fallbackPrice,
     bestPrice: fallbackPrice,
     priceFormatted: fallbackPrice > 0 ? formatBRL(fallbackPrice) : '—',
-    store: fallbackPrice > 0 ? 'Mercado Nacional' : 'Sob Consulta',
+    store: '',
     observation: fallbackPrice > 0 ? 'Ficha técnica completa com preço de referência' : 'Produto identificado via Fase 1 (consulte distribuidores)',
     status: fallbackPrice > 0 ? 'equivalent' : 'on_demand',
     buyUrl: buildDirectPurchaseUrl(discovered.standardizedName, (discovered as any).sourceUrl).url,
@@ -3494,7 +3497,7 @@ export async function runBatchPriceScan(
         standardizedName: item.query,
         bestPrice: 0,
         priceFormatted: '—',
-        store: 'Não localizada',
+        store: '',
         observation: 'Erro na conexão durante o escaneamento',
         status: 'not_found' as const,
         buyUrl: buildDirectPurchaseUrl(item.query).url,

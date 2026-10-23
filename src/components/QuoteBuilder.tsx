@@ -86,7 +86,8 @@ import {
   normalizeSearchText,
   normalizeToOfficialCategory,
   isBrasiliaDelivery,
-  shouldDisplayShippingInProposal
+  shouldDisplayShippingInProposal,
+  sanitizeSupplierName
 } from '../utils/aiEmailParser';
 import { 
   getClientCompanies, 
@@ -1113,7 +1114,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       if ('sourceUrl' in updates && updates.sourceUrl) {
         const detectedStore = extractStoreNameFromUrl(updates.sourceUrl);
         if (detectedStore) {
-          item.supplier = detectedStore;
+          item.supplier = sanitizeSupplierName(detectedStore);
         }
       }
 
@@ -1156,7 +1157,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       category: p.category || currentItem.category || '',
       unit: p.unit || currentItem.unit || 'Un.',
       costPrice: newCost,
-      supplier: p.supplier || currentItem.supplier || '',
+      supplier: sanitizeSupplierName(p.supplier || currentItem.supplier),
       sourceUrl: p.sourceUrl || currentItem.sourceUrl || '',
       unitPrice: newUnitPrice,
       totalPrice: Number((newUnitPrice * (currentItem.quantity || 1)).toFixed(2))
@@ -1538,7 +1539,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         savePriceToCache({
           partNumber: item.partNumber,
           name: item.name || '',
-          supplier: item.supplier || 'Planilha Importada',
+          supplier: sanitizeSupplierName(item.supplier),
           costPrice: cost
         });
       }
@@ -1560,7 +1561,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         totalPrice,
         imageUrl: item.imageUrl || '',
         showImage: Boolean(item.imageUrl),
-        supplier: item.supplier || '',
+        supplier: sanitizeSupplierName(item.supplier),
         sourceUrl: item.sourceUrl || ''
       };
     });
@@ -1705,7 +1706,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         markupPercent: globalMarkup,
         unitPrice,
         totalPrice: unitPrice,
-        supplier: prod.supplier,
+        supplier: sanitizeSupplierName(prod.supplier),
         sourceUrl: prod.sourceUrl
       };
       updatedItems = [...(currentQuote.items || []), newItem];
@@ -1744,7 +1745,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       description: (freshItem.description && freshItem.description.trim()) || (matchedCatalogProd?.description && matchedCatalogProd.description.trim()) || '',
       partNumber: freshItem.partNumber || matchedCatalogProd?.partNumber,
       ncm: freshItem.ncm || matchedCatalogProd?.ncm,
-      supplier: freshItem.supplier || matchedCatalogProd?.supplier,
+      supplier: sanitizeSupplierName(freshItem.supplier || matchedCatalogProd?.supplier),
       category: initialCategory
     });
 
@@ -1763,7 +1764,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       category: initialCategory,
       costPrice: freshItem.costPrice || 0,
       unit: freshItem.unit || 'Un.',
-      supplier: freshItem.supplier || directInfo.store,
+      supplier: sanitizeSupplierName(freshItem.supplier || directInfo.store),
       stock: 10,
       lastUpdated: new Date().toISOString(),
       sourceUrl: directInfo.url,
@@ -1824,7 +1825,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           costPrice: newCost,
           shippingCost: newShipping,
           unit: finalProd.unit,
-          supplier: finalProd.supplier,
+          supplier: sanitizeSupplierName(finalProd.supplier),
           sourceUrl: finalProd.sourceUrl,
           unitPrice: newUnitPrice,
           totalPrice: Number((newUnitPrice * currentItem.quantity).toFixed(2))
@@ -2000,7 +2001,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       return {
         ...it,
         name: alreadyHasBrand ? it.name : `${cleanBrand} ${it.name}`.trim(),
-        supplier: it.supplier || cleanBrand
+        supplier: sanitizeSupplierName(it.supplier)
       };
     });
     setCurrentQuote(prev => ({
@@ -4269,7 +4270,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                               rel="noopener noreferrer"
                               onClick={(e) => openInNewWindow(item.sourceUrl, e)}
                               className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
-                              title={`Abrir link do produto em ${item.supplier || 'loja'} em nova janela`}
+                              title={item.supplier ? `Abrir link do produto em ${item.supplier} em nova janela` : 'Abrir link do produto em nova janela'}
                             >
                               <ExternalLink className="w-3 h-3 text-emerald-600" />
                               <span>Link do Produto</span>

@@ -37,7 +37,8 @@ import {
   buildDirectPurchaseUrl,
   normalizeSearchText,
   normalizeToOfficialCategory,
-  resolveProductModelAndPartNumber
+  resolveProductModelAndPartNumber,
+  sanitizeSupplierName
 } from '../utils/aiEmailParser';
 import {
   DiscoveredProduct,
@@ -912,7 +913,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       unitPrice: price > 0 ? price : undefined,
       quantity: prod.quantity || 1,
       unit: prod.unit || existingInCatalog?.unit || 'Un.',
-      supplier: existingInCatalog?.supplier || prod.supplier || directInfo.store,
+      supplier: sanitizeSupplierName(existingInCatalog?.supplier || prod.supplier || directInfo.store),
       sourceUrl: prod.sourceUrl || directInfo.url || existingInCatalog?.sourceUrl
     };
 
@@ -973,7 +974,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         ncm: cleanNcmCode(prod.ncm || '') || existing.ncm,
         category: prod.category || existing.category,
         unit: prod.unit || existing.unit || 'Un.',
-        supplier: prod.supplier || prod.brand || directInfo.store || existing.supplier,
+        supplier: sanitizeSupplierName(prod.supplier || directInfo.store || existing.supplier),
         imageUrl: chosenImage || existing.imageUrl,
         sourceUrl: prod.sourceUrl || directInfo.url || existing.sourceUrl,
         lastUpdated: new Date().toISOString()
@@ -1005,7 +1006,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         category: normalizeToOfficialCategory(prod.category || 'Informática, Hardware & Periféricos'),
         costPrice: cost > 0 ? Number(cost.toFixed(2)) : Number(price.toFixed(2)),
         unit: prod.unit || 'Un.',
-        supplier: prod.supplier || prod.brand || directInfo.store,
+        supplier: sanitizeSupplierName(prod.supplier || directInfo.store),
         stock: 10,
         lastUpdated: new Date().toISOString(),
         sourceUrl: prod.sourceUrl || directInfo.url,
@@ -1047,7 +1048,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         unitPrice: price > 0 ? price : undefined,
         quantity: prod.quantity || 1,
         unit: prod.unit || existingInCatalog?.unit || 'Un.',
-        supplier: existingInCatalog?.supplier || prod.supplier || directInfo.store,
+        supplier: sanitizeSupplierName(existingInCatalog?.supplier || prod.supplier || directInfo.store),
         sourceUrl: prod.sourceUrl || directInfo.url || existingInCatalog?.sourceUrl
       };
     });
@@ -1119,7 +1120,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         unitPrice,
         quantity: item.quantity || 1,
         unit: item.unit || existingInCatalog?.unit || 'Un.',
-        supplier: existingInCatalog?.supplier || item.store || directInfo.store,
+        supplier: sanitizeSupplierName(existingInCatalog?.supplier || item.store || directInfo.store),
         sourceUrl: item.buyUrl || directInfo.url || existingInCatalog?.sourceUrl
       };
     });
@@ -1169,7 +1170,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       unitPrice,
       quantity: item.quantity || 1,
       unit: item.unit || existingInCatalog?.unit || 'Un.',
-      supplier: existingInCatalog?.supplier || item.store || directInfo.store,
+      supplier: sanitizeSupplierName(existingInCatalog?.supplier || item.store || directInfo.store),
       sourceUrl: item.buyUrl || directInfo.url || existingInCatalog?.sourceUrl
     };
 
@@ -2232,10 +2233,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           <span className="text-slate-400 font-normal">Sob consulta</span>
                         )}
                       </div>
-                      <div className="text-xs text-slate-600 font-semibold flex items-center justify-end gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        <span>{item.store}</span>
-                      </div>
+                      {item.store && item.store.trim() !== '' && (
+                        <div className="text-xs text-slate-600 font-semibold flex items-center justify-end gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          <span>{item.store}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -2255,9 +2258,9 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           target="_blank"
                           rel="noopener noreferrer"
                           className="px-3 py-1.5 bg-white hover:bg-sky-50 text-sky-800 border border-sky-200 hover:border-sky-300 rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 shrink-0"
-                          title={`Abrir página do produto na loja ${item.store}`}
+                          title={item.store ? `Abrir página do produto na loja ${item.store}` : 'Abrir link da oferta'}
                         >
-                          <span>Comprar na {item.store || 'Loja'}</span>
+                          <span>{item.store ? `Comprar na ${item.store}` : 'Ver Oferta'}</span>
                           <ExternalLink className="w-3 h-3 text-sky-600" />
                         </a>
                       )}
