@@ -28,10 +28,12 @@ import {
   Tag,
   Calendar,
   FileSpreadsheet,
-  Clock
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Product } from '../types';
+import { CatalogDuplicatesModal } from './CatalogDuplicatesModal';
 import { 
   saveProducts, 
   deduplicateProductsList,
@@ -104,6 +106,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [isExportingContaAzul, setIsExportingContaAzul] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
+  const [isDuplicatesModalOpen, setIsDuplicatesModalOpen] = useState(false);
 
   // Modal Inteligente de Exportação de Catálogo XLS (Opção B como Padrão Oficial)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -139,6 +142,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           return;
         }
         if (isExportModalOpen) setIsExportModalOpen(false);
+        if (isDuplicatesModalOpen) setIsDuplicatesModalOpen(false);
         if (isAddModalOpen) setIsAddModalOpen(false);
         if (editingProduct) setEditingProduct(null);
       }
@@ -666,6 +670,16 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
           </label>
 
+
+          <button
+            type="button"
+            onClick={() => setIsDuplicatesModalOpen(true)}
+            className="px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+            title="Detectar produtos duplicados e escolher qual manter ou apagar"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+            <span>Detectar Duplicatas</span>
+          </button>
 
           <button
             onClick={handleOpenExportModal}
@@ -1357,6 +1371,33 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Inteligente de Detecção e Limpeza de Duplicatas */}
+      <CatalogDuplicatesModal
+        isOpen={isDuplicatesModalOpen}
+        onClose={() => setIsDuplicatesModalOpen(false)}
+        products={products}
+        onDeleteProduct={async (productId) => {
+          const target = products.find(p => p.id === productId);
+          setProducts(prev => {
+            const next = prev.filter(p => p.id !== productId);
+            saveProducts(next);
+            return next;
+          });
+          if (target) {
+            recordDeletedProduct(target);
+            await deleteProductFromSupabase(target.id, target.sku, target.partNumber, target.name);
+          }
+        }}
+        onUpdateProduct={async (mergedProd) => {
+          setProducts(prev => {
+            const next = prev.map(p => p.id === mergedProd.id ? mergedProd : p);
+            saveProducts(next);
+            return next;
+          });
+          await syncProductToSupabase(mergedProd);
+        }}
+      />
 
     </div>
   );

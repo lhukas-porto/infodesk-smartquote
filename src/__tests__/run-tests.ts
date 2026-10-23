@@ -29,6 +29,7 @@ import './brasiliaShippingDefault.test';
 import './productDescriptionPreservation.test';
 import './excelMultiSheetAndImageImport.test';
 import './visualReferenceScannerIntegration.test';
+import './catalogDuplicatesDetection.test';
 
 console.log('\n======================================================');
 console.log('🏁 SUÍTE COMPLETA DE TESTES EXECUTADA COM 100% DE SUCESSO!');
