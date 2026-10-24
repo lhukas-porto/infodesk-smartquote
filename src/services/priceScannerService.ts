@@ -15,7 +15,8 @@ import {
   buildDirectPurchaseUrl, 
   isExactProductUrl,
   resolveProductModelAndPartNumber,
-  sanitizeSupplierName
+  sanitizeSupplierName,
+  normalizeToOfficialCategory
 } from '../utils/aiEmailParser';
 import { extractImageFromStoreUrl, extractDirectImageFromUrlPatterns } from './imageExtractorService';
 import { DiscoveredProduct } from '../types';
@@ -295,16 +296,30 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
   if (!rawName) return '';
   let name = rawName.trim();
 
-  // 1. Remove artefatos de OCR e marcadores soltos: ".º", "1 .º", "º", "* —", "•", "▪"
+  // 0. Remove artefatos de OCR e marcadores soltos: ".º", "1 .º", "º", "* —", "•", "▪"
   name = name.replace(/(?:\.º|\d+\s*\.º|º|\*\s*—|•|▪|→)/g, ' ');
 
-  // 2. Remove pontuações estranhas e vírgulas
+  // 1. Remove resquícios de quantidade inicial (ex: "10x ", "10 un ", "10 unid ", "10 pçs ", "10 peças ", "10 unidades de ", "05 - ")
+  // Protege produtos cujos nomes/códigos começam com números (ex: 3M, 2040, 1930, 24 Portas, 480GB)
+  name = name.replace(/^(\d+\s*(?:x|unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)\s*(?:de\s+)?[:\-\s]*)/i, '');
+  name = name.replace(/^(\d+\s*[-:]\s*)(?!.*\b(?:3m|2040|1930|24\s*portas|480gb)\b)/i, '');
+
+  // 2. Remove resquícios de quantidade final (ex: " - 10 un", " (10 peças)", " [10 UN]", " | Qtd: 10", " x10")
+  name = name.replace(/([:\-\s|/(\[]+\s*qtd\.?:?\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)?[\)\]]?\s*)$/i, '');
+  name = name.replace(/([:\-\s|/(\[]+\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)[\)\]]?\s*)$/i, '');
+  name = name.replace(/(\s*[\(\[]\s*\d+\s*[\)\]]\s*)$/i, '');
+  name = name.replace(/(\s+[xX]\s*\d+\s*)$/i, '');
+
+  // 3. Remove prefixos genéricos de categoria do início do nome (ex: "Informática: ", "Redes - ", "Ferramentas: ")
+  name = name.replace(/^(?:Inform[aá]tica|Hardware|Perif[eé]ricos|Redes|Conectividade|Telefonia|Ferramentas|Constru[cç][aã]o|Materiais?|Equipamentos?|El[eé]trica|Ilumina[cç][aã]o|Diversos)\s*[-:]\s*/i, '');
+
+  // 4. Remove pontuações estranhas e vírgulas
   name = name.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
-  // 3. Remove frases truncadas de fim de linha comuns em OCR (ex: "pacote com", "kit com", "caixa com" solto no final)
+  // 5. Remove frases truncadas de fim de linha comuns em OCR (ex: "pacote com", "kit com", "caixa com" solto no final)
   name = name.replace(/\s+(?:pacote|kit|caixa|embalagem)\s+(?:com|de)?\s*$/i, '');
 
-  // 4. Correção de prefixos incorretos de categoria:
+  // 6. Correção de prefixos incorretos de categoria:
   // Se o nome começar com "Monitor " mas for uma ventosa, bucha, suporte adesivo, etc.
   if (/^Monitor\s+(?:ventosa|bucha|parafuso|adesivo|pel[ií]cula|presilha|abra[çc]adeira|gancho)/i.test(name)) {
     name = name.replace(/^Monitor\s+/i, '');
@@ -314,7 +329,7 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
     name = name.replace(/^Headset\s+/i, '');
   }
 
-  // 5. Se o nome for longo e contiver frases/verbos descritivos emendados:
+  // 7. Se o nome for longo e contiver frases/verbos descritivos emendados:
   // Ex: "Ventosa de 30mm... produzidas em plástico silicone e pvc cristal garantem boa fixação..."
   const cutMarkers = [
     /\s+produzid[ao]s?\s+em\b/i,
@@ -337,13 +352,13 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
     }
   }
 
-  // 6. Limpeza final de pontuação e capitalização
+  // 8. Limpeza final de pontuação e capitalização
   name = name.replace(/[\.\-\:\,]+$/, '').trim();
   if (name.length > 0) {
     name = name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  // 7. Restaura capitalização oficial de marcas reconhecidas no nome do produto
+  // 9. Restaura capitalização oficial de marcas reconhecidas no nome do produto
   for (const b of RECOGNIZED_BRANDS) {
     const reg = new RegExp(`\\b${b}\\b`, 'gi');
     name = name.replace(reg, b);
@@ -355,7 +370,7 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
     name = name.replace(regB, brand);
   }
 
-  // 8. Restaura siglas e acrônimos técnicos comuns em maiúsculo
+  // 10. Restaura siglas e acrônimos técnicos comuns em maiúsculo
   const techAcronyms = ['USB', 'HDMI', 'VGA', 'DVI', 'P3', 'P2', 'Cat6', 'Cat5e', 'Cat5', 'LED', 'LCD', 'OLED', 'RGB', 'SSD', 'HDD', 'NVMe', 'ABNT2', 'Bivolt', 'Wi-Fi', 'WiFi', 'Bluetooth', 'PoE', 'RJ45', 'RJ11', 'Full HD', '4K'];
   for (const ac of techAcronyms) {
     const reg = new RegExp(`\\b${ac}\\b`, 'gi');
@@ -593,9 +608,30 @@ export async function fetchGoogleShoppingOffers(
       return { bestOffer: null, offers: [] };
     }
     const data = await res.json();
+    const rawBestOffer = data.bestOffer || null;
+    const rawOffers: ShoppingOffer[] = Array.isArray(data.offers) ? data.offers : [];
+
+    // Filtro Anti-Acessórios (Fase 2):
+    // Se o termo de busca for um equipamento principal (Switch, Monitor, Tablet, Nobreak, Computador, Projetor),
+    // impede que ofertas de capinhas, películas, adesivos ou suportes sejam selecionadas como melhor preço.
+    const isAccessoryMismatch = (offerTitle: string, searchTerm: string): boolean => {
+      const q = searchTerm.toLowerCase();
+      const isEquipment = /switch|monitor|nobreak|tablet|notebook|laptop|projetor|smart\s*tv|servidor|computador|pc\b/i.test(q);
+      const isQueryAskingAccessory = /capa|pel[ií]cula|case|suporte|adesivo|bolsa|estojo|adaptador/i.test(q);
+      if (!isEquipment || isQueryAskingAccessory) return false;
+      const t = offerTitle.toLowerCase();
+      return /\b(?:capa\s+para|pel[ií]cula\s+para|case\s+para|suporte\s+(?:de\s+parede|de\s+mesa)\s+para|adesivo\s+para|bolsa\s+para|pelicula)\b/i.test(t);
+    };
+
+    let filteredBestOffer = rawBestOffer;
+    if (rawBestOffer && isAccessoryMismatch(rawBestOffer.title, cleanQ)) {
+      const validOffer = rawOffers.find(o => !isAccessoryMismatch(o.title, cleanQ) && o.price > 0);
+      filteredBestOffer = validOffer || null;
+    }
+
     return {
-      bestOffer: data.bestOffer || null,
-      offers: Array.isArray(data.offers) ? data.offers : []
+      bestOffer: filteredBestOffer,
+      offers: rawOffers.filter(o => !isAccessoryMismatch(o.title, cleanQ))
     };
   } catch (err) {
     console.warn('[Google Shopping API error]:', err);
@@ -606,11 +642,42 @@ export async function fetchGoogleShoppingOffers(
 export interface ParsedBatchQuery {
   query: string;
   quantity: number;
+  unit?: string;
+  partNumber?: string;
 }
 
 /**
- * Parses raw pasted text into individual product queries and their associated quantities.
- * Handles alternating lines (Product \n Quantity or Quantity \n Product), markdown tables, numbered lists.
+ * Normaliza qualquer texto livre de unidade para o padrão oficial do sistema
+ */
+export function normalizeProductUnit(rawUnit?: string): string {
+  if (!rawUnit) return 'Un.';
+  const u = rawUnit.trim().toLowerCase().replace(/[^a-záàâãéèêíïóôõöúçñ]/gi, '');
+  if (/^(cx|cxs|caixa|caixas)$/i.test(u)) return 'Cx.';
+  if (/^(mt|mts|m|metro|metros)$/i.test(u)) return 'Mt.';
+  if (/^(pct|pcts|pacote|pacotes|pcte)$/i.test(u)) return 'Pct.';
+  if (/^(kit|kits)$/i.test(u)) return 'Kit';
+  if (/^(rl|rls|rolo|rolos)$/i.test(u)) return 'Rl.';
+  if (/^(par|pares)$/i.test(u)) return 'Par';
+  if (/^(kg|kgs|quilo|quilos|kilo|kilos)$/i.test(u)) return 'Kg';
+  if (/^(lt|lts|l|litro|litros)$/i.test(u)) return 'Lt.';
+  if (/^(resma|resmas)$/i.test(u)) return 'Resma';
+  if (/^(bloco|blocos)$/i.test(u)) return 'Bloco';
+  if (/^(tubo|tubos)$/i.test(u)) return 'Tubo';
+  return 'Un.';
+}
+
+/**
+ * Motor Avançado de Parsing de Listas de Produtos com Quantidade e Unidade.
+ * Reconhece quantidades em qualquer posição da linha:
+ * - Início: "10x Switch...", "10 un - Cabo...", "10 peças...", "10 - ..."
+ * - Fim: "... - 10 un", "... (10 peças)", "... [10 UN]", "... x10"
+ * - Meio / Tags: "... | Qtd: 10 ...", "... (Qtd: 10) ..."
+ * - Linhas alternadas: Produto \n Quantidade
+ * - Tabelas / Separadores por Tab ou Pipe
+ * 
+ * BLINDAGEM CONTRA FALSOS POSITIVOS:
+ * Protege números que fazem parte do nome, modelo ou especificações do produto:
+ * 3M, 2040, 1930, 2960, 24 Portas, 480GB, 16GB, Cat6, Cat5e, 12V, 220V, 1/2 pol, etc.
  */
 export function parsePastedProductListWithQty(rawText: string): ParsedBatchQuery[] {
   if (!rawText.trim()) return [];
@@ -621,102 +688,209 @@ export function parsePastedProductListWithQty(rawText: string): ParsedBatchQuery
     .filter(Boolean);
 
   const parsedItems: ParsedBatchQuery[] = [];
-  
-  // Detect if line is purely quantity: "10", "6", "10 kits", "10 UN", "6 peças"
+
   const isQtyLine = (line: string): boolean => {
-    return /^\d+(\s*(?:unidades?|un\.?|kits?|pcs?|pçs?|peças?))?$/i.test(line.trim());
+    return /^\d+(\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|pacotes?|cx|cxs|caixas?|metros?|mts?|m|rolos?|rls?|pares?|par|kg|litros?|lts?|l))?$/i.test(line.trim());
   };
 
-  const extractNumberFromQtyLine = (line: string): number => {
+  const extractNumberAndUnitFromQtyLine = (line: string): { qty: number; unit: string } => {
     const m = line.match(/^(\d+)/);
-    return m ? parseInt(m[1], 10) : 1;
+    const qty = m ? parseInt(m[1], 10) : 1;
+    const uMatch = line.match(/^\d+\s*([a-záàâãéèêíïóôõöúçñ]+)/i);
+    const unit = normalizeProductUnit(uMatch ? uMatch[1] : 'Un.');
+    return { qty, unit };
   };
 
   const cleanProductLine = (line: string): string => {
     let clean = line;
-    if (clean.includes('|')) {
-      const parts = clean.split('|').map(p => p.trim()).filter(Boolean);
-      if (parts.length > 0) {
-        if (/^\d+/.test(parts[0]) && parts.length > 1) {
-          clean = parts[1];
-        } else {
-          clean = parts[0];
-        }
-      }
-    }
-    // Strip leading list numbers or bullets: "1. ", "• ", "- ", "* "
+    // Strip leading list numbers or bullets: "1. ", "01 - ", "• ", "- ", "* "
     clean = clean.replace(/^(\d+[\.\)\-:]|\*|\-|\•)\s*/, '').trim();
     return clean;
   };
 
+  // Termos técnicos que, se vierem após um número no início, indicam que o número NÃO é quantidade
+  const isTechnicalUnitOrSpec = (token: string): boolean => {
+    return /^(?:m|v|w|a|hz|khz|mhz|ghz|gb|tb|mb|kb|mm|cm|pol|polegadas?|portas?|p|ch|canais|plus|fps|dpi|k|kv|kva|va|ah|mah|rpm|pinos?)$/i.test(token);
+  };
+
   for (let i = 0; i < rawLines.length; i++) {
-    const line = rawLines[i];
+    let line = rawLines[i];
 
     // Skip markdown table separators or headers
     const isTableSeparator = new RegExp('^\\|?\\s*[-' + ':\\s|]+\\s*\\|?$');
     if (isTableSeparator.test(line)) continue;
     if (/^\|?\s*(produto|descri[cç][aã]o|item|nome|qtd|quantidade|comprar)\s*\|?/i.test(line)) continue;
 
-    // If current line is a pure quantity line, check if previous product needs it
+    // Se a linha for puramente quantidade, associa ao produto anterior se necessário
     if (isQtyLine(line)) {
-      const qty = extractNumberFromQtyLine(line);
+      const { qty, unit } = extractNumberAndUnitFromQtyLine(line);
       if (parsedItems.length > 0 && parsedItems[parsedItems.length - 1].quantity === 1) {
         parsedItems[parsedItems.length - 1].quantity = qty;
+        if (unit !== 'Un.') {
+          parsedItems[parsedItems.length - 1].unit = unit;
+        }
       }
       continue;
     }
 
-    // Explicit pipe or tag quantity: "| Qtd: 500 pct", "| Qtd: 10 cx", "Qtd: 50 un"
-    const explicitQtdMatch = line.match(/(?:\||\b)\s*qtd\.?:?\s*(\d+)(?:\s*(?:pct|pcts|pacotes?|cx|cxs|caixas?|unidades?|un\.?|kits?|pcs?|pçs?|displays?|peças?))?/i);
+    let detectedQty = 1;
+    let detectedUnit = 'Un.';
+    let cleanText = line;
+
+    // 1. Suporte a colunas separadas por TAB (\t) de planilhas Excel / Google Sheets
+    if (cleanText.includes('\t')) {
+      const cols = cleanText.split('\t').map(c => c.trim()).filter(Boolean);
+      if (cols.length >= 2) {
+        let bestText = '';
+        cols.forEach(col => {
+          if (/^\d+$/.test(col)) {
+            const val = parseInt(col, 10);
+            if (val > 0 && val < 5000) detectedQty = val;
+          } else if (/^(un|und|cx|pct|mt|kit|rl|par|kg|lt)$/i.test(col)) {
+            detectedUnit = normalizeProductUnit(col);
+          } else if (col.length > bestText.length) {
+            bestText = col;
+          }
+        });
+        if (bestText.length >= 3) {
+          cleanText = bestText;
+        }
+      }
+    }
+
+    // 2. Extração de tag explícita de Quantidade: "| Qtd: 10 cx", "Qtd: 50 un", "(Qtd: 5)", "Qtde: 2"
+    const explicitQtdMatch = cleanText.match(/(?:\||\b|\()\s*(?:qtd|qtde|qde|quantidade)\.?:?\s*(\d+)(?:\s*(pct|pcts|pacotes?|cx|cxs|caixas?|unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|metros?|mts?|rolos?|rls?|pares?|par|kg|litros?|lts?))?\s*\)?/i);
     if (explicitQtdMatch) {
-      const qty = parseInt(explicitQtdMatch[1], 10) || 1;
-      let cleanProd = line.replace(/(?:\||\b)\s*qtd\.?:?\s*(\d+)(?:\s*(?:pct|pcts|pacotes?|cx|cxs|caixas?|unidades?|un\.?|kits?|pcs?|pçs?|displays?|peças?))?/i, '').trim();
-      cleanProd = cleanProductLine(cleanProd);
-      if (cleanProd.length >= 3) {
-        parsedItems.push({ query: cleanProd, quantity: qty });
-        continue;
+      detectedQty = parseInt(explicitQtdMatch[1], 10) || 1;
+      if (explicitQtdMatch[2]) {
+        detectedUnit = normalizeProductUnit(explicitQtdMatch[2]);
+      }
+      cleanText = cleanText.replace(explicitQtdMatch[0], ' ').trim();
+    }
+
+    // 3. Extração de Quantidade no INÍCIO da Linha:
+    // Deve preceder o final da linha para não confundir dimensões finais (ex: 305m, 100m) com quantidade
+    // Ex: "10x Switch...", "5 un - Cabo...", "10 peças de...", "8 - Nobreak..."
+    if (detectedQty === 1) {
+      // 3.1 Multiplicador com 'x' no início: "10x Switch Cisco 24 portas"
+      const leadingMultiplierMatch = cleanText.match(/^(\d+)\s*[xX]\s+(.+)/);
+      if (leadingMultiplierMatch) {
+        detectedQty = parseInt(leadingMultiplierMatch[1], 10) || 1;
+        detectedUnit = 'Un.';
+        cleanText = leadingMultiplierMatch[2].trim();
+      } else {
+        // 3.2 Unidade comercial explícita no início: "5 un - Cabo...", "3 caixas de...", "100 metros de..."
+        const leadingWithUnitMatch = cleanText.match(/^(\d+)\s*(unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|pacotes?|cx|cxs|caixas?|metros?|mts?|rolos?|rls?|pares?|par\b|kg|quilos?|litros?|lts?)\b(?:\s*de)?[:\-\s]*\s*(.+)/i);
+        if (leadingWithUnitMatch) {
+          detectedQty = parseInt(leadingWithUnitMatch[1], 10) || 1;
+          detectedUnit = normalizeProductUnit(leadingWithUnitMatch[2]);
+          cleanText = leadingWithUnitMatch[3].trim();
+        } else {
+          // 3.3 Hífen ou dois pontos após número: "8 - Nobreak SMS 1200VA Bivolt"
+          const leadingDashMatch = cleanText.match(/^(\d+)\s*[-:]\s*(.+)/);
+          if (leadingDashMatch) {
+            const val = parseInt(leadingDashMatch[1], 10);
+            const firstWord = leadingDashMatch[2].split(/\s+/)[0] || '';
+            // Protege códigos com hífen como "2040 - Perfil", "1930 - Switch" ou "3M - Fita"
+            if (val > 0 && val < 1000 && !isTechnicalUnitOrSpec(firstWord) && !/^(?:3M|3Com)\b/i.test(firstWord)) {
+              detectedQty = val;
+              cleanText = leadingDashMatch[2].trim();
+            }
+          } else {
+            // 3.4 Número puro no início seguido de espaço e letra: "10 Switch Cisco 24 portas"
+            const leadingBareNumMatch = cleanText.match(/^(\d+)\s+([A-Za-zÀ-ÿ].+)/);
+            if (leadingBareNumMatch) {
+              const val = parseInt(leadingBareNumMatch[1], 10);
+              const remaining = leadingBareNumMatch[2].trim();
+              const firstToken = remaining.split(/\s+/)[0] || '';
+
+              // BLINDAGEM CONTRA NÚMEROS DE PRODUTOS:
+              // - Modelos e números altos: 1930, 2040, 2960, 9200
+              // - Marcas iniciadas por número: 3M, 3Com, 10Gtek
+              // - Unidades técnicas anexadas: 480GB, 16GB, 12V, 220V, 2.5mm
+              // - Especificações dimensionais: Portas, Pinos, Pol, Polegadas, FPS, DPI, Canais
+              const isProtectedProductNumber =
+                val >= 1000 ||
+                isTechnicalUnitOrSpec(firstToken) ||
+                /^(?:3M|3Com|10Gtek)\b/i.test(cleanText) ||
+                /^(?:m|com|gtek)$/i.test(firstToken) ||
+                /^(?:portas?|pinos?|pol|polegadas?|fps|dpi|canais)$/i.test(firstToken);
+
+              if (val > 0 && val <= 500 && !isProtectedProductNumber) {
+                detectedQty = val;
+                cleanText = remaining;
+              }
+            }
+          }
+        }
       }
     }
 
-    // Check if line starts with quantity then product (e.g. "10 - Caixa organizadora...")
-    const leadingQtyMatch = line.match(/^(\d+)\s*(?:un|x|unidades?|kits?|pçs?|pecas?|pct|pcts|cx|caixas?)?[:\-\s]\s*(.+)/i);
-    if (leadingQtyMatch) {
-      const qty = parseInt(leadingQtyMatch[1], 10) || 1;
-      let cleanProd = cleanProductLine(leadingQtyMatch[2]);
-      // Also check trailing qty inside the rest
-      const trailingMatch = cleanProd.match(/[:\-\s]+(\d+)\s*(?:unidades?|un\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx)\s*$/i);
-      if (trailingMatch) {
-        cleanProd = cleanProd.substring(0, trailingMatch.index).trim();
-      }
-      if (cleanProd.length >= 3) {
-        parsedItems.push({ query: cleanProd, quantity: qty });
-        continue;
+    // 4. Extração de Quantidade no FINAL da Linha (apenas se não detectou no início):
+    // Ex: "Switch Cisco - 10 un", "Cabo Furukawa [3 cx]", "Item XYZ (10 peças)", "Item x8"
+    if (detectedQty === 1) {
+      // 4.1 Trailing com unidade explícita (usa metros/mts para não colidir com '305m' ou '20m')
+      const trailingWithUnitMatch = cleanText.match(/[:\-\s|/(\[]+\s*(\d+)\s*(unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|pacotes?|cx|cxs|caixas?|metros?|mts?|rolos?|rls?|pares?|par\b|kg|litros?|lts?)\s*[\)\]]?\s*$/i);
+      if (trailingWithUnitMatch) {
+        detectedQty = parseInt(trailingWithUnitMatch[1], 10) || 1;
+        detectedUnit = normalizeProductUnit(trailingWithUnitMatch[2]);
+        cleanText = cleanText.substring(0, trailingWithUnitMatch.index).trim();
+      } else {
+        // 4.2 Multiplicador no final: "Memória RAM 16GB DDR4 Kingston x8"
+        const trailingMultiplierMatch = cleanText.match(/\s+[xX]\s*(\d+)\s*$/);
+        if (trailingMultiplierMatch) {
+          detectedQty = parseInt(trailingMultiplierMatch[1], 10) || 1;
+          cleanText = cleanText.substring(0, trailingMultiplierMatch.index).trim();
+        } else {
+          // 4.3 Quantidade entre parênteses ou colchetes: "(5 peças)", "[10]"
+          const trailingParenQtyMatch = cleanText.match(/\s*[\(\[]\s*(\d+)\s*(?:un|und|pcs|pçs|peças?|itens)?\s*[\)\]]\s*$/i);
+          if (trailingParenQtyMatch) {
+            detectedQty = parseInt(trailingParenQtyMatch[1], 10) || 1;
+            cleanText = cleanText.substring(0, trailingParenQtyMatch.index).trim();
+          } else {
+            // 4.4 Trailing com hífen explícito e número isolado: "Switch Cisco - 10"
+            const trailingDashNumMatch = cleanText.match(/[:\-\s|]+\s*(\d+)\s*$/);
+            if (trailingDashNumMatch && cleanText.includes('-')) {
+              const val = parseInt(trailingDashNumMatch[1], 10);
+              // Proteção: não remove números de modelo no final como "- 480" ou "- 24" se for código
+              if (val > 0 && val <= 500 && !/\b(?:cbs\d+|sg\d+|cat\d+|ddr\d+)-/i.test(cleanText)) {
+                detectedQty = val;
+                cleanText = cleanText.substring(0, trailingDashNumMatch.index).trim();
+              }
+            }
+          }
+        }
       }
     }
 
-    // Check next line to see if it's the quantity for this product
-    let assignedQty = 1;
-    if (i + 1 < rawLines.length && isQtyLine(rawLines[i + 1])) {
-      assignedQty = extractNumberFromQtyLine(rawLines[i + 1]);
-      i++; // consume quantity line
-    }
-
-    let clean = cleanProductLine(line);
-
-    // Check trailing quantity in the line itself: "REF.: BERMAD: 2 UNIDADES", "- 2 UNIDADES", "PT 1 UN", "500 pct"
-    const trailingQtyMatch = clean.match(/[:\-\s|]+(\d+)\s*(?:unidades?|un\.?|kits?|pcs?|pçs?|peças?|pct|pcts|pacotes?|cx|cxs|caixas?)\s*$/i);
-    if (trailingQtyMatch) {
-      if (assignedQty === 1) {
-        assignedQty = parseInt(trailingQtyMatch[1], 10) || 1;
+    // 5. Se a quantidade ainda for 1, verifica se a próxima linha é uma linha de quantidade
+    if (detectedQty === 1 && i + 1 < rawLines.length && isQtyLine(rawLines[i + 1])) {
+      const nextLineData = extractNumberAndUnitFromQtyLine(rawLines[i + 1]);
+      detectedQty = nextLineData.qty;
+      if (nextLineData.unit !== 'Un.') {
+        detectedUnit = nextLineData.unit;
       }
-      clean = clean.substring(0, trailingQtyMatch.index).trim();
+      i++; // consome a linha de quantidade
     }
 
-    // Also strip trailing package indicators like "- PT 1 UN" or "- KT 5 UN" if still present
-    clean = clean.replace(/[-–]\s*(?:PT|KT|CX|PC)\s*\d*\s*(?:UN|PC|PÇ)?$/i, '').trim();
+    // Limpa a query de lixos e pipes restantes
+    let finalQuery = cleanProductLine(cleanText);
+    if (finalQuery.includes('|')) {
+      const parts = finalQuery.split('|').map(p => p.trim()).filter(Boolean);
+      if (parts.length > 0) {
+        finalQuery = parts[0];
+      }
+    }
 
-    if (clean.length >= 3) {
-      parsedItems.push({ query: clean, quantity: assignedQty });
+    // Remove eventuais tags soltas de pacote
+    finalQuery = finalQuery.replace(/[-–]\s*(?:PT|KT|CX|PC)\s*\d*\s*(?:UN|PC|PÇ)?$/i, '').trim();
+
+    if (finalQuery.length >= 3) {
+      parsedItems.push({
+        query: finalQuery,
+        quantity: detectedQty,
+        unit: detectedUnit
+      });
     }
   }
 
@@ -2144,11 +2318,23 @@ const ARCHETYPE_RULES: Record<string, ArchetypeRule> = {
  * Cruza termos com catálogo canônico e regras determinísticas.
  * Nunca retorna campos em branco, garantindo 100% de estabilidade ao usuário.
  */
-export function enrichProductHeuristically(rawQuery: string, quantity: number = 1): HeuristicEnrichedProduct {
+export function enrichProductHeuristically(rawQuery: string, quantity: number = 1, unit?: string): HeuristicEnrichedProduct {
   const norm = rawQuery.toLowerCase().trim();
+  const finalUnit = normalizeProductUnit(unit || (
+    norm.includes('cx') || norm.includes('caixa') ? 'Cx.' :
+    norm.includes('metro') || norm.includes('mt') ? 'Mt.' :
+    norm.includes('pct') || norm.includes('pacote') ? 'Pct.' :
+    norm.includes('kit') ? 'Kit' :
+    norm.includes('rolo') || norm.includes('rl') ? 'Rl.' :
+    norm.includes('par') ? 'Par' : 'Un.'
+  ));
 
-  // Limpeza de quantidade do texto ("40 unidades", "40 un", "10 pçs")
+  // Limpeza de quantidade do texto ("40 unidades", "40 un", "10 pçs", "10x")
   const cleanQuery = rawQuery
+    .replace(/^(\d+\s*(?:x|unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)\s*(?:de\s+)?[:\-\s]*)/i, '')
+    .replace(/^(\d+\s*[-:]\s*)(?!.*\b(?:3m|2040|1930|24\s*portas|480gb)\b)/i, '')
+    .replace(/([:\-\s|/(\[]+\s*qtd\.?:?\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)?[\)\]]?\s*)$/i, '')
+    .replace(/([:\-\s|/(\[]+\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)[\)\]]?\s*)$/i, '')
     .replace(/\b\d+\s*(?:unidades?|un\.?|pcts?|pacotes?|cx|cxs|caixas?|kits?|pcs?|pçs?|peças?)\b/gi, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
@@ -2173,7 +2359,7 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
         description: prod.description || '',
         specifications: prod.specifications || [],
         quantity: quantity > 0 ? quantity : 1,
-        unit: 'Un.',
+        unit: finalUnit,
         confidence: 'Alta - Ficha Técnica Reconhecida (Catálogo Canônico)'
       };
     }
@@ -2324,7 +2510,7 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       description: desc,
       specifications: specs,
       quantity: quantity > 0 ? quantity : 1,
-      unit: 'Un.',
+      unit: finalUnit,
       confidence: 'Alta - Ficha Técnica Estruturada'
     };
   }
@@ -2360,7 +2546,7 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
     description: arch.description(brand, model, cleanQuery),
     specifications: arch.specs,
     quantity: quantity > 0 ? quantity : 1,
-    unit: 'Un.',
+    unit: finalUnit,
     confidence: 'Alta - Ficha Técnica Heurística Estruturada'
   };
 }
@@ -2437,18 +2623,32 @@ TIPO B — FOTOS REAIS DO MESMO OBJETO FÍSICO:
 Receberá uma solicitação de produtos (podendo conter ${imgDataList.length > 0 ? `${imgDataList.length} fotos reais de produtos anexadas` : 'nenhuma foto'} e/ou um texto descritivo do comprador com um ou vários itens).
 ${photoPrioritySection}
 ${hybridRuleSection}
-SUA MISSÃO NA FASE 1: DEDUZIR E ENRIQUECER O(S) PRODUTO(S) COM FICHA TÉCNICA 360° COMPLETA (SISTEMÁTICA INFODESK STORE).
-LEMBRE-SE: Se a imagem for um print de tela, documento ou tabela com múltiplos itens separados por linhas horizontais, você DEVE RETORNAR CADA ITEM SEPARADAMENTE no array "products" (ex: 4 linhas de produtos = 4 produtos distintos)! Somente unifique em 1 produto se forem diferentes ângulos físicos de um mesmo objeto.
+SUA MISSÃO NA FASE 1: DEDUZIR E ENRIQUECER CADA PRODUTO COM FICHA TÉCNICA 360° COMPLETA (SISTEMÁTICA INFODESK STORE).
+
+🚨 REGRAS MANDATÓRIAS DE SEPARAÇÃO vs. CONSOLIDAÇÃO (PRIORIDADE MÁXIMA):
+1. SE A ENTRADA FOR UMA LISTA (várias linhas, itens numerados 1., 2., marcadores -, *, tabelas ou múltiplos produtos no texto):
+   - VOCÊ DEVE OBRIGATORIAMENTE RETORNAR CADA ITEM COMO UM OBJETO SEPARADO NO ARRAY "products"!
+   - Se o comprador listou 4 produtos, retorne EXATAMENTE 4 produtos distintos no array "products"! NUNCA agrupe itens diferentes de uma lista em 1 só!
+2. EXTRAÇÃO DE QUANTIDADE E UNIDADE NA MESMA LINHA:
+   - Extraia a quantidade numérica ("quantity") e a unidade ("unit") em qualquer posição que ela estiver na linha (ex: "10x", "5 un", "10 peças", "(Qtd: 4)", "20 metros", "3 caixas").
+   - IMPORTANTE: O "standardizedName" NÃO PODE CONTER a quantidade nem a unidade! Remova prefixos/sufixos de quantidade do nome comercial.
+     Exemplo: Se o texto for "10x Switch Cisco 24 portas" ou "Switch Cisco 24 portas - 10 un", retorne:
+     - "standardizedName": "Switch Cisco Business CBS250-24T-4G 24 Portas Gigabit"
+     - "quantity": 10
+     - "unit": "Un."
+3. CONSOLIDAÇÃO DE FOTOS ÚNICAS:
+   - Retorne 1 único produto consolidado se e somente se as fotos anexadas forem diferentes ângulos de um MESMO E ÚNICO produto físico ou se o texto descrever 1 único item.
 
 DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
 - "isFromPhoto": Booleano (true se o produto corresponde ou foi enriquecido pelas fotos anexadas, false se for estritamente do texto sem fotos).
 - "photoIndex": Número inteiro (0 para foto principal ou -1 se não houver fotos).
 - "standardizedName": TÍTULO COMERCIAL PADRONIZADO E CONCISO (máximo 5 a 15 palavras). Padrão: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. Exemplo CORRETO de Ventosa: "Ventosa de Silicone e PVC Cristal 30mm Transparente com Furo 2.5mm".
   REGRAS CRÍTICAS DO NOME:
-  1. NUNCA coloque parágrafos, frases descritivas ("garantem boa fixação", "adequado para utilizar em display"), tópicos ou listas de atributos dentro do nome! O nome deve ser limpo e conciso.
-  2. NUNCA insira prefixos de categoria incorretos! Por exemplo: uma ventosa de silicone usada para apoiar display de acrílico ou tampo de vidro NÃO é um "Monitor ventosa"! Uma ventosa é uma ventosa de fixação. Analise a real natureza física do produto.
-  3. NUNCA inclua lixo de OCR ou caracteres truncados (ex: ".º", "1 .º", "º", "* —", frases cortadas como "pacote com").
-  4. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
+  1. NUNCA coloque quantidades, prefixos como "10x", "5 un" ou resquícios numéricos no nome! A quantidade deve ir estritamente no campo "quantity".
+  2. NUNCA coloque parágrafos, frases descritivas ("garantem boa fixação", "adequado para utilizar em display"), tópicos ou listas de atributos dentro do nome! O nome deve ser limpo e conciso.
+  3. NUNCA insira prefixos de categoria incorretos! Por exemplo: uma ventosa de silicone usada para apoiar display de acrílico ou tampo de vidro NÃO é um "Monitor ventosa"! Uma ventosa é uma ventosa de fixação. Analise a real natureza física do produto.
+  4. NUNCA inclua lixo de OCR ou caracteres truncados (ex: ".º", "1 .º", "º", "* —", frases cortadas como "pacote com").
+  5. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
 - "brand": Marca comercial oficial ou "Genérica" se sem marca visível.
 - "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
 - "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA - REGRA INFODESK):
@@ -2458,13 +2658,13 @@ DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
   1. Extraia o Part Number, Código de Referência, SKU ou P/N se constar na descrição (ex: 'P/N: 920-009599', 'Ref: 23400198', 'Cód: 15724', 'SNV2S/1000G').
   2. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D', 'E20'), use a sigla/código de referência do modelo como Part Number (ex: 'M2S', 'P2723D', 'E20') para servir como código oficial da peça.
   3. Se não houver Part Number de fábrica, utilize o modelo identificado para o produto NUNCA ficar sem código de identificação.
-- "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. ATENÇÃO: Ventosas, fixadores, buchas e suportes pertencem a "Construção, Acabamento & Marcenaria" ou "Equipamentos & Insumos Industriais", NUNCA a "Monitores, Displays & TVs"! NUNCA crie categorias fora desta lista.
-- "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40).
+- "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as 15 categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. ATENÇÃO: Ventosas, fixadores, buchas e suportes pertencem a "Construção, Acabamento & Marcenaria" ou "Equipamentos & Insumos Industriais", NUNCA a "Monitores, Displays & TVs"! NUNCA crie categorias fora desta lista.
+- "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40, 8544.42.00, 8517.62.59).
 - "ean": Código de barras EAN se conhecido, senão "".
 - "weight": Peso aproximado da embalagem para frete em kg (ex: "14.500 kg", "0.200 kg").
 - "dimensions": Dimensões aproximadas no formato "CxLxA cm" (ex: "80cm x 60cm x 90cm").
-- "quantity": Quantidade identificada (número inteiro >= 1, default 1).
-- "unit": Unidade ("Un.", "Pct", "Cx", etc.).
+- "quantity": Quantidade numérica inteira extraída do pedido/linha (número inteiro >= 1, default 1).
+- "unit": Unidade comercial oficial ("Un.", "Cx.", "Mt.", "Pct.", "Kit", "Rl.", "Par", "Kg", "Lt.").
 - "suggestedPrice": Preço sugerido de mercado em Reais (número decimal, ex: 349.90).
 - "costPrice": Preço de custo estimado de atacado/distribuidor em Reais (número decimal, ex: 220.00).
 - "confidence": "Alta"
@@ -2568,18 +2768,58 @@ Retorne ESTRITAMENTE um JSON no formato:
         }
 
         const parsed = JSON.parse(jsonMatch[0]);
-        const list = Array.isArray(parsed.products) ? parsed.products : (parsed.standardizedName ? [parsed] : []);
+        let list = Array.isArray(parsed.products) ? parsed.products : (parsed.standardizedName ? [parsed] : []);
 
         if (list.length === 0) {
           console.error(`[Phase1][${model}] Gemini retornou lista vazia de produtos. JSON:`, rawOutput.slice(0, 200));
           continue;
         }
 
+        const preParsedQueries = parsePastedProductListWithQty(rawText);
+
+        // RECONCILIAÇÃO DETERMINÍSTICA DE QUANTIDADE E UNIDADE:
+        if (preParsedQueries.length > 0) {
+          if (list.length === preParsedQueries.length) {
+            list.forEach((item: any, i: number) => {
+              const pre = preParsedQueries[i];
+              if (pre && pre.quantity > 1 && (!item.quantity || item.quantity === 1)) {
+                item.quantity = pre.quantity;
+              }
+              if (pre && pre.unit && pre.unit !== 'Un.' && (!item.unit || item.unit === 'Un.')) {
+                item.unit = pre.unit;
+              }
+            });
+          } else if (list.length === 1 && preParsedQueries.length >= 2 && imgDataList.length === 0) {
+            // Se o usuário colou 2+ itens e o Gemini indevidamente consolidou em 1 item:
+            console.warn(`[Phase1][${model}] Gemini consolidou ${preParsedQueries.length} itens em 1. Acionando divisão determinística.`);
+            list = preParsedQueries.map((p) => {
+              const enriched = enrichProductHeuristically(p.query, p.quantity, p.unit);
+              return {
+                standardizedName: enriched.standardizedName,
+                brand: enriched.brand,
+                manufacturer: enriched.manufacturer,
+                model: enriched.model,
+                partNumber: enriched.partNumber,
+                category: enriched.category,
+                ncm: enriched.ncm,
+                weight: enriched.weight,
+                dimensions: enriched.dimensions,
+                quantity: p.quantity,
+                unit: p.unit || 'Un.',
+                suggestedPrice: enriched.suggestedPrice,
+                costPrice: enriched.costPrice,
+                description: enriched.description,
+                specifications: enriched.specifications
+              };
+            });
+          }
+        }
+
         if (list.length > 0) {
           const results = await Promise.all(
             list.map(async (item: any, idx: number) => {
               const brand = (item.brand || 'Genérica').trim();
-              let category = (item.category || 'Ferramentas & Instrumentos de Medição').trim();
+              let category = normalizeToOfficialCategory(item.category || 'Ferramentas & Instrumentos de Medição');
               if (/ventosa|fixador|apoio\s+de\s+vidro/i.test(item.standardizedName || rawText) && category.toLowerCase().includes('monitor')) {
                 category = 'Construção, Acabamento & Marcenaria';
               }
@@ -2684,8 +2924,8 @@ Retorne ESTRITAMENTE um JSON no formato:
                 ean: (item.ean || '').trim(),
                 weight: normalizeWeight(item.weight),
                 dimensions: normalizeDimensions(item.dimensions),
-                quantity: typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : 1,
-                unit: (item.unit || 'Un.').trim(),
+                quantity: typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : (preParsedQueries[idx]?.quantity || 1),
+                unit: normalizeProductUnit(item.unit || preParsedQueries[idx]?.unit || 'Un.'),
                 suggestedPrice: typeof item.suggestedPrice === 'number' && item.suggestedPrice > 0 ? item.suggestedPrice : undefined,
                 costPrice: typeof item.costPrice === 'number' && item.costPrice > 0 ? item.costPrice : undefined,
                 confidence: isFromPhoto ? 'Alta - Identificado pela Foto do Produto' : 'Alta - Identificado da Descrição Escrita',
@@ -2722,12 +2962,13 @@ Retorne ESTRITAMENTE um JSON no formato:
     '| Circuit Breaker ativo:', isGeminiCircuitBreakerActive()
   );
   const parsedItems = parsePastedProductListWithQty(rawText);
-  const itemsToProcess: Array<{ query: string; quantity: number; isPhoto?: boolean; photoIndex?: number }> = [];
+  const itemsToProcess: Array<{ query: string; quantity: number; unit?: string; isPhoto?: boolean; photoIndex?: number }> = [];
 
   imgDataList.forEach((_, pIdx) => {
     itemsToProcess.push({
       query: imgDataList.length === 1 ? 'Produto Identificado na Foto Anexada' : `Produto Identificado na Foto #${pIdx + 1}`,
       quantity: 1,
+      unit: 'Un.',
       isPhoto: true,
       photoIndex: pIdx
     });
@@ -2737,6 +2978,7 @@ Retorne ESTRITAMENTE um JSON no formato:
     itemsToProcess.push({
       query: it.query,
       quantity: it.quantity || 1,
+      unit: it.unit || 'Un.',
       isPhoto: false,
       photoIndex: -1
     });
@@ -2746,6 +2988,7 @@ Retorne ESTRITAMENTE um JSON no formato:
     itemsToProcess.push({
       query: rawText || 'Produto Desconhecido',
       quantity: 1,
+      unit: 'Un.',
       isPhoto: imgDataList.length > 0,
       photoIndex: imgDataList.length > 0 ? 0 : -1
     });
@@ -2753,7 +2996,7 @@ Retorne ESTRITAMENTE um JSON no formato:
 
   return await Promise.all(
     itemsToProcess.map(async (it, idx) => {
-      const enriched = enrichProductHeuristically(it.query, it.quantity);
+      const enriched = enrichProductHeuristically(it.query, it.quantity, it.unit);
       const stdName = enriched.standardizedName || formatProductSentenceCase(normalizeSearchTerm(it.query));
       const category = enriched.category;
       const brand = enriched.brand;
@@ -2784,8 +3027,8 @@ Retorne ESTRITAMENTE um JSON no formato:
         ncm: cleanNcmCode(enriched.ncm),
         weight: normalizeWeight(enriched.weight),
         dimensions: normalizeDimensions(enriched.dimensions),
-        quantity: it.quantity || enriched.quantity || 1,
-        unit: enriched.unit || 'Un.',
+        quantity: it.quantity > 0 ? it.quantity : (enriched.quantity || 1),
+        unit: it.unit || enriched.unit || 'Un.',
         suggestedPrice: enriched.suggestedPrice,
         costPrice: enriched.costPrice,
         confidence: (it.isPhoto ? 'Alta - Identificado pela Foto' : enriched.confidence) as any,
@@ -2950,7 +3193,11 @@ export async function phase2EnrichAndScanPrice(
   const models = MODERN_GEMINI_MODELS;
 
   // 0. Busca em tempo real no Google Shopping Brasil (Produtos Patrocinados e Carrossel de Menor Preço)
-  const shoppingSearchTerm = (discovered as any).visualSearchQuery || [discovered.brand, (discovered as any).model, (discovered as any).partNumber, discovered.standardizedName].filter(Boolean).join(' ') || discovered.standardizedName;
+  const cleanStdName = sanitizeStandardizedProductName(discovered.standardizedName, discovered.category, discovered.brand);
+  const pnToken = (discovered as any).partNumber && !cleanStdName.toLowerCase().includes(((discovered as any).partNumber || '').toLowerCase())
+    ? (discovered as any).partNumber
+    : '';
+  const shoppingSearchTerm = (discovered as any).visualSearchQuery || [pnToken, cleanStdName].filter(Boolean).join(' ') || cleanStdName;
   let googleShoppingResult: { bestOffer: ShoppingOffer | null; offers: ShoppingOffer[] } = { bestOffer: null, offers: [] };
   try {
     googleShoppingResult = await fetchGoogleShoppingOffers(shoppingSearchTerm);

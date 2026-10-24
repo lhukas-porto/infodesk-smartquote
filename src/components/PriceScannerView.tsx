@@ -24,7 +24,8 @@ import {
   Database,
   RefreshCw,
   FileSpreadsheet,
-  FileUp
+  FileUp,
+  Pencil
 } from 'lucide-react';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
 import { Product, QuoteItem } from '../types';
@@ -533,6 +534,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   const [discoveredProducts, setDiscoveredProducts] = useState<DiscoveredProduct[]>([]);
   const [isDiscoveringPhase1, setIsDiscoveringPhase1] = useState(false);
   const [phase1StatusMessage, setPhase1StatusMessage] = useState('');
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
 
   // OCR Image Transcription State
   const [isOcrProcessing, setIsOcrProcessing] = useState(false);
@@ -1958,10 +1960,54 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           </div>
                         )}
 
-                        {/* Title */}
-                        <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug mt-1 mb-2">
-                          {prod.standardizedName}
-                        </h3>
+                        {/* Title com Edição Inline Ágil */}
+                        {editingTitleId === prod.id ? (
+                          <div className="flex items-center gap-2 mt-1 mb-2">
+                            <input
+                              type="text"
+                              defaultValue={prod.standardizedName}
+                              onBlur={(e) => {
+                                const val = e.target.value.trim();
+                                if (val) handleUpdateDiscoveredProduct(prod.id, { standardizedName: val });
+                                setEditingTitleId(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const val = (e.target as HTMLInputElement).value.trim();
+                                  if (val) handleUpdateDiscoveredProduct(prod.id, { standardizedName: val });
+                                  setEditingTitleId(null);
+                                } else if (e.key === 'Escape') {
+                                  setEditingTitleId(null);
+                                }
+                              }}
+                              autoFocus
+                              className="w-full text-sm sm:text-base font-bold text-slate-900 border-2 border-emerald-500 focus:ring-2 focus:ring-emerald-200 rounded-xl px-3 py-1.5 bg-white shadow-xs"
+                              title="Editar título comercial do produto"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setEditingTitleId(null)}
+                              className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition cursor-pointer shadow-xs shrink-0"
+                              title="Salvar título comercial"
+                            >
+                              <Check className="w-4 h-4 stroke-[3]" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group mt-1 mb-2">
+                            <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug">
+                              {prod.standardizedName}
+                            </h3>
+                            <button
+                              type="button"
+                              onClick={() => setEditingTitleId(prod.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
+                              title="Clique para editar o título deste produto"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
 
                         {/* Description */}
                         {prod.description && (
