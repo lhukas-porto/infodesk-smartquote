@@ -648,7 +648,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-16">
+    <div className="space-y-3.5 animate-fadeIn pb-12">
 
       {/* Toast */}
       {toastMessage && (
@@ -658,70 +658,54 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      {/* Header Unificado & Métricas Compactas em Linha */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="sq-page-title">Empresas &amp; Compradores</h1>
-          </div>
+          <h1 className="sq-page-title">Empresas &amp; Compradores</h1>
           <p className="sq-page-subtitle">Gestão centralizada de clientes, compradores e locais de entrega.</p>
         </div>
-      </div>
 
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="sq-metric-card">
-          <div className="flex items-center justify-between mb-1">
-            <span className="sq-metric-label">Empresas</span>
-            <Building className="w-4 h-4 text-sky-600" />
+        {/* Métricas Compactas em Linha */}
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap shrink-0">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/90 rounded-xl transition">
+            <span className="p-1 bg-white text-sky-600 rounded-lg border border-slate-200 shadow-2xs">
+              <Building className="w-3.5 h-3.5" />
+            </span>
+            <div className="leading-tight">
+              <span className="text-[9.5px] uppercase font-bold text-slate-400 block tracking-wider">Empresas</span>
+              <span className="text-xs sm:text-sm font-extrabold text-slate-900 font-mono">{totalCompanies}</span>
+            </div>
           </div>
-          <div className="sq-metric-value">{totalCompanies}</div>
-          <div className="sq-metric-sub">Clientes e órgãos</div>
-        </div>
-        <div className="sq-metric-card">
-          <div className="flex items-center justify-between mb-1">
-            <span className="sq-metric-label">Compradores</span>
-            <Users className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="sq-metric-value">{totalContacts}</div>
-          <div className="sq-metric-sub">Contatos ativos</div>
-        </div>
-        <div className="sq-metric-card">
-          <div className="flex items-center justify-between mb-1">
-            <span className="sq-metric-label">Praças</span>
-            <MapPin className="w-4 h-4 text-indigo-600" />
-          </div>
-          <div className="sq-metric-value">{uniqueLocationsCount}</div>
-          <div className="sq-metric-sub">Cidades atendidas</div>
-        </div>
-      </div>
 
-      {/* Search */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="relative w-full md:w-96">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            className="sq-input pl-10"
-          />
-          {searchFilter && (
-            <button onClick={() => setSearchFilter('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold">✕</button>
-          )}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/90 rounded-xl transition">
+            <span className="p-1 bg-white text-emerald-600 rounded-lg border border-slate-200 shadow-2xs">
+              <Users className="w-3.5 h-3.5" />
+            </span>
+            <div className="leading-tight">
+              <span className="text-[9.5px] uppercase font-bold text-slate-400 block tracking-wider">Compradores</span>
+              <span className="text-xs sm:text-sm font-extrabold text-slate-900 font-mono">{totalContacts}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/90 rounded-xl transition">
+            <span className="p-1 bg-white text-indigo-600 rounded-lg border border-slate-200 shadow-2xs">
+              <MapPin className="w-3.5 h-3.5" />
+            </span>
+            <div className="leading-tight">
+              <span className="text-[9.5px] uppercase font-bold text-slate-400 block tracking-wider">Praças</span>
+              <span className="text-xs sm:text-sm font-extrabold text-slate-900 font-mono">{uniqueLocationsCount}</span>
+            </div>
+          </div>
         </div>
-        <span className="text-xs text-slate-500 hidden md:block">
-          {filteredCompanies.length} empresa(s) · {allBuyers.length} comprador(es)
-        </span>
       </div>
 
       {/* Master-Detail Layout */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col lg:grid lg:grid-cols-12 min-h-0 lg:min-h-[640px]">
 
-        {/* Left: Companies Grid List (Paginada em 2 Colunas - Opção 3) */}
+        {/* Left: Companies Grid List */}
         <div className="lg:col-span-4 xl:col-span-4 border-r border-slate-200 flex flex-col justify-between bg-slate-50/50 p-4 space-y-3 min-h-[320px] lg:min-h-[640px] max-h-[84vh]">
           <div className="flex-1 flex flex-col min-h-0 space-y-3">
-            <div className="flex items-center justify-between pt-1 shrink-0">
+            <div className="flex items-center justify-between pt-0.5 shrink-0">
               <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                 <Building className="w-3.5 h-3.5 text-sky-600" />
                 <span>Empresas ({filteredCompanies.length})</span>
@@ -734,6 +718,27 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                 <Plus className="w-3.5 h-3.5" />
                 <span>Nova Empresa</span>
               </button>
+            </div>
+
+            {/* Campo de Busca Rápida Integrado na Coluna de Empresas */}
+            <div className="relative shrink-0">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="w-full h-8.5 bg-white border border-slate-200 rounded-xl pl-8.5 pr-7 text-xs text-slate-800 focus:outline-none focus:border-sky-500 font-medium shadow-2xs"
+              />
+              {searchFilter && (
+                <button 
+                  type="button"
+                  onClick={() => setSearchFilter('')} 
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                  title="Limpar busca"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
             {isAddingCompany && (
