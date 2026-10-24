@@ -25,7 +25,11 @@ import {
   RefreshCw,
   FileSpreadsheet,
   FileUp,
-  Pencil
+  Pencil,
+  TrendingUp,
+  Box,
+  Tag,
+  ShieldCheck
 } from 'lucide-react';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
 import { Product, QuoteItem } from '../types';
@@ -49,7 +53,9 @@ import {
   BatchScanProgress,
   parsePastedProductList,
   runBatchPhase2Scan,
-  phase1DiscoverProductsFromText
+  phase1DiscoverProductsFromText,
+  getStoredGeminiKey,
+  isGeminiCircuitBreakerActive
 } from '../services/priceScannerService';
 import { WebImagePickerModal } from './WebImagePickerModal';
 import { UniversalListImportModal } from './UniversalListImportModal';
@@ -478,6 +484,46 @@ export function findExistingCatalogProduct(
 ): Product | null {
   const match = findCatalogMatchDetails(prod, catalog);
   return match && match.score >= 60 ? match.product : null;
+}
+
+export function getCategoryBadgeStyle(category?: string): string {
+  if (!category) return 'bg-slate-100 text-slate-700 border-slate-200';
+  const c = category.toLowerCase();
+  if (c.includes('redes') || c.includes('telefonia')) return 'bg-sky-50 text-sky-800 border-sky-200';
+  if (c.includes('informática') || c.includes('hardware')) return 'bg-indigo-50 text-indigo-800 border-indigo-200';
+  if (c.includes('elétrica') || c.includes('iluminação')) return 'bg-amber-50 text-amber-900 border-amber-300';
+  if (c.includes('ferramentas') || c.includes('medição')) return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+  if (c.includes('papelaria') || c.includes('artes') || c.includes('escritório')) return 'bg-purple-50 text-purple-800 border-purple-200';
+  if (c.includes('eletrodomésticos') || c.includes('refrigeração') || c.includes('copa')) return 'bg-cyan-50 text-cyan-800 border-cyan-200';
+  if (c.includes('limpeza') || c.includes('higiene') || c.includes('descartáveis')) return 'bg-teal-50 text-teal-800 border-teal-200';
+  if (c.includes('energia') || c.includes('nobreaks') || c.includes('baterias')) return 'bg-orange-50 text-orange-800 border-orange-200';
+  if (c.includes('impressão') || c.includes('automação')) return 'bg-rose-50 text-rose-800 border-rose-200';
+  if (c.includes('construção') || c.includes('acabamento') || c.includes('marcenaria')) return 'bg-stone-100 text-stone-800 border-stone-300';
+  if (c.includes('equipamentos') || c.includes('industriais')) return 'bg-slate-100 text-slate-800 border-slate-300';
+  if (c.includes('áudio') || c.includes('vídeo') || c.includes('apresentação')) return 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200';
+  if (c.includes('monitores') || c.includes('displays') || c.includes('tvs')) return 'bg-blue-50 text-blue-800 border-blue-200';
+  if (c.includes('pet shop') || c.includes('veterinária')) return 'bg-lime-50 text-lime-900 border-lime-300';
+  return 'bg-slate-100 text-slate-700 border-slate-200';
+}
+
+export function getCategoryIcon(category?: string): string {
+  if (!category) return '🏷️';
+  const c = category.toLowerCase();
+  if (c.includes('redes') || c.includes('telefonia')) return '🌐';
+  if (c.includes('informática') || c.includes('hardware')) return '💻';
+  if (c.includes('elétrica') || c.includes('iluminação')) return '⚡';
+  if (c.includes('ferramentas') || c.includes('medição')) return '🔩';
+  if (c.includes('papelaria') || c.includes('artes') || c.includes('escritório')) return '📄';
+  if (c.includes('eletrodomésticos') || c.includes('refrigeração') || c.includes('copa')) return '🧊';
+  if (c.includes('limpeza') || c.includes('higiene') || c.includes('descartáveis')) return '🧻';
+  if (c.includes('energia') || c.includes('nobreaks') || c.includes('baterias')) return '🔋';
+  if (c.includes('impressão') || c.includes('automação')) return '🖨️';
+  if (c.includes('construção') || c.includes('acabamento') || c.includes('marcenaria')) return '🧱';
+  if (c.includes('equipamentos') || c.includes('industriais')) return '⚙️';
+  if (c.includes('áudio') || c.includes('vídeo') || c.includes('apresentação')) return '🎙️';
+  if (c.includes('monitores') || c.includes('displays') || c.includes('tvs')) return '🖥️';
+  if (c.includes('pet shop') || c.includes('veterinária')) return '🐾';
+  return '📦';
 }
 
 interface PriceScannerViewProps {
@@ -1430,15 +1476,62 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
           </div>
         </div>
 
+        {/* Status Dinâmico do Motor de IA */}
+        <div className="flex items-center gap-2.5 self-start md:self-center">
+          {Boolean(getStoredGeminiKey()) && !isGeminiCircuitBreakerActive() ? (
+            <div className="px-3.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200/90 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Gemini 3.1 Flash Conectado</span>
+            </div>
+          ) : (
+            <div className="px-3.5 py-1.5 bg-sky-50 text-sky-800 border border-sky-200/90 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
+              <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+              <span>Dedução Heurística Ativa</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Card de Busca e Entrada */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
-            <ListChecks className="w-4 h-4 text-sky-600" />
-            <span>Cole aqui seus itens (texto, especificações ou um print):</span>
-          </label>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
+              <ListChecks className="w-4 h-4 text-sky-600" />
+              <span>Cole aqui seus itens (texto, especificações ou um print):</span>
+            </label>
+          </div>
+
+          {/* Pílulas de Exemplo e Categorias Rápidas */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <Tag className="w-3 h-3 text-slate-400" /> Exemplos rápidos:
+            </span>
+            {[
+              { label: '+ 📱 Celular 256GB', text: '01 Smartphone 256GB 8GB RAM 5G' },
+              { label: '+ 🖱️ Mouse sem Fio', text: '05 mouses opticos usb sem fio logitech' },
+              { label: '+ ⚡ Disjuntor 32A', text: '05 disjuntores bipolares schneider 32a din' },
+              { label: '+ 📄 Papel A4', text: '10 resmas papel chamex a4 75g' },
+              { label: '+ 🔩 Parafusadeira 12V', text: '02 parafusadeiras bateria 12v bosch' },
+              { label: '+ 🧻 Papel Toalha', text: '08 fardos papel toalha interfolhado folha dupla' },
+              { label: '+ 🧊 Frigobar 220V', text: '01 frigobar 120 litros 220v inox' },
+            ].map((pill, pIdx) => (
+              <button
+                key={pIdx}
+                type="button"
+                onClick={() => {
+                  setBatchRawInput(prev => {
+                    const trimmed = (prev || '').trim();
+                    return trimmed ? `${trimmed}\n${pill.text}` : pill.text;
+                  });
+                  showToast(`Item "${pill.label}" adicionado à lista!`);
+                }}
+                className="px-2.5 py-1 bg-slate-50 hover:bg-sky-50 text-slate-600 hover:text-sky-700 border border-slate-200 hover:border-sky-300 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer active:scale-95 shadow-2xs"
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Banner Dourado de Preço em Histórico Recente (MEL-02) */}
@@ -1703,6 +1796,69 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       {/* ─── PAINEL DE PRODUTOS IDENTIFICADOS 360° (PADRÃO INFODESK STORE) ─── */}
       {discoveredProducts.length > 0 && (
         <div className="space-y-4 animate-fadeIn">
+          {/* Faixa Executiva de Métricas 4 Colunas (Design System Nova Proposta Comercial) */}
+          {(() => {
+            const totalDiscoveredQty = discoveredProducts.reduce((acc, p) => acc + (p.quantity || 1), 0);
+            const totalEstimatedCost = discoveredProducts.reduce((acc, p) => acc + ((p.costPrice || 0) * (p.quantity || 1)), 0);
+            const totalProjectedSales = discoveredProducts.reduce((acc, p) => {
+              const unitPrice = p.suggestedPrice && p.suggestedPrice > 0
+                ? p.suggestedPrice
+                : (p.costPrice && p.costPrice > 0
+                  ? calculateCommercialUnitPrice(p.costPrice, effectiveShipping, currentActiveMargin, effectiveTax)
+                  : 0);
+              return acc + (unitPrice * (p.quantity || 1));
+            }, 0);
+            const ncmsCount = new Set(discoveredProducts.map(p => p.ncm).filter(Boolean)).size;
+
+            return (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">PRODUTOS IDENTIFICADOS</span>
+                    <Box className="w-4 h-4 text-sky-600" />
+                  </div>
+                  <div className="text-xl font-bold text-slate-900 font-mono">
+                    {discoveredProducts.length} <span className="text-xs font-medium text-slate-500 font-sans">itens ({totalDiscoveredQty} un)</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-medium">Classificados & validados</span>
+                </div>
+
+                <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">CUSTO TOTAL ESTIMADO</span>
+                    <DollarSign className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="text-xl font-bold text-slate-900 font-mono">
+                    R$ {totalEstimatedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-medium">Base de aquisição aproximada</span>
+                </div>
+
+                <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">VENDA PROJETADA TOTAL</span>
+                    <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="text-xl font-bold text-emerald-600 font-mono">
+                    R$ {totalProjectedSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <span className="text-[10px] text-emerald-600/80 font-medium font-mono">Margem média: {currentActiveMargin}%</span>
+                </div>
+
+                <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">NCM FISCAL & TRIBUTOS</span>
+                    <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="text-xl font-bold text-slate-900 font-mono">
+                    {ncmsCount} <span className="text-xs font-medium text-slate-500 font-sans">{ncmsCount === 1 ? 'NCM apurado' : 'NCMs apurados'}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-medium">100% categorização fiscal</span>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Header de Ações Rápidas */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
             <div className="flex items-center gap-3">
@@ -1906,8 +2062,9 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                             </span>
                           )}
                           {prod.category && (
-                            <span className="px-2.5 py-1 text-slate-600 bg-slate-100 border border-slate-200/80 rounded-full text-xs font-medium">
-                              {prod.category}
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-2xs ${getCategoryBadgeStyle(prod.category)}`}>
+                              <span>{getCategoryIcon(prod.category)}</span>
+                              <span>{prod.category}</span>
                             </span>
                           )}
                           {prod.partNumber && (
@@ -1915,15 +2072,22 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                               P/N: {prod.partNumber}
                             </span>
                           )}
+                          <span className="px-2.5 py-1 bg-amber-50 text-amber-900 border border-amber-200/90 rounded-full text-xs font-bold shadow-2xs flex items-center gap-1">
+                            <span>📦 Qtd:</span>
+                            <span className="font-extrabold">{prod.quantity || 1} {prod.unit || 'Un.'}</span>
+                          </span>
                         </div>
 
                         {/* Sub-specs Row (Mod, NCM, Peso, Dimensões) */}
                         <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs font-semibold text-slate-700 mt-2 mb-2">
+                          {prod.ncm && (
+                            <span className="flex items-center gap-1.5">
+                              <span>🏷️ NCM:</span>
+                              <strong className="text-slate-900 font-mono font-bold bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">{prod.ncm}</strong>
+                            </span>
+                          )}
                           {prod.model && (
                             <span>Mod: <strong className="text-slate-900 font-bold">{prod.model}</strong></span>
-                          )}
-                          {prod.ncm && (
-                            <span>NCM: <strong className="text-slate-900 font-mono">{prod.ncm}</strong></span>
                           )}
                           {prod.weight && (
                             <span>Peso: <strong className="text-slate-900">{prod.weight}</strong></span>
@@ -2237,10 +2401,21 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                       <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
                         {item.standardizedName}
                       </h4>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">
-                        {item.partNumber && <span><strong>PN:</strong> <code className="text-slate-700">{item.partNumber}</code></span>}
-                        {item.ncm && <span><strong>NCM:</strong> <code className="text-slate-700">{item.ncm}</code></span>}
-                        <span>{item.observation}</span>
+                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
+                        {item.partNumber && (
+                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-900 border border-indigo-200/80 rounded font-mono text-[11px] font-bold">
+                            PN: {item.partNumber}
+                          </span>
+                        )}
+                        {item.ncm && (
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-200/80 rounded font-mono text-[11px] font-bold flex items-center gap-1">
+                            <span>🏷️ NCM:</span>
+                            <span>{item.ncm}</span>
+                          </span>
+                        )}
+                        {item.observation && (
+                          <span className="text-slate-500 text-[11px] font-medium">{item.observation}</span>
+                        )}
                       </div>
 
                       {/* Seletor de fotos quando há múltiplas imagens encontradas */}
