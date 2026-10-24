@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Mail, ShieldCheck, Eye, EyeOff, ArrowRight, UserPlus, KeyRound, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { signInCorporateUser, signUpCorporateUser, sendPasswordResetCorporate } from '../services/supabase';
+import { SmartQuoteLogo } from './SmartQuoteLogo';
 
 interface LoginViewProps {
   onLoginSuccess: (userEmail: string) => void;
@@ -88,21 +89,21 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         
         {/* Cabeçalho do Card */}
         <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8 text-center text-white relative">
-          <div className="inline-flex items-center justify-center p-3.5 bg-white/10 backdrop-blur-md rounded-2xl mb-4 border border-white/15 shadow-inner">
-            <img 
-              src="/infodesk-logo.png" 
-              alt="Infodesk Logo" 
-              className="h-10 w-auto object-contain filter brightness-110"
-              onError={(e) => {
-                // Fallback visual caso a imagem não carregue
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="inline-flex items-center justify-center px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 shadow-inner">
+              <img 
+                src="/infodesk-logo.png" 
+                alt="Infodesk" 
+                className="h-6 w-auto object-contain filter brightness-110"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            </div>
+            <div className="h-6 w-px bg-white/20" />
+            <SmartQuoteLogo size="lg" inverted={true} showBadge={true} />
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
-            <span>Infodesk SmartQuote</span>
-          </h1>
-          <p className="text-xs text-slate-300 mt-1.5 font-medium">
+          <p className="text-xs text-slate-300 font-medium">
             Sistema Oficial de Orçamentação Comercial & Compras
           </p>
         </div>

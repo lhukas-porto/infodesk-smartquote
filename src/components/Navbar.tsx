@@ -19,6 +19,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { CompanySettings } from '../types';
+import { SmartQuoteLogo } from './SmartQuoteLogo';
 
 interface NavbarProps {
   activeTab: 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard' | 'purchases';
@@ -91,10 +92,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between min-h-16 py-2 gap-2 sm:gap-4 lg:gap-6">
           
-          {/* Lado Esquerdo: Marca Infodesk */}
+          {/* Lado Esquerdo: Marca Infodesk & SmartQuote */}
           <div className="flex items-center shrink-0">
             <div 
-              className="flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none shrink-0 group py-1" 
+              className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none shrink-0 group py-1" 
               onClick={() => setActiveTab('inbox')}
               title="Ir para o Inbox"
             >
@@ -104,19 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="h-7 md:h-8 w-auto object-contain shrink-0 transition-transform group-hover:opacity-90" 
               />
               <div className="h-6 w-px bg-slate-200 shrink-0 hidden sm:block" />
-              <div className="shrink-0">
-                <div className="flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="font-bold text-sm tracking-tight text-slate-900 group-hover:text-sky-700 transition-colors">
-                    SmartQuote
-                  </span>
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase bg-sky-50 text-sky-700 border border-sky-200 rounded-md">
-                    IA
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-400 font-medium leading-none mt-0.5 whitespace-nowrap hidden sm:block">
-                  Automação Comercial
-                </p>
-              </div>
+              <SmartQuoteLogo size="md" showBadge={true} showSubtitle={true} className="group-hover:opacity-95 transition-opacity" />
             </div>
           </div>
 
@@ -428,10 +417,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Cabeçalho do Drawer */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3 shrink-0">
             <div className="flex items-center gap-2">
-              <span id="mobile-menu-title" className="font-bold text-sm text-slate-900">Ferramentas & Módulos</span>
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 rounded-full">
-                SmartQuote
-              </span>
+              <span id="mobile-menu-title" className="font-bold text-sm text-slate-900">Módulos</span>
+              <SmartQuoteLogo size="xs" showBadge={false} />
             </div>
             <button 
               type="button"
