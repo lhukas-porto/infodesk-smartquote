@@ -277,7 +277,7 @@ export const App: React.FC = () => {
   });
   const [historyStageFilter, setHistoryStageFilter] = useState<'all' | 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost'>('all');
   const [draftsFilterTrigger, setDraftsFilterTrigger] = useState<number>(0);
-  const [previewSourceTab, setPreviewSourceTab] = useState<'builder' | 'history' | 'purchases'>('builder');
+  const [previewSourceTab, setPreviewSourceTab] = useState<'builder' | 'history' | 'purchases' | 'dashboard'>('builder');
   const [syncNotice, setSyncNotice] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
   const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -2924,6 +2924,15 @@ export const App: React.FC = () => {
             products={products}
             onNavigateToHistory={() => setActiveTab('history')}
             onNavigateToBuilder={() => setActiveTab('builder')}
+            onOpenQuote={async (q) => {
+              const matched = quotes.find(item => item.id === q.id || item.code === q.code);
+              const itemsToUse = await resolveQuoteItems(q, quotes);
+              const fullQuote = { ...matched, ...q, items: itemsToUse };
+              setCurrentQuote(fullQuote);
+              saveCurrentDraftQuote(fullQuote);
+              setPreviewSourceTab('dashboard');
+              setActiveTab('preview');
+            }}
           />
         )}
 

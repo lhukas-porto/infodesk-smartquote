@@ -22,7 +22,7 @@ interface QuotePreviewProps {
   settings: CompanySettings;
   onBackToEdit: () => void;
   onSendEmail: () => void;
-  sourceTab?: 'builder' | 'history' | 'purchases';
+  sourceTab?: 'builder' | 'history' | 'purchases' | 'dashboard';
   isEmailModalOpen?: boolean;
 }
 
@@ -125,7 +125,9 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
               ? 'Voltar ao Histórico' 
               : sourceTab === 'purchases' 
                 ? 'Voltar a Compras' 
-                : 'Voltar à Cotação'}
+                : sourceTab === 'dashboard'
+                  ? 'Voltar ao Dashboard'
+                  : 'Voltar à Cotação'}
           </span>
           <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-slate-500 bg-slate-200/80 rounded font-semibold ml-0.5">
             ESC
