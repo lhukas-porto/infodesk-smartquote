@@ -3548,6 +3548,21 @@ Retorne ESTRITAMENTE um JSON no formato:
                 scannerPartNumber: item.partNumber
               });
 
+              const searchTerms = [
+                brand !== 'Genérica' ? brand : '',
+                resolvedCodes.model,
+                resolvedCodes.partNumber,
+                stdName
+              ].filter(Boolean).join(' ');
+
+              const verifiedSourceUrl = directPurchase.url || 
+                (item.buyUrl && typeof item.buyUrl === 'string' && item.buyUrl.startsWith('http') ? item.buyUrl : '') ||
+                (item.sourceUrl && typeof item.sourceUrl === 'string' && item.sourceUrl.startsWith('http') ? item.sourceUrl : '') ||
+                `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(searchTerms || stdName)}`;
+
+              const verifiedSupplier = resolvedSupplier || 
+                (brand !== 'Genérica' ? `${brand} (Google Shopping)` : 'Google Shopping / E-commerce');
+
               return {
                 id: `disc-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
                 originalQuery: rawText,
@@ -3572,8 +3587,8 @@ Retorne ESTRITAMENTE um JSON no formato:
                 imageUrl: gallery[0] || '',
                 selectedImageIndex: 0,
                 customerPhotoUrl: customerPhotoUrl || undefined,
-                supplier: resolvedSupplier,
-                sourceUrl: directPurchase.url,
+                supplier: verifiedSupplier,
+                sourceUrl: verifiedSourceUrl,
                 visualInspection: item.visualInspection || undefined,
                 visualSearchQuery: item.visualSearchQuery || undefined,
                 visualSearchQueryAlt: item.visualSearchQueryAlt || undefined,
@@ -3660,6 +3675,18 @@ Retorne ESTRITAMENTE um JSON no formato:
       const gallery = customerPhotoUrl ? [customerPhotoUrl, ...baseGallery.filter(u => u !== customerPhotoUrl)] : baseGallery;
       const directPurchase = buildDirectPurchaseUrl(stdName);
 
+      const searchTerms = [
+        enriched.brand !== 'Genérica' ? enriched.brand : '',
+        enriched.model,
+        enriched.partNumber,
+        stdName
+      ].filter(Boolean).join(' ');
+
+      const verifiedSourceUrl = directPurchase.url ||
+        `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(searchTerms || stdName)}`;
+
+      const verifiedSupplier = sanitizeSupplierName(directPurchase.store) || (enriched as any).supplier || enriched.manufacturer || 'Catálogo & Tabela de Mercado';
+
       return {
         id: `disc-local-${Date.now()}-${idx}`,
         originalQuery: it.query,
@@ -3683,8 +3710,8 @@ Retorne ESTRITAMENTE um JSON no formato:
         imageUrl: gallery[0] || '',
         selectedImageIndex: 0,
         customerPhotoUrl: customerPhotoUrl || undefined,
-        supplier: sanitizeSupplierName(directPurchase.store),
-        sourceUrl: directPurchase.url
+        supplier: verifiedSupplier,
+        sourceUrl: verifiedSourceUrl
       };
     })
   );

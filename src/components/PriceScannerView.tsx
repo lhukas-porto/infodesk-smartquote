@@ -2333,6 +2333,46 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                               </span>
                             )}
                           </div>
+
+                          {/* Fonte Auditada de Preço & Link de Checagem Real (Lucas) */}
+                          {(() => {
+                            const sourceStoreName = prod.supplier && prod.supplier !== 'Fabricante' && prod.supplier !== 'Genérica'
+                              ? prod.supplier
+                              : (prod.id?.startsWith('disc-local-') ? 'Catálogo & Tabela de Mercado' : 'Google Shopping / E-commerce');
+
+                            const searchTerms = [
+                              prod.brand && prod.brand !== 'Genérica' ? prod.brand : '',
+                              prod.model,
+                              prod.partNumber,
+                              prod.standardizedName
+                            ].filter(Boolean).join(' ');
+
+                            const resolvedSourceUrl = prod.sourceUrl && prod.sourceUrl.startsWith('http')
+                              ? prod.sourceUrl
+                              : `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(searchTerms || prod.standardizedName)}`;
+
+                            return (
+                              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100/90 border border-slate-200/90 rounded-lg text-xs text-slate-700 shadow-2xs">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Fonte:</span>
+                                  <strong className="text-slate-800 font-bold truncate max-w-[170px]" title={sourceStoreName}>
+                                    {sourceStoreName}
+                                  </strong>
+                                </div>
+
+                                <a
+                                  href={resolvedSourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 border border-sky-200 hover:border-sky-300 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer group"
+                                  title="Abrir a fonte original do produto em nova aba para auditar e conferir o preço real"
+                                >
+                                  <span>Ver Fonte Real</span>
+                                  <ExternalLink className="w-3.5 h-3.5 text-sky-600 group-hover:translate-x-0.5 transition-transform" />
+                                </a>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         <div className="flex items-center gap-2.5 flex-wrap">
