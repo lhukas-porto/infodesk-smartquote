@@ -645,13 +645,13 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       return b.totalQty - a.totalQty;
     });
 
-    // Gera as pílulas dinâmicas dos TOP 5 mais cotados
+    // Gera as pílulas dinâmicas dos TOP 5 mais cotados (compactas para caber em uma única linha)
     const dynamicPills = sorted.slice(0, 5).map(item => {
       const icon = getCategoryIcon(item.category);
-      // Mantém o tamanho legível do rótulo
+      // Mantém tamanho compacto para garantir exibição em linha única
       let labelText = item.cleanName;
-      if (labelText.length > 22) {
-        labelText = labelText.slice(0, 21).trim() + '…';
+      if (labelText.length > 15) {
+        labelText = labelText.slice(0, 14).trim() + '…';
       }
       const label = `+ ${icon} ${labelText}`;
 
@@ -671,11 +671,11 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     // Se o histórico de cotações tiver menos de 5 produtos cadastrados, completa com a base de fallback
     const curatedFallbacks = [
-      { label: '+ 📱 Smartphone Samsung Galaxy', text: '01 Smartphone 256GB 8GB RAM 5G', count: 1 },
-      { label: '+ 🖱️ Mouse Óptico Sem Fio', text: '05 mouses opticos usb sem fio logitech', count: 1 },
-      { label: '+ ⚡ Disjuntor Bipolar 32A', text: '05 disjuntores bipolares schneider 32a din', count: 1 },
-      { label: '+ 📄 Papel Sulfite A4 75g', text: '10 resmas papel chamex a4 75g', count: 1 },
-      { label: '+ 🔩 Parafusadeira 12V Bosch', text: '02 parafusadeiras bateria 12v bosch', count: 1 },
+      { label: '+ 📱 Smartphone Samsung', text: '01 Smartphone 256GB 8GB RAM 5G', count: 1 },
+      { label: '+ 🖱️ Mouse Sem Fio', text: '05 mouses opticos usb sem fio logitech', count: 1 },
+      { label: '+ ⚡ Disjuntor 32A', text: '05 disjuntores bipolares schneider 32a din', count: 1 },
+      { label: '+ 📄 Papel Sulfite A4', text: '10 resmas papel chamex a4 75g', count: 1 },
+      { label: '+ 🔩 Parafusadeira 12V', text: '02 parafusadeiras bateria 12v bosch', count: 1 },
     ];
 
     if (dynamicPills.length < 5) {
@@ -1612,14 +1612,14 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             </label>
           </div>
 
-          {/* Pílulas Dinâmicas: TOP 5 Itens Mais Cotados no Sistema */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+          {/* Pílulas Dinâmicas: TOP 5 Itens Mais Cotados no Sistema (Linha Única Compacta) */}
+          <div className="flex flex-nowrap items-center gap-1 sm:gap-1.5 pt-0.5 overflow-x-auto scrollbar-none py-0.5 select-none">
             <span 
-              className="text-[10px] sm:text-[11px] font-extrabold text-sky-800 uppercase tracking-wider shrink-0 flex items-center gap-1 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200/90 shadow-2xs"
+              className="text-[10px] sm:text-[11px] font-extrabold text-sky-800 uppercase tracking-wider shrink-0 flex items-center gap-1 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200/90 shadow-2xs"
               title="Sugestão dinâmica dos 5 itens mais frequentes em todas as suas cotações"
             >
-              <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500 animate-pulse" />
-              <span>Mais Cotados:</span>
+              <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
+              <span className="whitespace-nowrap">Mais Cotados:</span>
             </span>
             {topQuotedSuggestions.map((pill, pIdx) => (
               <button
@@ -1632,12 +1632,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                   });
                   showToast(`Item "${pill.label}" adicionado à lista!`);
                 }}
-                className="px-2.5 py-1 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-300 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer active:scale-95 shadow-2xs flex items-center gap-1.5"
+                className="px-2 py-0.5 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-300 rounded-lg text-[11px] font-semibold whitespace-nowrap transition cursor-pointer active:scale-95 shadow-2xs flex items-center gap-1 shrink-0"
                 title={`Item mais cotado. Clique para inserir: ${pill.text}`}
               >
                 <span>{pill.label}</span>
                 {pill.count && pill.count > 1 ? (
-                  <span className="text-[10px] font-bold text-sky-700 font-mono bg-sky-100/90 px-1.5 py-0.2 rounded">
+                  <span className="text-[9px] font-bold text-sky-700 font-mono bg-sky-100/90 px-1 py-0 rounded">
                     {pill.count}x
                   </span>
                 ) : null}
