@@ -200,7 +200,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setCategories(getRegisteredCategories());
       setUnits(getRegisteredUnits());
       setPaymentMethods(getRegisteredPaymentMethods());
-      setSuppliers(getRegisteredSuppliersDetailed(products));
+      
+      let currentProductsList = products;
+      try {
+        const raw = localStorage.getItem('infodesk_products');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) currentProductsList = parsed;
+        }
+      } catch { /* noop */ }
+      setSuppliers(getRegisteredSuppliersDetailed(currentProductsList));
     };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('infodesk_metadata_changed', handleMetaChanged);
@@ -382,19 +391,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     );
 
     // Se produtos foram modificados, atualiza catálogo no estado da aplicação
-    if (res.updatedProducts > 0 && onProductsUpdated) {
+    let updatedProductsList = products;
+    if (res.updatedProducts > 0) {
       try {
         const raw = localStorage.getItem('infodesk_products');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            onProductsUpdated(parsed);
+            updatedProductsList = parsed;
+            if (onProductsUpdated) {
+              onProductsUpdated(parsed);
+            }
           }
         }
       } catch { /* noop */ }
+    } else if (oldName.toLowerCase() !== cleanNewName.toLowerCase()) {
+      // Se não atualizou no localStorage ou não tinha produtos, substitui localmente para consistência imediata
+      updatedProductsList = (products || []).map(p => 
+        p?.supplier?.trim().toLowerCase() === oldName.trim().toLowerCase()
+          ? { ...p, supplier: cleanNewName }
+          : p
+      );
     }
 
-    setSuppliers(getRegisteredSuppliersDetailed(products));
+    setSuppliers(getRegisteredSuppliersDetailed(updatedProductsList));
     setEditingSupplier(null);
 
     const msg = res.updatedProducts > 0 
@@ -406,7 +426,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleDeleteSupplier = (name: string) => {
     if (window.confirm(`Deseja realmente remover o fornecedor "${name}" das sugestões automáticas do sistema?`)) {
       deleteRegisteredSupplier(name);
-      setSuppliers(getRegisteredSuppliersDetailed(products));
+      
+      let curProds = products;
+      try {
+        const raw = localStorage.getItem('infodesk_products');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) curProds = parsed;
+        }
+      } catch { /* noop */ }
+
+      setSuppliers(getRegisteredSuppliersDetailed(curProds));
       if (editingSupplier === name) setEditingSupplier(null);
       showFeedback(`Fornecedor "${name}" removido.`);
     }

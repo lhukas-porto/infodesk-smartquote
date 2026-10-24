@@ -44,7 +44,7 @@ assert.ok(techSupply, 'Tech Supply Brasil deve ter sido adicionado');
 assert.ok(techSupply?.domains.includes('techsupply.com.br'), 'Deve mapear o domínio techsupply.com.br');
 console.log('✅ Teste 2 passou: Novo fornecedor com domínio salvo com sucesso!');
 
-// 3. Teste de renomeação com propagação em produtos
+// 3. Teste de renomeação com propagação em produtos e prevenção de duplicação
 store['infodesk_products'] = JSON.stringify(mockProducts);
 const renameResult = updateRegisteredSupplier('Distribuidora Nova Alpha', 'Distribuidora Nova Beta', 'novabeta.com.br', true);
 assert.strictEqual(renameResult.updatedProducts, 1, 'Deve ter atualizado 1 produto no catálogo');
@@ -52,7 +52,23 @@ assert.strictEqual(renameResult.updatedProducts, 1, 'Deve ter atualizado 1 produ
 const updatedProductsFromStorage = JSON.parse(store['infodesk_products']);
 const productUpdated = updatedProductsFromStorage.find((p: any) => p.id === 'p4');
 assert.strictEqual(productUpdated.supplier, 'Distribuidora Nova Beta', 'Produto p4 deve ter seu fornecedor atualizado para Nova Beta');
-console.log('✅ Teste 3 passou: Renomeação propagada nos produtos do catálogo com sucesso!');
+
+// Verifica que getRegisteredSuppliersDetailed NÃO DUPLICA o fornecedor mesmo se mockProducts antigo for passado
+const detailedAfterRename = getRegisteredSuppliersDetailed(mockProducts);
+const oldAlphaCheck = detailedAfterRename.find(s => s.name === 'Distribuidora Nova Alpha');
+const newBetaCheck = detailedAfterRename.find(s => s.name === 'Distribuidora Nova Beta');
+assert.strictEqual(oldAlphaCheck, undefined, 'Fornecedor antigo "Distribuidora Nova Alpha" NÃO pode continuar na lista (proibido duplicar)');
+assert.ok(newBetaCheck, 'Fornecedor novo "Distribuidora Nova Beta" deve estar na lista');
+console.log('✅ Teste 3 passou: Renomeação propagada e não duplica fornecedor!');
+
+// 3b. Teste de renomeação de fornecedor da lista padrão (ex: KaBuM! -> KaBuM! Brasil)
+const renameDefaultResult = updateRegisteredSupplier('KaBuM!', 'KaBuM! Brasil', 'kabum.com.br', false);
+const detailedAfterDefaultRename = getRegisteredSuppliersDetailed(mockProducts);
+const oldKabumCheck = detailedAfterDefaultRename.find(s => s.name.toLowerCase() === 'kabum!');
+const newKabumCheck = detailedAfterDefaultRename.find(s => s.name === 'KaBuM! Brasil');
+assert.strictEqual(oldKabumCheck, undefined, 'Nome padrão antigo "KaBuM!" não pode constar na lista após renomeação');
+assert.ok(newKabumCheck, 'Nome novo "KaBuM! Brasil" deve constar na lista');
+console.log('✅ Teste 3b passou: Fornecedor padrão renomeado sem duplicar!');
 
 // 4. Teste de exclusão (tombstone)
 deleteRegisteredSupplier('Distribuidora Nova Beta');

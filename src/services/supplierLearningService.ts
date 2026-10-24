@@ -480,6 +480,13 @@ export function updateRegisteredSupplier(
   const cleanNew = newName.trim();
   if (!cleanOld || !cleanNew) return { updatedProducts: 0, updatedQuotes: 0 };
 
+  const isRenaming = cleanOld.toLowerCase() !== cleanNew.toLowerCase();
+
+  if (isRenaming) {
+    // Registra o nome antigo no tombstone de excluídos para garantir que nunca mais
+    // seja ressuscitado por produtos em cache, cotações antigas ou DEFAULT_SUPPLIERS_MAP
+    recordDeletedSupplier(cleanOld);
+  }
   unrecordDeletedSupplier(cleanNew);
 
   // 1. Atualiza mapa de aprendizado
@@ -488,6 +495,21 @@ export function updateRegisteredSupplier(
   for (const [key, val] of Object.entries(currentMap)) {
     if (val.trim().toLowerCase() === cleanOld.toLowerCase()) {
       currentMap[key] = cleanNew;
+      mapChanged = true;
+    }
+  }
+
+  // Se for renomeação, garante que o novo nome tenha pelo menos uma chave registrada
+  if (isRenaming) {
+    const newSlug = cleanNew.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (newSlug.length >= 2) {
+      currentMap[newSlug] = cleanNew;
+      mapChanged = true;
+    }
+    // Remove slug antiga se pertencia ao nome antigo
+    const oldSlug = cleanOld.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (oldSlug.length >= 2 && oldSlug !== newSlug && currentMap[oldSlug] === cleanNew) {
+      delete currentMap[oldSlug];
       mapChanged = true;
     }
   }
