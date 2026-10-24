@@ -603,6 +603,9 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         const rawName = (it.name || it.description || '').trim();
         if (!rawName || rawName.length < 3) continue;
 
+        // Ignora termos genéricos de serviço ou frete que não são produtos
+        if (/^(fornecimento|servi[çc]o|m[ãa]o\s+de\s+obra|frete|diversos|taxa|instala[çc][ãa]o)/i.test(rawName)) continue;
+
         // Normalização cirúrgica para agrupar variações de maiúsculas/minúsculas e pontuação
         const normalizedKey = rawName.toLowerCase()
           .replace(/[^\w\sáéíóúâêîôûãõç]/gi, '')
@@ -642,13 +645,13 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       return b.totalQty - a.totalQty;
     });
 
-    // Gera as pílulas dinâmicas com os dados reais
+    // Gera as pílulas dinâmicas compactas para não gerar barra de rolagem
     const dynamicPills = sorted.slice(0, 7).map(item => {
       const icon = getCategoryIcon(item.category);
-      // Rótulo compacto para a pílula
+      // Rótulo ultracompacto para caber perfeitamente na tela
       let shortLabel = item.cleanName;
-      if (shortLabel.length > 20) {
-        shortLabel = shortLabel.slice(0, 18).trim() + '...';
+      if (shortLabel.length > 13) {
+        shortLabel = shortLabel.slice(0, 12).trim() + '…';
       }
       const label = `+ ${icon} ${shortLabel}`;
 
@@ -668,13 +671,13 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     // Se o histórico de cotações tiver menos de 7 produtos cadastrados, completa com a base de fallback
     const curatedFallbacks = [
-      { label: '+ 📱 Celular 256GB', text: '01 Smartphone 256GB 8GB RAM 5G', count: 1 },
-      { label: '+ 🖱️ Mouse sem Fio', text: '05 mouses opticos usb sem fio logitech', count: 1 },
-      { label: '+ ⚡ Disjuntor 32A', text: '05 disjuntores bipolares schneider 32a din', count: 1 },
+      { label: '+ 📱 Celular', text: '01 Smartphone 256GB 8GB RAM 5G', count: 1 },
+      { label: '+ 🖱️ Mouse', text: '05 mouses opticos usb sem fio logitech', count: 1 },
+      { label: '+ ⚡ Disjuntor', text: '05 disjuntores bipolares schneider 32a din', count: 1 },
       { label: '+ 📄 Papel A4', text: '10 resmas papel chamex a4 75g', count: 1 },
-      { label: '+ 🔩 Parafusadeira 12V', text: '02 parafusadeiras bateria 12v bosch', count: 1 },
-      { label: '+ 🧻 Papel Toalha', text: '08 fardos papel toalha interfolhado folha dupla', count: 1 },
-      { label: '+ 🧊 Frigobar 220V', text: '01 frigobar 120 litros 220v inox', count: 1 },
+      { label: '+ 🔩 Furadeira', text: '02 parafusadeiras bateria 12v bosch', count: 1 },
+      { label: '+ 🧻 Toalha', text: '08 fardos papel toalha interfolhado folha dupla', count: 1 },
+      { label: '+ 🧊 Frigobar', text: '01 frigobar 120 litros 220v inox', count: 1 },
     ];
 
     if (dynamicPills.length < 7) {
@@ -1611,13 +1614,13 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             </label>
           </div>
 
-          {/* Pílulas Dinâmicas: 7 Itens Mais Cotados no Sistema */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
+          {/* Pílulas Dinâmicas: 7 Itens Mais Cotados no Sistema (Sem Barra de Rolagem) */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
             <span 
-              className="text-[11px] font-bold text-sky-800 uppercase tracking-wider shrink-0 flex items-center gap-1.5 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200/90 shadow-2xs"
+              className="text-[10px] font-extrabold text-sky-800 uppercase tracking-wider shrink-0 flex items-center gap-1 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200/90 shadow-2xs"
               title="Sugestão dinâmica dos 7 itens mais frequentes em todas as suas cotações"
             >
-              <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500 animate-pulse" />
+              <Flame className="w-3 h-3 text-amber-500 fill-amber-500 animate-pulse" />
               <span>Mais Cotados:</span>
             </span>
             {topQuotedSuggestions.map((pill, pIdx) => (
@@ -1631,12 +1634,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                   });
                   showToast(`Item "${pill.label}" adicionado à lista!`);
                 }}
-                className="px-2.5 py-1 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-300 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer active:scale-95 shadow-2xs flex items-center gap-1"
+                className="px-2 py-0.5 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-300 rounded-lg text-[11px] font-semibold whitespace-nowrap transition cursor-pointer active:scale-95 shadow-2xs flex items-center gap-1"
                 title={`Item mais cotado. Clique para inserir: ${pill.text}`}
               >
                 <span>{pill.label}</span>
                 {pill.count && pill.count > 1 ? (
-                  <span className="text-[10px] font-bold text-sky-700 font-mono bg-sky-100/80 px-1 py-0.2 rounded ml-0.5">
+                  <span className="text-[9.5px] font-bold text-sky-700 font-mono bg-sky-100/90 px-1 py-0 rounded">
                     {pill.count}x
                   </span>
                 ) : null}
