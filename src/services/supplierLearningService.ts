@@ -369,8 +369,45 @@ export function getRegisteredSuppliersDetailed(
   const currentMap = loadLearnedMap();
   const deleted = getDeletedSuppliers();
 
-  const supplierToDomains = new Map<string, Set<string>>();
+  // Agrupamento canônico inteligente (evita duplicatas como "Acril Destac" vs "Acrildestac")
+  const canonicalMap = new Map<string, {
+    name: string;
+    domainsSet: Set<string>;
+    productCount: number;
+    isDefault: boolean;
+  }>();
+
   const defaultNames = new Set(Object.values(DEFAULT_SUPPLIERS_MAP).map(n => n.trim().toLowerCase()));
+
+  const getOrCreateCanonical = (rawName: string) => {
+    const clean = rawName.trim();
+    if (!clean || clean.length < 2) return null;
+    const lower = clean.toLowerCase();
+    if (deleted.has(lower)) return null;
+
+    // Chave canônica alfanumérica pura (sem espaços nem pontuação)
+    const canonKey = lower.replace(/[^a-z0-9]/g, '');
+    if (!canonKey || canonKey.length < 2) return null;
+
+    if (!canonicalMap.has(canonKey)) {
+      canonicalMap.set(canonKey, {
+        name: clean,
+        domainsSet: new Set(),
+        productCount: 0,
+        isDefault: defaultNames.has(lower)
+      });
+    }
+
+    const entry = canonicalMap.get(canonKey)!;
+    // Se o nome atual tiver melhor formatação comercial (com espaços), dá preferência
+    if (clean.includes(' ') && !entry.name.includes(' ')) {
+      entry.name = clean;
+    } else if (clean.length > entry.name.length && clean[0] === clean[0].toUpperCase()) {
+      entry.name = clean;
+    }
+
+    return entry;
+  };
 
   // 1. Processa do mapa de aprendizado
   for (const [key, name] of Object.entries(currentMap)) {
@@ -378,16 +415,16 @@ export function getRegisteredSuppliersDetailed(
     const cleanName = name.trim();
     if (deleted.has(cleanName.toLowerCase())) continue;
 
-    if (!supplierToDomains.has(cleanName)) {
-      supplierToDomains.set(cleanName, new Set());
-    }
-    if (key.length >= 3 && !key.includes(' ')) {
-      supplierToDomains.get(cleanName)!.add(key);
+    const entry = getOrCreateCanonical(cleanName);
+    if (!entry) continue;
+
+    // Só adiciona como domínio público se for um domínio real de internet (com ponto, ex: "acrildestac.com.br")
+    if (key.includes('.') && key.length >= 4 && !key.includes(' ')) {
+      entry.domainsSet.add(key.toLowerCase());
     }
   }
 
   // 2. Processa produtos extras para contagem e fornecedores adicionais
-  const productCountMap = new Map<string, number>();
   if (Array.isArray(extraProducts)) {
     for (const p of extraProducts) {
       const s = p?.supplier?.trim();
@@ -395,15 +432,17 @@ export function getRegisteredSuppliersDetailed(
       const lower = s.toLowerCase();
       if (['fornecedor local', 'fornecedor', 'local', 'sem fornecedor'].includes(lower)) continue;
 
-      productCountMap.set(s, (productCountMap.get(s) || 0) + 1);
-
-      if (!supplierToDomains.has(s)) {
-        supplierToDomains.set(s, new Set());
+      const entry = getOrCreateCanonical(s);
+      if (entry) {
+        entry.productCount += 1;
+        if (s.includes(' ') && !entry.name.includes(' ')) {
+          entry.name = s;
+        }
       }
     }
   }
 
-  // 3. Processa cotações extras
+  // 3. Processa cotações extras se fornecidas
   if (Array.isArray(extraQuotes)) {
     for (const q of extraQuotes) {
       if (Array.isArray(q?.items)) {
@@ -413,30 +452,22 @@ export function getRegisteredSuppliersDetailed(
           const lower = s.toLowerCase();
           if (['fornecedor local', 'fornecedor', 'local', 'sem fornecedor'].includes(lower)) continue;
 
-          if (!supplierToDomains.has(s)) {
-            supplierToDomains.set(s, new Set());
-          }
+          getOrCreateCanonical(s);
         }
       }
     }
   }
 
-  // Monta lista final
+  // Monta lista final consolidada
   const result: SupplierDetail[] = [];
-  for (const [name, domainsSet] of supplierToDomains.entries()) {
-    const domainList = Array.from(domainsSet).sort((a, b) => {
-      const aHasDot = a.includes('.');
-      const bHasDot = b.includes('.');
-      if (aHasDot && !bHasDot) return -1;
-      if (!aHasDot && bHasDot) return 1;
-      return a.localeCompare(b);
-    });
+  for (const entry of canonicalMap.values()) {
+    const domainList = Array.from(entry.domainsSet).sort((a, b) => a.localeCompare(b));
 
     result.push({
-      name,
+      name: entry.name,
       domains: domainList,
-      isDefault: defaultNames.has(name.toLowerCase()),
-      productCount: productCountMap.get(name) || 0
+      isDefault: entry.isDefault || defaultNames.has(entry.name.toLowerCase()),
+      productCount: entry.productCount
     });
   }
 
@@ -481,10 +512,10 @@ export function updateRegisteredSupplier(
   if (!cleanOld || !cleanNew) return { updatedProducts: 0, updatedQuotes: 0 };
 
   const isRenaming = cleanOld.toLowerCase() !== cleanNew.toLowerCase();
+  const oldCanonKey = cleanOld.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const newCanonKey = cleanNew.toLowerCase().replace(/[^a-z0-9]/g, '');
 
   if (isRenaming) {
-    // Registra o nome antigo no tombstone de excluídos para garantir que nunca mais
-    // seja ressuscitado por produtos em cache, cotações antigas ou DEFAULT_SUPPLIERS_MAP
     recordDeletedSupplier(cleanOld);
   }
   unrecordDeletedSupplier(cleanNew);
@@ -492,32 +523,52 @@ export function updateRegisteredSupplier(
   // 1. Atualiza mapa de aprendizado
   const currentMap = loadLearnedMap();
   let mapChanged = false;
+
+  const domainTrimmed = (newDomainOrUrl || '').trim();
+  const { fullDomain: newFullDomain, baseSlug: newBaseSlug } = domainTrimmed 
+    ? extractDomainKeys(domainTrimmed) 
+    : { fullDomain: '', baseSlug: '' };
+
+  // 1.1 Varre currentMap e atualiza / remove domínios
   for (const [key, val] of Object.entries(currentMap)) {
-    if (val.trim().toLowerCase() === cleanOld.toLowerCase()) {
+    const valLower = val.trim().toLowerCase();
+    const valCanon = valLower.replace(/[^a-z0-9]/g, '');
+    const isOldMatch = valLower === cleanOld.toLowerCase() || 
+                       valLower === cleanNew.toLowerCase() || 
+                       (oldCanonKey && valCanon === oldCanonKey);
+
+    if (isOldMatch) {
+      if (key.includes('.')) {
+        // Se é chave de domínio de internet (ex: acrildestac.com.br)
+        // Se o usuário tirou o endereço (!domainTrimmed) ou mudou para outro (key !== newFullDomain):
+        if (!domainTrimmed || (newFullDomain && key !== newFullDomain)) {
+          delete currentMap[key];
+          mapChanged = true;
+          continue;
+        }
+      }
       currentMap[key] = cleanNew;
       mapChanged = true;
     }
   }
 
-  // Se for renomeação, garante que o novo nome tenha pelo menos uma chave registrada
-  if (isRenaming) {
-    const newSlug = cleanNew.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (newSlug.length >= 2) {
-      currentMap[newSlug] = cleanNew;
-      mapChanged = true;
-    }
-    // Remove slug antiga se pertencia ao nome antigo
-    const oldSlug = cleanOld.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (oldSlug.length >= 2 && oldSlug !== newSlug && currentMap[oldSlug] === cleanNew) {
-      delete currentMap[oldSlug];
-      mapChanged = true;
-    }
+  // 1.2 Se um novo domínio foi informado, registra no mapa
+  if (newFullDomain) {
+    currentMap[newFullDomain] = cleanNew;
+    mapChanged = true;
+  }
+  if (newBaseSlug) {
+    currentMap[newBaseSlug] = cleanNew;
+    mapChanged = true;
   }
 
-  if (newDomainOrUrl && newDomainOrUrl.trim()) {
-    const { fullDomain, baseSlug } = extractDomainKeys(newDomainOrUrl.trim());
-    if (fullDomain) currentMap[fullDomain] = cleanNew;
-    if (baseSlug) currentMap[baseSlug] = cleanNew;
+  // 1.3 Registra a slug canônica do novo nome
+  if (newCanonKey && newCanonKey.length >= 2) {
+    currentMap[newCanonKey] = cleanNew;
+    mapChanged = true;
+  }
+  if (isRenaming && oldCanonKey && oldCanonKey !== newCanonKey && currentMap[oldCanonKey] === cleanNew) {
+    delete currentMap[oldCanonKey];
     mapChanged = true;
   }
 
@@ -526,6 +577,7 @@ export function updateRegisteredSupplier(
     persistLearnedMap(memorySuppliersMap);
   }
 
+  // 2. Propagação nos produtos do catálogo
   let updatedProducts = 0;
   let updatedQuotes = 0;
 
@@ -538,18 +590,23 @@ export function updateRegisteredSupplier(
         if (Array.isArray(productsArr)) {
           const modifiedProducts: any[] = [];
           const updatedList = productsArr.map((p: any) => {
-            if (p?.supplier && p.supplier.trim().toLowerCase() === cleanOld.toLowerCase()) {
-              updatedProducts++;
-              const updatedP = { ...p, supplier: cleanNew, updated_at: new Date().toISOString() };
-              modifiedProducts.push(updatedP);
-              return updatedP;
+            const supp = p?.supplier?.trim();
+            if (supp) {
+              const suppLower = supp.toLowerCase();
+              const suppCanon = suppLower.replace(/[^a-z0-9]/g, '');
+              const isMatch = suppLower === cleanOld.toLowerCase() || (oldCanonKey && suppCanon === oldCanonKey);
+              if (isMatch && supp !== cleanNew) {
+                updatedProducts++;
+                const updatedP = { ...p, supplier: cleanNew, updated_at: new Date().toISOString() };
+                modifiedProducts.push(updatedP);
+                return updatedP;
+              }
             }
             return p;
           });
 
           if (updatedProducts > 0) {
             storageObj.setItem('infodesk_products', JSON.stringify(updatedList));
-            // Sincroniza em background com Supabase
             import('./supabase').then(({ syncBatchProductsToSupabase }) => {
               syncBatchProductsToSupabase(modifiedProducts).catch(err => {
                 console.warn('[supplierLearningService] Erro ao sincronizar produtos atualizados com Supabase:', err);
@@ -573,9 +630,15 @@ export function updateRegisteredSupplier(
             if (Array.isArray(q?.items)) {
               let hasItemChange = false;
               const newItems = q.items.map((it: any) => {
-                if (it?.supplier && it.supplier.trim().toLowerCase() === cleanOld.toLowerCase()) {
-                  hasItemChange = true;
-                  return { ...it, supplier: cleanNew };
+                const s = it?.supplier?.trim();
+                if (s) {
+                  const sLower = s.toLowerCase();
+                  const sCanon = sLower.replace(/[^a-z0-9]/g, '');
+                  const isMatch = sLower === cleanOld.toLowerCase() || (oldCanonKey && sCanon === oldCanonKey);
+                  if (isMatch && s !== cleanNew) {
+                    hasItemChange = true;
+                    return { ...it, supplier: cleanNew };
+                  }
                 }
                 return it;
               });
@@ -610,11 +673,13 @@ export function deleteRegisteredSupplier(name: string): void {
   if (!clean) return;
 
   recordDeletedSupplier(clean);
+  const canonKey = clean.toLowerCase().replace(/[^a-z0-9]/g, '');
 
   const currentMap = loadLearnedMap();
   let changed = false;
   for (const [key, val] of Object.entries(currentMap)) {
-    if (val.trim().toLowerCase() === clean.toLowerCase()) {
+    const valCanon = val.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (val.trim().toLowerCase() === clean.toLowerCase() || (canonKey && valCanon === canonKey)) {
       delete currentMap[key];
       changed = true;
     }

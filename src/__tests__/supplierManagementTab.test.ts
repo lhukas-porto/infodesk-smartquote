@@ -78,4 +78,30 @@ assert.strictEqual(deletedCheck, undefined, 'Fornecedor deletado não deve const
 assert.ok(getDeletedSuppliers().has('distribuidora nova beta'), 'Deve constar no tombstone de excluídos');
 console.log('✅ Teste 4 passou: Exclusão e tombstone validados com sucesso!');
 
+// 5. Teste de remoção de endereço / domínio (Diretriz do Lucas: limpar o domínio na edição)
+saveRegisteredSupplier('Fornecedor Com Site', 'siteteste.com.br');
+let detailedCheckDomain = getRegisteredSuppliersDetailed();
+let itemWithDomain = detailedCheckDomain.find(s => s.name === 'Fornecedor Com Site');
+assert.ok(itemWithDomain?.domains.includes('siteteste.com.br'), 'Deve conter siteteste.com.br inicialmente');
+
+// Agora edita e limpa o endereço (passa "")
+updateRegisteredSupplier('Fornecedor Com Site', 'Fornecedor Sem Site', '', false);
+detailedCheckDomain = getRegisteredSuppliersDetailed();
+let itemCleanDomain = detailedCheckDomain.find(s => s.name === 'Fornecedor Sem Site');
+assert.ok(itemCleanDomain, 'Fornecedor Sem Site deve existir');
+assert.strictEqual(itemCleanDomain?.domains.length, 0, 'O domínio deve ter sido 100% removido ao tirar o endereço');
+console.log('✅ Teste 5 passou: Remoção de endereço/domínio salva com sucesso!');
+
+// 6. Teste de Fusão Canônica Anti-Duplicação (Ex: "Acrildestac" vs "Acril Destac")
+const testProductsWithSpace = [
+  { id: 'p_acril', name: 'Placa Acrílico', supplier: 'Acril Destac' }
+];
+saveRegisteredSupplier('Acrildestac', 'acrildestac.com.br');
+const canonicalMerged = getRegisteredSuppliersDetailed(testProductsWithSpace);
+const allAcrilItems = canonicalMerged.filter(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '') === 'acrildestac');
+assert.strictEqual(allAcrilItems.length, 1, 'Deve existir rigorosamente 1 único fornecedor fundido, proibido duplicar!');
+assert.strictEqual(allAcrilItems[0].name, 'Acril Destac', 'Deve preferir a grafia rica comercial com espaço');
+assert.strictEqual(allAcrilItems[0].productCount, 1, 'Deve manter o produto associado');
+console.log('✅ Teste 6 passou: Fusão canônica anti-duplicação funcionou com 100% de precisão!');
+
 console.log('🎉 TODOS OS TESTES DA ABA DE FORNECEDORES PASSARAM COM 100% DE SUCESSO!\n');
