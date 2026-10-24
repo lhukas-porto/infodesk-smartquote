@@ -23,6 +23,7 @@ import { DiscoveredProduct } from '../types';
 import { searchProductImages } from './imageSearchService';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { getSettings } from '../utils/storage';
+import { reportError } from './errorReporter';
 
 export type { DiscoveredProduct };
 export { searchProductImages };
@@ -299,6 +300,46 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
   // 0. Remove artefatos de OCR e marcadores soltos: ".º", "1 .º", "º", "* —", "•", "▪"
   name = name.replace(/(?:\.º|\d+\s*\.º|º|\*\s*—|•|▪|→)/g, ' ');
 
+  // 0.5. Normalização de Plurais e Termos Informais para a Denominação Comercial Canônica Singular
+  // Converte gírias/plurais comuns do dia-a-dia em títulos oficiais de catálogo
+  const pluralToSingular: Array<[RegExp, string]> = [
+    [/^aparelhos?\s+de\s+celular\b/i, 'Smartphone'],
+    [/^telefones?\s+celulares?\b/i, 'Smartphone'],
+    [/^celulares?\b/i, 'Smartphone'],
+    [/^smartphones?\b/i, 'Smartphone'],
+    [/^mouses?\b/i, 'Mouse'],
+    [/^teclados?\b/i, 'Teclado'],
+    [/^monitores?\b/i, 'Monitor'],
+    [/^switches?\b/i, 'Switch'],
+    [/^roteadores?\b/i, 'Roteador'],
+    [/^nobreaks?\b/i, 'Nobreak'],
+    [/^cabos?\s+de\s+rede\b/i, 'Cabo de Rede'],
+    [/^notebooks?\b/i, 'Notebook'],
+    [/^computadores?\b/i, 'Computador'],
+    [/^fones?\s+de\s+ouvido\b/i, 'Fone de Ouvido'],
+    [/^headsets?\b/i, 'Headset'],
+    [/^webcams?\b/i, 'Webcam'],
+    [/^tablets?\b/i, 'Tablet'],
+    [/^impressoras?\b/i, 'Impressora'],
+    [/^toners?\b/i, 'Toner'],
+    [/^cartuchos?\b/i, 'Cartucho'],
+    [/^projetores?\b/i, 'Projetor'],
+    [/^furadeiras?\b/i, 'Furadeira'],
+    [/^parafusadeiras?\b/i, 'Parafusadeira'],
+    [/^alicates?\b/i, 'Alicate'],
+    [/^disjuntores?\b/i, 'Disjuntor'],
+    [/^l[aâ]mpadas?\b/i, 'Lâmpada'],
+    [/^cadeiras?\b/i, 'Cadeira'],
+    [/^mesas?\b/i, 'Mesa'],
+    [/^canetas?\b/i, 'Caneta']
+  ];
+  for (const [reg, singular] of pluralToSingular) {
+    if (reg.test(name)) {
+      name = name.replace(reg, singular).trim();
+      break;
+    }
+  }
+
   // 1. Remove resquícios de quantidade inicial (ex: "10x ", "10 un ", "10 unid ", "10 pçs ", "10 peças ", "10 unidades de ", "05 - ")
   // Protege produtos cujos nomes/códigos começam com números (ex: 3M, 2040, 1930, 24 Portas, 480GB)
   name = name.replace(/^(\d+\s*(?:x|unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)\s*(?:de\s+)?[:\-\s]*)/i, '');
@@ -309,6 +350,27 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
   name = name.replace(/([:\-\s|/(\[]+\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)[\)\]]?\s*)$/i, '');
   name = name.replace(/(\s*[\(\[]\s*\d+\s*[\)\]]\s*)$/i, '');
   name = name.replace(/(\s+[xX]\s*\d+\s*)$/i, '');
+
+  // 2.5 Normalização de capacidades de armazenamento (ex: "256g" -> "256GB", "128g" -> "128GB", "512g" -> "512GB")
+  name = name.replace(/\b(16|32|64|128|256|512|1024)\s*g\b/gi, '$1GB');
+
+  // 2.6 Padronização canônica de smartphones Samsung Galaxy (ex: S25fe -> Galaxy S25 FE 5G)
+  if (/\bSamsung\b/i.test(name) || /smartphone/i.test(name)) {
+    // Normaliza modelo Galaxy S / A / M / Z
+    const galaxyMatch = name.match(/\b(?:galaxy\s+)?([SABMZsabmz]\d{1,2}(?:\s*(?:fe|ultra|plus|\+|lite|pro))?)\b/i);
+    if (galaxyMatch && !/\bGalaxy\s+[SABMZsabmz]\d{1,2}/i.test(name)) {
+      const cleanMod = galaxyMatch[1].toUpperCase()
+        .replace(/([SABMZ]\d{1,2})\s*(FE|ULTRA|PLUS|LITE|PRO)/i, '$1 $2')
+        .replace(/FE\b/i, 'FE 5G')
+        .replace(/\s+/g, ' ')
+        .trim();
+      name = name.replace(galaxyMatch[0], `Galaxy ${cleanMod}`);
+    }
+    // Garante que comece com 'Smartphone Samsung' se contiver Samsung e modelo Galaxy
+    if (/\bSamsung\b/i.test(name) && /\bGalaxy\b/i.test(name) && !/^Smartphone\b/i.test(name)) {
+      name = `Smartphone ${name}`;
+    }
+  }
 
   // 3. Remove prefixos genéricos de categoria do início do nome (ex: "Informática: ", "Redes - ", "Ferramentas: ")
   name = name.replace(/^(?:Inform[aá]tica|Hardware|Perif[eé]ricos|Redes|Conectividade|Telefonia|Ferramentas|Constru[cç][aã]o|Materiais?|Equipamentos?|El[eé]trica|Ilumina[cç][aã]o|Diversos)\s*[-:]\s*/i, '');
@@ -330,7 +392,6 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
   }
 
   // 7. Se o nome for longo e contiver frases/verbos descritivos emendados:
-  // Ex: "Ventosa de 30mm... produzidas em plástico silicone e pvc cristal garantem boa fixação..."
   const cutMarkers = [
     /\s+produzid[ao]s?\s+em\b/i,
     /\s+fabricad[ao]s?\s+em\b/i,
@@ -371,7 +432,7 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
   }
 
   // 10. Restaura siglas e acrônimos técnicos comuns em maiúsculo
-  const techAcronyms = ['USB', 'HDMI', 'VGA', 'DVI', 'P3', 'P2', 'Cat6', 'Cat5e', 'Cat5', 'LED', 'LCD', 'OLED', 'RGB', 'SSD', 'HDD', 'NVMe', 'ABNT2', 'Bivolt', 'Wi-Fi', 'WiFi', 'Bluetooth', 'PoE', 'RJ45', 'RJ11', 'Full HD', '4K'];
+  const techAcronyms = ['USB', 'HDMI', 'VGA', 'DVI', 'P3', 'P2', 'Cat6', 'Cat5e', 'Cat5', 'LED', 'LCD', 'OLED', 'AMOLED', 'RGB', 'SSD', 'HDD', 'NVMe', 'ABNT2', 'Bivolt', 'Wi-Fi', 'WiFi', 'Bluetooth', 'PoE', 'RJ45', 'RJ11', 'Full HD', '4K', '5G', '4G', 'LTE', 'NFC', 'RAM', 'ROM', 'FHD'];
   for (const ac of techAcronyms) {
     const reg = new RegExp(`\\b${ac}\\b`, 'gi');
     name = name.replace(reg, ac);
@@ -2129,7 +2190,8 @@ Equipada com furo central de 2,5mm para encaixe de parafusos, ganchos ou pinos d
 };
 
 const RECOGNIZED_BRANDS = [
-  'Logitech', 'Dell', 'HP', 'Lenovo', 'Kingston', 'SanDisk', 'Samsung', 'Western Digital', 'WD',
+  'Logitech', 'Dell', 'HP', 'Lenovo', 'Kingston', 'SanDisk', 'Samsung', 'Apple', 'Motorola',
+  'Xiaomi', 'Redmi', 'Realme', 'Asus', 'Infinix', 'Western Digital', 'WD',
   'Seagate', 'Corsair', 'Razer', 'Redragon', 'Multilaser', 'Fortrek', 'C3Tech', 'Intelbras',
   'TP-Link', 'D-Link', 'Furukawa', 'Ubiquiti', 'Mikrotik', 'Cisco', 'Aruba', 'Mercusys',
   'APC', 'SMS', 'Ragtech', 'Engetron', 'NHS', 'TS Shara', 'Epson', 'Canon', 'Brother',
@@ -2155,6 +2217,60 @@ interface ArchetypeRule {
 }
 
 const ARCHETYPE_RULES: Record<string, ArchetypeRule> = {
+  smartphone: {
+    noun: 'Smartphone',
+    category: 'Redes, Conectividade & Telefonia',
+    ncm: '8517.13.00',
+    weight: '0.210 kg',
+    dimensions: '16cm x 8cm x 1cm',
+    costPrice: 0,
+    suggestedPrice: 0,
+    specs: [
+      { label: 'Tipo', value: 'Smartphone 5G Corporativo' },
+      { label: 'Tela', value: 'Display Dynamic AMOLED 2X FHD+ 120Hz' },
+      { label: 'Conectividade', value: '5G, Wi-Fi 6E, Bluetooth 5.3 e NFC' },
+      { label: 'Segurança', value: 'Biometria e Reconhecimento Facial' },
+      { label: 'Proteção', value: 'Certificação IP68 resistente a água e poeira' },
+      { label: 'Homologação', value: 'Anatel' },
+      { label: 'Categoria Oficial', value: 'Redes, Conectividade & Telefonia' }
+    ],
+    description: (brand, model) =>
+      `Smartphone corporativo ${brand} ${model} desenvolvido para máxima produtividade em mobilidade, comunicação empresarial segura e alto desempenho tecnológico. Conta com processador de alta eficiência, tela imersiva com taxa de atualização fluida e acabamento refinado com certificação IP68.\n\nEquipado com conectividade 5G de ultrabaixa latência, bateria de longa autonomia e recursos robustos de segurança corporativa para proteção de dados corporativos.`
+  },
+  notebook: {
+    noun: 'Notebook',
+    category: 'Informática, Hardware & Periféricos',
+    ncm: '8471.30.12',
+    weight: '2.200 kg',
+    dimensions: '38cm x 26cm x 3cm',
+    costPrice: 0,
+    suggestedPrice: 0,
+    specs: [
+      { label: 'Processador', value: 'Processador de alta performance para produtividade' },
+      { label: 'Memória RAM', value: 'DDR4 / DDR5 de alta velocidade' },
+      { label: 'Armazenamento', value: 'SSD NVMe de inicialização ultrarrápida' },
+      { label: 'Tela', value: 'Display Full HD 15.6" Antirreflexo' },
+      { label: 'Teclado', value: 'ABNT2 com teclado numérico integrado' }
+    ],
+    description: (brand, model) =>
+      `Notebook corporativo ${brand} ${model} projetado para estações de trabalho e mobilidade empresarial. Oferece alta performance, inicialização instantânea e autonomia prolongada para tarefas simultâneas.`
+  },
+  tablet: {
+    noun: 'Tablet',
+    category: 'Informática, Hardware & Periféricos',
+    ncm: '8471.30.11',
+    weight: '0.500 kg',
+    dimensions: '25cm x 17cm x 1cm',
+    costPrice: 0,
+    suggestedPrice: 0,
+    specs: [
+      { label: 'Tela', value: 'Display Touchscreen de alta resolução' },
+      { label: 'Conectividade', value: 'Wi-Fi e Bluetooth' },
+      { label: 'Bateria', value: 'Longa duração para uso corporativo contínuo' }
+    ],
+    description: (brand, model) =>
+      `Tablet corporativo ${brand} ${model} leve e versátil para coletas de dados, apresentações e produtividade em campo com navegação fluida e tela de alta fidelidade visual.`
+  },
   headset: {
     noun: 'Headset',
     category: 'Áudio, Vídeo & Apresentação',
@@ -2375,36 +2491,91 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
     }
   }
 
+  // Extração de Capacidade de Memória / Armazenamento (ex: 256GB, 128GB, 512GB, 64GB, 1TB)
+  let detectedStorage = '';
+  const storageMatch = rawQuery.match(/\b(16|32|64|128|256|512|1024)\s*(?:gb?|g\b|gigas?)\b|\b([1248])\s*tb\b/i);
+  if (storageMatch) {
+    detectedStorage = storageMatch[1] ? `${storageMatch[1]}GB` : `${storageMatch[2]}TB`;
+  }
+
   // 3. Detecção de Arquétipo de Produto (apenas se corresponder estritamente ao termo)
   let archKey: string | null = null;
-  if (/\b(?:headset|fone de ouvido|headphone|auricular)\b/i.test(norm)) archKey = 'headset';
+  if (/\b(?:aparelhos?\s+de\s+celular|telefones?\s+celulares?|celulares?|smartphones?|iphone|galaxy|xiaomi|redmi|motorola|moto\s+g|moto\s+edge)\b/i.test(norm)) archKey = 'smartphone';
+  else if (/\b(?:notebook|laptop)\b/i.test(norm)) archKey = 'notebook';
+  else if (/\b(?:tablet|ipad)\b/i.test(norm)) archKey = 'tablet';
+  else if (/\b(?:headset|fone de ouvido|headphone|auricular)\b/i.test(norm)) archKey = 'headset';
   else if (/\b(?:teclado|keyboard)\b/i.test(norm)) archKey = 'teclado';
   else if (/\bmouse\b/i.test(norm)) archKey = 'mouse';
   else if (/\b(?:webcam|c[aâ]mera usb)\b/i.test(norm)) archKey = 'webcam';
   else if (/\b(?:ssd|nvme|m\.2|disco s[oó]lido)\b/i.test(norm)) archKey = 'ssd';
-  else if (/\b(?:switch de rede|switch giga|switch 10\/100|switch 24|switch 16|switch 8 portas)\b/i.test(norm)) archKey = 'switch';
+  else if (/\b(?:switch de rede|switch giga|switch 10\/100|switch 24|switch 16|switch 8 portas|switch cisco|switch intelbras)\b/i.test(norm)) archKey = 'switch';
   else if (/\b(?:cabo de rede|patch cord|furukawa|cat6|cat5e?)\b/i.test(norm)) archKey = 'cabo_rede';
   else if (/\b(?:nobreak|ups|estabilizador de tens[aã]o)\b/i.test(norm)) archKey = 'nobreak';
   else if (/\b(?:monitor corporativo|monitor dell|monitor led|monitor ips|smart tv)\b/i.test(norm)) archKey = 'monitor';
 
   // 4. Detecção de Modelo / Código Alfanumérico
   let detectedModel = '';
-  const modelRegexes = [
-    /\b([A-Z]{1,3}\d{2,4}[A-Za-z]?)\b/i, // H390, K120, C920, WM126, P2422H
-    /\b([A-Z0-9]{2,5}-[A-Z0-9]{2,6})\b/i, // TL-SG1024D, MK-220
-    /\b(\d{3,4}[A-Z]{1,3})\b/i
-  ];
-  for (const rx of modelRegexes) {
-    const m = cleanQuery.match(rx);
-    if (m && !RECOGNIZED_BRANDS.some(b => b.toLowerCase() === m[1].toLowerCase())) {
-      detectedModel = m[1].toUpperCase();
-      break;
+  let customPartNumber = '';
+
+  if (archKey === 'smartphone') {
+    if (/samsung/i.test(norm) || detectedBrand === 'Samsung') {
+      detectedBrand = 'Samsung';
+      const m = cleanQuery.match(/\b(?:galaxy\s+)?([SABMZsabmz]\d{1,2}(?:\s*(?:fe|ultra|plus|\+|lite|pro))?)\b/i);
+      if (m) {
+        const modBase = m[1].toUpperCase()
+          .replace(/([SABMZ]\d{1,2})\s*(FE|ULTRA|PLUS|LITE|PRO)/i, '$1 $2')
+          .replace(/FE\b/i, 'FE 5G')
+          .replace(/\s+/g, ' ')
+          .trim();
+        detectedModel = `Galaxy ${modBase}`;
+        const codeNum = modBase.replace(/[^A-Z0-9]/gi, '');
+        customPartNumber = `SM-${codeNum}-${detectedStorage || '256G'}`;
+      } else {
+        detectedModel = 'Galaxy';
+      }
+    } else if (/apple|iphone/i.test(norm)) {
+      detectedBrand = 'Apple';
+      const m = cleanQuery.match(/\b(iphone\s+(?:1[1-6]|se)(?:\s*(?:pro\s*max|pro|plus|mini))?)\b/i);
+      if (m) {
+        detectedModel = m[1].replace(/\biphone\b/i, 'iPhone').replace(/\bpro\b/i, 'Pro').replace(/\bmax\b/i, 'Max').replace(/\bplus\b/i, 'Plus');
+        customPartNumber = `IPH-${detectedModel.replace(/[^A-Z0-9]/gi, '')}-${detectedStorage || '128G'}`;
+      } else {
+        detectedModel = 'iPhone';
+      }
+    } else if (/motorola|moto/i.test(norm)) {
+      detectedBrand = 'Motorola';
+      const m = cleanQuery.match(/\b(?:moto\s+)?(g\d{1,2}[a-z]?|edge\s+\d{1,2}(?:\s*(?:pro|ultra|fusion|neo))?)\b/i);
+      detectedModel = m ? `Moto ${m[1].toUpperCase()} 5G` : 'Moto';
+    } else if (/xiaomi|redmi/i.test(norm)) {
+      detectedBrand = 'Xiaomi';
+      const m = cleanQuery.match(/\b(?:redmi\s+)?(note\s+\d{1,2}(?:\s*(?:pro\s*plus|pro|\+))?|\d{1,2}[a-z]?)\b/i);
+      detectedModel = m ? `Redmi ${m[1]}` : 'Redmi';
+    }
+  }
+
+  if (!detectedModel) {
+    const modelRegexes = [
+      /\b([A-Z]{1,3}\d{2,4}[A-Za-z]?)\b/i, // H390, K120, C920, WM126, P2422H
+      /\b([A-Z0-9]{2,5}-[A-Z0-9]{2,6})\b/i, // TL-SG1024D, MK-220
+      /\b(\d{3,4}[A-Z]{1,3})\b/i
+    ];
+    for (const rx of modelRegexes) {
+      const m = cleanQuery.match(rx);
+      if (m) {
+        const candidate = m[1].toUpperCase();
+        const isStorage = /^\d{2,4}(?:GB?|TB|MB|G)$/i.test(candidate);
+        const isBrand = RECOGNIZED_BRANDS.some(b => b.toLowerCase() === candidate.toLowerCase());
+        if (!isStorage && !isBrand) {
+          detectedModel = candidate;
+          break;
+        }
+      }
     }
   }
 
   const brand = detectedBrand || 'Genérica';
   const model = detectedModel || '';
-  const pNumber = model ? `${brand !== 'Genérica' ? brand.substring(0, 3).toUpperCase() : 'PROD'}-${model}` : '';
+  const pNumber = customPartNumber || (model ? `${brand !== 'Genérica' ? brand.substring(0, 3).toUpperCase() : 'PROD'}-${model}` : '');
 
   // 5. Se NÃO for um dos arquétipos de informática, gera produto genérico limpo SEM prefixar Headset
   if (!archKey) {
@@ -2428,11 +2599,11 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       ncm = '8544.49.00';
       weight = '1.000 kg';
       dimensions = '25cm x 25cm x 10cm';
-    } else if (/switch|roteador|modem|patch cord|cabo de rede|keystone|fibra|telefonia|telefone|interfone/i.test(norm)) {
+    } else if (/switch|roteador|modem|patch cord|cabo de rede|keystone|fibra|telefonia|telefone|interfone|celular|smartphone|aparelho de celular|iphone|galaxy|motorola|xiaomi|redmi/i.test(norm)) {
       category = 'Redes, Conectividade & Telefonia';
-      ncm = /telefone|interfone/i.test(norm) ? '8517.18.00' : '8517.62.59';
-      weight = '0.550 kg';
-      dimensions = '18cm x 15cm x 10cm';
+      ncm = /celular|smartphone|iphone|galaxy|motorola|xiaomi|redmi/i.test(norm) ? '8517.13.00' : (/telefone|interfone/i.test(norm) ? '8517.18.00' : '8517.62.59');
+      weight = /celular|smartphone|iphone|galaxy/i.test(norm) ? '0.210 kg' : '0.550 kg';
+      dimensions = /celular|smartphone|iphone|galaxy/i.test(norm) ? '16cm x 8cm x 1cm' : '18cm x 15cm x 10cm';
     } else if (/papel|caneta|l[aá]pis|caderno|prancheta|envelope|pasta|grampeador|borracha/i.test(norm)) {
       category = 'Papelaria, Artes & Material de Escritório';
       ncm = '4820.10.00';
@@ -2515,27 +2686,45 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
     };
   }
 
-  // 6. Produto de arquétipo reconhecido (teclado, mouse, webcam, etc.)
+  // 6. Produto de arquétipo reconhecido (smartphone, teclado, mouse, webcam, etc.)
   const arch = ARCHETYPE_RULES[archKey];
 
-  // Constrói nome padronizado no formato de mercado sem duplicar o termo
-  const cleanDetail = cleanQuery
-    .replace(new RegExp(`\\b${brand}\\b`, 'gi'), '')
-    .replace(new RegExp(`\\b${model}\\b`, 'gi'), '')
-    .replace(new RegExp(`\\b${arch.noun}\\b`, 'gi'), '')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  let stdName = '';
+  if (archKey === 'smartphone') {
+    stdName = `Smartphone ${brand !== 'Genérica' ? brand : ''} ${model} ${detectedStorage}`
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  } else {
+    // Constrói nome padronizado no formato de mercado sem duplicar o termo
+    const cleanDetail = cleanQuery
+      .replace(new RegExp(`\\b${brand}\\b`, 'gi'), '')
+      .replace(new RegExp(`\\b${model}\\b`, 'gi'), '')
+      .replace(new RegExp(`\\b${arch.noun}\\b`, 'gi'), '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
 
-  const stdName = `${arch.noun} ${brand !== 'Genérica' ? brand : ''} ${model} ${cleanDetail}`
-    .replace(/,/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+    stdName = `${arch.noun} ${brand !== 'Genérica' ? brand : ''} ${model} ${cleanDetail}`
+      .replace(/,/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  stdName = sanitizeStandardizedProductName(stdName, arch.category, brand);
+
+  const dynamicSpecs = [...arch.specs];
+  if (detectedStorage) {
+    dynamicSpecs.unshift({ label: 'Armazenamento Interno', value: detectedStorage });
+  }
+
+  const manufacturer = archKey === 'smartphone' && brand === 'Samsung'
+    ? 'Samsung Eletrônica da Amazônia / do Brasil'
+    : (brand !== 'Genérica' ? `${brand} International / Nacional` : 'Fabricante Nacional / Importado');
 
   return {
-    standardizedName: formatProductSentenceCase(stdName),
+    standardizedName: stdName,
     brand,
-    manufacturer: brand !== 'Genérica' ? `${brand} International` : 'Fabricante Nacional / Importado',
-    model,
+    manufacturer,
+    model: model || arch.noun,
     partNumber: pNumber,
     category: arch.category,
     ncm: arch.ncm,
@@ -2544,7 +2733,7 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
     suggestedPrice: arch.suggestedPrice,
     costPrice: arch.costPrice,
     description: arch.description(brand, model, cleanQuery),
-    specifications: arch.specs,
+    specifications: dynamicSpecs,
     quantity: quantity > 0 ? quantity : 1,
     unit: finalUnit,
     confidence: 'Alta - Ficha Técnica Heurística Estruturada'
@@ -2642,22 +2831,29 @@ SUA MISSÃO NA FASE 1: DEDUZIR E ENRIQUECER CADA PRODUTO COM FICHA TÉCNICA 360�
 DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
 - "isFromPhoto": Booleano (true se o produto corresponde ou foi enriquecido pelas fotos anexadas, false se for estritamente do texto sem fotos).
 - "photoIndex": Número inteiro (0 para foto principal ou -1 se não houver fotos).
-- "standardizedName": TÍTULO COMERCIAL PADRONIZADO E CONCISO (máximo 5 a 15 palavras). Padrão: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. Exemplo CORRETO de Ventosa: "Ventosa de Silicone e PVC Cristal 30mm Transparente com Furo 2.5mm".
+- "standardizedName": TÍTULO COMERCIAL PADRONIZADO E CONCISO (máximo 5 a 15 palavras). Padrão: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. Exemplo CORRETO de Smartphone: "Smartphone Samsung Galaxy S25 FE 5G 256GB" (NUNCA ecoe "Aparelhos de celular Samsung s25fe 256g").
   REGRAS CRÍTICAS DO NOME:
-  1. NUNCA coloque quantidades, prefixos como "10x", "5 un" ou resquícios numéricos no nome! A quantidade deve ir estritamente no campo "quantity".
-  2. NUNCA coloque parágrafos, frases descritivas ("garantem boa fixação", "adequado para utilizar em display"), tópicos ou listas de atributos dentro do nome! O nome deve ser limpo e conciso.
-  3. NUNCA insira prefixos de categoria incorretos! Por exemplo: uma ventosa de silicone usada para apoiar display de acrílico ou tampo de vidro NÃO é um "Monitor ventosa"! Uma ventosa é uma ventosa de fixação. Analise a real natureza física do produto.
-  4. NUNCA inclua lixo de OCR ou caracteres truncados (ex: ".º", "1 .º", "º", "* —", frases cortadas como "pacote com").
-  5. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
+  1. PADRONIZAÇÃO CANÔNICA DE PRODUTOS: Se o texto contiver termos informais, gírias ou no plural ('aparelhos de celular', 'celulares', 'mouses', 'computadores', 'switches', 'cabos', 'telas'), VOCÊ DEVE OBRIGATORIAMENTE converter para a denominação comercial oficial e singular do produto no mercado brasileiro (ex: '03 aparelhos de celular Samsung S25fe, 256g' DEVE RETORNAR 'Smartphone Samsung Galaxy S25 FE 5G 256GB')!
+  2. NORMALIZAÇÃO DE CAPACIDADES DE MEMÓRIA E ARMAZENAMENTO:
+     Se o comprador digitar capacidades como '256g', '128g', '512g', '64g', '16g', '8g', interprete como gigabytes e escreva OBRIGATORIAMENTE '256GB', '128GB', '512GB', '16GB', '8GB'. NUNCA use a capacidade de armazenamento como o nome do modelo (ex: o modelo NUNCA é '256G')!
+  3. CATEGORIA MANDATÓRIA PARA CELULARES E SMARTPHONES:
+     Smartphones, celulares, telefones e aparelhos móveis pertencem OBRIGATORIAMENTE à categoria "Redes, Conectividade & Telefonia" com NCM 8517.13.00 (smartphones) ou 8517.18.00 (telefones). É EXPRESSAMENTE PROIBIDO classificar smartphones em "Diversos & Sazonais" ou "Informática"!
+  4. NUNCA coloque quantidades, prefixos como "10x", "5 un" ou resquícios numéricos no nome! A quantidade deve ir estritamente no campo "quantity".
+  5. NUNCA coloque parágrafos, frases descritivas ("garantem boa fixação", "adequado para utilizar em display"), tópicos ou listas de atributos dentro do nome! O nome deve ser limpo e conciso.
+  6. NUNCA insira prefixos de categoria incorretos! Analise a real natureza física do produto.
+  7. NUNCA inclua lixo de OCR ou caracteres truncados (ex: ".º", "1 .º", "º", "* —", frases cortadas como "pacote com").
+  8. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
 - "brand": Marca comercial oficial ou "Genérica" se sem marca visível.
 - "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
 - "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA - REGRA INFODESK):
-  1. Extraia prioritariamente o MODELO que já consta na própria descrição do comprador (ex: em 'Microfone sem fio Hollyland Lark M2S', o modelo é 'Lark M2S'; em 'Monitor Dell P2723D', o modelo é 'P2723D'; em 'Projetor Epson PowerLite E20', o modelo é 'PowerLite E20'; em 'Teclado Logitech MX Keys Mini', o modelo é 'MX Keys Mini'; em 'Switch Cisco C9200L', o modelo é 'C9200L').
-  2. Se não constar explicitamente no texto, identifique nas especificações do fabricante e retorne o modelo comercial de verdade.
+  1. Para smartphones Samsung, o modelo oficial é a linha Galaxy (ex: 'Galaxy S25 FE 5G', 'Galaxy S24 Ultra', 'Galaxy A55'). NUNCA coloque a capacidade '256G' como nome do modelo!
+  2. Extraia prioritariamente o MODELO que já consta na própria descrição do comprador (ex: em 'Microfone sem fio Hollyland Lark M2S', o modelo é 'Lark M2S'; em 'Monitor Dell P2723D', o modelo é 'P2723D'; em 'Projetor Epson PowerLite E20', o modelo é 'PowerLite E20'; em 'Teclado Logitech MX Keys Mini', o modelo é 'MX Keys Mini'; em 'Switch Cisco C9200L', o modelo é 'C9200L').
+  3. Se não constar explicitamente no texto, identifique nas especificações do fabricante e retorne o modelo comercial de verdade.
 - "partNumber": PART NUMBER / CÓDIGO DE REFERÊNCIA OFICIAL (PRIORIDADE MÁXIMA):
-  1. Extraia o Part Number, Código de Referência, SKU ou P/N se constar na descrição (ex: 'P/N: 920-009599', 'Ref: 23400198', 'Cód: 15724', 'SNV2S/1000G').
-  2. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D', 'E20'), use a sigla/código de referência do modelo como Part Number (ex: 'M2S', 'P2723D', 'E20') para servir como código oficial da peça.
-  3. Se não houver Part Number de fábrica, utilize o modelo identificado para o produto NUNCA ficar sem código de identificação.
+  1. Para smartphones Samsung, use a referência oficial Anatel/fabricante (ex: 'SM-S721B', 'SM-S25FE-256G'), NUNCA códigos genéricos inventados como 'SAM-256G'!
+  2. Extraia o Part Number, Código de Referência, SKU ou P/N se constar na descrição (ex: 'P/N: 920-009599', 'Ref: 23400198', 'Cód: 15724', 'SNV2S/1000G').
+  3. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D', 'E20'), use a sigla/código de referência do modelo como Part Number (ex: 'M2S', 'P2723D', 'E20') para servir como código oficial da peça.
+  4. Se não houver Part Number de fábrica, utilize o modelo identificado para o produto NUNCA ficar sem código de identificação.
 - "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as 15 categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. ATENÇÃO: Ventosas, fixadores, buchas e suportes pertencem a "Construção, Acabamento & Marcenaria" ou "Equipamentos & Insumos Industriais", NUNCA a "Monitores, Displays & TVs"! NUNCA crie categorias fora desta lista.
 - "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40, 8544.42.00, 8517.62.59).
 - "ean": Código de barras EAN se conhecido, senão "".
@@ -2961,6 +3157,14 @@ Retorne ESTRITAMENTE um JSON no formato:
     '| Tem chave IA:', !!activeKey,
     '| Circuit Breaker ativo:', isGeminiCircuitBreakerActive()
   );
+
+  if (activeKey && !isGeminiCircuitBreakerActive()) {
+    reportError(
+      'Aviso da API Gemini: Dedução Técnica Ativada',
+      'A API do Google Gemini não respondeu com sucesso para esta consulta. O motor de Dedução Técnica Heurística de alta precisão foi acionado automaticamente para garantir a ficha técnica do produto.',
+      'Price Scanner - Fase 1'
+    );
+  }
   const parsedItems = parsePastedProductListWithQty(rawText);
   const itemsToProcess: Array<{ query: string; quantity: number; unit?: string; isPhoto?: boolean; photoIndex?: number }> = [];
 

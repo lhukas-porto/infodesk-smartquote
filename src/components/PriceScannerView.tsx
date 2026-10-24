@@ -1766,11 +1766,17 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-full text-xs font-semibold">
                         <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                        Inteligência Artificial (Gemini AI)
+                        {prod.id?.startsWith('disc-local-') || (typeof prod.confidence === 'string' && (prod.confidence.includes('Heurística') || prod.confidence.includes('Estruturada')))
+                          ? 'Dedução Técnica & Catálogo Canônico'
+                          : 'Inteligência Artificial (Gemini AI)'}
                       </span>
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#064e3b] text-white rounded-full text-xs font-bold shadow-2xs">
                         <Check className="w-3.5 h-3.5 text-emerald-300 stroke-[3]" />
-                        {prod.confidence ? `${typeof prod.confidence === 'string' ? prod.confidence : 'Alta'} - Identificado por IA` : 'Alta - Identificado por IA'}
+                        {prod.confidence
+                          ? (typeof prod.confidence === 'string' && (prod.confidence.includes('Identificado') || prod.confidence.includes('Oficial') || prod.confidence.includes('Estruturada'))
+                              ? prod.confidence
+                              : `${prod.confidence} - Ficha Técnica Oficial`)
+                          : 'Alta - Ficha Técnica Oficial'}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">

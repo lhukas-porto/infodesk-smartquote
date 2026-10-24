@@ -214,4 +214,59 @@ if (enriched2.quantity !== 3 || enriched2.unit !== 'Cx.') {
 }
 console.log(`  ✓ Enriquecido: "${enriched2.standardizedName}" | Qtd: ${enriched2.quantity} ${enriched2.unit} | NCM: ${enriched2.ncm}`);
 
+// ============================================================================
+// TESTE 8: Padronização Canônica Oficial de Smartphones e Resolução de Plurais
+// ============================================================================
+console.log('\n[Teste 8] Padronização Canônica Oficial de Smartphones e Resolução de Plurais');
+
+const phoneQuery = '03 aparelhos de celular Samsung S25fe, 256g';
+const parsedPhone = parsePastedProductListWithQty(phoneQuery);
+if (parsedPhone.length !== 1 || parsedPhone[0].quantity !== 3) {
+  throw new Error(`Falha ao parsear quantidade do celular: esperava 3, obteve ${parsedPhone[0]?.quantity}`);
+}
+
+const enrichedPhone = enrichProductHeuristically(parsedPhone[0].query, parsedPhone[0].quantity, parsedPhone[0].unit);
+
+// 1. O nome NÃO pode ser "Aparelhos de celular Samsung s25fe 256g"
+if (enrichedPhone.standardizedName.toLowerCase().startsWith('aparelhos de celular')) {
+  throw new Error(`Nome não padronizado para smartphone: manteve gíria "${enrichedPhone.standardizedName}"`);
+}
+if (!enrichedPhone.standardizedName.includes('Galaxy S25 FE')) {
+  throw new Error(`Nome não identificou a linha Galaxy S25 FE: obteve "${enrichedPhone.standardizedName}"`);
+}
+if (!enrichedPhone.standardizedName.includes('256GB')) {
+  throw new Error(`Capacidade de armazenamento 256g não foi normalizada para 256GB: obteve "${enrichedPhone.standardizedName}"`);
+}
+
+// 2. Modelo e Part Number NÃO podem ser "256G" nem "SAM-256G"
+if (enrichedPhone.model === '256G') {
+  throw new Error(`Modelo capturou armazenamento erroneamente: "${enrichedPhone.model}"`);
+}
+if (enrichedPhone.partNumber === 'SAM-256G') {
+  throw new Error(`Part number foi fabricado incorretamente como "${enrichedPhone.partNumber}"`);
+}
+
+// 3. Categoria DEVE ser "Redes, Conectividade & Telefonia"
+if (enrichedPhone.category !== 'Redes, Conectividade & Telefonia') {
+  throw new Error(`Categoria incorreta para smartphone: esperava "Redes, Conectividade & Telefonia", obteve "${enrichedPhone.category}"`);
+}
+
+// 4. NCM DEVE ser de telefones inteligentes / smartphones (8517.13.00)
+if (enrichedPhone.ncm !== '8517.13.00') {
+  throw new Error(`NCM incorreto para smartphone: esperava "8517.13.00", obteve "${enrichedPhone.ncm}"`);
+}
+
+console.log(`  ✓ Smartphone Samsung padronizado com excelência:`);
+console.log(`    Nome Oficial: "${enrichedPhone.standardizedName}"`);
+console.log(`    Categoria:    "${enrichedPhone.category}"`);
+console.log(`    NCM:          "${enrichedPhone.ncm}"`);
+console.log(`    Modelo:       "${enrichedPhone.model}" | P/N: "${enrichedPhone.partNumber}"`);
+
+// 5. Teste de plural para singular em mouse e teclado
+const cleanMouse = sanitizeStandardizedProductName('Mouses sem fio Logitech M170');
+if (!cleanMouse.startsWith('Mouse')) {
+  throw new Error(`Plural não foi convertido para singular em mouse: obteve "${cleanMouse}"`);
+}
+console.log(`  ✓ "Mouses sem fio Logitech M170" -> "${cleanMouse}"`);
+
 console.log('\n🎉 TODOS OS TESTES DE ROBUSTEZ E QUANTIDADES DO SCANNER IA PASSARAM COM 100% DE SUCESSO!\n');
