@@ -84,6 +84,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
+  // Ocultado visualmente a pedido do Lucas temporariamente (todo o código do Inbox permanece 100% preservado)
+  const SHOW_INBOX_TAB = false;
+
   const isMoreTabActive = ['dashboard', 'websearch', 'catalog', 'clients'].includes(activeTab);
 
   return (
@@ -96,8 +99,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center shrink-0">
             <div 
               className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none shrink-0 group py-1" 
-              onClick={() => setActiveTab('inbox')}
-              title="Ir para o Inbox"
+              onClick={() => setActiveTab('builder')}
+              title="Nova Cotação Comercial"
             >
               <img 
                 src="/infodesk-logo.png" 
@@ -112,27 +115,29 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Centro: Menu de Navegação em Abas (Cápsula Integrada Centralizada) - Desktop */}
           <div className="hidden lg:flex flex-1 justify-center items-center px-2">
             <nav className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shrink-0">
-              <button
-                onClick={() => setActiveTab('inbox')}
-                className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                  activeTab === 'inbox'
-                    ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                }`}
-              >
-                <Mail className="w-3.5 h-3.5" />
-                <span>Inbox</span>
-                {unreadCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 bg-sky-500 text-white text-[10px] font-bold rounded-full">
-                    {unreadCount}
-                  </span>
-                )}
-                {analysesCount > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.2 bg-violet-100 text-violet-700 border border-violet-200 text-[10px] font-bold rounded-full" title={`${analysesCount} demandas avulsas`}>
-                    {analysesCount}
-                  </span>
-                )}
-              </button>
+              {SHOW_INBOX_TAB && (
+                <button
+                  onClick={() => setActiveTab('inbox')}
+                  className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                    activeTab === 'inbox'
+                      ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Inbox</span>
+                  {unreadCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.2 bg-sky-500 text-white text-[10px] font-bold rounded-full">
+                      {unreadCount}
+                    </span>
+                  )}
+                  {analysesCount > 0 && (
+                    <span className="ml-0.5 px-1.5 py-0.2 bg-violet-100 text-violet-700 border border-violet-200 text-[10px] font-bold rounded-full" title={`${analysesCount} demandas avulsas`}>
+                      {analysesCount}
+                    </span>
+                  )}
+                </button>
+              )}
 
               <button
                 onClick={() => setActiveTab('websearch')}
@@ -286,28 +291,30 @@ export const Navbar: React.FC<NavbarProps> = ({
       aria-label="Navegação Mobile"
       className="no-print fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 lg:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.06)] px-2 py-1 flex items-center justify-around safe-area-bottom select-none"
     >
-      {/* Inbox */}
-      <button
-        type="button"
-        onClick={() => handleMobileNavSelect('inbox')}
-        className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
-          activeTab === 'inbox'
-            ? 'text-sky-600 font-bold bg-sky-50/80'
-            : 'text-slate-500 hover:text-slate-800'
-        }`}
-      >
-        <div className="relative">
-          <Mail className={`w-5 h-5 ${activeTab === 'inbox' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-sky-500 text-white text-[9px] font-extrabold rounded-full shadow-2xs">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </div>
-        <span className="text-[10px] tracking-tight mt-1 leading-none">
-          Inbox
-        </span>
-      </button>
+      {/* Inbox (Ocultado temporariamente a pedido do Lucas) */}
+      {SHOW_INBOX_TAB && (
+        <button
+          type="button"
+          onClick={() => handleMobileNavSelect('inbox')}
+          className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
+            activeTab === 'inbox'
+              ? 'text-sky-600 font-bold bg-sky-50/80'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <div className="relative">
+            <Mail className={`w-5 h-5 ${activeTab === 'inbox' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-sky-500 text-white text-[9px] font-extrabold rounded-full shadow-2xs">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight mt-1 leading-none">
+            Inbox
+          </span>
+        </button>
+      )}
 
       {/* Cotação */}
       <button

@@ -192,9 +192,9 @@ const getTabFromHash = (): TabType | null => {
 export const App: React.FC = () => {
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
     const hashTab = getTabFromHash();
-    if (hashTab) return hashTab;
-    const saved = getSavedActiveTab('inbox');
-    return (VALID_TABS.includes(saved as TabType) ? saved : 'inbox') as TabType;
+    if (hashTab && hashTab !== 'inbox') return hashTab;
+    const saved = getSavedActiveTab('builder');
+    return (VALID_TABS.includes(saved as TabType) ? saved : 'builder') as TabType;
   });
 
   // Rastreamento de varredura ou identificação em andamento no Scanner de Preços

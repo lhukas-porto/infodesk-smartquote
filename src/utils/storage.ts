@@ -411,10 +411,11 @@ export const getQuoteItemsBackup = (key: string): QuoteItem[] | null => {
   return null;
 };
 
-export const getSavedActiveTab = (defaultTab: string = 'inbox'): string => {
+export const getSavedActiveTab = (defaultTab: string = 'builder'): string => {
   try {
     const saved = localStorage.getItem(ACTIVE_TAB_KEY);
-    return saved && ['inbox', 'builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients', 'dashboard'].includes(saved) ? saved : defaultTab;
+    if (saved === 'inbox') return 'builder';
+    return saved && ['builder', 'preview', 'catalog', 'history', 'websearch', 'analyses', 'clients', 'dashboard', 'purchases'].includes(saved) ? saved : defaultTab;
   } catch {
     return defaultTab;
   }
