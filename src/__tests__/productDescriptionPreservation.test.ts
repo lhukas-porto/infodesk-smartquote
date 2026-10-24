@@ -102,9 +102,8 @@ console.log('🧪 Executando bateria de testes: Preservação de Descrições de
 {
   assert(MODERN_GEMINI_MODELS.length >= 3, 'Deve haver ao menos 3 modelos na cascata');
   MODERN_GEMINI_MODELS.forEach(model => {
-    assert(!model.includes('3.1'), `Modelo inválido detectado: ${model}`);
-    assert(!model.includes('3.6'), `Modelo inválido detectado: ${model}`);
-    assert(!model.includes('3.5'), `Modelo inválido detectado: ${model}`);
+    assert(!model.includes('1.5-flash'), `Modelo obsoleto detectado: ${model}`);
+    assert(!model.includes('2.0-flash'), `Modelo obsoleto detectado: ${model}`);
     assert(model.startsWith('gemini-'), `Deve ser um modelo gemini oficial: ${model}`);
   });
   console.log('  ✅ Teste 6 passou: Cascata de modelos Gemini configurada exclusivamente com modelos autênticos');

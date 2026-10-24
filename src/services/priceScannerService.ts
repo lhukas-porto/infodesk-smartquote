@@ -92,11 +92,10 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
  * gemini-3.6-flash e 3.5-flash atuam como fallbacks adicionais.
  */
 export const MODERN_GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro'
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.6-flash',
+  'gemini-3.8-flash'
 ];
 
 /**
