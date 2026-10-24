@@ -12,17 +12,29 @@ export interface ResolvedProductCode {
 
 // Lista de palavras e termos que NÃO são modelos (unidades, medidas, termos comuns de catálogo)
 const NON_MODEL_TOKENS = new Set([
-  'UN', 'UNID', 'UNIDADE', 'PCT', 'PACOTE', 'CX', 'CAIXA', 'KIT', 'CJ', 'CONJUNTO',
-  'MM', 'CM', 'M', 'METRO', 'METROS', 'KM', 'POLEGADAS', 'POL', 'POLS',
-  'KG', 'G', 'MG', 'L', 'LT', 'LITRO', 'LITROS', 'ML',
-  'V', 'VOLT', 'VOLTS', '110V', '127V', '220V', 'BIVOLT', '12V', '24V', '5V',
-  'W', 'WATTS', 'WATT', 'VA', 'KVA', 'HZ', '60HZ', '50HZ',
-  'KB', 'MB', 'GB', 'TB', '1TB', '2TB', '4TB', '8TB', '16GB', '32GB', '64GB', '128GB', '256GB', '512GB',
+  'UN', 'UNID', 'UNIDADE', 'UNIDADES', 'PCT', 'PCTS', 'PACOTE', 'PACOTES', 'CX', 'CXS', 'CAIXA', 'CAIXAS', 'KIT', 'KITS', 'CJ', 'CONJUNTO',
+  'MM', 'CM', 'M', 'MT', 'MTS', 'METRO', 'METROS', 'KM', 'POLEGADAS', 'POL', 'POLS',
+  'KG', 'KGS', 'G', 'GR', 'GS', 'MG', 'L', 'LT', 'LTS', 'LITRO', 'LITROS', 'ML',
+  'V', 'VOLT', 'VOLTS', '110V', '127V', '220V', 'BIVOLT', '12V', '24V', '5V', '48V', '380V',
+  'W', 'WATTS', 'WATT', 'VA', 'KVA', 'HZ', '60HZ', '50HZ', 'KHZ', 'MHZ', 'GHZ',
+  'KB', 'MB', 'GB', 'TB', '1TB', '2TB', '4TB', '8TB', '16GB', '32GB', '64GB', '128GB', '256GB', '512GB', '1024GB',
+  '16G', '32G', '64G', '128G', '256G', '512G', '1024G', '1T', '2T', '4T', '8T',
   'USB', 'USBC', 'HDMI', 'VGA', 'DVI', 'DISPLAYPORT', 'BLUETOOTH', 'WIFI', 'WIRELESS', 'SEM', 'FIO',
   'PRETO', 'BRANCO', 'CINZA', 'AZUL', 'VERMELHO', 'AMARELO', 'VERDE', 'PRATA', 'BLACK', 'WHITE', 'GRAY', 'GREY',
   'NOVO', 'ORIGINAL', 'OFICIAL', 'GENERICO', 'GENERICA', 'PADRAO', 'COMPLETO', 'COMBO', 'ULTIMATE',
   'PARA', 'COM', 'SEM', 'TIPO', 'COR', 'CABO', 'ADAPTADOR', 'FONTE', 'CARREGADOR', 'SUPORTE'
 ]);
+
+/**
+ * Verifica se um token é uma especificação técnica ou medida (ex: 256GB, 256g, 220V, 305M, 2.5MM, 32A, 1.8L)
+ */
+export function isMeasurementOrSpecToken(token: string): boolean {
+  if (!token) return false;
+  const clean = token.toUpperCase().trim();
+  if (NON_MODEL_TOKENS.has(clean)) return true;
+  // Medidas numéricas (inteiras ou decimais) seguidas de unidade técnica
+  return /^[0-9]+([.,][0-9]+)?(?:MM|CM|M|MT|MTS|L|LT|LTS|ML|KG|KGS|G|GR|GS|W|WATTS?|V|VOLTS?|VA|KVA|HZ|KHZ|MHZ|GHZ|GB|TB|MB|KB|G|POL|POLEGADAS?|A|AMP|AMPERES?|P|PORTAS?|FLS?|FOLHAS?|UN|UND|UNIDADES?|PCS?|PÇS?|PEÇAS?)$/i.test(clean);
+}
 
 // Marcas comuns conhecidas para ancoragem de modelo
 const KNOWN_BRANDS = [
@@ -124,9 +136,7 @@ export function extractModelAndPartNumberFromText(
     const cleanToken = token.replace(/^[(\[{<"']+|[)\]}>"':.,;]+$/g, '');
     const cleanUpper = cleanToken.toUpperCase();
 
-    if (NON_MODEL_TOKENS.has(cleanUpper)) continue;
-    // Ignora códigos puramente de medidas como 100M, 20MM, 18L, 305M, 220V
-    if (/^[0-9]+(?:MM|CM|M|L|LT|KG|G|W|V|VA|HZ|GB|TB|POL)$/i.test(cleanToken)) continue;
+    if (isMeasurementOrSpecToken(cleanUpper) || isMeasurementOrSpecToken(cleanToken)) continue;
 
     if (alphanumericModelPattern.test(cleanToken)) {
       // Validar tamanho razoável de código de modelo
@@ -152,7 +162,7 @@ export function extractModelAndPartNumberFromText(
     if (brandAfterMatch && brandAfterMatch[1]) {
       const cand = brandAfterMatch[1].trim();
       const candUpper = cand.toUpperCase();
-      if (!NON_MODEL_TOKENS.has(candUpper) && !/^(sem|com|para|de|da|do)\b/i.test(cand)) {
+      if (!isMeasurementOrSpecToken(candUpper) && !/^(sem|com|para|de|da|do)\b/i.test(cand)) {
         return {
           partNumber: cand,
           model: cand,

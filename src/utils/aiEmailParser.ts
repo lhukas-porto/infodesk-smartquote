@@ -1400,8 +1400,6 @@ export function normalizeToOfficialCategory(rawCategory?: string): string {
     norm.includes('capa') ||
     norm.includes('capinha') ||
     norm.includes('case') ||
-    norm.includes('smartphone') ||
-    norm.includes('celular') ||
     norm.includes('tablet')
   ) {
     return 'Informática, Hardware & Periféricos';
@@ -1413,6 +1411,8 @@ export function normalizeToOfficialCategory(rawCategory?: string): string {
     norm.includes('conectividade') || 
     norm.includes('telefonia') || 
     norm.includes('telefone') || 
+    norm.includes('celular') ||
+    norm.includes('smartphone') ||
     norm.includes('switch') || 
     norm.includes('roteador') || 
     norm.includes('furukawa') || 

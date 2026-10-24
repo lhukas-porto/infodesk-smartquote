@@ -24,6 +24,7 @@ import { searchProductImages } from './imageSearchService';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { getSettings } from '../utils/storage';
 import { reportError } from './errorReporter';
+import { isMeasurementOrSpecToken } from '../utils/productModelExtractor';
 
 export type { DiscoveredProduct };
 export { searchProductImages };
@@ -300,59 +301,263 @@ export function sanitizeStandardizedProductName(rawName: string, category?: stri
   // 0. Remove artefatos de OCR e marcadores soltos: ".º", "1 .º", "º", "* —", "•", "▪"
   name = name.replace(/(?:\.º|\d+\s*\.º|º|\*\s*—|•|▪|→)/g, ' ');
 
-  // 0.5. Normalização de Plurais e Termos Informais para a Denominação Comercial Canônica Singular
-  // Converte gírias/plurais comuns do dia-a-dia em títulos oficiais de catálogo
-  const pluralToSingular: Array<[RegExp, string]> = [
-    [/^aparelhos?\s+de\s+celular\b/i, 'Smartphone'],
-    [/^telefones?\s+celulares?\b/i, 'Smartphone'],
-    [/^celulares?\b/i, 'Smartphone'],
-    [/^smartphones?\b/i, 'Smartphone'],
+  // 1. Remove resquícios de quantidade inicial (ex: "10x ", "10 un ", "10 unid ", "10 pçs ", "10 peças ", "10 unidades de ", "05 - ")
+  // Executado PRIMEIRO para permitir que a normalização de plurais funcione mesmo com número na frente
+  name = name.replace(/^(\d+\s*(?:x|unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?|resmas?|fardos?)\s*(?:de\s+)?[:\-\s]*)/i, '');
+  name = name.replace(/^(\d+\s*[-:]\s*)(?!.*\b(?:3m|2040|1930|24\s*portas|480gb)\b)/i, '');
+
+  // 2. Remove resquícios de quantidade final (ex: " - 10 un", " (10 peças)", " [10 UN]", " | Qtd: 10", " x10")
+  name = name.replace(/([:\-\s|/(\[]+\s*qtd\.?:?\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?|resmas?|fardos?)?[\)\]]?\s*)$/i, '');
+  name = name.replace(/([:\-\s|/(\[]+\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?|resmas?|fardos?)[\)\]]?\s*)$/i, '');
+  name = name.replace(/(\s*[\(\[]\s*\d+\s*[\)\]]\s*)$/i, '');
+  name = name.replace(/(\s+[xX]\s*\d+\s*)$/i, '');
+
+  // 2.2 Normalização universal de capacidades de armazenamento e memória (ex: "256g" -> "256GB", "128g" -> "128GB", "512g" -> "512GB")
+  name = name.replace(/\b(16|32|64|128|256|512|1024)\s*g\b/gi, '$1GB');
+
+  // 2.3 Desempacotamento de prefixos genéricos de quantidade/embalagem (ex: "Aparelhos de...", "Itens de...", "Peças de...")
+  name = name.replace(/^(?:aparelhos?|itens?|pe[çc]as?|unidades?|caixas?|pacotes?|fardos?|rolos?|resmas?)\s+de\s+/i, '');
+
+  // 2.4. Normalização Universal de Plurais e Termos Coloquiais para a Denominação Canônica Singular (REGRA DO LUCAS)
+  // Abrange equipamentos de Informática, Redes, Áudio/Vídeo, Elétrica, Ferramentas, Escritório, Copa e Limpeza
+  const universalPluralToSingular: Array<[RegExp, string]> = [
+    // Telecomunicações, Redes e Conectividade
+    [/^(?:telefones?\s+celulares?|celulares?|smartphones?)\b/i, 'Smartphone'],
+    [/^switches?\b/i, 'Switch'],
+    [/^roteadores?\b/i, 'Roteador'],
+    [/^access\s+points?\b/i, 'Access Point'],
+    [/^pontos?\s+de\s+acesso\b/i, 'Access Point'],
+    [/^cabos?\s+de\s+rede\b/i, 'Cabo de Rede'],
+    [/^patch\s+cords?\b/i, 'Patch Cord'],
+    [/^patch\s+panels?\b/i, 'Patch Panel'],
+    [/^keystones?\b/i, 'Keystone'],
+    [/^conectores?\s+rj45\b/i, 'Conector RJ45'],
+    [/^telefones?\s+sem\s+fio\b/i, 'Telefone Sem Fio'],
+    [/^telefones?\s+ip\b/i, 'Telefone IP'],
+    [/^telefones?\b/i, 'Telefone'],
+    [/^interfones?\b/i, 'Interfone'],
+
+    // Informática, Hardware & Periféricos
     [/^mouses?\b/i, 'Mouse'],
     [/^teclados?\b/i, 'Teclado'],
     [/^monitores?\b/i, 'Monitor'],
-    [/^switches?\b/i, 'Switch'],
-    [/^roteadores?\b/i, 'Roteador'],
-    [/^nobreaks?\b/i, 'Nobreak'],
-    [/^cabos?\s+de\s+rede\b/i, 'Cabo de Rede'],
     [/^notebooks?\b/i, 'Notebook'],
+    [/^laptops?\b/i, 'Notebook'],
     [/^computadores?\b/i, 'Computador'],
-    [/^fones?\s+de\s+ouvido\b/i, 'Fone de Ouvido'],
-    [/^headsets?\b/i, 'Headset'],
-    [/^webcams?\b/i, 'Webcam'],
+    [/^desktops?\b/i, 'Computador'],
     [/^tablets?\b/i, 'Tablet'],
-    [/^impressoras?\b/i, 'Impressora'],
-    [/^toners?\b/i, 'Toner'],
-    [/^cartuchos?\b/i, 'Cartucho'],
+    [/^ipads?\b/i, 'Tablet'],
+    [/^ssds?\b/i, 'SSD'],
+    [/^discos?\s+s[oó]lidos?\b/i, 'SSD'],
+    [/^discos?\s+r[ií]gidos?\b/i, 'HD'],
+    [/^hds?\b/i, 'HD'],
+    [/^mem[oó]rias?\s+ram\b/i, 'Memória RAM'],
+    [/^pentes?\s+de\s+mem[oó]ria\b/i, 'Memória RAM'],
+    [/^mem[oó]rias?\b/i, 'Memória RAM'],
+    [/^processadores?\b/i, 'Processador'],
+    [/^placas?\s+de\s+v[ií]deo\b/i, 'Placa de Vídeo'],
+    [/^placas?[- ]m[aã]es?\b/i, 'Placa-Mãe'],
+    [/^fontes?\s+(?:atx|de\s+alimenta[çc][aã]o)\b/i, 'Fonte de Alimentação'],
+    [/^gabinetes?\b/i, 'Gabinete'],
+    [/^coolers?\b/i, 'Cooler'],
+    [/^ventoinhas?\b/i, 'Cooler'],
+    [/^pendrives?\b/i, 'Pendrive'],
+    [/^pen\s+drives?\b/i, 'Pendrive'],
+    [/^cart[oõ]es?\s+de\s+mem[oó]ria\b/i, 'Cartão de Memória'],
+
+    // Áudio, Vídeo & Apresentação
+    [/^headsets?\b/i, 'Headset'],
+    [/^fones?\s+de\s+ouvido\b/i, 'Fone de Ouvido'],
+    [/^headphones?\b/i, 'Headphone'],
+    [/^microfones?\b/i, 'Microfone'],
+    [/^webcams?\b/i, 'Webcam'],
+    [/^c[aâ]meras?\s+para\s+pc\b/i, 'Webcam'],
     [/^projetores?\b/i, 'Projetor'],
-    [/^furadeiras?\b/i, 'Furadeira'],
-    [/^parafusadeiras?\b/i, 'Parafusadeira'],
-    [/^alicates?\b/i, 'Alicate'],
-    [/^disjuntores?\b/i, 'Disjuntor'],
-    [/^l[aâ]mpadas?\b/i, 'Lâmpada'],
+    [/^telas?\s+de\s+proje[çc][aã]o\b/i, 'Tela de Projeção'],
+    [/^caixas?\s+de\s+som\b/i, 'Caixa de Som'],
+    [/^soundbars?\b/i, 'Soundbar'],
+    [/^ring\s+lights?\b/i, 'Ring Light'],
+
+    // Monitores, Displays & TVs
+    [/^smart\s+tvs?\b/i, 'Smart TV'],
+    [/^televisores?\b/i, 'Smart TV'],
+    [/^tvs?\b/i, 'Smart TV'],
+    [/^suportes?\s+articulados?\b/i, 'Suporte Articulado'],
+    [/^suportes?\s+para\s+monitor\b/i, 'Suporte para Monitor'],
+    [/^suportes?\s+para\s+tv\b/i, 'Suporte para TV'],
+
+    // Energia, Nobreaks & Baterias
+    [/^nobreaks?\b/i, 'Nobreak'],
+    [/^no-breaks?\b/i, 'Nobreak'],
+    [/^estabilizadores?\b/i, 'Estabilizador'],
+    [/^filtros?\s+de\s+linha\b/i, 'Filtro de Linha'],
+    [/^r[eé]guas?\s+de\s+tomadas?\b/i, 'Filtro de Linha'],
+    [/^baterias?\b/i, 'Bateria'],
+    [/^pilhas?\b/i, 'Pilha'],
+    [/^carregadores?\s+de\s+pilhas?\b/i, 'Carregador de Pilhas'],
+
+    // Impressão & Automação Comercial
+    [/^impressoras?\s+t[eé]rmicas?\b/i, 'Impressora Térmica'],
+    [/^impressoras?\s+n[aã]o\s+fiscais?\b/i, 'Impressora Não Fiscal'],
+    [/^impressoras?\b/i, 'Impressora'],
+    [/^leitores?\s+de\s+c[oó]digo\s+de\s+barras?\b/i, 'Leitor de Código de Barras'],
+    [/^scanners?\s+de\s+c[oó]digo\s+de\s+barras?\b/i, 'Leitor de Código de Barras'],
+    [/^rotuladores?\s+eletr[oô]nicos?\b/i, 'Rotulador Eletrônico'],
+    [/^rotuladores?\b/i, 'Rotulador Eletrônico'],
+    [/^toners?\b/i, 'Toner'],
+    [/^cartuchos?\s+de\s+tinta\b/i, 'Cartucho de Tinta'],
+    [/^cartuchos?\b/i, 'Cartucho'],
+
+    // Papelaria, Artes & Material de Escritório
+    [/^resmas?\s+de\s+papel\s+(?:sulfite\s+)?a4\b/i, 'Papel Sulfite A4'],
+    [/^resmas?\s+de\s+papel\b/i, 'Papel Sulfite A4'],
+    [/^pap[eé]is?\s+sulfite\s+a4\b/i, 'Papel Sulfite A4'],
+    [/^pap[eé]is?\s+sulfite\b/i, 'Papel Sulfite A4'],
+    [/^pap[eé]is?\s+a4\b/i, 'Papel Sulfite A4'],
+    [/^pap[eé]is?\b/i, 'Papel'],
+    [/^canetas?\s+esferogr[aá]ficas?\b/i, 'Caneta Esferográfica'],
+    [/^canetas?\b/i, 'Caneta'],
+    [/^l[aá]pis?\s+pretos?\b/i, 'Lápis Preto'],
+    [/^l[aá]pis?\b/i, 'Lápis'],
+    [/^borrachas?\b/i, 'Borracha'],
+    [/^apontadores?\b/i, 'Apontador'],
+    [/^grampeadores?\b/i, 'Grampeador'],
+    [/^perfuradores?\s+de\s+papel\b/i, 'Perfurador de Papel'],
+    [/^perfuradores?\b/i, 'Perfurador de Papel'],
+    [/^pranchetas?\b/i, 'Prancheta'],
+    [/^pastas?\s+suspensas?\b/i, 'Pasta Suspensa'],
+    [/^pastas?\b/i, 'Pasta'],
+    [/^envelopes?\b/i, 'Envelope'],
+    [/^tesouras?\b/i, 'Tesoura'],
+    [/^estiletes?\b/i, 'Estilete'],
+    [/^blocos?\s+adesivos?\b/i, 'Bloco Adesivo'],
+    [/^post-?its?\b/i, 'Bloco Adesivo Post-it'],
+    [/^cadeiras?\s+(?:de\s+escrit[oó]rio|ergon[oô]micas?)\b/i, 'Cadeira de Escritório'],
     [/^cadeiras?\b/i, 'Cadeira'],
     [/^mesas?\b/i, 'Mesa'],
-    [/^canetas?\b/i, 'Caneta']
+
+    // Elétrica & Iluminação Tática
+    [/^disjuntores?\s+bipolares?\b/i, 'Disjuntor Bipolar'],
+    [/^disjuntores?\s+tripolares?\b/i, 'Disjuntor Tripolar'],
+    [/^disjuntores?\s+monopolares?\b/i, 'Disjuntor Monopolar'],
+    [/^disjuntores?\b/i, 'Disjuntor'],
+    [/^cabos?\s+flex[ií]veis?\b/i, 'Cabo Flexível'],
+    [/^fios?\s+flex[ií]veis?\b/i, 'Cabo Flexível'],
+    [/^eletrodutos?\b/i, 'Eletroduto'],
+    [/^caixas?\s+de\s+luz\b/i, 'Caixa de Luz'],
+    [/^tomadas?\b/i, 'Tomada'],
+    [/^interruptores?\b/i, 'Interruptor'],
+    [/^l[aâ]mpadas?\s+led\b/i, 'Lâmpada LED'],
+    [/^l[aâ]mpadas?\b/i, 'Lâmpada'],
+    [/^lumin[aá]rias?\b/i, 'Luminária'],
+    [/^refletores?\s+led\b/i, 'Refletor LED'],
+    [/^refletores?\b/i, 'Refletor LED'],
+    [/^fitas?\s+isolantes?\b/i, 'Fita Isolante'],
+    [/^fitas?\s+de\s+autofus[aã]o\b/i, 'Fita de Autofusão'],
+
+    // Ferramentas & Instrumentos de Medição
+    [/^parafusadeiras?\s+a\s+bateria\b/i, 'Parafusadeira a Bateria'],
+    [/^parafusadeiras?\b/i, 'Parafusadeira'],
+    [/^furadeiras?\s+de\s+impacto\b/i, 'Furadeira de Impacto'],
+    [/^furadeiras?\b/i, 'Furadeira'],
+    [/^marteletes?\b/i, 'Martelete'],
+    [/^esmerilhadeiras?\b/i, 'Esmerilhadeira'],
+    [/^serras?\s+circulares?\b/i, 'Serra Circular'],
+    [/^serras?\b/i, 'Serra'],
+    [/^alicates?\s+universais?\b/i, 'Alicate Universal'],
+    [/^alicates?\s+de\s+crimpagem\b/i, 'Alicate de Crimpagem'],
+    [/^alicates?\b/i, 'Alicate'],
+    [/^chaves?\s+phillips\b/i, 'Chave Phillips'],
+    [/^chaves?\s+de\s+fenda\b/i, 'Chave de Fenda'],
+    [/^chaves?\s+combinadas?\b/i, 'Chave Combinada'],
+    [/^chaves?\b/i, 'Chave'],
+    [/^trenas?\s+a\s+laser\b/i, 'Trena a Laser'],
+    [/^trenas?\b/i, 'Trena'],
+    [/^mult[ií]metros?\b/i, 'Multímetro'],
+    [/^term[oô]metros?\b/i, 'Termômetro'],
+
+    // Construção, Acabamento & Marcenaria
+    [/^fitas?\s+dupla\s+face\b/i, 'Fita Dupla Face'],
+    [/^silicones?\b/i, 'Silicone'],
+    [/^parafusos?\b/i, 'Parafuso'],
+    [/^buchas?\b/i, 'Bucha'],
+    [/^brocas?\b/i, 'Broca'],
+    [/^discos?\s+de\s+corte\b/i, 'Disco de Corte'],
+    [/^tintas?\b/i, 'Tinta'],
+    [/^escadas?\b/i, 'Escada'],
+
+    // Eletrodomésticos, Refrigeração & Copa
+    [/^geladeiras?\b/i, 'Geladeira'],
+    [/^refrigeradores?\b/i, 'Refrigerador'],
+    [/^frigobares?\b/i, 'Frigobar'],
+    [/^adegas?\b/i, 'Adega Climatizada'],
+    [/^cervejeiras?\b/i, 'Cervejeira'],
+    [/^chaleiras?\s+el[eé]tricas?\b/i, 'Chaleira Elétrica'],
+    [/^chaleiras?\b/i, 'Chaleira'],
+    [/^cafeteiras?\b/i, 'Cafeteira'],
+    [/^purificadores?\s+de\s+[aá]gua\b/i, 'Purificador de Água'],
+    [/^bebedouros?\b/i, 'Bebedouro'],
+    [/^micro-?ondas?\b/i, 'Forno Micro-ondas'],
+    [/^cooktops?\b/i, 'Cooktop'],
+    [/^fog[oõ]es?\b/i, 'Fogão'],
+    [/^liquidificadores?\b/i, 'Liquidificador'],
+    [/^garrafas?\s+t[eé]rmicas?\b/i, 'Garrafa Térmica'],
+
+    // Limpeza, Higiene & Descartáveis
+    [/^pap[eé]is?\s+toalha\s+interfolhas?\b/i, 'Papel Toalha Interfolha'],
+    [/^pap[eé]is?\s+toalha\b/i, 'Papel Toalha'],
+    [/^pap[eé]is?\s+higi[eê]nicos?\b/i, 'Papel Higiênico'],
+    [/^sabonetes?\s+l[ií]quidos?\b/i, 'Sabonete Líquido'],
+    [/^sabonetes?\b/i, 'Sabonete'],
+    [/^dispensers?\b/i, 'Dispenser'],
+    [/^[aá]lcoois?\s+70%?\b/i, 'Álcool 70%'],
+    [/^[aá]lcoois?\b/i, 'Álcool'],
+    [/^desinfetantes?\b/i, 'Desinfetante'],
+    [/^detergentes?\b/i, 'Detergente'],
+    [/^estopas?\b/i, 'Estopa'],
+
+    // Equipamentos Industriais
+    [/^v[aá]lvulas?\s+redutoras?\b/i, 'Válvula Redutora'],
+    [/^v[aá]lvulas?\b/i, 'Válvula'],
+    [/^juntas?\s+de\s+expans[aã]o\b/i, 'Junta de Expansão'],
+    [/^filamentos?\s+3d\b/i, 'Filamento 3D'],
+
+    // Pet Shop
+    [/^ra[çc][oõ]es?\b/i, 'Ração'],
+    [/^camas?\s+pet\b/i, 'Cama Pet'],
+    [/^caminhas?\s+pet\b/i, 'Cama Pet']
   ];
-  for (const [reg, singular] of pluralToSingular) {
+
+  for (const [reg, singular] of universalPluralToSingular) {
     if (reg.test(name)) {
       name = name.replace(reg, singular).trim();
       break;
     }
   }
 
-  // 1. Remove resquícios de quantidade inicial (ex: "10x ", "10 un ", "10 unid ", "10 pçs ", "10 peças ", "10 unidades de ", "05 - ")
-  // Protege produtos cujos nomes/códigos começam com números (ex: 3M, 2040, 1930, 24 Portas, 480GB)
-  name = name.replace(/^(\d+\s*(?:x|unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)\s*(?:de\s+)?[:\-\s]*)/i, '');
-  name = name.replace(/^(\d+\s*[-:]\s*)(?!.*\b(?:3m|2040|1930|24\s*portas|480gb)\b)/i, '');
-
-  // 2. Remove resquícios de quantidade final (ex: " - 10 un", " (10 peças)", " [10 UN]", " | Qtd: 10", " x10")
-  name = name.replace(/([:\-\s|/(\[]+\s*qtd\.?:?\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)?[\)\]]?\s*)$/i, '');
-  name = name.replace(/([:\-\s|/(\[]+\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)[\)\]]?\s*)$/i, '');
-  name = name.replace(/(\s*[\(\[]\s*\d+\s*[\)\]]\s*)$/i, '');
-  name = name.replace(/(\s+[xX]\s*\d+\s*)$/i, '');
-
-  // 2.5 Normalização de capacidades de armazenamento (ex: "256g" -> "256GB", "128g" -> "128GB", "512g" -> "512GB")
-  name = name.replace(/\b(16|32|64|128|256|512|1024)\s*g\b/gi, '$1GB');
+  // 2.5 Normalização de adjetivos plurais que sobraram no corpo do título
+  name = name
+    .replace(/\bsem\s+fios\b/gi, 'sem Fio')
+    .replace(/\bcom\s+fios\b/gi, 'com Fio')
+    .replace(/\bazuis\b/gi, 'Azul')
+    .replace(/\bpretos\b/gi, 'Preto')
+    .replace(/\bbrancos\b/gi, 'Branco')
+    .replace(/\bvermelhos\b/gi, 'Vermelho')
+    .replace(/\bcinzas\b/gi, 'Cinza')
+    .replace(/\bamarelos\b/gi, 'Amarelo')
+    .replace(/\bverdes\b/gi, 'Verde')
+    .replace(/\bbipolares\b/gi, 'Bipolar')
+    .replace(/\btripolares\b/gi, 'Tripolar')
+    .replace(/\bmonopolares\b/gi, 'Monopolar')
+    .replace(/\bergon[oô]micos\b/gi, 'Ergonômico')
+    .replace(/\bt[eé]rmicos\b/gi, 'Térmico')
+    .replace(/\bmec[aâ]nicos\b/gi, 'Mecânico')
+    .replace(/\b[oó]pticos\b/gi, 'Óptico')
+    .replace(/\bdigitais\b/gi, 'Digital')
+    .replace(/\bel[eé]tricos\b/gi, 'Elétrico')
+    .replace(/\barticulados\b/gi, 'Articulado')
+    .replace(/\bport[aá]teis\b/gi, 'Portátil')
+    .replace(/\bpesados\b/gi, 'Pesado');
 
   // 2.6 Padronização canônica de smartphones Samsung Galaxy (ex: S25fe -> Galaxy S25 FE 5G)
   if (/\bSamsung\b/i.test(name) || /smartphone/i.test(name)) {
@@ -722,6 +927,7 @@ export function normalizeProductUnit(rawUnit?: string): string {
   if (/^(kg|kgs|quilo|quilos|kilo|kilos)$/i.test(u)) return 'Kg';
   if (/^(lt|lts|l|litro|litros)$/i.test(u)) return 'Lt.';
   if (/^(resma|resmas)$/i.test(u)) return 'Resma';
+  if (/^(fardo|fardos)$/i.test(u)) return 'Pct.';
   if (/^(bloco|blocos)$/i.test(u)) return 'Bloco';
   if (/^(tubo|tubos)$/i.test(u)) return 'Tubo';
   return 'Un.';
@@ -840,8 +1046,8 @@ export function parsePastedProductListWithQty(rawText: string): ParsedBatchQuery
         detectedUnit = 'Un.';
         cleanText = leadingMultiplierMatch[2].trim();
       } else {
-        // 3.2 Unidade comercial explícita no início: "5 un - Cabo...", "3 caixas de...", "100 metros de..."
-        const leadingWithUnitMatch = cleanText.match(/^(\d+)\s*(unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|pacotes?|cx|cxs|caixas?|metros?|mts?|rolos?|rls?|pares?|par\b|kg|quilos?|litros?|lts?)\b(?:\s*de)?[:\-\s]*\s*(.+)/i);
+        // 3.2 Unidade comercial explícita no início: "5 un - Cabo...", "3 caixas de...", "100 metros de...", "20 resmas de...", "10 fardos de..."
+        const leadingWithUnitMatch = cleanText.match(/^(\d+)\s*(unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|pacotes?|cx|cxs|caixas?|metros?|mts?|rolos?|rls?|pares?|par\b|kg|quilos?|litros?|lts?|resmas?|fardos?)\b(?:\s*de)?[:\-\s]*\s*(.+)/i);
         if (leadingWithUnitMatch) {
           detectedQty = parseInt(leadingWithUnitMatch[1], 10) || 1;
           detectedUnit = normalizeProductUnit(leadingWithUnitMatch[2]);
@@ -2426,6 +2632,203 @@ const ARCHETYPE_RULES: Record<string, ArchetypeRule> = {
     ],
     description: (brand, model) =>
       `Monitor profissional ${brand} ${model} com bordas ultrafinas e painel de alta fidelidade cromática, ideal para estações de trabalho e produtividade empresarial contínua.`
+  },
+  memoria_ram: {
+    noun: 'Memória RAM',
+    category: 'Informática, Hardware & Periféricos',
+    ncm: '8473.30.42',
+    weight: '0.045 kg',
+    dimensions: '14cm x 4cm x 1cm',
+    costPrice: 170.00,
+    suggestedPrice: 259.00,
+    specs: [
+      { label: 'Tipo de Módulo', value: 'DDR4 / DDR5 UDIMM para Desktop ou SODIMM para Notebook' },
+      { label: 'Frequência de Operação', value: 'Alta velocidade de transferência e baixa latência' },
+      { label: 'Dissipação Térmica', value: 'Dissipador de calor em alumínio de alta eficiência' },
+      { label: 'Compatibilidade', value: 'Plataformas Intel e AMD com suporte XMP/EXPO' }
+    ],
+    description: (brand, model) =>
+      `Módulo de memória RAM ${brand} ${model} de alta velocidade e confiabilidade comprovada. Proporciona desempenho ágil em multitarefas, renderizações e estabilidade para estações de trabalho e servidores corporativos.`
+  },
+  processador: {
+    noun: 'Processador',
+    category: 'Informática, Hardware & Periféricos',
+    ncm: '8542.31.90',
+    weight: '0.090 kg',
+    dimensions: '12cm x 12cm x 6cm',
+    costPrice: 850.00,
+    suggestedPrice: 1290.00,
+    specs: [
+      { label: 'Arquitetura', value: 'Múltiplos núcleos e threads de processamento de alta performance' },
+      { label: 'Frequência Base / Turbo', value: 'Frequência dinâmica com tecnologia de clock inteligente' },
+      { label: 'Memória Cache', value: 'Cache inteligente integrado de alta velocidade' },
+      { label: 'Suporte', value: 'PCIe de última geração e memórias DDR4/DDR5' }
+    ],
+    description: (brand, model) =>
+      `Processador ${brand} ${model} projetado para máxima produtividade corporativa e processamento avançado de dados com alta eficiência energética e estabilidade térmica.`
+  },
+  placa_video: {
+    noun: 'Placa de Vídeo',
+    category: 'Informática, Hardware & Periféricos',
+    ncm: '8473.30.43',
+    weight: '1.200 kg',
+    dimensions: '30cm x 14cm x 5cm',
+    costPrice: 1950.00,
+    suggestedPrice: 2790.00,
+    specs: [
+      { label: 'Interface', value: 'PCI Express 4.0 / 5.0 x16' },
+      { label: 'Conexões de Vídeo', value: 'DisplayPort 1.4a e HDMI 2.1' },
+      { label: 'Sistema de Refrigeração', value: 'Ventoinhas silenciosas com controle térmico inteligente' }
+    ],
+    description: (brand, model) =>
+      `Placa gráfica aceleradora ${brand} ${model} para estações de trabalho de engenharia, arquitetura, modelagem 3D e edição audiovisual com alto poder de processamento paralelo.`
+  },
+  impressora: {
+    noun: 'Impressora',
+    category: 'Impressão & Automação Comercial',
+    ncm: '8443.32.99',
+    weight: '2.400 kg',
+    dimensions: '26cm x 22cm x 18cm',
+    costPrice: 620.00,
+    suggestedPrice: 940.00,
+    specs: [
+      { label: 'Tecnologia de Impressão', value: 'Térmica direta / Transferência térmica de alta resolução' },
+      { label: 'Conectividade', value: 'USB, Ethernet de rede e Serial' },
+      { label: 'Compatibilidade', value: 'Emulações de mercado e sistemas ERP/PDV' }
+    ],
+    description: (brand, model) =>
+      `Equipamento de impressão corporativa ${brand} ${model} robusto e veloz para emissão contínua de etiquetas, cupons e documentos comerciais com alta nitidez e durabilidade.`
+  },
+  ferramenta_eletrica: {
+    noun: 'Parafusadeira e Furadeira',
+    category: 'Ferramentas & Instrumentos de Medição',
+    ncm: '8467.21.00',
+    weight: '1.800 kg',
+    dimensions: '28cm x 24cm x 9cm',
+    costPrice: 320.00,
+    suggestedPrice: 489.00,
+    specs: [
+      { label: 'Alimentação', value: 'Bateria de Íons de Lítio sem efeito memória' },
+      { label: 'Mandril', value: 'Aperto rápido de alta precisão 3/8" ou 1/2"' },
+      { label: 'Controle de Torque', value: 'Múltiplas posições de regulagem e velocidade variável' },
+      { label: 'Iluminação', value: 'LED integrado para iluminação da área de trabalho' }
+    ],
+    description: (brand, model) =>
+      `Parafusadeira e furadeira ergonômica ${brand} ${model} de alto torque para perfurações e fixações precisas em madeira, metal e alvenaria com máxima robustez e ergonomia.`
+  },
+  disjuntor: {
+    noun: 'Disjuntor',
+    category: 'Elétrica & Iluminação Tática',
+    ncm: '8536.20.00',
+    weight: '0.240 kg',
+    dimensions: '9cm x 6cm x 8cm',
+    costPrice: 35.00,
+    suggestedPrice: 65.00,
+    specs: [
+      { label: 'Padrão de Fixação', value: 'Trilho DIN 35mm padrão NBR NM 60898' },
+      { label: 'Proteção', value: 'Termomagnética contra sobrecarga e curto-circuito' },
+      { label: 'Tensão de Isolamento', value: '230V / 400V CA' }
+    ],
+    description: (brand, model) =>
+      `Disjuntor termomagnético ${brand} ${model} de alta precisão para proteção de circuitos elétricos comerciais e prediais contra sobrecargas e correntes de curto-circuito.`
+  },
+  cabo_eletrico: {
+    noun: 'Cabo Flexível',
+    category: 'Elétrica & Iluminação Tática',
+    ncm: '8544.49.00',
+    weight: '4.500 kg',
+    dimensions: '28cm x 28cm x 12cm',
+    costPrice: 180.00,
+    suggestedPrice: 285.00,
+    specs: [
+      { label: 'Condutor', value: '100% Cobre eletrolítico têmpera mole classe 5' },
+      { label: 'Isolação', value: 'Composto termoplástico PVC 70°C antichama (BWF-B)' },
+      { label: 'Tensão Nominal', value: '450/750V conforme NBR NM 247-3' }
+    ],
+    description: (brand, model) =>
+      `Cabo condutor flexível ${brand} ${model} de alta condutibilidade para instalações elétricas internas e prediais de baixa tensão com certificação Inmetro.`
+  },
+  papel_sulfite: {
+    noun: 'Papel Sulfite A4',
+    category: 'Papelaria, Artes & Material de Escritório',
+    ncm: '4802.56.10',
+    weight: '2.500 kg',
+    dimensions: '30cm x 21cm x 5cm',
+    costPrice: 23.50,
+    suggestedPrice: 36.90,
+    specs: [
+      { label: 'Formato', value: 'A4 (210 x 297 mm)' },
+      { label: 'Gramatura', value: '75 g/m² de alta opacidade' },
+      { label: 'Cor e Alvura', value: 'Branco ultra-alvo de alta brancura' },
+      { label: 'Sustentabilidade', value: '100% Celulose de florestas renováveis certificadas' }
+    ],
+    description: (brand, model) =>
+      `Papel sulfite corporativo formato A4 ${brand} ${model} de alta brancura e desempenho superior para impressões laser, jato de tinta e fotocópias sem atolamentos.`
+  },
+  fita_isolante: {
+    noun: 'Fita Isolante',
+    category: 'Elétrica & Iluminação Tática',
+    ncm: '3919.10.20',
+    weight: '0.090 kg',
+    dimensions: '8cm x 8cm x 2cm',
+    costPrice: 6.50,
+    suggestedPrice: 12.90,
+    specs: [
+      { label: 'Material', value: 'Filme de PVC com adesivo de borracha sensível à pressão' },
+      { label: 'Classe de Tensão', value: 'Isolação de até 750V e antichama' },
+      { label: 'Temperatura de Trabalho', value: '0°C a 90°C' }
+    ],
+    description: (brand, model) =>
+      `Fita isolante adesiva profissional ${brand} ${model} com alta flexibilidade e conformabilidade para isolação e proteção de emendas elétricas com segurança normativa.`
+  },
+  frigobar: {
+    noun: 'Frigobar',
+    category: 'Eletrodomésticos, Refrigeração & Copa',
+    ncm: '8418.21.00',
+    weight: '22.000 kg',
+    dimensions: '86cm x 50cm x 52cm',
+    costPrice: 850.00,
+    suggestedPrice: 1290.00,
+    specs: [
+      { label: 'Tipo de Refrigeração', value: 'Compressor de alta eficiência e baixo consumo' },
+      { label: 'Compartimentos', value: 'Gaveta de legumes, prateleiras reguláveis e porta-latas' },
+      { label: 'Classificação Energética', value: 'Selo Procel A com gás ecológico R600a' },
+      { label: 'Controle de Temperatura', value: 'Termostato interno com múltiplos níveis de ajuste' }
+    ],
+    description: (brand, model) =>
+      `Frigobar compacto e silencioso ${brand} ${model} desenvolvido para copas empresariais, escritórios e consultórios com excelente aproveitamento de espaço e baixo consumo.`
+  },
+  eletrodomestico: {
+    noun: 'Eletrodoméstico',
+    category: 'Eletrodomésticos, Refrigeração & Copa',
+    ncm: '8516.79.90',
+    weight: '1.400 kg',
+    dimensions: '24cm x 20cm x 25cm',
+    costPrice: 95.00,
+    suggestedPrice: 159.00,
+    specs: [
+      { label: 'Acabamento', value: 'Corpo resistente e componentes de padrão alimentício' },
+      { label: 'Segurança', value: 'Desligamento automático e proteção contra superaquecimento' },
+      { label: 'Certificação', value: 'Selo de conformidade e segurança Inmetro' }
+    ],
+    description: (brand, model) =>
+      `Eletroportátil corporativo ${brand} ${model} desenvolvido para copas, refeitórios e ambientes empresariais com alta eficiência, segurança e facilidade de higienização.`
+  },
+  papel_toalha: {
+    noun: 'Papel Toalha Interfolha',
+    category: 'Limpeza, Higiene & Descartáveis',
+    ncm: '4818.20.00',
+    weight: '2.200 kg',
+    dimensions: '45cm x 25cm x 30cm',
+    costPrice: 38.00,
+    suggestedPrice: 62.00,
+    specs: [
+      { label: 'Tipo de Dobra', value: 'Interfolhado 2 dobras de alta absorção' },
+      { label: 'Composição', value: '100% Celulose virgem de fibras longas' },
+      { label: 'Rendimento', value: 'Folhas resistentes que não esfarelam nas mãos' }
+    ],
+    description: (brand, model) =>
+      `Papel toalha interfolhado ${brand} ${model} de alta maciez e rápida absorção para dispensers sanitários e refeitórios corporativos com máxima economia no uso.`
   }
 };
 
@@ -2445,13 +2848,14 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
     norm.includes('par') ? 'Par' : 'Un.'
   ));
 
-  // Limpeza de quantidade do texto ("40 unidades", "40 un", "10 pçs", "10x")
+  // Limpeza de quantidade do texto ("40 unidades", "40 un", "10 pçs", "10x", "20 resmas de", "10 fardos de")
   const cleanQuery = rawQuery
-    .replace(/^(\d+\s*(?:x|unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)\s*(?:de\s+)?[:\-\s]*)/i, '')
+    .replace(/^(\d+\s*(?:x|unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?|resmas?|fardos?)\s*(?:de\s+)?[:\-\s]*)/i, '')
     .replace(/^(\d+\s*[-:]\s*)(?!.*\b(?:3m|2040|1930|24\s*portas|480gb)\b)/i, '')
-    .replace(/([:\-\s|/(\[]+\s*qtd\.?:?\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)?[\)\]]?\s*)$/i, '')
-    .replace(/([:\-\s|/(\[]+\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?)[\)\]]?\s*)$/i, '')
-    .replace(/\b\d+\s*(?:unidades?|un\.?|pcts?|pacotes?|cx|cxs|caixas?|kits?|pcs?|pçs?|peças?)\b/gi, '')
+    .replace(/^(?:resmas?|fardos?|caixas?|pacotes?|rolos?|unidades?|pe[çc]as?|itens?|aparelhos?)\s+de\s+/i, '')
+    .replace(/([:\-\s|/(\[]+\s*qtd\.?:?\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?|resmas?|fardos?)?[\)\]]?\s*)$/i, '')
+    .replace(/([:\-\s|/(\[]+\s*\d+\s*(?:unidades?|un\.?|und\.?|kits?|pcs?|pçs?|peças?|pct|pcts|cx|caixas?|metros?|mts?|rolos?|resmas?|fardos?)[\)\]]?\s*)$/i, '')
+    .replace(/\b\d+\s*(?:unidades?|un\.?|pcts?|pacotes?|cx|cxs|caixas?|kits?|pcs?|pçs?|peças?|resmas?|fardos?)\b/gi, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
 
@@ -2500,18 +2904,30 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
 
   // 3. Detecção de Arquétipo de Produto (apenas se corresponder estritamente ao termo)
   let archKey: string | null = null;
-  if (/\b(?:aparelhos?\s+de\s+celular|telefones?\s+celulares?|celulares?|smartphones?|iphone|galaxy|xiaomi|redmi|motorola|moto\s+g|moto\s+edge)\b/i.test(norm)) archKey = 'smartphone';
-  else if (/\b(?:notebook|laptop)\b/i.test(norm)) archKey = 'notebook';
-  else if (/\b(?:tablet|ipad)\b/i.test(norm)) archKey = 'tablet';
-  else if (/\b(?:headset|fone de ouvido|headphone|auricular)\b/i.test(norm)) archKey = 'headset';
-  else if (/\b(?:teclado|keyboard)\b/i.test(norm)) archKey = 'teclado';
-  else if (/\bmouse\b/i.test(norm)) archKey = 'mouse';
-  else if (/\b(?:webcam|c[aâ]mera usb)\b/i.test(norm)) archKey = 'webcam';
-  else if (/\b(?:ssd|nvme|m\.2|disco s[oó]lido)\b/i.test(norm)) archKey = 'ssd';
-  else if (/\b(?:switch de rede|switch giga|switch 10\/100|switch 24|switch 16|switch 8 portas|switch cisco|switch intelbras)\b/i.test(norm)) archKey = 'switch';
-  else if (/\b(?:cabo de rede|patch cord|furukawa|cat6|cat5e?)\b/i.test(norm)) archKey = 'cabo_rede';
-  else if (/\b(?:nobreak|ups|estabilizador de tens[aã]o)\b/i.test(norm)) archKey = 'nobreak';
-  else if (/\b(?:monitor corporativo|monitor dell|monitor led|monitor ips|smart tv)\b/i.test(norm)) archKey = 'monitor';
+  if (/\b(?:aparelhos?\s+de\s+celular|telefones?\s+celulares?|celulares?|smartphones?|iphones?|galaxys?|xiaomi|redmi|motorola|moto\s+g|moto\s+edge)\b/i.test(norm)) archKey = 'smartphone';
+  else if (/\b(?:notebooks?|laptops?)\b/i.test(norm)) archKey = 'notebook';
+  else if (/\b(?:tablets?|ipads?)\b/i.test(norm)) archKey = 'tablet';
+  else if (/\b(?:headsets?|fones?\s+de\s+ouvido|headphones?|auriculares?)\b/i.test(norm)) archKey = 'headset';
+  else if (/\b(?:teclados?|keyboards?)\b/i.test(norm)) archKey = 'teclado';
+  else if (/\bmouses?|mouce\b/i.test(norm)) archKey = 'mouse';
+  else if (/\b(?:webcams?|c[aâ]meras?\s+usb)\b/i.test(norm)) archKey = 'webcam';
+  else if (/\b(?:ssds?|nvme|m\.2|discos?\s+s[oó]lidos?)\b/i.test(norm)) archKey = 'ssd';
+  else if (/\b(?:mem[oó]rias?\s+ram|pentes?\s+de\s+mem[oó]ria|ddr[345])\b/i.test(norm)) archKey = 'memoria_ram';
+  else if (/\b(?:processadores?|intel\s+core|amd\s+ryzen)\b/i.test(norm)) archKey = 'processador';
+  else if (/\b(?:placas?\s+de\s+v[ií]deo|geforce|radeon|rtx\s*\d+|gtx\s*\d+)\b/i.test(norm)) archKey = 'placa_video';
+  else if (/\b(?:impressoras?|rotuladores?|leitores?\s+de\s+c[oó]digo)\b/i.test(norm)) archKey = 'impressora';
+  else if (/\b(?:switch(?:es)?\s+de\s+rede|switch(?:es)?\s+giga|switch(?:es)?\s+10\/100|switch(?:es)?\s+24|switch(?:es)?\s+16|switch(?:es)?\s+8\s+portas|switch(?:es)?\s+cisco|switch(?:es)?\s+intelbras|comutadores?)\b/i.test(norm)) archKey = 'switch';
+  else if (/\b(?:cabos?\s+de\s+rede|patch\s+cords?|furukawa|cat\.?6|cat\.?5e?)\b/i.test(norm)) archKey = 'cabo_rede';
+  else if (/\b(?:no-?breaks?|ups|estabilizadores?\s+de\s+tens[aã]o)\b/i.test(norm)) archKey = 'nobreak';
+  else if (/\b(?:monitores?\s+corporativos?|monitores?\s+dell|monitores?\s+led|monitores?\s+ips|smart\s+tvs?)\b/i.test(norm)) archKey = 'monitor';
+  else if (/\b(?:disjuntores?|chaves?\s+bipolares?|chaves?\s+tripolares?)\b/i.test(norm)) archKey = 'disjuntor';
+  else if (/\b(?:cabos?\s+flex[ií]veis|fios?\s+flex[ií]veis|corfio|sil\s+fios?)\b/i.test(norm)) archKey = 'cabo_eletrico';
+  else if (/\b(?:parafusadeiras?|furadeiras?(?:\s+de\s+impacto)?|marteletes?)\b/i.test(norm)) archKey = 'ferramenta_eletrica';
+  else if (/\b(?:pap[eé]is?\s+sulfite|pap[eé]is?\s+a4|resmas?\s+de\s+papel|chamex|report)\b/i.test(norm)) archKey = 'papel_sulfite';
+  else if (/\b(?:fitas?\s+isolantes?|scotch\s+3m|fitas?\s+duplas?\s+faces?)\b/i.test(norm)) archKey = 'fita_isolante';
+  else if (/\b(?:frigobares?|refrigeradores?|geladeiras?)\b/i.test(norm)) archKey = 'frigobar';
+  else if (/\b(?:chaleiras?\s+el[eé]tricas?|cafeteiras?|purificadores?\s+de\s+[aá]gua|micro-ondas)\b/i.test(norm)) archKey = 'eletrodomestico';
+  else if (/\b(?:pap[eé]is?\s+toalha|pap[eé]is?\s+higi[eê]nicos?|dispensers?\s+de\s+papel|fardos?\s+de\s+papel)\b/i.test(norm)) archKey = 'papel_toalha';
 
   // 4. Detecção de Modelo / Código Alfanumérico
   let detectedModel = '';
@@ -2529,7 +2945,7 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
           .trim();
         detectedModel = `Galaxy ${modBase}`;
         const codeNum = modBase.replace(/[^A-Z0-9]/gi, '');
-        customPartNumber = `SM-${codeNum}-${detectedStorage || '256G'}`;
+        customPartNumber = `SM-${codeNum}-${detectedStorage || '256GB'}`;
       } else {
         detectedModel = 'Galaxy';
       }
@@ -2538,7 +2954,7 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       const m = cleanQuery.match(/\b(iphone\s+(?:1[1-6]|se)(?:\s*(?:pro\s*max|pro|plus|mini))?)\b/i);
       if (m) {
         detectedModel = m[1].replace(/\biphone\b/i, 'iPhone').replace(/\bpro\b/i, 'Pro').replace(/\bmax\b/i, 'Max').replace(/\bplus\b/i, 'Plus');
-        customPartNumber = `IPH-${detectedModel.replace(/[^A-Z0-9]/gi, '')}-${detectedStorage || '128G'}`;
+        customPartNumber = `IPH-${detectedModel.replace(/[^A-Z0-9]/gi, '')}-${detectedStorage || '128GB'}`;
       } else {
         detectedModel = 'iPhone';
       }
@@ -2563,9 +2979,9 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       const m = cleanQuery.match(rx);
       if (m) {
         const candidate = m[1].toUpperCase();
-        const isStorage = /^\d{2,4}(?:GB?|TB|MB|G)$/i.test(candidate);
+        const isSpec = isMeasurementOrSpecToken(candidate);
         const isBrand = RECOGNIZED_BRANDS.some(b => b.toLowerCase() === candidate.toLowerCase());
-        if (!isStorage && !isBrand) {
+        if (!isSpec && !isBrand) {
           detectedModel = candidate;
           break;
         }
@@ -2575,7 +2991,7 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
 
   const brand = detectedBrand || 'Genérica';
   const model = detectedModel || '';
-  const pNumber = customPartNumber || (model ? `${brand !== 'Genérica' ? brand.substring(0, 3).toUpperCase() : 'PROD'}-${model}` : '');
+  const pNumber = customPartNumber || (model && !isMeasurementOrSpecToken(model) ? `${brand !== 'Genérica' ? brand.substring(0, 3).toUpperCase() : 'PROD'}-${model}` : '');
 
   // 5. Se NÃO for um dos arquétipos de informática, gera produto genérico limpo SEM prefixar Headset
   if (!archKey) {
@@ -2594,7 +3010,12 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       ncm = '8203.20.90';
       weight = '0.450 kg';
       dimensions = '22cm x 8cm x 4cm';
-    } else if (/cabo flex[ií]vel|disjuntor|tomada|interruptor|eletroduto|lumin[aá]ria|l[aâ]mpada|fio\s+\d/i.test(norm)) {
+    } else if (/\bdisjuntores?\b/i.test(norm)) {
+      category = 'Elétrica & Iluminação Tática';
+      ncm = '8536.20.00';
+      weight = '0.240 kg';
+      dimensions = '9cm x 6cm x 8cm';
+    } else if (/cabo flex[ií]vel|tomada|interruptor|eletroduto|lumin[aá]ria|l[aâ]mpada|fio\s+\d/i.test(norm)) {
       category = 'Elétrica & Iluminação Tática';
       ncm = '8544.49.00';
       weight = '1.000 kg';
@@ -2695,11 +3116,20 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       .replace(/\s{2,}/g, ' ')
       .trim();
   } else {
-    // Constrói nome padronizado no formato de mercado sem duplicar o termo
-    const cleanDetail = cleanQuery
+    // Constrói nome padronizado no formato de mercado sem duplicar o substantivo, marca, modelo ou tokens do arquétipo
+    let cleanDetail = cleanQuery
       .replace(new RegExp(`\\b${brand}\\b`, 'gi'), '')
       .replace(new RegExp(`\\b${model}\\b`, 'gi'), '')
-      .replace(new RegExp(`\\b${arch.noun}\\b`, 'gi'), '')
+      .replace(/^(?:resmas?|fardos?|caixas?|pacotes?|rolos?|unidades?|pe[çc]as?|itens?|aparelhos?)\s+de\s+/i, '');
+
+    const nounTokens = arch.noun.split(/\s+/).filter(t => t.length > 1);
+    for (const token of nounTokens) {
+      const tokReg = new RegExp(`\\b(?:${token}s?|${token}es|${token.replace(/r$/, 'res')}|${token.replace(/l$/, 'is')}|${token.replace(/m$/, 'ns')}|pap[eé]is)\\b`, 'gi');
+      cleanDetail = cleanDetail.replace(tokReg, '');
+    }
+
+    cleanDetail = cleanDetail
+      .replace(/,/g, ' ')
       .replace(/\s{2,}/g, ' ')
       .trim();
 
@@ -2831,13 +3261,26 @@ SUA MISSÃO NA FASE 1: DEDUZIR E ENRIQUECER CADA PRODUTO COM FICHA TÉCNICA 360�
 DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
 - "isFromPhoto": Booleano (true se o produto corresponde ou foi enriquecido pelas fotos anexadas, false se for estritamente do texto sem fotos).
 - "photoIndex": Número inteiro (0 para foto principal ou -1 se não houver fotos).
-- "standardizedName": TÍTULO COMERCIAL PADRONIZADO E CONCISO (máximo 5 a 15 palavras). Padrão: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. Exemplo CORRETO de Smartphone: "Smartphone Samsung Galaxy S25 FE 5G 256GB" (NUNCA ecoe "Aparelhos de celular Samsung s25fe 256g").
-  REGRAS CRÍTICAS DO NOME:
-  1. PADRONIZAÇÃO CANÔNICA DE PRODUTOS: Se o texto contiver termos informais, gírias ou no plural ('aparelhos de celular', 'celulares', 'mouses', 'computadores', 'switches', 'cabos', 'telas'), VOCÊ DEVE OBRIGATORIAMENTE converter para a denominação comercial oficial e singular do produto no mercado brasileiro (ex: '03 aparelhos de celular Samsung S25fe, 256g' DEVE RETORNAR 'Smartphone Samsung Galaxy S25 FE 5G 256GB')!
-  2. NORMALIZAÇÃO DE CAPACIDADES DE MEMÓRIA E ARMAZENAMENTO:
-     Se o comprador digitar capacidades como '256g', '128g', '512g', '64g', '16g', '8g', interprete como gigabytes e escreva OBRIGATORIAMENTE '256GB', '128GB', '512GB', '16GB', '8GB'. NUNCA use a capacidade de armazenamento como o nome do modelo (ex: o modelo NUNCA é '256G')!
-  3. CATEGORIA MANDATÓRIA PARA CELULARES E SMARTPHONES:
-     Smartphones, celulares, telefones e aparelhos móveis pertencem OBRIGATORIAMENTE à categoria "Redes, Conectividade & Telefonia" com NCM 8517.13.00 (smartphones) ou 8517.18.00 (telefones). É EXPRESSAMENTE PROIBIDO classificar smartphones em "Diversos & Sazonais" ou "Informática"!
+- "standardizedName": TÍTULO COMERCIAL PADRONIZADO E CONCISO (máximo 5 a 15 palavras). Padrão: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave].
+  🚨 LEI UNIVERSAL DE PADRONIZAÇÃO DE NOMES (APLICA-SE A QUALQUER PRODUTO DE QUALQUER CATEGORIA - REGRA DO LUCAS):
+  1. PADRONIZAÇÃO CANÔNICA UNIVERSAL E RESOLUÇÃO DE PLURAIS / GÍRIAS:
+     Se o texto do comprador contiver termos informais, gírias, plural ou falta de denominação formal, VOCÊ DEVE OBRIGATORIAMENTE converter para a denominação comercial oficial e singular do produto no mercado corporativo brasileiro. Exemplos em todos os segmentos:
+     • Redes/Telefonia: '03 aparelhos de celular Samsung S25fe, 256g' -> 'Smartphone Samsung Galaxy S25 FE 5G 256GB'
+     • Redes/Switch: '02 switches de rede cisco 24 portas gigabit' -> 'Switch Cisco Business CBS250-24T-4G 24 Portas Gigabit'
+     • Informática/Mouse: '10 mouses sem fio logitech m170' -> 'Mouse sem Fio Logitech M170'
+     • Informática/Memória: '5 memórias ram ddr4 16gb kingston' -> 'Memória RAM Kingston Fury Beast 16GB DDR4 3200MHz'
+     • Ferramentas: '03 parafusadeiras a bateria bosch 12v' -> 'Parafusadeira e Furadeira a Bateria Bosch GSR 120-LI 12V'
+     • Elétrica: '10 disjuntores bipolares schneider 32a' -> 'Disjuntor Bipolar Schneider Electric Acti9 32A DIN'
+     • Papelaria: '20 resmas de papel chamex a4 75g' -> 'Papel Sulfite A4 Chamex 75g/m² Branco Caixa'
+     • Limpeza: '10 fardos de papel toalha interfolha' -> 'Papel Toalha Interfolha 2 Dobras 100% Celulose'
+     • Eletrodomésticos: '02 chaleiras elétricas inox 1.8l cadence' -> 'Chaleira Elétrica Cadence Inox 1.8L'
+     • Construção: '10 fitas isolantes scotch 3m 20m' -> 'Fita Isolante Scotch 3M 19mm x 20m'
+  2. NORMALIZAÇÃO DE CAPACIDADES E ESPECIFICAÇÕES TÉCNICAS:
+     Capacidades de armazenamento e memória ('256g', '128g', '512g', '64g', '16g') DEVEM ser escritas como '256GB', '128GB', '512GB', '16GB'.
+     NUNCA use capacidades (256GB, 1TB), tensões (110V, 220V, 12V), metragens (305m, 20m), bitolas (2.5mm, 4mm), pesos (75g, 500g, 1kg) ou quantidades como o nome do "model" ou do "partNumber"!
+  3. CATEGORIZAÇÃO OFICIAL MANDATÓRIA (15 CATEGORIAS):
+     Classifique cada item estritamente dentro de uma das 15 categorias oficiais com seu NCM de 8 dígitos correto.
+     Exemplo: Smartphones e celulares pertencem a "Redes, Conectividade & Telefonia" (NCM 8517.13.00), NUNCA a "Diversos & Sazonais" nem "Informática"!
   4. NUNCA coloque quantidades, prefixos como "10x", "5 un" ou resquícios numéricos no nome! A quantidade deve ir estritamente no campo "quantity".
   5. NUNCA coloque parágrafos, frases descritivas ("garantem boa fixação", "adequado para utilizar em display"), tópicos ou listas de atributos dentro do nome! O nome deve ser limpo e conciso.
   6. NUNCA insira prefixos de categoria incorretos! Analise a real natureza física do produto.
@@ -2845,15 +3288,14 @@ DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
   8. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
 - "brand": Marca comercial oficial ou "Genérica" se sem marca visível.
 - "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
-- "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA - REGRA INFODESK):
-  1. Para smartphones Samsung, o modelo oficial é a linha Galaxy (ex: 'Galaxy S25 FE 5G', 'Galaxy S24 Ultra', 'Galaxy A55'). NUNCA coloque a capacidade '256G' como nome do modelo!
-  2. Extraia prioritariamente o MODELO que já consta na própria descrição do comprador (ex: em 'Microfone sem fio Hollyland Lark M2S', o modelo é 'Lark M2S'; em 'Monitor Dell P2723D', o modelo é 'P2723D'; em 'Projetor Epson PowerLite E20', o modelo é 'PowerLite E20'; em 'Teclado Logitech MX Keys Mini', o modelo é 'MX Keys Mini'; em 'Switch Cisco C9200L', o modelo é 'C9200L').
+- "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA - REGRA INFODESK PARA QUALQUER PRODUTO):
+  1. Extraia o MODELO REAL que consta na descrição ou oferta (ex: 'Lark M2S', 'Galaxy S25 FE 5G', 'M170', 'K120', 'CBS250-24T-4G', 'Fury Beast', 'GSR 120-LI', 'Acti9', 'PowerLite E20').
+  2. PROIBIÇÃO ABSOLUTA: NUNCA coloque medidas, capacidades ou voltagens (ex: '256G', '220V', '305M', '32A', '12V', '75G') como o nome do modelo!
   3. Se não constar explicitamente no texto, identifique nas especificações do fabricante e retorne o modelo comercial de verdade.
 - "partNumber": PART NUMBER / CÓDIGO DE REFERÊNCIA OFICIAL (PRIORIDADE MÁXIMA):
-  1. Para smartphones Samsung, use a referência oficial Anatel/fabricante (ex: 'SM-S721B', 'SM-S25FE-256G'), NUNCA códigos genéricos inventados como 'SAM-256G'!
-  2. Extraia o Part Number, Código de Referência, SKU ou P/N se constar na descrição (ex: 'P/N: 920-009599', 'Ref: 23400198', 'Cód: 15724', 'SNV2S/1000G').
-  3. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D', 'E20'), use a sigla/código de referência do modelo como Part Number (ex: 'M2S', 'P2723D', 'E20') para servir como código oficial da peça.
-  4. Se não houver Part Number de fábrica, utilize o modelo identificado para o produto NUNCA ficar sem código de identificação.
+  1. Extraia o Part Number, Código de Referência, SKU ou P/N se constar na descrição (ex: 'P/N: 920-009599', 'Ref: 23400198', 'Cód: 15724', 'SNV2S/1000G', 'SM-S721B').
+  2. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D', 'E20'), use a sigla/código de referência do modelo como Part Number (ex: 'M2S', 'P2723D', 'E20') para servir como código oficial da peça.
+  3. NUNCA invente códigos artificiais com medidas ou capacidades (ex: PROIBIDO gerar 'SAM-256G', 'LOG-220V', 'COR-305M').
 - "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as 15 categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. ATENÇÃO: Ventosas, fixadores, buchas e suportes pertencem a "Construção, Acabamento & Marcenaria" ou "Equipamentos & Insumos Industriais", NUNCA a "Monitores, Displays & TVs"! NUNCA crie categorias fora desta lista.
 - "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40, 8544.42.00, 8517.62.59).
 - "ean": Código de barras EAN se conhecido, senão "".

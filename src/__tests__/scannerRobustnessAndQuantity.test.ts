@@ -269,4 +269,124 @@ if (!cleanMouse.startsWith('Mouse')) {
 }
 console.log(`  ✓ "Mouses sem fio Logitech M170" -> "${cleanMouse}"`);
 
+// ============================================================================
+// TESTE 9: Padronização Canônica Universal Multicategorias (Regra do Lucas)
+// ============================================================================
+console.log('\n[Teste 9] Padronização Canônica Universal Multicategorias (Informática, Elétrica, Papelaria, Ferramentas, Eletro, Limpeza)');
+
+const universalTestCases = [
+  {
+    raw: '10 mouses sem fios logitech m170',
+    expectedQty: 10,
+    expectedCategory: 'Informática, Hardware & Periféricos',
+    expectedNcm: '8471.60.53',
+    mustContain: ['Mouse', 'sem Fio', 'Logitech', 'M170'],
+    mustNotContain: ['Mouses', 'fios'],
+    forbiddenModelTokens: ['10', 'SEM', 'FIOS']
+  },
+  {
+    raw: '05 disjuntores bipolares schneider 32a',
+    expectedQty: 5,
+    expectedCategory: 'Elétrica & Iluminação Tática',
+    expectedNcm: '8536.20.00',
+    mustContain: ['Disjuntor', 'Bipolar', 'Schneider', '32a'],
+    mustNotContain: ['disjuntores', 'bipolares'],
+    forbiddenModelTokens: ['32A', '5', 'SCH-32A']
+  },
+  {
+    raw: '20 resmas de papel chamex a4 75g',
+    expectedQty: 20,
+    expectedCategory: 'Papelaria, Artes & Material de Escritório',
+    expectedNcm: '4802.56.10',
+    mustContain: ['Papel', 'Chamex', 'A4', '75g'],
+    mustNotContain: ['resmas de'],
+    forbiddenModelTokens: ['75G', '20', 'CHA-75G']
+  },
+  {
+    raw: '03 parafusadeiras a bateria bosch 12v',
+    expectedQty: 3,
+    expectedCategory: 'Ferramentas & Instrumentos de Medição',
+    expectedNcm: '8467.21.00',
+    mustContain: ['Parafusadeira', 'Bosch', '12V'],
+    mustNotContain: ['parafusadeiras'],
+    forbiddenModelTokens: ['12V', '03', 'BOS-12V']
+  },
+  {
+    raw: '10 rolos de fitas isolantes 3m imperial 20m',
+    expectedQty: 10,
+    expectedCategory: 'Elétrica & Iluminação Tática',
+    expectedNcm: '3919.10.20',
+    mustContain: ['Fita Isolante', '3M', 'Imperial', '20m'],
+    mustNotContain: ['fitas isolantes'],
+    forbiddenModelTokens: ['20M', '10', '3M-20M']
+  },
+  {
+    raw: '2 frigobares consul 120 litros 220v',
+    expectedQty: 2,
+    expectedCategory: 'Eletrodomésticos, Refrigeração & Copa',
+    expectedNcm: '8418.21.00',
+    mustContain: ['Frigobar', 'Consul', '220V'],
+    mustNotContain: ['frigobares'],
+    forbiddenModelTokens: ['220V', '120L', '2']
+  },
+  {
+    raw: '10 fardos de papeis toalha interfolha sulleg',
+    expectedQty: 10,
+    expectedCategory: 'Limpeza, Higiene & Descartáveis',
+    expectedNcm: '4818.20.00',
+    mustContain: ['Papel Toalha Interfolha'],
+    mustNotContain: ['papeis toalha', 'fardos de'],
+    forbiddenModelTokens: ['10']
+  }
+];
+
+universalTestCases.forEach((tc, idx) => {
+  const parsed = parsePastedProductListWithQty(tc.raw);
+  if (parsed.length !== 1 || parsed[0].quantity !== tc.expectedQty) {
+    throw new Error(`[Caso ${idx + 1}] Quantidade incorreta para "${tc.raw}": esperava ${tc.expectedQty}, obteve ${parsed[0]?.quantity}`);
+  }
+
+  const enriched = enrichProductHeuristically(parsed[0].query, parsed[0].quantity, parsed[0].unit);
+
+  // 1. Validação de Categoria Oficial
+  if (enriched.category !== tc.expectedCategory) {
+    throw new Error(`[Caso ${idx + 1}] Categoria incorreta para "${tc.raw}": esperava "${tc.expectedCategory}", obteve "${enriched.category}"`);
+  }
+
+  // 2. Validação de NCM oficial
+  if (enriched.ncm !== tc.expectedNcm) {
+    throw new Error(`[Caso ${idx + 1}] NCM incorreto para "${tc.raw}": esperava "${tc.expectedNcm}", obteve "${enriched.ncm}"`);
+  }
+
+  // 3. Validação de termos obrigatórios no nome padronizado
+  for (const term of tc.mustContain) {
+    if (!enriched.standardizedName.toLowerCase().includes(term.toLowerCase())) {
+      throw new Error(`[Caso ${idx + 1}] Nome padronizado não contém o termo obrigatório "${term}": obteve "${enriched.standardizedName}"`);
+    }
+  }
+
+  // 4. Validação de termos proibidos (gírias/plurais)
+  for (const term of tc.mustNotContain) {
+    if (enriched.standardizedName.toLowerCase().includes(term.toLowerCase())) {
+      throw new Error(`[Caso ${idx + 1}] Nome padronizado ainda contém termo inadequado "${term}": obteve "${enriched.standardizedName}"`);
+    }
+  }
+
+  // 5. Blindagem contra tokens de especificação no model e part number
+  for (const badToken of tc.forbiddenModelTokens) {
+    if (enriched.model?.toUpperCase() === badToken.toUpperCase()) {
+      throw new Error(`[Caso ${idx + 1}] Modelo foi corrompido com especificação proibida "${badToken}": obteve "${enriched.model}"`);
+    }
+    if (enriched.partNumber?.toUpperCase() === badToken.toUpperCase()) {
+      throw new Error(`[Caso ${idx + 1}] Part Number foi fabricado incorretamente com token proibido "${badToken}": obteve "${enriched.partNumber}"`);
+    }
+  }
+
+  console.log(`  ✓ [Universal ${idx + 1}] "${tc.raw}"`);
+  console.log(`      -> Nome Canônico: "${enriched.standardizedName}"`);
+  console.log(`      -> Categoria:     "${enriched.category}" | NCM: ${enriched.ncm}`);
+  console.log(`      -> Modelo:        "${enriched.model || '(vazio)'}" | P/N: "${enriched.partNumber || '(vazio)'}"`);
+});
+
 console.log('\n🎉 TODOS OS TESTES DE ROBUSTEZ E QUANTIDADES DO SCANNER IA PASSARAM COM 100% DE SUCESSO!\n');
+
