@@ -98,14 +98,21 @@ export function extractDomainKeys(urlOrDomain?: string): { fullDomain: string; b
   }
 }
 
+function getSafeStorage(): Storage | null {
+  if (typeof localStorage !== 'undefined') return localStorage;
+  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage;
+  return null;
+}
+
 /**
  * Carrega fornecedores aprendidos persistidos no localStorage
  */
 function loadLearnedMap(): Record<string, string> {
   if (isLoaded) return memorySuppliersMap;
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = localStorage.getItem(STORAGE_KEY);
+    const storage = getSafeStorage();
+    if (storage) {
+      const raw = storage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
@@ -125,8 +132,9 @@ function loadLearnedMap(): Record<string, string> {
  */
 function persistLearnedMap(map: Record<string, string>): void {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    const storage = getSafeStorage();
+    if (storage) {
+      storage.setItem(STORAGE_KEY, JSON.stringify(map));
     }
   } catch (err) {
     console.warn('[supplierLearningService] Erro ao persistir aprendizado de fornecedores:', err);
@@ -240,6 +248,64 @@ export function learnSuppliersFromQuotes(
   return count;
 }
 
+const DELETED_SUPPLIERS_KEY = 'infodesk_deleted_suppliers_v1';
+
+export interface SupplierDetail {
+  name: string;
+  domains: string[];
+  isDefault: boolean;
+  productCount: number;
+}
+
+export function getDeletedSuppliers(): Set<string> {
+  try {
+    const storage = getSafeStorage();
+    if (storage) {
+      const raw = storage.getItem(DELETED_SUPPLIERS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          return new Set(arr.map(s => String(s).trim().toLowerCase()).filter(Boolean));
+        }
+      }
+    }
+  } catch { /* noop */ }
+  return new Set<string>();
+}
+
+export function recordDeletedSupplier(name: string): void {
+  if (!name) return;
+  try {
+    const set = getDeletedSuppliers();
+    set.add(name.trim().toLowerCase());
+    const storage = getSafeStorage();
+    if (storage) {
+      storage.setItem(DELETED_SUPPLIERS_KEY, JSON.stringify(Array.from(set)));
+    }
+  } catch { /* noop */ }
+}
+
+export function unrecordDeletedSupplier(name: string): void {
+  if (!name) return;
+  try {
+    const set = getDeletedSuppliers();
+    set.delete(name.trim().toLowerCase());
+    const storage = getSafeStorage();
+    if (storage) {
+      storage.setItem(DELETED_SUPPLIERS_KEY, JSON.stringify(Array.from(set)));
+    }
+  } catch { /* noop */ }
+}
+
+export function clearDeletedSuppliers(): void {
+  try {
+    const storage = getSafeStorage();
+    if (storage) {
+      storage.removeItem(DELETED_SUPPLIERS_KEY);
+    }
+  } catch { /* noop */ }
+}
+
 /**
  * Retorna todos os nomes únicos de fornecedores conhecidos e aprendidos
  * para uso em auto-complete, comboboxes e sugestões de digitação.
@@ -249,12 +315,16 @@ export function getAllRegisteredSuppliers(
   extraQuotes?: Array<{ items?: Array<{ supplier?: string }> }>
 ): string[] {
   const currentMap = loadLearnedMap();
+  const deleted = getDeletedSuppliers();
   const set = new Set<string>();
 
   // Adiciona valores do mapa de aprendizado
   for (const name of Object.values(currentMap)) {
     if (name && name.trim().length >= 2) {
-      set.add(name.trim());
+      const clean = name.trim();
+      if (!deleted.has(clean.toLowerCase())) {
+        set.add(clean);
+      }
     }
   }
 
@@ -263,7 +333,9 @@ export function getAllRegisteredSuppliers(
     for (const p of extraProducts) {
       const s = p?.supplier?.trim();
       if (s && s.length >= 2 && !['fornecedor local', 'fornecedor', 'local'].includes(s.toLowerCase())) {
-        set.add(s);
+        if (!deleted.has(s.toLowerCase())) {
+          set.add(s);
+        }
       }
     }
   }
@@ -275,7 +347,9 @@ export function getAllRegisteredSuppliers(
         for (const it of q.items) {
           const s = it?.supplier?.trim();
           if (s && s.length >= 2 && !['fornecedor local', 'fornecedor', 'local'].includes(s.toLowerCase())) {
-            set.add(s);
+            if (!deleted.has(s.toLowerCase())) {
+              set.add(s);
+            }
           }
         }
       }
@@ -283,4 +357,269 @@ export function getAllRegisteredSuppliers(
   }
 
   return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+/**
+ * Retorna lista detalhada de fornecedores para a Aba Oficial de Fornecedores das Configurações
+ */
+export function getRegisteredSuppliersDetailed(
+  extraProducts?: Array<{ supplier?: string }>,
+  extraQuotes?: Array<{ items?: Array<{ supplier?: string }> }>
+): SupplierDetail[] {
+  const currentMap = loadLearnedMap();
+  const deleted = getDeletedSuppliers();
+
+  const supplierToDomains = new Map<string, Set<string>>();
+  const defaultNames = new Set(Object.values(DEFAULT_SUPPLIERS_MAP).map(n => n.trim().toLowerCase()));
+
+  // 1. Processa do mapa de aprendizado
+  for (const [key, name] of Object.entries(currentMap)) {
+    if (!name || name.trim().length < 2) continue;
+    const cleanName = name.trim();
+    if (deleted.has(cleanName.toLowerCase())) continue;
+
+    if (!supplierToDomains.has(cleanName)) {
+      supplierToDomains.set(cleanName, new Set());
+    }
+    if (key.length >= 3 && !key.includes(' ')) {
+      supplierToDomains.get(cleanName)!.add(key);
+    }
+  }
+
+  // 2. Processa produtos extras para contagem e fornecedores adicionais
+  const productCountMap = new Map<string, number>();
+  if (Array.isArray(extraProducts)) {
+    for (const p of extraProducts) {
+      const s = p?.supplier?.trim();
+      if (!s || s.length < 2 || deleted.has(s.toLowerCase())) continue;
+      const lower = s.toLowerCase();
+      if (['fornecedor local', 'fornecedor', 'local', 'sem fornecedor'].includes(lower)) continue;
+
+      productCountMap.set(s, (productCountMap.get(s) || 0) + 1);
+
+      if (!supplierToDomains.has(s)) {
+        supplierToDomains.set(s, new Set());
+      }
+    }
+  }
+
+  // 3. Processa cotações extras
+  if (Array.isArray(extraQuotes)) {
+    for (const q of extraQuotes) {
+      if (Array.isArray(q?.items)) {
+        for (const it of q.items) {
+          const s = it?.supplier?.trim();
+          if (!s || s.length < 2 || deleted.has(s.toLowerCase())) continue;
+          const lower = s.toLowerCase();
+          if (['fornecedor local', 'fornecedor', 'local', 'sem fornecedor'].includes(lower)) continue;
+
+          if (!supplierToDomains.has(s)) {
+            supplierToDomains.set(s, new Set());
+          }
+        }
+      }
+    }
+  }
+
+  // Monta lista final
+  const result: SupplierDetail[] = [];
+  for (const [name, domainsSet] of supplierToDomains.entries()) {
+    const domainList = Array.from(domainsSet).sort((a, b) => {
+      const aHasDot = a.includes('.');
+      const bHasDot = b.includes('.');
+      if (aHasDot && !bHasDot) return -1;
+      if (!aHasDot && bHasDot) return 1;
+      return a.localeCompare(b);
+    });
+
+    result.push({
+      name,
+      domains: domainList,
+      isDefault: defaultNames.has(name.toLowerCase()),
+      productCount: productCountMap.get(name) || 0
+    });
+  }
+
+  return result.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+}
+
+/**
+ * Salva ou adiciona um novo fornecedor no sistema
+ */
+export function saveRegisteredSupplier(name: string, domainOrUrl?: string): void {
+  const cleanName = name.trim();
+  if (!cleanName || cleanName.length < 2) return;
+  unrecordDeletedSupplier(cleanName);
+
+  if (domainOrUrl && domainOrUrl.trim()) {
+    learnSupplier(domainOrUrl.trim(), cleanName);
+  } else {
+    const slug = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (slug.length >= 2) {
+      const currentMap = loadLearnedMap();
+      currentMap[slug] = cleanName;
+      memorySuppliersMap = { ...currentMap };
+      persistLearnedMap(memorySuppliersMap);
+    }
+  }
+
+  notifySuppliersChanged({ type: 'add', name: cleanName });
+}
+
+/**
+ * Atualiza / renomeia um fornecedor e propaga as alterações para todos os produtos
+ * e cotações existentes com o nome antigo (Diretriz do Lucas).
+ */
+export function updateRegisteredSupplier(
+  oldName: string, 
+  newName: string, 
+  newDomainOrUrl?: string, 
+  updateProductsAndQuotes: boolean = true
+): { updatedProducts: number; updatedQuotes: number } {
+  const cleanOld = oldName.trim();
+  const cleanNew = newName.trim();
+  if (!cleanOld || !cleanNew) return { updatedProducts: 0, updatedQuotes: 0 };
+
+  unrecordDeletedSupplier(cleanNew);
+
+  // 1. Atualiza mapa de aprendizado
+  const currentMap = loadLearnedMap();
+  let mapChanged = false;
+  for (const [key, val] of Object.entries(currentMap)) {
+    if (val.trim().toLowerCase() === cleanOld.toLowerCase()) {
+      currentMap[key] = cleanNew;
+      mapChanged = true;
+    }
+  }
+
+  if (newDomainOrUrl && newDomainOrUrl.trim()) {
+    const { fullDomain, baseSlug } = extractDomainKeys(newDomainOrUrl.trim());
+    if (fullDomain) currentMap[fullDomain] = cleanNew;
+    if (baseSlug) currentMap[baseSlug] = cleanNew;
+    mapChanged = true;
+  }
+
+  if (mapChanged) {
+    memorySuppliersMap = { ...currentMap };
+    persistLearnedMap(memorySuppliersMap);
+  }
+
+  let updatedProducts = 0;
+  let updatedQuotes = 0;
+
+  if (updateProductsAndQuotes && (typeof localStorage !== 'undefined' || typeof window !== 'undefined')) {
+    const storageObj = typeof localStorage !== 'undefined' ? localStorage : window.localStorage;
+    try {
+      const rawProducts = storageObj.getItem('infodesk_products');
+      if (rawProducts) {
+        const productsArr = JSON.parse(rawProducts);
+        if (Array.isArray(productsArr)) {
+          const modifiedProducts: any[] = [];
+          const updatedList = productsArr.map((p: any) => {
+            if (p?.supplier && p.supplier.trim().toLowerCase() === cleanOld.toLowerCase()) {
+              updatedProducts++;
+              const updatedP = { ...p, supplier: cleanNew, updated_at: new Date().toISOString() };
+              modifiedProducts.push(updatedP);
+              return updatedP;
+            }
+            return p;
+          });
+
+          if (updatedProducts > 0) {
+            storageObj.setItem('infodesk_products', JSON.stringify(updatedList));
+            // Sincroniza em background com Supabase
+            import('./supabase').then(({ syncBatchProductsToSupabase }) => {
+              syncBatchProductsToSupabase(modifiedProducts).catch(err => {
+                console.warn('[supplierLearningService] Erro ao sincronizar produtos atualizados com Supabase:', err);
+              });
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao propagar renomeação de fornecedor nos produtos:', e);
+    }
+
+    // 3. Propagação nas Cotações Salvas
+    try {
+      const rawQuotes = storageObj.getItem('infodesk_quotes');
+      if (rawQuotes) {
+        const quotesArr = JSON.parse(rawQuotes);
+        if (Array.isArray(quotesArr)) {
+          let quotesModified = false;
+          const updatedQuotesList = quotesArr.map((q: any) => {
+            if (Array.isArray(q?.items)) {
+              let hasItemChange = false;
+              const newItems = q.items.map((it: any) => {
+                if (it?.supplier && it.supplier.trim().toLowerCase() === cleanOld.toLowerCase()) {
+                  hasItemChange = true;
+                  return { ...it, supplier: cleanNew };
+                }
+                return it;
+              });
+              if (hasItemChange) {
+                updatedQuotes++;
+                quotesModified = true;
+                return { ...q, items: newItems, updatedAt: new Date().toISOString() };
+              }
+            }
+            return q;
+          });
+
+          if (quotesModified) {
+            storageObj.setItem('infodesk_quotes', JSON.stringify(updatedQuotesList));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao propagar renomeação de fornecedor nas cotações:', e);
+    }
+  }
+
+  notifySuppliersChanged({ type: 'update', oldName: cleanOld, newName: cleanNew, updatedProducts, updatedQuotes });
+  return { updatedProducts, updatedQuotes };
+}
+
+/**
+ * Remove um fornecedor do aprendizado e do sistema
+ */
+export function deleteRegisteredSupplier(name: string): void {
+  const clean = name.trim();
+  if (!clean) return;
+
+  recordDeletedSupplier(clean);
+
+  const currentMap = loadLearnedMap();
+  let changed = false;
+  for (const [key, val] of Object.entries(currentMap)) {
+    if (val.trim().toLowerCase() === clean.toLowerCase()) {
+      delete currentMap[key];
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    memorySuppliersMap = { ...currentMap };
+    persistLearnedMap(memorySuppliersMap);
+  }
+
+  notifySuppliersChanged({ type: 'delete', name: clean });
+}
+
+/**
+ * Restaura fornecedores e distribuidores padrão oficiais
+ */
+export function resetRegisteredSuppliers(): void {
+  clearDeletedSuppliers();
+  memorySuppliersMap = { ...DEFAULT_SUPPLIERS_MAP };
+  persistLearnedMap(memorySuppliersMap);
+  notifySuppliersChanged({ type: 'reset' });
+}
+
+function notifySuppliersChanged(detail?: any): void {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    try {
+      window.dispatchEvent(new CustomEvent('infodesk:suppliers-updated', { detail }));
+    } catch { /* noop */ }
+  }
 }

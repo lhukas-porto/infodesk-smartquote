@@ -3018,6 +3018,8 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSaveSettings={handleSaveSettings}
+        products={products}
+        onProductsUpdated={setProducts}
       />
 
       <GlobalCommandBarModal

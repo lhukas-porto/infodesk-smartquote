@@ -17,9 +17,11 @@ import {
   X,
   Search,
   FileText,
-  CreditCard
+  CreditCard,
+  Truck,
+  Store
 } from 'lucide-react';
-import { CompanySettings } from '../types';
+import { CompanySettings, Product } from '../types';
 import { 
   saveSettings, 
   getRegisteredUnits, 
@@ -41,6 +43,14 @@ import {
   deleteRegisteredPaymentMethod
 } from '../utils/storage';
 import { getStoredGeminiKey, saveStoredGeminiKey, getStoredSerpApiKey, saveStoredSerpApiKey } from '../services/priceScannerService';
+import { 
+  getRegisteredSuppliersDetailed, 
+  saveRegisteredSupplier, 
+  updateRegisteredSupplier, 
+  deleteRegisteredSupplier, 
+  resetRegisteredSuppliers,
+  SupplierDetail 
+} from '../services/supplierLearningService';
 import { maskPhone } from '../utils/aiEmailParser';
 
 interface SettingsModalProps {
@@ -48,15 +58,19 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: CompanySettings;
   onSaveSettings: (newSettings: CompanySettings) => void;
+  products?: Product[];
+  onProductsUpdated?: (products: Product[]) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   settings,
-  onSaveSettings
+  onSaveSettings,
+  products = [],
+  onProductsUpdated
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'catalog' | 'payments'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'catalog' | 'payments' | 'suppliers'>('general');
   const [form, setForm] = useState<CompanySettings>(() => {
     const s = { ...settings };
     if (s.email && s.email.includes('infodesk.com.br')) s.email = s.email.replace('@infodesk.com.br', '@infodesk.net.br');
@@ -96,6 +110,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [editingPaymentMethod, setEditingPaymentMethod] = useState<string | null>(null);
   const [editPaymentMethodVal, setEditPaymentMethodVal] = useState('');
 
+  // Estados de Fornecedores
+  const [suppliers, setSuppliers] = useState<SupplierDetail[]>(() => getRegisteredSuppliersDetailed(products));
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierDomain, setNewSupplierDomain] = useState('');
+  const [searchSupplier, setSearchSupplier] = useState('');
+  const [editingSupplier, setEditingSupplier] = useState<string | null>(null);
+  const [editSupplierName, setEditSupplierName] = useState('');
+  const [editSupplierDomain, setEditSupplierDomain] = useState('');
+  const [editPropagateProducts, setEditPropagateProducts] = useState(true);
+
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   const showFeedback = (msg: string) => {
@@ -129,6 +153,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     m.toLowerCase().includes(searchPaymentMethod.toLowerCase())
   );
 
+  const filteredSuppliers = React.useMemo(() => {
+    return suppliers.filter(s => {
+      if (!searchSupplier.trim()) return true;
+      const q = searchSupplier.toLowerCase();
+      return s.name.toLowerCase().includes(q) || s.domains.some(d => d.toLowerCase().includes(q));
+    });
+  }, [suppliers, searchSupplier]);
+
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
       const s = { ...settings };
@@ -146,12 +178,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setCategories(getRegisteredCategories());
       setUnits(getRegisteredUnits());
       setPaymentMethods(getRegisteredPaymentMethods());
+      setSuppliers(getRegisteredSuppliersDetailed(products));
       setEditingCategory(null);
       setEditingUnit(null);
       setEditingPaymentMethod(null);
+      setEditingSupplier(null);
       setNewCategoryInput('');
       setNewUnitInput('');
       setNewPaymentMethodInput('');
+      setNewSupplierName('');
+      setNewSupplierDomain('');
     }
     prevIsOpenRef.current = isOpen;
 
@@ -164,14 +200,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setCategories(getRegisteredCategories());
       setUnits(getRegisteredUnits());
       setPaymentMethods(getRegisteredPaymentMethods());
+      setSuppliers(getRegisteredSuppliersDetailed(products));
     };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('infodesk_metadata_changed', handleMetaChanged);
+    window.addEventListener('infodesk:suppliers-updated', handleMetaChanged);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('infodesk_metadata_changed', handleMetaChanged);
+      window.removeEventListener('infodesk:suppliers-updated', handleMetaChanged);
     };
-  }, [isOpen, settings, onClose]);
+  }, [isOpen, settings, products, onClose]);
 
   // Handlers de Categorias
   const handleAddCategory = (e?: React.FormEvent) => {
@@ -306,6 +345,81 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     showFeedback(`Forma de pagamento "${method}" removida.`);
   };
 
+  // Handlers da Aba Oficial de Fornecedores
+  const handleAddSupplier = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanName = newSupplierName.trim();
+    if (!cleanName) return;
+
+    if (suppliers.some(s => s.name.toLowerCase() === cleanName.toLowerCase())) {
+      showFeedback(`O fornecedor "${cleanName}" já está cadastrado.`);
+      return;
+    }
+
+    saveRegisteredSupplier(cleanName, newSupplierDomain.trim());
+    setSuppliers(getRegisteredSuppliersDetailed(products));
+    setNewSupplierName('');
+    setNewSupplierDomain('');
+    showFeedback(`Fornecedor "${cleanName}" adicionado com sucesso!`);
+  };
+
+  const handleStartEditSupplier = (s: SupplierDetail) => {
+    setEditingSupplier(s.name);
+    setEditSupplierName(s.name);
+    setEditSupplierDomain(s.domains[0] || '');
+    setEditPropagateProducts(true);
+  };
+
+  const handleSaveEditSupplier = (oldName: string) => {
+    const cleanNewName = editSupplierName.trim();
+    if (!cleanNewName) return;
+
+    const res = updateRegisteredSupplier(
+      oldName,
+      cleanNewName,
+      editSupplierDomain.trim(),
+      editPropagateProducts
+    );
+
+    // Se produtos foram modificados, atualiza catálogo no estado da aplicação
+    if (res.updatedProducts > 0 && onProductsUpdated) {
+      try {
+        const raw = localStorage.getItem('infodesk_products');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            onProductsUpdated(parsed);
+          }
+        }
+      } catch { /* noop */ }
+    }
+
+    setSuppliers(getRegisteredSuppliersDetailed(products));
+    setEditingSupplier(null);
+
+    const msg = res.updatedProducts > 0 
+      ? `Fornecedor renomeado para "${cleanNewName}" e atualizado em ${res.updatedProducts} produto(s)!`
+      : `Fornecedor renomeado para "${cleanNewName}".`;
+    showFeedback(msg);
+  };
+
+  const handleDeleteSupplier = (name: string) => {
+    if (window.confirm(`Deseja realmente remover o fornecedor "${name}" das sugestões automáticas do sistema?`)) {
+      deleteRegisteredSupplier(name);
+      setSuppliers(getRegisteredSuppliersDetailed(products));
+      if (editingSupplier === name) setEditingSupplier(null);
+      showFeedback(`Fornecedor "${name}" removido.`);
+    }
+  };
+
+  const handleResetSuppliers = () => {
+    if (window.confirm('Deseja restaurar a lista padrão oficial de fornecedores e distribuidores?')) {
+      resetRegisteredSuppliers();
+      setSuppliers(getRegisteredSuppliersDetailed(products));
+      showFeedback('Lista padrão de fornecedores restaurada com sucesso!');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -358,7 +472,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-scaleIn">
+      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-scaleIn">
         
         {/* Cabeçalho do Modal */}
         <div className="p-5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
@@ -368,7 +482,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">Configurações da Infodesk</h2>
-              <p className="text-xs text-slate-500">Personalize dados cadastrais, impostos, conexões, categorias e unidades</p>
+              <p className="text-xs text-slate-500">Personalize dados cadastrais, impostos, conexões, fornecedores, categorias e unidades</p>
             </div>
           </div>
 
@@ -414,7 +528,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('payments')}
-            className={`flex items-center gap-2 py-3 px-4 border-b-2 font-bold text-xs transition cursor-pointer ${
+            className={`flex items-center gap-2 py-3 px-4 border-b-2 font-bold text-xs transition cursor-pointer whitespace-nowrap ${
               activeTab === 'payments'
                 ? 'border-sky-600 text-sky-700 bg-sky-50/60 rounded-t-xl'
                 : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-xl'
@@ -424,6 +538,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <span>Formas de Pagamento</span>
             <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
               {paymentMethods.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('suppliers')}
+            className={`flex items-center gap-2 py-3 px-4 border-b-2 font-bold text-xs transition cursor-pointer whitespace-nowrap ${
+              activeTab === 'suppliers'
+                ? 'border-sky-600 text-sky-700 bg-sky-50/60 rounded-t-xl'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-xl'
+            }`}
+          >
+            <Truck className="w-4 h-4 text-sky-600" />
+            <span>Fornecedores</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+              {suppliers.length}
             </span>
           </button>
         </div>
@@ -1299,6 +1429,240 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {/* Rodapé da Aba de Formas de Pagamento */}
             <div className="pt-3 flex justify-end border-t border-slate-200">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition cursor-pointer"
+              >
+                Concluído
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Conteúdo da Aba Fornecedores */}
+        {activeTab === 'suppliers' && (
+          <div className="p-6 overflow-y-auto space-y-4 flex-1">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col h-[520px]">
+              
+              {/* Cabeçalho da Aba */}
+              <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-sky-50 text-sky-700 rounded-xl border border-sky-200">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">Fornecedores, Distribuidores & Lojas</h4>
+                    <p className="text-xs text-slate-400">
+                      {suppliers.length} fornecedores catalogados • Renomeie para corrigir erros e propagar em todos os produtos
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Formulário: Adicionar Fornecedor */}
+              <form onSubmit={handleAddSupplier} className="bg-slate-50 border border-slate-200/80 p-3 rounded-2xl mb-3 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Nome do Fornecedor / Loja
+                    </label>
+                    <input
+                      type="text"
+                      value={newSupplierName}
+                      onChange={(e) => setNewSupplierName(e.target.value)}
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Domínio / Site (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={newSupplierDomain}
+                      onChange={(e) => setNewSupplierDomain(e.target.value)}
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs text-slate-900 font-mono text-[11px] focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    disabled={!newSupplierName.trim()}
+                    className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Adicionar Fornecedor
+                  </button>
+                </div>
+              </form>
+
+              {/* Barra de Busca Rápida */}
+              {suppliers.length > 5 && (
+                <div className="relative mb-3">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={searchSupplier}
+                    onChange={(e) => setSearchSupplier(e.target.value)}
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-sky-500 font-medium"
+                  />
+                </div>
+              )}
+
+              {/* Lista de Fornecedores com Rolagem */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                {filteredSuppliers.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-center p-6 text-slate-400 text-xs">
+                    Nenhum fornecedor encontrado.
+                  </div>
+                ) : (
+                  filteredSuppliers.map((s) => {
+                    const isEditing = editingSupplier === s.name;
+
+                    if (isEditing) {
+                      return (
+                        <div 
+                          key={s.name}
+                          className="bg-sky-50/80 border border-sky-300 rounded-2xl p-3 shadow-xs space-y-2.5 animate-fadeIn"
+                        >
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                Nome Correto do Fornecedor
+                              </label>
+                              <input
+                                type="text"
+                                autoFocus
+                                value={editSupplierName}
+                                onChange={(e) => setEditSupplierName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveEditSupplier(s.name);
+                                  if (e.key === 'Escape') setEditingSupplier(null);
+                                }}
+                                className="w-full h-8.5 bg-white border border-sky-400 rounded-xl px-2.5 text-xs text-slate-900 font-bold focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                Domínio / Site Vinculado
+                              </label>
+                              <input
+                                type="text"
+                                value={editSupplierDomain}
+                                onChange={(e) => setEditSupplierDomain(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveEditSupplier(s.name);
+                                  if (e.key === 'Escape') setEditingSupplier(null);
+                                }}
+                                className="w-full h-8.5 bg-white border border-sky-400 rounded-xl px-2.5 text-xs font-mono text-slate-900 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-semibold text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={editPropagateProducts}
+                                onChange={(e) => setEditPropagateProducts(e.target.checked)}
+                                className="w-4 h-4 text-sky-600 rounded-md border-slate-300 focus:ring-sky-500"
+                              />
+                              <span>Atualizar automaticamente todos os produtos com o nome antigo</span>
+                            </label>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleSaveEditSupplier(s.name)}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1 transition shadow-xs cursor-pointer"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                Salvar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingSupplier(null)}
+                                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={s.name}
+                        className="flex items-center justify-between p-2.5 rounded-xl border bg-slate-50/70 hover:bg-slate-100/80 border-slate-200/80 transition"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="p-1.5 bg-white text-slate-600 rounded-lg border border-slate-200 shadow-2xs shrink-0">
+                            <Store className="w-4 h-4 text-sky-600" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 text-xs">
+                                {s.name}
+                              </span>
+                              {s.domains.length > 0 && (
+                                <span className="font-mono text-[10px] text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.2 rounded-md">
+                                  {s.domains[0]}
+                                </span>
+                              )}
+                              {s.productCount > 0 ? (
+                                <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                                  {s.productCount} {s.productCount === 1 ? 'produto' : 'produtos'}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 font-medium">
+                                  0 produtos
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditSupplier(s)}
+                            title={`Editar "${s.name}"`}
+                            className="p-1.5 hover:bg-white text-slate-500 hover:text-sky-600 rounded-lg transition border border-transparent hover:border-slate-200 cursor-pointer"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSupplier(s.name)}
+                            title={`Excluir "${s.name}"`}
+                            className="p-1.5 hover:bg-white text-slate-400 hover:text-rose-600 rounded-lg transition border border-transparent hover:border-slate-200 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Rodapé da Aba de Fornecedores */}
+            <div className="pt-3 flex items-center justify-between border-t border-slate-200">
+              <button
+                type="button"
+                onClick={handleResetSuppliers}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Restaurar Fornecedores Padrão
+              </button>
+
               <button
                 type="button"
                 onClick={onClose}
