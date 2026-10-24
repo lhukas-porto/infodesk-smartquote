@@ -2848,6 +2848,7 @@ export const App: React.FC = () => {
 
         <div style={{ display: activeTab === 'websearch' ? 'block' : 'none' }}>
           <PriceScannerView
+            quotes={quotes}
             products={products}
             defaultMarkupPercent={settings.defaultMarkupPercent ?? 23.5}
             defaultTaxPercent={settings.defaultTaxPercent ?? 9.1}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Search,
   Sparkles,
@@ -29,10 +29,11 @@ import {
   TrendingUp,
   Box,
   Tag,
-  ShieldCheck
+  ShieldCheck,
+  Flame
 } from 'lucide-react';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
-import { Product, QuoteItem } from '../types';
+import { Product, QuoteItem, Quote } from '../types';
 import {
   cleanAlphanumericCode,
   cleanNcmCode,
@@ -46,7 +47,7 @@ import {
   sanitizeSupplierName,
   calculateCommercialUnitPrice
 } from '../utils/aiEmailParser';
-import { getSettings } from '../utils/storage';
+import { getSettings, getQuotes } from '../utils/storage';
 import {
   DiscoveredProduct,
   ScannedPriceResult,
@@ -527,6 +528,7 @@ export function getCategoryIcon(category?: string): string {
 }
 
 interface PriceScannerViewProps {
+  quotes?: Quote[];
   products?: Product[];
   defaultMarkupPercent?: number;
   defaultTaxPercent?: number;
@@ -549,6 +551,7 @@ interface PriceScannerViewProps {
 }
 
 const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
+  quotes = [],
   products = [],
   defaultMarkupPercent,
   defaultTaxPercent,
@@ -575,6 +578,112 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   const [batchProgress, setBatchProgress] = useState<BatchScanProgress | null>(null);
   const [batchResults, setBatchResults] = useState<ScannedPriceResult[]>([]);
   const [selectedResultIds, setSelectedResultIds] = useState<Set<string>>(new Set());
+
+  // SUGESTÕES DINÂMICAS: Os 7 itens mais cotados no histórico de todas as cotações
+  const topQuotedSuggestions = useMemo(() => {
+    let sourceQuotes: Quote[] = [];
+    try {
+      sourceQuotes = (quotes && quotes.length > 0) ? quotes : getQuotes();
+    } catch {
+      sourceQuotes = quotes || [];
+    }
+
+    const frequencyMap = new Map<string, {
+      cleanName: string;
+      partNumber?: string;
+      category?: string;
+      count: number;
+      totalQty: number;
+      unit?: string;
+    }>();
+
+    for (const q of sourceQuotes) {
+      if (!q.items || !Array.isArray(q.items)) continue;
+      for (const it of q.items) {
+        const rawName = (it.name || it.description || '').trim();
+        if (!rawName || rawName.length < 3) continue;
+
+        // Normalização cirúrgica para agrupar variações de maiúsculas/minúsculas e pontuação
+        const normalizedKey = rawName.toLowerCase()
+          .replace(/[^\w\sáéíóúâêîôûãõç]/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        if (!normalizedKey) continue;
+
+        const existing = frequencyMap.get(normalizedKey);
+        const qty = it.quantity && it.quantity > 0 ? it.quantity : 1;
+
+        if (existing) {
+          existing.count += 1;
+          existing.totalQty += qty;
+          if (it.partNumber && !existing.partNumber) {
+            existing.partNumber = it.partNumber.trim();
+          }
+          if (it.category && !existing.category) {
+            existing.category = it.category;
+          }
+        } else {
+          frequencyMap.set(normalizedKey, {
+            cleanName: rawName,
+            partNumber: it.partNumber ? it.partNumber.trim() : undefined,
+            category: it.category,
+            count: 1,
+            totalQty: qty,
+            unit: it.unit || 'Un.'
+          });
+        }
+      }
+    }
+
+    // Ordena os itens pela recorrência nas cotações (mais cotados primeiro)
+    const sorted = Array.from(frequencyMap.values()).sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return b.totalQty - a.totalQty;
+    });
+
+    // Gera as pílulas dinâmicas com os dados reais
+    const dynamicPills = sorted.slice(0, 7).map(item => {
+      const icon = getCategoryIcon(item.category);
+      // Rótulo compacto para a pílula
+      let shortLabel = item.cleanName;
+      if (shortLabel.length > 20) {
+        shortLabel = shortLabel.slice(0, 18).trim() + '...';
+      }
+      const label = `+ ${icon} ${shortLabel}`;
+
+      // Monta o texto de busca preservando quantidade média e Part Number
+      const avgQty = Math.max(1, Math.round(item.totalQty / item.count));
+      const qtyPrefix = avgQty > 1 ? `${String(avgQty).padStart(2, '0')} ` : '01 ';
+      const pnSuffix = item.partNumber ? ` [Ref: ${item.partNumber}]` : '';
+      const text = `${qtyPrefix}${item.cleanName}${pnSuffix}`.trim();
+
+      return {
+        label,
+        text,
+        count: item.count,
+        category: item.category
+      };
+    });
+
+    // Se o histórico de cotações tiver menos de 7 produtos cadastrados, completa com a base de fallback
+    const curatedFallbacks = [
+      { label: '+ 📱 Celular 256GB', text: '01 Smartphone 256GB 8GB RAM 5G', count: 1 },
+      { label: '+ 🖱️ Mouse sem Fio', text: '05 mouses opticos usb sem fio logitech', count: 1 },
+      { label: '+ ⚡ Disjuntor 32A', text: '05 disjuntores bipolares schneider 32a din', count: 1 },
+      { label: '+ 📄 Papel A4', text: '10 resmas papel chamex a4 75g', count: 1 },
+      { label: '+ 🔩 Parafusadeira 12V', text: '02 parafusadeiras bateria 12v bosch', count: 1 },
+      { label: '+ 🧻 Papel Toalha', text: '08 fardos papel toalha interfolhado folha dupla', count: 1 },
+      { label: '+ 🧊 Frigobar 220V', text: '01 frigobar 120 litros 220v inox', count: 1 },
+    ];
+
+    if (dynamicPills.length < 7) {
+      const needed = 7 - dynamicPills.length;
+      return [...dynamicPills, ...curatedFallbacks.slice(0, needed)];
+    }
+
+    return dynamicPills;
+  }, [quotes]);
 
   // Fase 1: Dedução Técnica 360° (Padrão Infodesk Store)
   const [discoveredProducts, setDiscoveredProducts] = useState<DiscoveredProduct[]>([]);
@@ -1502,20 +1611,16 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             </label>
           </div>
 
-          {/* Pílulas de Exemplo e Categorias Rápidas */}
+          {/* Pílulas Dinâmicas: 7 Itens Mais Cotados no Sistema */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
-              <Tag className="w-3 h-3 text-slate-400" /> Exemplos rápidos:
+            <span 
+              className="text-[11px] font-bold text-sky-800 uppercase tracking-wider shrink-0 flex items-center gap-1.5 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200/90 shadow-2xs"
+              title="Sugestão dinâmica dos 7 itens mais frequentes em todas as suas cotações"
+            >
+              <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500 animate-pulse" />
+              <span>Mais Cotados:</span>
             </span>
-            {[
-              { label: '+ 📱 Celular 256GB', text: '01 Smartphone 256GB 8GB RAM 5G' },
-              { label: '+ 🖱️ Mouse sem Fio', text: '05 mouses opticos usb sem fio logitech' },
-              { label: '+ ⚡ Disjuntor 32A', text: '05 disjuntores bipolares schneider 32a din' },
-              { label: '+ 📄 Papel A4', text: '10 resmas papel chamex a4 75g' },
-              { label: '+ 🔩 Parafusadeira 12V', text: '02 parafusadeiras bateria 12v bosch' },
-              { label: '+ 🧻 Papel Toalha', text: '08 fardos papel toalha interfolhado folha dupla' },
-              { label: '+ 🧊 Frigobar 220V', text: '01 frigobar 120 litros 220v inox' },
-            ].map((pill, pIdx) => (
+            {topQuotedSuggestions.map((pill, pIdx) => (
               <button
                 key={pIdx}
                 type="button"
@@ -1526,9 +1631,15 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                   });
                   showToast(`Item "${pill.label}" adicionado à lista!`);
                 }}
-                className="px-2.5 py-1 bg-slate-50 hover:bg-sky-50 text-slate-600 hover:text-sky-700 border border-slate-200 hover:border-sky-300 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer active:scale-95 shadow-2xs"
+                className="px-2.5 py-1 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-300 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer active:scale-95 shadow-2xs flex items-center gap-1"
+                title={`Item mais cotado. Clique para inserir: ${pill.text}`}
               >
-                {pill.label}
+                <span>{pill.label}</span>
+                {pill.count && pill.count > 1 ? (
+                  <span className="text-[10px] font-bold text-sky-700 font-mono bg-sky-100/80 px-1 py-0.2 rounded ml-0.5">
+                    {pill.count}x
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
