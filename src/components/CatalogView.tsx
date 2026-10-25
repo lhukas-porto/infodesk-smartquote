@@ -46,7 +46,10 @@ import {
   recordDeletedProduct,
   unrecordDeletedProduct,
   getLastCatalogExportDate,
-  saveLastCatalogExportDate
+  saveLastCatalogExportDate,
+  findProductImageInCache,
+  saveProductImageToCache,
+  recoverProductImagesFromQuotes
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { ProductEditModal } from './ProductEditModal';
@@ -428,6 +431,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       }
     };
 
+    // Recupera preventivamente quaisquer fotos coladas em orçamentos para o cache
+    recoverProductImagesFromQuotes();
+
     // Sincroniza imediatamente ao abrir a tela de catálogo
     autoSyncFromCloud();
 
@@ -557,7 +563,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   };
 
   const handleOpenEditModal = (product: Product) => {
-    setEditingProduct({ ...product });
+    const resolvedImg = product.imageUrl || findProductImageInCache(product.name, product.partNumber, product.sku) || '';
+    setEditingProduct({ ...product, imageUrl: resolvedImg });
   };
 
   const handleSaveEditedProductFromModal = async (updated: Product, shippingCost: number) => {
@@ -882,23 +889,27 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     </td>
                     <td className="px-3 py-1.5">
                       <div className="flex items-center gap-2.5">
-                        {p.imageUrl && (
-                          <div
-                            onClick={() => setZoomedImage({ url: p.imageUrl!, title: p.name })}
-                            title="Clique para ver a foto com ZOOM"
-                            className="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs hover:border-sky-500 hover:shadow-md shrink-0 overflow-hidden cursor-pointer transition relative group/cimg select-none"
-                          >
-                            <img
-                              src={p.imageUrl}
-                              alt={p.name}
-                              className="w-full h-full max-w-full max-h-full object-contain group-hover/cimg:scale-105 transition duration-200"
-                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                            />
-                            <div className="absolute inset-0 bg-sky-950/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-[0.5px]">
-                              <ZoomIn className="w-3 h-3 text-white drop-shadow-sm" />
+                        {(() => {
+                          const effectiveImg = p.imageUrl || findProductImageInCache(p.name, p.partNumber, p.sku);
+                          if (!effectiveImg) return null;
+                          return (
+                            <div
+                              onClick={() => setZoomedImage({ url: effectiveImg, title: p.name })}
+                              title="Clique para ver a foto com ZOOM"
+                              className="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs hover:border-sky-500 hover:shadow-md shrink-0 overflow-hidden cursor-pointer transition relative group/cimg select-none"
+                            >
+                              <img
+                                src={effectiveImg}
+                                alt={p.name}
+                                className="w-full h-full max-w-full max-h-full object-contain group-hover/cimg:scale-105 transition duration-200"
+                                onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                              />
+                              <div className="absolute inset-0 bg-sky-950/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-[0.5px]">
+                                <ZoomIn className="w-3 h-3 text-white drop-shadow-sm" />
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             <p className="font-bold text-slate-900 text-xs leading-tight">{p.name}</p>

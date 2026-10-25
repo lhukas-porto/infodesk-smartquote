@@ -97,7 +97,9 @@ import {
   saveRegisteredUnit, 
   getRegisteredCategories, 
   saveRegisteredCategory,
-  sanitizeQuoteItemForDuplication
+  sanitizeQuoteItemForDuplication,
+  saveProductImageToCache,
+  findProductImageInCache
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { UniversalListImportModal } from './UniversalListImportModal';
@@ -1118,6 +1120,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         }
       }
 
+      if (item.imageUrl && item.imageUrl.trim()) {
+        saveProductImageToCache(
+          { name: item.name, partNumber: item.partNumber },
+          item.imageUrl.trim()
+        );
+      }
+
       updatedItems[index] = item;
       const totals = recalculateQuote(updatedItems);
 
@@ -1331,6 +1340,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       e.preventDefault();
       e.stopPropagation();
       handleItemUpdate(index, { imageUrl: dataUrl, showImage: true });
+      const currentItem = currentQuote.items[index];
+      if (currentItem) {
+        saveProductImageToCache(
+          { name: currentItem.name, partNumber: currentItem.partNumber },
+          dataUrl
+        );
+      }
     }
   };
 
@@ -1340,6 +1356,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     const dataUrl = await readImageFromSystemClipboard();
     if (dataUrl) {
       handleItemUpdate(index, { imageUrl: dataUrl, showImage: true });
+      const currentItem = currentQuote.items[index];
+      if (currentItem) {
+        saveProductImageToCache(
+          { name: currentItem.name, partNumber: currentItem.partNumber },
+          dataUrl
+        );
+      }
     } else {
       alert('Nenhuma imagem encontrada na área de transferência. Tire um print (PrintScreen ou Win+Shift+S) ou copie uma imagem antes de colar.');
     }
@@ -1753,22 +1776,27 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       (matchedCatalogProd?.description && matchedCatalogProd.description.trim()) || 
       fallbackSpecs;
 
+    const resolvedImageUrl = (freshItem.imageUrl && freshItem.imageUrl.trim()) || 
+      (matchedCatalogProd?.imageUrl && matchedCatalogProd.imageUrl.trim()) || 
+      findProductImageInCache(freshItem.name, freshItem.partNumber) || 
+      '';
+
     setTargetQuoteItemId(freshItem.id);
     setCatalogReviewProduct({
-      id: freshItem.productId || `prod-${Date.now()}`,
+      id: freshItem.productId || matchedCatalogProd?.id || `prod-${Date.now()}`,
       sku: generatedSku,
-      partNumber: freshItem.partNumber || '',
-      ncm: freshItem.ncm || '',
+      partNumber: freshItem.partNumber || matchedCatalogProd?.partNumber || '',
+      ncm: freshItem.ncm || matchedCatalogProd?.ncm || '',
       name: freshItem.name,
       description: finalDescription,
       category: initialCategory,
       costPrice: freshItem.costPrice || 0,
       unit: freshItem.unit || 'Un.',
       supplier: sanitizeSupplierName(freshItem.supplier || directInfo.store),
-      stock: 10,
+      stock: matchedCatalogProd?.stock ?? 10,
       lastUpdated: new Date().toISOString(),
       sourceUrl: directInfo.url,
-      imageUrl: freshItem.imageUrl || ''
+      imageUrl: resolvedImageUrl
     });
     setCatalogReviewCostInput(formatCurrencyPtBr(freshItem.costPrice || 0));
     setCatalogReviewShippingInput(freshItem.shippingCost !== undefined && freshItem.shippingCost > 0 ? formatCurrencyPtBr(freshItem.shippingCost) : '0,00');
@@ -1793,6 +1821,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     // APRENDIZADO CONTÍNUO (Diretriz do Lucas): Aprende o fornecedor vinculado à URL da loja
     if (finalProd.sourceUrl && finalProd.supplier) {
       learnSupplier(finalProd.sourceUrl, finalProd.supplier);
+    }
+
+    // Memoriza a imagem permanentemente no cache de fotos de produtos
+    if (finalProd.imageUrl && finalProd.imageUrl.trim()) {
+      saveProductImageToCache(
+        { name: finalProd.name, partNumber: finalProd.partNumber, sku: finalProd.sku },
+        finalProd.imageUrl.trim()
+      );
     }
 
     // 1. Salvar ou atualizar na base de produtos (catálogo geral e Supabase)

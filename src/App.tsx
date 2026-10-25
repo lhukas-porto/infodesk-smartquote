@@ -94,7 +94,10 @@ import {
   findPurchasedProcurementRecord,
   sanitizeQuoteItemForDuplication,
   sanitizeDraftQuote,
-  doesQuoteNeedDraftSanitization
+  doesQuoteNeedDraftSanitization,
+  saveProductImageToCache,
+  findProductImageInCache,
+  recoverProductImagesFromQuotes
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -520,6 +523,9 @@ export const App: React.FC = () => {
     async function hydrateFromSupabase() {
       if (!isSupabaseConfigured || !authenticatedUserEmail) return;
       try {
+        // Resgata preventivamente fotos de produtos que estejam em orçamentos ou backups
+        recoverProductImagesFromQuotes();
+
         // Dispara o carregamento paralelo de todas as tabelas (ultra rápido, sem gargalos em cascata)
         const [
           remoteSettings,
@@ -1700,6 +1706,18 @@ export const App: React.FC = () => {
         return false;
       });
 
+      const resolvedImg = (p.imageUrl && p.imageUrl.trim()) ||
+        (existingIdx >= 0 && prev[existingIdx].imageUrl && prev[existingIdx].imageUrl.trim()) ||
+        findProductImageInCache(p.name, p.partNumber, p.sku) ||
+        '';
+
+      if (resolvedImg) {
+        saveProductImageToCache(
+          { name: p.name, partNumber: p.partNumber, sku: p.sku },
+          resolvedImg
+        );
+      }
+
       let next: Product[];
       if (existingIdx >= 0) {
         savedProduct = { 
@@ -1707,12 +1725,17 @@ export const App: React.FC = () => {
           ...p, 
           id: prev[existingIdx].id,
           sku: prev[existingIdx].sku || p.sku,
-          partNumber: prev[existingIdx].partNumber || p.partNumber
+          partNumber: prev[existingIdx].partNumber || p.partNumber,
+          imageUrl: resolvedImg
         };
         next = [...prev];
         next[existingIdx] = savedProduct;
       } else {
-        next = [p, ...prev];
+        savedProduct = {
+          ...p,
+          imageUrl: resolvedImg
+        };
+        next = [savedProduct, ...prev];
       }
       const deduped = deduplicateProductsList(next);
       saveProducts(deduped);

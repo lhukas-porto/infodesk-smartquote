@@ -6,17 +6,22 @@
 
 export const compressImageDataUrl = (
   dataUrl: string, 
-  maxWidth = 800, 
-  maxHeight = 800, 
-  quality = 0.82
+  maxWidth = 500, 
+  maxHeight = 500, 
+  quality = 0.78
 ): Promise<string> => {
-  // Se não for base64 ou se for muito pequeno (< 30KB), não precisa reprocessar
-  if (!dataUrl || !dataUrl.startsWith('data:image/') || dataUrl.length < 35000) {
+  // Se não for base64 (ex: URL https:// de CDN externa), não processa
+  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
     return Promise.resolve(dataUrl);
   }
 
   // Não compacta SVGs para não corromper vetores
   if (dataUrl.startsWith('data:image/svg')) {
+    return Promise.resolve(dataUrl);
+  }
+
+  // Se já for JPEG bem compacto (< 20KB), não precisa reprocessar
+  if (dataUrl.startsWith('data:image/jpeg') && dataUrl.length < 22000) {
     return Promise.resolve(dataUrl);
   }
 
@@ -27,12 +32,6 @@ export const compressImageDataUrl = (
         try {
           let width = img.naturalWidth || img.width;
           let height = img.naturalHeight || img.height;
-
-          // Se já for menor que as dimensões máximas e tamanho razoável, mantém
-          if (width <= maxWidth && height <= maxHeight && dataUrl.length < 150000) {
-            resolve(dataUrl);
-            return;
-          }
 
           // Redimensionamento proporcional mantendo a proporção de tela
           if (width > height) {
@@ -57,7 +56,7 @@ export const compressImageDataUrl = (
             return;
           }
 
-          // Fundo branco para imagens com transparência convertidas para JPEG
+          // Fundo branco sólido para prints com transparência convertidos para JPEG
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -65,8 +64,8 @@ export const compressImageDataUrl = (
           // Exporta como JPEG otimizado
           const compressed = canvas.toDataURL('image/jpeg', quality);
 
-          // Se por algum motivo o JPEG ficou maior (raro), mantém o menor
-          resolve(compressed.length < dataUrl.length ? compressed : dataUrl);
+          // Retorna a menor string base64
+          resolve(compressed && compressed.length < dataUrl.length ? compressed : dataUrl);
         } catch (canvasErr) {
           console.warn('[ImageCompressor] Erro ao renderizar no canvas:', canvasErr);
           resolve(dataUrl);

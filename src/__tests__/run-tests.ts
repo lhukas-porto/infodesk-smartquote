@@ -35,6 +35,7 @@ import './scannerDefaultMarkupInheritance.test';
 import './sponsoredLinksPriceScanner.test';
 import './scannerRobustnessAndQuantity.test';
 import './supplierManagementTab.test';
+import './productPrintImagePersistence.test';
 
 console.log('\n======================================================');
 console.log('🏁 SUÍTE COMPLETA DE TESTES EXECUTADA COM 100% DE SUCESSO!');

@@ -25,7 +25,7 @@ import { CreatableCombobox } from './CreatableCombobox';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { WebImagePickerModal } from './WebImagePickerModal';
-import { getSettings } from '../utils/storage';
+import { getSettings, findProductImageInCache, saveProductImageToCache } from '../utils/storage';
 import { fetchProductSpecsOnline } from '../services/specSearchService';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
 import { getAllRegisteredSuppliers, learnSupplier } from '../services/supplierLearningService';
@@ -191,9 +191,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       lastOpenedProductIdRef.current = currentProdId;
 
       const initialCat = product?.category ? normalizeToOfficialCategory(product.category) : 'Diversos & Sazonais';
+      const resolvedImg = (product?.imageUrl && product.imageUrl.trim()) ||
+        findProductImageInCache(product?.name, product?.partNumber, product?.sku) ||
+        '';
+
       setDraft({
         ...(product || {}),
-        category: initialCat
+        category: initialCat,
+        imageUrl: resolvedImg
       });
       const initialCost = product?.costPrice !== undefined ? product.costPrice : 0;
       setCostInput(initialCost > 0 ? formatCurrencyPtBr(initialCost) : '0,00');
@@ -387,6 +392,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     // APRENDIZADO CONTÍNUO (Diretriz do Lucas): Aprende e memoriza o nome do fornecedor para a URL/loja
     if (finalProd.sourceUrl && finalProd.supplier) {
       learnSupplier(finalProd.sourceUrl, finalProd.supplier);
+    }
+
+    // Salva a imagem no cache persistente para nunca se perder
+    if (finalProd.imageUrl && finalProd.imageUrl.trim()) {
+      saveProductImageToCache(
+        { name: finalProd.name, partNumber: finalProd.partNumber, sku: finalProd.sku },
+        finalProd.imageUrl.trim()
+      );
     }
 
     onSave(finalProd, parsedShipping);

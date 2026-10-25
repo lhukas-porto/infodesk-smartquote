@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
-import { deduplicateCompanyContacts } from '../utils/storage';
+import { deduplicateCompanyContacts, saveProductImageToCache, findProductImageInCache } from '../utils/storage';
 import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory, formatProposalValidityText, normalizeQuoteCode } from '../utils/aiEmailParser';
 import { reportError } from './errorReporter';
 
@@ -201,7 +201,15 @@ export async function fetchQuotesFromSupabase(limitCount: number = 500): Promise
         rawSearchQuery: row.raw_search_query || row.name,
         partNumber: row.part_number || '',
         ncm: row.ncm || '',
-        imageUrl: (row.image_url && row.image_url.startsWith('data:') && row.image_url.length > 5000) ? '' : (row.image_url || ''),
+        imageUrl: (() => {
+          const rawImg = row.image_url || '';
+          if (rawImg && rawImg.startsWith('data:') && rawImg.length > 70000) return '';
+          const finalImg = rawImg || findProductImageInCache(row.name, row.part_number) || '';
+          if (finalImg) {
+            saveProductImageToCache({ name: row.name, partNumber: row.part_number }, finalImg);
+          }
+          return finalImg;
+        })(),
         showImage: Boolean(row.show_image),
         quantity: row.quantity,
         unit: row.unit || 'Un.',
@@ -749,7 +757,14 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
       unit: p.unit || 'Un.',
       supplier: p.supplier || '',
       stock: p.stock || 0,
-      imageUrl: p.image_url || '',
+      imageUrl: (() => {
+        const rawImg = p.image_url || '';
+        const finalImg = rawImg || findProductImageInCache(p.name, p.part_number, p.sku) || '';
+        if (finalImg) {
+          saveProductImageToCache({ name: p.name, partNumber: p.part_number, sku: p.sku }, finalImg);
+        }
+        return finalImg;
+      })(),
       sourceUrl: p.source_url || '',
       lastUpdated: p.updated_at
     }));
