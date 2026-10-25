@@ -178,7 +178,8 @@ import {
 import { 
   calculateCommercialUnitPrice, 
   calculateMarkupFromUnitPrice, 
-  recalculateQuoteTotals 
+  recalculateQuoteTotals,
+  getScannerTieredMarkup
 } from './services/pricingEngine';
 import { reportError } from './services/errorReporter';
 
@@ -2186,17 +2187,20 @@ export const App: React.FC = () => {
     if (currentQuote.items.length > 0) {
       const defaultSettingsMarkup = settings.defaultMarkupPercent ?? 23.5;
       const quoteGlobalMarkup = currentQuote.globalMarkupPercent;
+      const cost = item.costPrice || 0;
+      const tieredMarkup = getScannerTieredMarkup(cost);
       const activeMarkup = (quoteGlobalMarkup !== undefined && quoteGlobalMarkup > 0) 
         ? quoteGlobalMarkup 
         : defaultSettingsMarkup;
-      const markup = (item.markupPercent !== undefined && item.markupPercent > 0) ? item.markupPercent : activeMarkup;
+      const markup = (item.markupPercent !== undefined && item.markupPercent > 0) 
+        ? item.markupPercent 
+        : (cost > 0 ? tieredMarkup : activeMarkup);
       const tax = (currentQuote.globalTaxPercent !== undefined && currentQuote.globalTaxPercent > 0)
         ? currentQuote.globalTaxPercent
         : (settings.defaultTaxPercent || 9.1);
       const shipping = (currentQuote.globalShipping !== undefined && currentQuote.globalShipping > 0)
         ? currentQuote.globalShipping
         : (settings.defaultShippingCost || 0);
-      const cost = item.costPrice || 0;
       const unitPrice = cost > 0 
         ? calculateCommercialUnitPrice(cost, shipping, markup, tax)
         : (item.unitPrice || 0);
@@ -2269,9 +2273,10 @@ export const App: React.FC = () => {
 
     const items: QuoteItem[] = itemsToAdd.map((item, idx) => {
       const cost = item.costPrice || 0;
+      const tieredMarkup = getScannerTieredMarkup(cost);
       const markupPercent = (item.markupPercent !== undefined && item.markupPercent > 0)
         ? item.markupPercent
-        : defaultSettingsMarkup;
+        : (cost > 0 ? tieredMarkup : defaultSettingsMarkup);
       const unitPrice = cost > 0 
         ? calculateCommercialUnitPrice(cost, shipping, markupPercent, tax)
         : (item.unitPrice || 0);
@@ -2508,7 +2513,10 @@ export const App: React.FC = () => {
         const current = updatedItems[idx];
         const costPrice = updatedData.costPrice !== undefined ? updatedData.costPrice : current.costPrice;
         const shipping = current.shippingCost ?? prev.globalShipping ?? settings.defaultShippingCost ?? 0;
-        const markup = updatedData.markupPercent ?? current.markupPercent ?? prev.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 23.5;
+        const tieredMarkup = getScannerTieredMarkup(costPrice);
+        const markup = (updatedData.markupPercent !== undefined && updatedData.markupPercent > 0)
+          ? updatedData.markupPercent
+          : (costPrice > 0 ? tieredMarkup : (current.markupPercent ?? prev.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 23.5));
         const tax = current.taxPercent ?? prev.globalTaxPercent ?? settings.defaultTaxPercent ?? 9.1;
         const unitPrice = calculateCommercialUnitPrice(costPrice, shipping, markup, tax);
         const qty = updatedData.quantity || current.quantity || 1;
@@ -2517,6 +2525,7 @@ export const App: React.FC = () => {
         updatedItems[idx] = {
           ...current,
           ...updatedData,
+          costPrice,
           markupPercent: markup,
           unitPrice,
           totalPrice

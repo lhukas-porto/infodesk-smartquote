@@ -4,7 +4,8 @@ import { QuoteItem, Quote, QuoteKit } from '../types';
 import { 
   recalculateQuoteTotals, 
   calculateMarkupForTargetTotal,
-  calculateCommercialUnitPrice 
+  calculateCommercialUnitPrice,
+  getScannerTieredMarkup
 } from '../services/pricingEngine';
 import { 
   getQuoteKits, 
@@ -179,6 +180,38 @@ describe('Suíte de Novos Recursos da Cotação (SmartQuote v3)', () => {
     deleteQuoteKit('kit-rede-test-01');
     const listAfterDelete = getQuoteKits();
     assert.ok(!listAfterDelete.some(k => k.id === 'kit-rede-test-01'), 'Kit deve ter sido excluído');
+  });
+
+  it('5. Regra Escalonada de Lucro do Scanner IA (Regra do Lucas): Deve aplicar faixas corretas', () => {
+    // 1 a 10 reais = 100%
+    assert.strictEqual(getScannerTieredMarkup(0.50), 100);
+    assert.strictEqual(getScannerTieredMarkup(1.00), 100);
+    assert.strictEqual(getScannerTieredMarkup(5.00), 100);
+    assert.strictEqual(getScannerTieredMarkup(10.00), 100);
+
+    // 10 a 20 reais = 50%
+    assert.strictEqual(getScannerTieredMarkup(10.01), 50);
+    assert.strictEqual(getScannerTieredMarkup(15.00), 50);
+    assert.strictEqual(getScannerTieredMarkup(20.00), 50);
+
+    // 20 a 50 reais = 35%
+    assert.strictEqual(getScannerTieredMarkup(20.01), 35);
+    assert.strictEqual(getScannerTieredMarkup(35.00), 35);
+    assert.strictEqual(getScannerTieredMarkup(50.00), 35);
+
+    // 50 a 100 reais = 30%
+    assert.strictEqual(getScannerTieredMarkup(50.01), 30);
+    assert.strictEqual(getScannerTieredMarkup(80.00), 30);
+    assert.strictEqual(getScannerTieredMarkup(100.00), 30);
+
+    // Acima de 100 reais = 23,5%
+    assert.strictEqual(getScannerTieredMarkup(100.01), 23.5);
+    assert.strictEqual(getScannerTieredMarkup(250.00), 23.5);
+    assert.strictEqual(getScannerTieredMarkup(1500.00), 23.5);
+
+    // Custo zerado/inválido = 23.5%
+    assert.strictEqual(getScannerTieredMarkup(0), 23.5);
+    assert.strictEqual(getScannerTieredMarkup(-10), 23.5);
   });
 
 });

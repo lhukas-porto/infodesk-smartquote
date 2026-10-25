@@ -96,6 +96,24 @@ export function calculateMarkupFromUnitPrice(
 }
 
 /**
+ * Regra Padrão do Lucas para Porcentagem de Lucro (Markup) ao puxar do Scanner IA para a Cotação:
+ * - Produtos entre 1 e 10 reais   = 100%
+ * - Produtos entre 10 e 20 reais  = 50%
+ * - Produtos entre 20 e 50 reais  = 35%
+ * - Produtos entre 50 e 100 reais = 30%
+ * - Produtos acima de 100 reais   = 23,5%
+ */
+export function getScannerTieredMarkup(costPrice: number): number {
+  const cost = Number(costPrice) || 0;
+  if (cost <= 0) return 23.5;
+  if (cost <= 10) return 100;
+  if (cost <= 20) return 50;
+  if (cost <= 50) return 35;
+  if (cost <= 100) return 30;
+  return 23.5;
+}
+
+/**
  * Recalcula todos os totais financeiros e fiscais de uma lista de itens da cotação.
  * Metodologia padrão Infodesk:
  * - Lucro Líquido Real = Total Faturado - Custos de Mercadoria - Fretes Totais - Impostos

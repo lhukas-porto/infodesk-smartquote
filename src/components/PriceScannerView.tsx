@@ -68,6 +68,7 @@ import {
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
 import { reportError } from '../services/errorReporter';
 import { getAllRegisteredSuppliers } from '../services/supplierLearningService';
+import { getScannerTieredMarkup } from '../services/pricingEngine';
 
 export interface CatalogMatchInfo {
   product: Product;
@@ -1095,8 +1096,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         ? prod.costPrice
         : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0));
 
+    const itemMarkup = targetMarginPercent !== null
+      ? targetMarginPercent
+      : getScannerTieredMarkup(cost);
+
     const unitPrice = cost > 0
-      ? calculateCommercialUnitPrice(cost, effectiveShipping, currentActiveMargin, effectiveTax)
+      ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
       : (prod.suggestedPrice || undefined);
 
     const itemData: Partial<QuoteItem> = {
@@ -1111,7 +1116,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       costPrice: cost,
       shippingCost: effectiveShipping,
       taxPercent: effectiveTax,
-      markupPercent: currentActiveMargin,
+      markupPercent: itemMarkup,
       unitPrice,
       quantity: prod.quantity || 1,
       unit: prod.unit || existingInCatalog?.unit || 'Un.',
@@ -1241,8 +1246,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
           ? prod.costPrice 
           : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0));
 
+      const itemMarkup = targetMarginPercent !== null
+        ? targetMarginPercent
+        : getScannerTieredMarkup(cost);
+
       const unitPrice = cost > 0 
-        ? calculateCommercialUnitPrice(cost, effectiveShipping, currentActiveMargin, effectiveTax)
+        ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
         : (prod.suggestedPrice || undefined);
 
       return {
@@ -1257,7 +1266,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         costPrice: cost,
         shippingCost: effectiveShipping,
         taxPercent: effectiveTax,
-        markupPercent: currentActiveMargin,
+        markupPercent: itemMarkup,
         unitPrice,
         quantity: prod.quantity || 1,
         unit: prod.unit || existingInCatalog?.unit || 'Un.',
@@ -1301,7 +1310,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     if (selected.length === 0) return;
 
     const itemsToAdd: Partial<QuoteItem>[] = selected.map(item => {
-      const margin = currentActiveMargin;
       const fullDesc = buildCompleteProductDescription(item);
       const directInfo = buildDirectPurchaseUrl(item.standardizedName, item.buyUrl);
 
@@ -1321,6 +1329,10 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       const cost = existingInCatalog && existingInCatalog.costPrice > 0 
         ? existingInCatalog.costPrice 
         : (item.bestPrice > 0 ? item.bestPrice : 0);
+
+      const margin = targetMarginPercent !== null
+        ? targetMarginPercent
+        : getScannerTieredMarkup(cost);
 
       const unitPrice = cost > 0 
         ? calculateCommercialUnitPrice(cost, effectiveShipping, margin, effectiveTax) 
@@ -1361,7 +1373,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
   // Inserir item único da Fase 2 na cotação
   const handleAddSingleBatchResultToQuote = (item: ScannedPriceResult) => {
-    const margin = currentActiveMargin;
     const fullDesc = buildCompleteProductDescription(item);
     const directInfo = buildDirectPurchaseUrl(item.standardizedName, item.buyUrl);
 
@@ -1381,6 +1392,10 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     const cost = existingInCatalog && existingInCatalog.costPrice > 0 
       ? existingInCatalog.costPrice 
       : (item.bestPrice > 0 ? item.bestPrice : 0);
+
+    const margin = targetMarginPercent !== null
+      ? targetMarginPercent
+      : getScannerTieredMarkup(cost);
 
     const unitPrice = cost > 0 
       ? calculateCommercialUnitPrice(cost, effectiveShipping, margin, effectiveTax) 
@@ -1926,10 +1941,11 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             const totalDiscoveredQty = discoveredProducts.reduce((acc, p) => acc + (p.quantity || 1), 0);
             const totalEstimatedCost = discoveredProducts.reduce((acc, p) => acc + ((p.costPrice || 0) * (p.quantity || 1)), 0);
             const totalProjectedSales = discoveredProducts.reduce((acc, p) => {
+              const itemMarkup = targetMarginPercent !== null ? targetMarginPercent : getScannerTieredMarkup(p.costPrice || 0);
               const unitPrice = p.suggestedPrice && p.suggestedPrice > 0
                 ? p.suggestedPrice
                 : (p.costPrice && p.costPrice > 0
-                  ? calculateCommercialUnitPrice(p.costPrice, effectiveShipping, currentActiveMargin, effectiveTax)
+                  ? calculateCommercialUnitPrice(p.costPrice, effectiveShipping, itemMarkup, effectiveTax)
                   : 0);
               return acc + (unitPrice * (p.quantity || 1));
             }, 0);
@@ -2338,12 +2354,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                               {prod.suggestedPrice && prod.suggestedPrice > 0
                                 ? `R$ ${prod.suggestedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                 : (prod.costPrice && prod.costPrice > 0
-                                  ? `R$ ${calculateCommercialUnitPrice(prod.costPrice, effectiveShipping, currentActiveMargin, effectiveTax).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  ? `R$ ${calculateCommercialUnitPrice(prod.costPrice, effectiveShipping, targetMarginPercent !== null ? targetMarginPercent : getScannerTieredMarkup(prod.costPrice), effectiveTax).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                   : 'Sob Consulta')}
                             </span>
                             {Boolean(prod.costPrice && prod.costPrice > 0) && (
                               <span className="text-xs text-slate-400 font-medium">
-                                (Custo aprox: R$ {prod.costPrice!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                (Custo: R$ {prod.costPrice!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Lucro: {targetMarginPercent !== null ? targetMarginPercent : getScannerTieredMarkup(prod.costPrice!)}%)
                               </span>
                             )}
                           </div>

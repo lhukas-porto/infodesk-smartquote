@@ -113,7 +113,7 @@ import { validateNcm, formatNcm } from '../utils/ncmValidator';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { PRICING_PROFILES, suggestMarkupForItem } from '../utils/pricingProfiles';
 import { savePriceToCache } from '../services/priceCacheService';
-import { recalculateQuoteTotals, calculateMarkupFromUnitPrice } from '../services/pricingEngine';
+import { recalculateQuoteTotals, calculateMarkupFromUnitPrice, getScannerTieredMarkup } from '../services/pricingEngine';
 import { MultiSupplierMatrixModal } from './MultiSupplierMatrixModal';
 import { ItemSupplierScanModal } from './ItemSupplierScanModal';
 import { auditProductOfferCompatibility } from '../utils/specAuditService';
@@ -1727,7 +1727,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         if (!up) return item;
 
         const cost = up.costPrice !== undefined ? up.costPrice : item.costPrice;
-        const markup = item.markupPercent ?? globalMarkup;
+        const tieredMarkup = getScannerTieredMarkup(cost);
+        const markup = (up.markupPercent !== undefined && up.markupPercent > 0)
+          ? up.markupPercent
+          : (cost > 0 ? tieredMarkup : (item.markupPercent ?? globalMarkup));
         const shipping = item.shippingCost ?? globalShipping;
         const tax = item.taxPercent ?? globalTax;
 
@@ -1738,6 +1741,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           ...item,
           ...up,
           costPrice: cost,
+          markupPercent: markup,
           unitPrice,
           totalPrice
         };
