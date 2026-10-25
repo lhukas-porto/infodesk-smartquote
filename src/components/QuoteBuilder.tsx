@@ -52,7 +52,9 @@ import {
   ChevronRight,
   History,
   Target,
-  Boxes
+  Boxes,
+  Phone,
+  Share2
 } from 'lucide-react';
 import { ClientCompany, ClientContact, CompanySettings, Product, Quote, QuoteItem } from '../types';
 import { 
@@ -2504,14 +2506,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           className={`border p-4 rounded-2xl shadow-xs transition cursor-pointer group select-none active:scale-[0.99] ${
             currentQuote.averageMargin < 12 && currentQuote.items.length > 0
               ? 'bg-amber-50/60 hover:bg-amber-50 border-amber-300 ring-1 ring-amber-300/50'
-              : 'bg-white hover:bg-emerald-50/40 border-slate-200 hover:border-emerald-300'
+              : 'bg-gradient-to-br from-white via-sky-50/25 to-sky-100/40 border-sky-200/90 hover:border-sky-300'
           }`}
           title="Clique para editar a Margem / Markup (%) de todos os itens"
         >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-emerald-700 transition">Lucro Real ({globalMarkup}%)</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-sky-700 transition">Lucro Real ({globalMarkup}%)</span>
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-emerald-600 opacity-0 group-hover:opacity-100 transition font-bold">Editar ✎</span>
+              <span className="text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition font-bold">Editar ✎</span>
               {currentQuote.averageMargin >= 22 && currentQuote.items.length > 0 ? (
                 <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">
                   <Sparkles className="w-3 h-3 text-emerald-600" />
@@ -2528,22 +2530,22 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   Margem Baixa
                 </span>
               ) : (
-                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <Sparkles className="w-4 h-4 text-sky-600" />
               )}
             </div>
           </div>
           <p className={`text-base font-bold font-mono ${
-            currentQuote.averageMargin < 14 && currentQuote.items.length > 0 ? 'text-amber-800' : 'text-emerald-600'
+            currentQuote.averageMargin < 14 && currentQuote.items.length > 0 ? 'text-amber-800' : 'text-sky-900'
           }`}>
             R$ {currentQuote.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
           <p className="text-[10px] text-slate-600 font-semibold pt-0.5" title={`% Margem Líquida (sobre venda): ${currentQuote.averageMargin.toFixed(1)}% | % Markup (sobre custo): ${globalMarkup}%`}>
-            % Margem Líq: <strong className={currentQuote.averageMargin < 14 && currentQuote.items.length > 0 ? 'text-amber-700 font-bold' : 'text-emerald-700'}>{currentQuote.averageMargin.toFixed(1)}% (venda)</strong>
+            % Margem Líq: <strong className={currentQuote.averageMargin < 14 && currentQuote.items.length > 0 ? 'text-amber-700 font-bold' : 'text-sky-700 font-bold'}>{currentQuote.averageMargin.toFixed(1)}% (venda)</strong>
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-200 p-4 rounded-2xl shadow-xs col-span-2 sm:col-span-1 relative group">
-          <div className="flex items-center justify-between text-sky-800 mb-1">
+        <div className="bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white border-2 border-emerald-300 p-4 rounded-2xl shadow-sm col-span-2 sm:col-span-1 relative group hover:border-emerald-400 transition">
+          <div className="flex items-center justify-between text-emerald-800 mb-1">
             <span className="text-[11px] font-extrabold uppercase tracking-wider">Total Proposta</span>
             <div className="flex items-center gap-1">
               <button
@@ -2552,18 +2554,18 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   e.stopPropagation();
                   setIsTargetPriceModalOpen(true);
                 }}
-                className="text-[10px] font-bold text-sky-700 hover:text-sky-900 bg-white/90 hover:bg-sky-100/80 border border-sky-200 hover:border-sky-300 px-2 py-0.5 rounded-md flex items-center gap-1 transition shadow-2xs cursor-pointer active:scale-95"
+                className="text-[10px] font-bold text-emerald-800 hover:text-emerald-950 bg-white/95 hover:bg-emerald-100/80 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center gap-1 transition shadow-2xs cursor-pointer active:scale-95"
                 title="Ajustar proposta para um Preço Alvo redondo (Reverse Markup)"
               >
-                <Target className="w-3 h-3 text-sky-600" />
+                <Target className="w-3 h-3 text-emerald-600" />
                 <span>Preço Alvo</span>
               </button>
             </div>
           </div>
-          <p className="text-lg font-extrabold text-slate-900 font-mono">
+          <p className="text-xl font-black text-emerald-950 font-mono tracking-tight">
             R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <div className="flex items-center justify-between text-[10px] text-sky-700 font-medium pt-0.5">
+          <div className="flex items-center justify-between text-[10px] text-emerald-700 font-medium pt-0.5">
             <span>Valor final enviado</span>
             {currentQuote.optionalTotalAmount && currentQuote.optionalTotalAmount > 0 ? (
               <span className="font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200" title="Itens adicionais opcionais/upgrades">
@@ -2589,7 +2591,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-medium text-slate-600">Empresa / Órgão</label>
+              <label className="block text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Building className="w-3.5 h-3.5 text-sky-600" />
+                <span>Empresa / Órgão</span>
+              </label>
               {matchedCompany && (
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                   ✓ Cadastrada
@@ -2781,7 +2786,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
           <div className="space-y-1.5 md:col-span-2">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-medium text-slate-600">Nome do Comprador (A/C)</label>
+              <label className="block text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <UserCheck className="w-3.5 h-3.5 text-sky-600" />
+                <span>Nome do Comprador (A/C)</span>
+              </label>
               {matchedCompany && matchedCompany.contacts.length > 0 && (
                 <span className="text-[10px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded font-semibold border border-sky-200">
                   {matchedCompany.contacts.length} comprador(es) disponível(is)
@@ -2925,7 +2933,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         {/* Linha 2: Os 5 campos em UMA ÚNICA LINHA no Desktop com E-mail aumentado e Telefone enxuto */}
         <div className="grid grid-cols-1 sm:grid-cols-12 lg:grid-cols-[1.45fr_0.8fr_0.9fr_1fr_0.85fr] gap-3.5 pt-1">
           <div className="sm:col-span-7 lg:col-span-1">
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">E-mail</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5 text-sky-600" />
+              <span>E-mail</span>
+            </label>
             <input
               type="email"
               value={currentQuote.clientEmail}
@@ -2935,7 +2946,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div className="sm:col-span-5 lg:col-span-1">
-            <label className="block text-xs font-medium text-slate-600 mb-1.5 truncate" title="Telefone do Contato (Opcional)">Telefone do Contato (Opcional)</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5 truncate" title="Telefone do Contato (Opcional)">
+              <Phone className="w-3.5 h-3.5 text-sky-600" />
+              <span>Telefone (Opcional)</span>
+            </label>
             <input
               type="text"
               value={maskPhone(currentQuote.clientPhone || '')}
@@ -2949,7 +2963,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div className="sm:col-span-6 lg:col-span-1">
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Data de Emissão</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-sky-600" />
+              <span>Data de Emissão</span>
+            </label>
             <input
               type="text"
               value={currentQuote.date}
@@ -4360,193 +4377,192 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     >
                       <td className="py-0 px-1"></td>
                       <td colSpan={9} className="pt-0 pb-2.5 px-2">
-                        <div className="flex items-center flex-nowrap gap-1.5 pl-0.5 text-[10px] whitespace-nowrap overflow-x-auto no-scrollbar">
-                          <label className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer select-none shrink-0">
-                            <input
-                              type="checkbox"
-                              checked={!!item.showImage}
-                              onChange={(e) => handleItemChange(idx, 'showImage', e.target.checked)}
-                              className="rounded text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
-                            />
-                            <span className="font-medium text-[10px] whitespace-nowrap">Foto na proposta</span>
-                          </label>
+                        <div className="flex items-center flex-nowrap gap-2 pl-0.5 text-[10px] whitespace-nowrap overflow-x-auto no-scrollbar py-0.5">
+                          {/* ZONA 1: MÍDIA & FOTO */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <label className="inline-flex items-center gap-1.5 text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg cursor-pointer select-none transition">
+                              <input
+                                type="checkbox"
+                                checked={!!item.showImage}
+                                onChange={(e) => handleItemChange(idx, 'showImage', e.target.checked)}
+                                className="rounded text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
+                              />
+                              <span className="font-semibold text-[10px]">Foto na proposta</span>
+                            </label>
 
-                          {/* Toggle Item Opcional / Upgrade */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleOptionalItem(item.id)}
-                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer whitespace-nowrap shrink-0 ${
-                              item.isOptional
-                                ? 'bg-purple-100 text-purple-800 border-purple-300 shadow-2xs'
-                                : 'bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-purple-700 border-slate-200 hover:border-purple-200'
-                            }`}
-                            title={item.isOptional ? 'Item marcado como Opcional / Upgrade. Não soma no total principal da proposta.' : 'Marcar item como Opcional / Upgrade (destacado e separado sem inflar o total)'}
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${item.isOptional ? 'bg-purple-600' : 'bg-slate-400'}`}></span>
-                            <span>{item.isOptional ? '✓ Opcional / Upgrade' : '+ Opcional'}</span>
-                          </button>
-
-                          {/* Botão Aa – Alterna maiúsculas/minúsculas do item */}
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => handleCycleItemTextCase(idx, item.id)}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-sky-700 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
-                            title="Alternar maiúsculas/minúsculas da palavra sob o cursor, da seleção ou do nome completo"
-                          >
-                            <span className="font-serif font-bold text-[11px] tracking-tight text-sky-700">Aa</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setWebImagePickerItem({
-                              type: 'quote_item',
-                              itemId: item.id,
-                              itemIndex: idx,
-                              productName: item.name,
-                              currentImageUrl: item.imageUrl
-                            })}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
-                            title="Pesquisar e escolher foto comercial deste item na web"
-                          >
-                            <Search className="w-2.5 h-2.5" />
-                            <span>{item.imageUrl ? 'Trocar Foto' : 'Buscar Foto'}</span>
-                          </button>
-
-                          {/* Botão de Cotar com Foto / Scanner IA */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (onOpenWebSearch) {
-                                onOpenWebSearch(item.name, idx, item);
-                              }
-                            }}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
-                            title={item.imageUrl ? "Pesquisar menor preço no Scanner IA usando a foto anexada como referência visual" : "Pesquisar menor preço no Scanner IA"}
-                          >
-                            <Zap className="w-2.5 h-2.5 text-amber-600 fill-amber-500" />
-                            <span>{item.imageUrl ? 'Cotar com Foto (IA)' : 'Pesquisar Preço'}</span>
-                          </button>
-
-                          {(() => {
-                            const reconciled = reconcileSupplierAndProductUrl(
-                              item.name,
-                              item.supplier,
-                              item.sourceUrl
-                            );
-                            const effectiveUrl = reconciled.sourceUrl || (
-                              item.supplier && item.supplier.trim() !== ''
-                                ? buildStoreSearchUrl(item.supplier, item.rawSearchQuery || item.name)
-                                : `https://www.google.com/search?q=${encodeURIComponent(item.rawSearchQuery || item.name)}&tbm=shop`
-                            );
-                            const hasExactLink = Boolean(reconciled.sourceUrl && !reconciled.isSearchFallback);
-                            const targetStore = item.supplier || (reconciled.supplier || 'Loja');
-
-                            if (hasExactLink) {
-                              return (
-                                <a
-                                  href={sanitizeExternalUrl(effectiveUrl)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => openInNewWindow(effectiveUrl, e)}
-                                  className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
-                                  title={`Abrir link do produto em ${targetStore} em nova janela`}
-                                >
-                                  <ExternalLink className="w-3 h-3 text-emerald-600" />
-                                  <span>Link do Produto</span>
-                                </a>
-                              );
-                            }
-
-                            if (item.supplier && item.supplier.trim() !== '') {
-                              return (
-                                <a
-                                  href={sanitizeExternalUrl(effectiveUrl)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => openInNewWindow(effectiveUrl, e)}
-                                  className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-300 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
-                                  title={`Buscar produto no site oficial de ${item.supplier} em nova janela (sem risco de 404)`}
-                                >
-                                  <ExternalLink className="w-3 h-3 text-sky-600" />
-                                  <span>Buscar em {item.supplier}</span>
-                                </a>
-                              );
-                            }
-
-                            return (
-                              <a
-                                href={sanitizeExternalUrl(effectiveUrl)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => openInNewWindow(effectiveUrl, e)}
-                                className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-300 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
-                                title="Produto sem link direto! Clique para buscar no Google Shopping em nova janela"
-                              >
-                                <ExternalLink className="w-3 h-3 text-red-600" />
-                                <span>Link do Produto</span>
-                              </a>
-                            );
-                          })()}
-
-                          {item.supplier && item.supplier.trim() !== '' && (
-                            <span
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md whitespace-nowrap shrink-0"
-                              title={`Fornecedor vinculado: ${item.supplier}`}
-                            >
-                              <Building className="w-2.5 h-2.5 text-slate-500" />
-                              <span>{item.supplier}</span>
-                            </span>
-                          )}
-
-                          {onSaveToCatalog && (
                             <button
                               type="button"
-                              onClick={() => handleOpenCatalogReviewModal(item)}
-                              title="Cadastrar ou revisar foto, NCM, SKU e ficha técnica no Catálogo Geral"
-                              className={`text-[10px] font-semibold inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border transition cursor-pointer whitespace-nowrap shrink-0 ${savedCatalogIds[item.id]
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 text-slate-600 border-slate-200'
-                                }`}
+                              onClick={() => setWebImagePickerItem({
+                                type: 'quote_item',
+                                itemId: item.id,
+                                itemIndex: idx,
+                                productName: item.name,
+                                currentImageUrl: item.imageUrl
+                              })}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded-lg transition cursor-pointer shrink-0"
+                              title="Pesquisar e escolher foto comercial deste item na web"
                             >
-                              {savedCatalogIds[item.id] ? (
-                                <>
-                                  <Check className="w-3 h-3 text-emerald-600" />
-                                  <span>Salvo no Catálogo</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Package className="w-3 h-3 text-slate-500" />
-                                  <span>Editar</span>
-                                </>
-                              )}
+                              <Search className="w-2.5 h-2.5" />
+                              <span>{item.imageUrl ? 'Trocar Foto' : 'Buscar Foto'}</span>
                             </button>
-                          )}
+                          </div>
 
-                          {/* Botão de Cópia Rápida de 1 Item para WhatsApp */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const text = buildSingleItemWhatsAppText(item, idx);
-                              navigator.clipboard?.writeText(text);
-                              setCopiedItemRowId(item.id);
-                              setTimeout(() => setCopiedItemRowId(null), 2000);
-                            }}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
-                            title="Copiar texto formatado deste item para WhatsApp"
-                          >
-                            {copiedItemRowId === item.id ? (
-                              <>
-                                <Check className="w-2.5 h-2.5 text-emerald-600" />
-                                <span>Copiado!</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-2.5 h-2.5 text-emerald-600" />
-                                <span>Copiar p/ WhatsApp</span>
-                              </>
+                          {/* Divisor vertical suave */}
+                          <div className="h-4 w-px bg-slate-200 shrink-0 hidden sm:block" />
+
+                          {/* ZONA 2: INTELIGÊNCIA DE PREÇO & FORNECEDOR UNIFICADO */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onOpenWebSearch) {
+                                  onOpenWebSearch(item.name, idx, item);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg transition cursor-pointer shadow-2xs shrink-0"
+                              title={item.imageUrl ? "Pesquisar menor preço no Scanner IA usando a foto anexada como referência visual" : "Pesquisar menor preço no Scanner IA"}
+                            >
+                              <Zap className="w-2.5 h-2.5 text-amber-600 fill-amber-500" />
+                              <span>{item.imageUrl ? 'Cotar com Foto (IA)' : 'Pesquisar Preço'}</span>
+                            </button>
+
+                            {/* Pílula Única Integrada de Fornecedor & Link de Compra */}
+                            {(() => {
+                              const reconciled = reconcileSupplierAndProductUrl(
+                                item.name,
+                                item.supplier,
+                                item.sourceUrl
+                              );
+                              const effectiveUrl = reconciled.sourceUrl || (
+                                item.supplier && item.supplier.trim() !== ''
+                                  ? buildStoreSearchUrl(item.supplier, item.rawSearchQuery || item.name)
+                                  : `https://www.google.com/search?q=${encodeURIComponent(item.rawSearchQuery || item.name)}&tbm=shop`
+                              );
+                              const hasExactLink = Boolean(reconciled.sourceUrl && !reconciled.isSearchFallback);
+                              const targetStore = item.supplier || (reconciled.supplier || '');
+
+                              if (targetStore && hasExactLink) {
+                                return (
+                                  <a
+                                    href={sanitizeExternalUrl(effectiveUrl)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => openInNewWindow(effectiveUrl, e)}
+                                    className="inline-flex items-center gap-1 text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+                                    title={`Abrir link direto do produto em ${targetStore} em nova janela`}
+                                  >
+                                    <Building className="w-3 h-3 text-emerald-600" />
+                                    <span>{targetStore}</span>
+                                    <ExternalLink className="w-2.5 h-2.5 text-emerald-600" />
+                                  </a>
+                                );
+                              }
+
+                              if (targetStore) {
+                                return (
+                                  <a
+                                    href={sanitizeExternalUrl(effectiveUrl)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => openInNewWindow(effectiveUrl, e)}
+                                    className="inline-flex items-center gap-1 text-sky-800 hover:text-sky-950 bg-sky-50 hover:bg-sky-100 border border-sky-300 px-2 py-0.5 rounded-lg font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+                                    title={`Buscar produto no site oficial de ${targetStore} em nova janela (sem risco de 404)`}
+                                  >
+                                    <Building className="w-3 h-3 text-sky-600" />
+                                    <span>{targetStore}</span>
+                                    <ExternalLink className="w-2.5 h-2.5 text-sky-600" />
+                                  </a>
+                                );
+                              }
+
+                              return (
+                                <a
+                                  href={sanitizeExternalUrl(effectiveUrl)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => openInNewWindow(effectiveUrl, e)}
+                                  className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg font-medium transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
+                                  title="Produto sem link direto! Clique para buscar no Google Shopping em nova janela"
+                                >
+                                  <Search className="w-3 h-3 text-slate-500" />
+                                  <span>Buscar na Web</span>
+                                </a>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Divisor vertical suave */}
+                          <div className="h-4 w-px bg-slate-200 shrink-0 hidden sm:block" />
+
+                          {/* ZONA 3: AÇÕES E FORMATAÇÃO */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Alternador Aa */}
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleCycleItemTextCase(idx, item.id)}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-2 py-0.5 rounded-lg transition cursor-pointer shrink-0"
+                              title="Alternar maiúsculas/minúsculas da palavra sob o cursor, da seleção ou do nome completo"
+                            >
+                              <span className="font-serif font-bold text-[11px] tracking-tight text-sky-700">Aa</span>
+                            </button>
+
+                            {/* Toggle Opcional / Upgrade */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleOptionalItem(item.id)}
+                              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer whitespace-nowrap shrink-0 ${
+                                item.isOptional
+                                  ? 'bg-purple-100 text-purple-800 border-purple-300 shadow-2xs'
+                                  : 'bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-purple-700 border-slate-200 hover:border-purple-200'
+                              }`}
+                              title={item.isOptional ? 'Item marcado como Opcional / Upgrade. Não soma no total principal da proposta.' : 'Marcar item como Opcional / Upgrade (destacado e separado sem inflar o total)'}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${item.isOptional ? 'bg-purple-600' : 'bg-slate-400'}`}></span>
+                              <span>{item.isOptional ? '✓ Opcional' : '+ Opcional'}</span>
+                            </button>
+
+                            {/* Salvar/Revisar no Catálogo */}
+                            {onSaveToCatalog && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCatalogReviewModal(item)}
+                                title="Cadastrar ou revisar foto, NCM, SKU e ficha técnica no Catálogo Geral"
+                                className={`text-[10px] font-semibold inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border transition cursor-pointer whitespace-nowrap shrink-0 ${savedCatalogIds[item.id]
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 text-slate-600 border-slate-200'
+                                }`}
+                              >
+                                {savedCatalogIds[item.id] ? (
+                                  <>
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                    <span>Salvo</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Package className="w-3 h-3 text-slate-500" />
+                                    <span>Ficha</span>
+                                  </>
+                                )}
+                              </button>
                             )}
-                          </button>
+
+                            {/* WhatsApp */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const text = buildSingleItemWhatsAppText(item, idx);
+                                navigator.clipboard?.writeText(text);
+                                setCopiedItemRowId(item.id);
+                                setTimeout(() => setCopiedItemRowId(null), 2000);
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg transition cursor-pointer whitespace-nowrap shrink-0"
+                              title="Copiar texto formatado deste item para WhatsApp"
+                            >
+                              <Share2 className="w-2.5 h-2.5 text-emerald-600" />
+                              <span>{copiedItemRowId === item.id ? '✓ Copiado!' : 'WhatsApp'}</span>
+                            </button>
+                          </div>
 
                           {/* Memória de Último Preço do Cliente */}
                           {(() => {
