@@ -71,6 +71,7 @@ import { normalizeSearchText, extractStoreNameFromUrl, formatCompanyPrefix } fro
 import { fetchDirectPurchasesFromSupabase } from '../services/supabase';
 import { WebImagePickerModal } from './WebImagePickerModal';
 import { autoFindProductImage } from '../services/imageSearchService';
+import { getStoreBadgeStyle } from './PriceScannerView';
 
 interface ProcurementViewProps {
   quotes: Quote[];
@@ -2249,6 +2250,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               <ShoppingCart className="w-5 h-5 text-sky-600" />
               <span>Central de Compras</span>
             </h1>
+            <span className="sq-badge-code">COMPRAS</span>
           </div>
           <p className="sq-page-subtitle">
             Acompanhe compras aprovadas de propostas, cadastre novas compras, consulte preços pagos e concilie faturas.
@@ -2338,11 +2340,11 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
       {/* 2. Barra Superior de Balanço Financeiro & Indicadores */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div className="space-y-0.5">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-sky-600" />
-            Balanço Financeiro & Indicadores
-          </span>
-          <p className="text-xs text-slate-400">
+          <h2 className="sq-section-title">
+            <TrendingUp className="w-4 h-4 text-sky-600" />
+            <span>Balanço Financeiro & Indicadores</span>
+          </h2>
+          <p className="sq-page-subtitle">
             Métricas e totais calculados conforme o período de compras selecionado
           </p>
         </div>
@@ -2351,7 +2353,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
       {/* Cards de Métricas Superiores Consolidadas do Filtro (Padrão AGENTS.md) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Itens a Comprar */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider">
               A Comprar
@@ -2370,7 +2372,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         </div>
 
         {/* Itens Comprados */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Itens Comprados
@@ -2389,22 +2391,28 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         </div>
 
         {/* Custo Real Desembolsado & Saving */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Custo Real Pago
             </span>
             <DollarSign className="w-4 h-4 text-slate-400" />
           </div>
-          <span className="text-xl sm:text-2xl font-bold font-mono text-slate-800 block mt-1">
+          <span className="text-xl sm:text-2xl font-bold font-mono text-slate-900 block mt-1">
             R$ {stats.purchasedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           {stats.purchasedCount > 0 ? (
-            <span className={`text-[10px] font-bold block mt-1 font-mono ${stats.saving >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-              {stats.saving >= 0 
-                ? `Economia de R$ ${stats.saving.toFixed(2)} vs cotado` 
-                : `R$ ${Math.abs(stats.saving).toFixed(2)} acima do cotado`}
-            </span>
+            <div className="mt-1">
+              {stats.saving >= 0 ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md font-mono text-[10px] font-bold shadow-2xs">
+                  <span>✓ Economia de R$ {stats.saving.toFixed(2)} (Lucro Extra)</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-md font-mono text-[10px] font-bold">
+                  <span>R$ {Math.abs(stats.saving).toFixed(2)} acima do cotado</span>
+                </span>
+              )}
+            </div>
           ) : (
             <span className="text-[10px] text-slate-400 font-medium block mt-1">
               Nenhuma compra no filtro
@@ -2413,17 +2421,17 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         </div>
 
         {/* Lucro Líquido Realizado */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+        <div className="bg-gradient-to-br from-emerald-50/80 via-teal-50/40 to-white border-2 border-emerald-300/80 p-4 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Lucro Líquido
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+              Lucro Líquido Realizado
             </span>
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
           <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-700 block mt-1">
             R$ {stats.netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
-          <span className="text-[10px] text-emerald-600 font-semibold block mt-1 font-mono">
+          <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded-md text-[10px] mt-1 font-mono">
             {stats.roiMargin.toFixed(1)}% retorno (ROI)
           </span>
         </div>
@@ -2602,7 +2610,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 transition"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 focus:outline-none focus:border-sky-500 transition"
           />
           {searchTerm && (
             <button
@@ -4699,18 +4707,25 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   <Building2 className="w-3.5 h-3.5 text-slate-400" />
                   <strong>{item.clientCompany.startsWith('Infodesk') ? item.clientCompany : formatCompanyPrefix(item.clientCompany)}</strong>
                 </span>
-                {item.supplier && (
-                  <span>
-                    • Fornecedor: <strong className="text-slate-700">{item.supplier}</strong>
-                    {isPurchased && item.quotedSupplier && item.quotedSupplier !== item.supplier && (
-                      <span className="ml-1 text-[11px] text-slate-400 font-normal">
-                        (Cotado: {item.quotedSupplier})
+                {item.supplier && (() => {
+                  const storeStyle = getStoreBadgeStyle(item.supplier);
+                  return (
+                    <span className="flex items-center gap-1">
+                      <span>• Fornecedor:</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${storeStyle.bg} border ${storeStyle.border} ${storeStyle.text} rounded-md text-[11px] font-bold`}>
+                        <span>{storeStyle.icon}</span>
+                        <span>{item.supplier}</span>
                       </span>
-                    )}
-                  </span>
-                )}
+                      {isPurchased && item.quotedSupplier && item.quotedSupplier !== item.supplier && (
+                        <span className="ml-1 text-[11px] text-slate-400 font-normal">
+                          (Cotado: {item.quotedSupplier})
+                        </span>
+                      )}
+                    </span>
+                  );
+                })()}
                 {item.partNumber && (
-                  <span>• Part Number: <code className="font-mono text-[11px]">{item.partNumber}</code></span>
+                  <span>• Part Number: <code className="font-mono text-[11px] font-bold text-slate-800">{item.partNumber}</code></span>
                 )}
               </div>
             </div>
@@ -4913,7 +4928,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 <button
                   type="button"
                   onClick={() => handleOpenPurchaseModal(item)}
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+                  className="inline-flex items-center gap-1.5 h-9 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer active:scale-95"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Registrar Compra</span>
