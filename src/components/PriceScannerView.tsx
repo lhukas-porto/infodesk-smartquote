@@ -530,6 +530,30 @@ export function getCategoryIcon(category?: string): string {
   return '📦';
 }
 
+export function getStoreBadgeStyle(storeName?: string): { bg: string; text: string; border: string; icon: string } {
+  if (!storeName) return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', icon: '🏢' };
+  const s = storeName.toLowerCase();
+  if (s.includes('kabum')) return { bg: 'bg-orange-50', text: 'text-orange-800', border: 'border-orange-200', icon: '🟠' };
+  if (s.includes('paraguai') || s.includes('compras paraguai') || s.includes('cellshop') || s.includes('nissei')) {
+    return { bg: 'bg-sky-50', text: 'text-sky-800', border: 'border-sky-200', icon: '🇵🇾' };
+  }
+  if (s.includes('mercado livre') || s.includes('mercadolivre')) {
+    return { bg: 'bg-yellow-50', text: 'text-yellow-900', border: 'border-yellow-300', icon: '🟡' };
+  }
+  if (s.includes('amazon')) return { bg: 'bg-amber-50', text: 'text-amber-900', border: 'border-amber-300', icon: '📦' };
+  if (s.includes('kalunga')) return { bg: 'bg-red-50', text: 'text-red-800', border: 'border-red-200', icon: '🔴' };
+  if (s.includes('intelbras') || s.includes('furukawa')) {
+    return { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200', icon: '🟢' };
+  }
+  if (s.includes('magalu') || s.includes('magazine')) {
+    return { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', icon: '🔵' };
+  }
+  if (s.includes('dutra')) {
+    return { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-300', icon: '🔧' };
+  }
+  return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', icon: '🏢' };
+}
+
 interface PriceScannerViewProps {
   quotes?: Quote[];
   products?: Product[];
@@ -1631,6 +1655,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               <h1 className="sq-page-title">
                 Scanner Inteligente de Preços & Produtos
               </h1>
+              <span className="sq-badge-code">IA-SCAN</span>
             </div>
             <p className="sq-page-subtitle">
               Pesquise produtos por código, especificações técnicas ou foto e insira diretamente na sua cotação comercial.
@@ -1658,10 +1683,10 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
+            <h2 className="sq-section-title">
               <ListChecks className="w-4 h-4 text-sky-600" />
               <span>Cole aqui seus itens (texto, especificações ou um print):</span>
-            </label>
+            </h2>
           </div>
 
           {/* Pílulas Dinâmicas: TOP 5 Itens Mais Cotados no Sistema (Linha Única Compacta) */}
@@ -1855,12 +1880,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
           />
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <button
               type="button"
               onClick={() => productPhotoInputRef.current?.click()}
-              className="px-4 py-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-98"
+              className="h-10 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-98"
               title="Anexe uma ou mais fotos dos produtos para prioridade visual absoluta na dedução"
             >
               <ImageIcon className="w-4 h-4" />
@@ -1875,7 +1900,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               type="button"
               onClick={() => imageUploadInputRef.current?.click()}
               disabled={isOcrProcessing}
-              className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition flex items-center gap-2 cursor-pointer shadow-2xs"
+              className="h-10 px-4 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs"
               title="Carregue uma imagem ou print de pedido para transcrever automaticamente"
             >
               <Camera className="w-4 h-4 text-slate-500" />
@@ -1885,7 +1910,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             <button
               type="button"
               onClick={() => setIsUniversalImportOpen(true)}
-              className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/90 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-98"
+              className="h-10 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/90 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-98"
               title="Importar produtos em lote a partir de arquivos (PDF, Excel, CSV) ou colar listas de pedidos"
             >
               <FileUp className="w-4 h-4 text-emerald-700" />
@@ -1902,7 +1927,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                   setBatchResults([]);
                   setSelectedResultIds(new Set());
                 }}
-                className="text-xs text-slate-400 hover:text-slate-600 ml-2 cursor-pointer"
+                className="text-xs text-slate-400 hover:text-slate-600 ml-2 cursor-pointer font-semibold"
               >
                 Limpar Tudo
               </button>
@@ -1913,7 +1938,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             type="button"
             onClick={() => handleStartPhase1Discovery()}
             disabled={isDiscoveringPhase1 || isScanningBatch || (!batchRawInput.trim() && attachedProductPhotos.length === 0)}
-            className="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-98"
+            className="h-10 px-6 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-98"
           >
             <Sparkles className={`w-4 h-4 ${isDiscoveringPhase1 ? 'animate-spin' : ''}`} />
             <span>{isDiscoveringPhase1 ? 'Buscando Produto(s)...' : 'Buscar Produto(s)'}</span>
@@ -2043,12 +2068,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5 flex-wrap">
               {discoveredProducts.length > 1 && (
                 <button
                   type="button"
                   onClick={handleAddAllDiscoveredToQuote}
-                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
+                  className="h-10 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" />
                   <span>Inserir Todos ({discoveredProducts.length})</span>
@@ -2058,7 +2083,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                 type="button"
                 onClick={handleStartPhase2Enrichment}
                 disabled={isScanningBatch}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                className="h-10 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                 title="Varre lojas online para apurar preços reais e links de compra"
               >
                 <Zap className={`w-4 h-4 text-amber-500 ${isScanningBatch ? 'animate-spin' : ''}`} />
@@ -2373,8 +2398,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
                             PREÇO SUGERIDO DE MERCADO
                           </span>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono tracking-tight">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight">
                               {prod.suggestedPrice && prod.suggestedPrice > 0
                                 ? `R$ ${prod.suggestedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                 : (prod.costPrice && prod.costPrice > 0
@@ -2382,8 +2407,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                                   : 'Sob Consulta')}
                             </span>
                             {Boolean(prod.costPrice && prod.costPrice > 0) && (
-                              <span className="text-xs text-slate-400 font-medium">
-                                (Custo: R$ {prod.costPrice!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Lucro: {targetMarginPercent !== null ? targetMarginPercent : getScannerTieredMarkup(prod.costPrice!)}%)
+                              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-lg shadow-2xs">
+                                Custo: R$ {prod.costPrice!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Lucro: {targetMarginPercent !== null ? targetMarginPercent : getScannerTieredMarkup(prod.costPrice!)}%
                               </span>
                             )}
                           </div>
@@ -2394,6 +2419,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                               ? prod.supplier
                               : (prod.id?.startsWith('disc-local-') ? 'Catálogo & Tabela de Mercado' : 'Google Shopping / E-commerce');
 
+                            const storeStyle = getStoreBadgeStyle(sourceStoreName);
                             const searchTerms = [
                               prod.brand && prod.brand !== 'Genérica' ? prod.brand : '',
                               prod.model,
@@ -2407,9 +2433,9 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
                             return (
                               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100/90 border border-slate-200/90 rounded-lg text-xs text-slate-700 shadow-2xs">
-                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Fonte:</span>
-                                  <strong className="text-slate-800 font-bold truncate max-w-[170px]" title={sourceStoreName}>
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 ${storeStyle.bg} border ${storeStyle.border} ${storeStyle.text} rounded-lg text-xs font-bold shadow-2xs`}>
+                                  <span className="text-xs">{storeStyle.icon}</span>
+                                  <strong className="truncate max-w-[170px]" title={sourceStoreName}>
                                     {sourceStoreName}
                                   </strong>
                                 </div>
@@ -2430,20 +2456,20 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                         </div>
 
                         <div className="flex items-center gap-2.5 flex-wrap">
-                          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+                          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 h-10">
                             <input
                               type="number"
                               min="1"
                               value={prod.quantity || 1}
                               onChange={(e) => handleUpdateDiscoveredProduct(prod.id, { quantity: parseInt(e.target.value, 10) || 1 })}
-                              className="w-12 bg-white border border-slate-200 rounded-lg px-1.5 py-1 text-xs font-bold text-slate-800 text-center focus:outline-none focus:border-emerald-500"
+                              className="w-12 h-8 bg-white border border-slate-200 rounded-lg px-1.5 text-xs font-bold text-slate-800 text-center focus:outline-none focus:border-emerald-500"
                               title="Quantidade para a cotação"
                             />
                             <input
                               type="text"
                               value={prod.unit || 'Un.'}
                               onChange={(e) => handleUpdateDiscoveredProduct(prod.id, { unit: e.target.value })}
-                              className="w-12 bg-white border border-slate-200 rounded-lg px-1.5 py-1 text-xs font-semibold text-slate-700 text-center focus:outline-none focus:border-emerald-500"
+                              className="w-12 h-8 bg-white border border-slate-200 rounded-lg px-1.5 text-xs font-semibold text-slate-700 text-center focus:outline-none focus:border-emerald-500"
                               title="Unidade"
                             />
                           </div>
@@ -2451,7 +2477,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleAddSingleDiscoveredToQuote(prod)}
-                            className="px-5 py-2.5 bg-gradient-to-r from-lime-600 via-emerald-600 to-green-600 hover:from-lime-500 hover:to-emerald-500 text-white rounded-xl text-xs sm:text-sm font-black transition shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer active:scale-98"
+                            className="h-10 px-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-98"
                           >
                             <Plus className="w-4 h-4 stroke-[3]" />
                             <span>+ Inserir na Cotação</span>
@@ -2462,7 +2488,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleRequestSaveOrUpdate(prod, existingInCatalog, catalogMatch || undefined)}
-                                className="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                                className="h-10 px-4 bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                                 title="Atualizar dados, fotos e custos desta ficha no catálogo"
                               >
                                 <RefreshCw className="w-4 h-4 text-sky-600" />
@@ -2472,18 +2498,18 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => executeSaveProductToCatalog(prod, null, 'create_new')}
-                                className="px-4 py-2.5 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                                className="h-10 px-4 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                                 title="Cadastrar como um novo item independente no catálogo (outra marca ou modelo alternativo)"
                               >
                                 <Plus className="w-4 h-4 text-emerald-600" />
-                                <span>Salvar como Novo (Outra Marca/Modelo)</span>
+                                <span>Salvar como Novo</span>
                               </button>
                             </div>
                           ) : (
                             <button
                               type="button"
                               onClick={() => handleRequestSaveOrUpdate(prod, null)}
-                              className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                              className="h-10 px-4 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                               title="Salvar produto no catálogo para reutilizar em cotações"
                             >
                               <Printer className="w-4 h-4 text-slate-500" />
@@ -2519,11 +2545,11 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             </button>
 
             <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-sky-600" />
-              <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                Fase 2: Menor Preço e Ofertas em Lojas
+              <h3 className="sq-section-title">
+                <Zap className="w-4 h-4 text-sky-600" />
+                <span>Fase 2: Menor Preço e Ofertas em Lojas</span>
               </h3>
-              <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs rounded-full font-bold">
+              <span className="sq-badge-code">
                 {batchResults.length} item(ns)
               </span>
             </div>
@@ -2533,7 +2559,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                 type="button"
                 onClick={handleApplyBatchToQuote}
                 disabled={selectedResultIds.size === 0}
-                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
+                className="h-10 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
                 <span>Inserir Selecionados na Cotação</span>
@@ -2732,7 +2758,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                         {item.bestPrice > 0 ? (
                           <>
                             <span className="text-emerald-700">{item.priceFormatted}</span>
-                            <span className="text-[9.5px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md shadow-2xs">
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg shadow-2xs">
                               ⭐ Menor Preço
                             </span>
                           </>
@@ -2742,12 +2768,15 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                       </div>
                       {item.store && item.store.trim() !== '' && (() => {
                         const isPartner = registeredSuppliersSet.has(item.store.toLowerCase().trim());
+                        const storeStyle = getStoreBadgeStyle(item.store);
                         return (
-                          <div className="text-xs text-slate-600 font-semibold flex items-center justify-end gap-1.5 mt-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                            <span>{item.store}</span>
+                          <div className="text-xs font-bold flex items-center justify-end gap-1.5 mt-1">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${storeStyle.bg} border ${storeStyle.border} ${storeStyle.text} rounded-md text-[11px]`}>
+                              <span>{storeStyle.icon}</span>
+                              <span>{item.store}</span>
+                            </span>
                             {isPartner && (
-                              <span className="text-[9.5px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.2 rounded-md" title="Fornecedor parceiro habitual cadastrado nas Configurações">
+                              <span className="text-[9.5px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md" title="Fornecedor parceiro habitual cadastrado nas Configurações">
                                 🤝 Parceiro
                               </span>
                             )}
@@ -2760,8 +2789,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                       <button
                         type="button"
                         onClick={() => handleAddSingleBatchResultToQuote(item)}
-                        className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95"
-                        title="Criar novo orçamento com este produto"
+                        className="h-9 px-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                        title="Inserir este produto na cotação comercial"
                       >
                         <Plus className="w-3.5 h-3.5 stroke-[3]" />
                         <span>Inserir na Cotação</span>
@@ -2772,8 +2801,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           href={item.buyUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3 py-1.5 bg-white hover:bg-sky-50 text-sky-800 border border-sky-200 hover:border-sky-300 rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 shrink-0"
-                          title={item.store ? `Abrir página do produto na loja ${item.store}` : 'Abrir link da oferta'}
+                          className="h-9 px-3.5 bg-white hover:bg-sky-50 text-sky-800 border border-sky-200 hover:border-sky-300 rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 shrink-0"
+                          title={item.store ? `Abrir página oficial do produto em ${item.store}` : 'Abrir link da oferta'}
                         >
                           <span>{item.store ? `Comprar na ${item.store}` : 'Ver Oferta'}</span>
                           <ExternalLink className="w-3 h-3 text-sky-600" />
