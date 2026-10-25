@@ -90,6 +90,9 @@ export function reportError(title: string, error: unknown, context?: string): Ap
   console.error(`🚨 [SmartQuote ErrorReporter] ${title}:`, { error, context, event: errorEvent });
 
   activeErrors.push(errorEvent);
+  if (activeErrors.length > 30) {
+    activeErrors.splice(0, activeErrors.length - 30);
+  }
   errorListeners.forEach((listener) => {
     try {
       listener(errorEvent);

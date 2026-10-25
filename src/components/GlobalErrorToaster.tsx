@@ -17,7 +17,7 @@ export const GlobalErrorToaster: React.FC = () => {
 
     const unsubscribe = subscribeToErrors(
       (newError) => {
-        setErrors((prev) => [newError, ...prev]);
+        setErrors((prev) => [newError, ...prev].slice(0, 5));
       },
       (dismissedId) => {
         setErrors((prev) => prev.filter((e) => e.id !== dismissedId));

@@ -64,6 +64,11 @@ export const compressImageDataUrl = (
           // Exporta como JPEG otimizado
           const compressed = canvas.toDataURL('image/jpeg', quality);
 
+          // Libera buffers de bitmap do canvas e GPU imediatamente
+          canvas.width = 0;
+          canvas.height = 0;
+          img.src = '';
+
           // Retorna a menor string base64
           resolve(compressed && compressed.length < dataUrl.length ? compressed : dataUrl);
         } catch (canvasErr) {

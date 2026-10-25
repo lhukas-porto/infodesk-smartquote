@@ -861,8 +861,11 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
   }
 }
 
+let isBatchSyncingProducts = false;
+
 export async function syncBatchProductsToSupabase(products: Product[]): Promise<void> {
-  if (!supabase || !products || products.length === 0) return;
+  if (!supabase || !products || products.length === 0 || isBatchSyncingProducts) return;
+  isBatchSyncingProducts = true;
   try {
     const seenMap = new Map<string, Product>();
 
@@ -888,6 +891,8 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
     }
   } catch (err) {
     console.warn('Erro ao sincronizar lote de produtos no Supabase:', err);
+  } finally {
+    isBatchSyncingProducts = false;
   }
 }
 

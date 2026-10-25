@@ -930,9 +930,7 @@ export const App: React.FC = () => {
             deleteProductFromSupabase(gp.id, gp.sku, gp.partNumber, gp.name).catch(() => {});
           }
           setProducts(prev => {
-            const merged = mergeRemoteProductsWithLocal(sanitizedRemote, prev);
-            saveProducts(merged);
-            return merged;
+            return mergeRemoteProductsWithLocal(sanitizedRemote, prev);
           });
         }
 

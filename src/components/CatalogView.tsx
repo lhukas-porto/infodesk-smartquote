@@ -186,7 +186,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   }, [products]);
 
 
-  const categories = ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+  const categories = React.useMemo(() => {
+    return ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+  }, [products]);
 
   const filteredProducts = React.useMemo(() => {
     const term = normalizeSearchText(searchTerm);
@@ -411,18 +413,39 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     document.body.removeChild(link);
   };
 
-  // 🔄 Sincronização Contínua Automática com a Nuvem (Supabase)
+  // 🔄 Sincronização Contínua Automática com a Nuvem (Supabase) - Otimizada para baixo consumo de memória
   useEffect(() => {
     let isMounted = true;
+    let lastSyncTime = Date.now();
 
     const autoSyncFromCloud = async () => {
+      // Se a aba estiver em segundo plano ou minimizada, suspende o polling para economizar bateria e memória
+      if (typeof document !== 'undefined' && document.hidden) return;
+
       try {
         const remote = await fetchProductsFromSupabase();
         if (isMounted && remote && Array.isArray(remote) && remote.length > 0) {
           const sanitized = remote.filter(p => !isProductDeleted(p));
           setProducts(prev => {
             const merged = mergeRemoteProductsWithLocal(sanitized, prev);
-            saveProducts(merged);
+            // Verificação rápida de igualdade para evitar re-render inútil e re-alocações
+            if (prev.length === merged.length) {
+              let hasChanges = false;
+              for (let i = 0; i < prev.length; i++) {
+                if (
+                  prev[i].id !== merged[i].id ||
+                  prev[i].costPrice !== merged[i].costPrice ||
+                  prev[i].imageUrl !== merged[i].imageUrl ||
+                  prev[i].lastUpdated !== merged[i].lastUpdated
+                ) {
+                  hasChanges = true;
+                  break;
+                }
+              }
+              if (!hasChanges) {
+                return prev; // Mesma referência: React não re-renderiza o catálogo
+              }
+            }
             return merged;
           });
         }
@@ -431,15 +454,18 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       }
     };
 
-    // Recupera preventivamente quaisquer fotos coladas em orçamentos para o cache
+    // Recupera preventivamente quaisquer fotos coladas em orçamentos para o cache (apenas 1x por sessão)
     recoverProductImagesFromQuotes();
 
     // Sincroniza imediatamente ao abrir a tela de catálogo
     autoSyncFromCloud();
 
-    // Sincroniza automaticamente quando a janela ganha foco
+    // Sincroniza automaticamente quando a janela ganha foco (com limitação de no máximo 1x a cada 30s)
     const handleFocus = () => {
-      autoSyncFromCloud();
+      if (Date.now() - lastSyncTime > 30000) {
+        lastSyncTime = Date.now();
+        autoSyncFromCloud();
+      }
     };
     window.addEventListener('focus', handleFocus);
 

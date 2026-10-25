@@ -912,11 +912,6 @@ export const saveProducts = (products: Product[]): void => {
       }
     }
   }
-
-  // Cloud-First: Sincroniza imediatamente o lote de produtos no Supabase
-  syncBatchProductsToSupabase(deduped).catch(err => {
-    console.warn('[Storage] Erro ao sincronizar lote de produtos no Supabase:', err);
-  });
 };
 
 // ==========================================
@@ -2390,15 +2385,54 @@ export const removeProcurementSplit = (originalItemId: string): void => {
 };
 
 // ==============================================================================
-// 16. CACHE GLOBAL PERSISTENTE DE IMAGENS DE PRODUTOS
+// 16. CACHE GLOBAL PERSISTENTE DE IMAGENS DE PRODUTOS (ALTO DESEMPENHO)
 // ==============================================================================
 const PRODUCT_IMAGES_CACHE_KEY = 'infodesk_product_images_cache_v1';
+const MAX_IMAGE_CACHE_ENTRIES = 500;
+
+let inMemoryProductImageCache: Record<string, string> | null = null;
+let imageCachePersistTimer: ReturnType<typeof setTimeout> | null = null;
+let imageUpdateEventTimer: ReturnType<typeof setTimeout> | null = null;
+let lastDispatchedImageDetail: any = null;
+
+const persistImageCacheToDisk = () => {
+  if (!inMemoryProductImageCache || typeof localStorage === 'undefined') return;
+  try {
+    const keys = Object.keys(inMemoryProductImageCache);
+    if (keys.length > MAX_IMAGE_CACHE_ENTRIES) {
+      // Poda os 20% mais antigos para manter o heap leve e evitar estouro de quota
+      const trimmed: Record<string, string> = {};
+      const keepKeys = keys.slice(Math.floor(keys.length * 0.2));
+      keepKeys.forEach(k => {
+        trimmed[k] = inMemoryProductImageCache![k];
+      });
+      inMemoryProductImageCache = trimmed;
+    }
+    localStorage.setItem(PRODUCT_IMAGES_CACHE_KEY, JSON.stringify(inMemoryProductImageCache));
+  } catch (qErr) {
+    console.warn('[Storage] Quota de imagens atingida. Aplicando poda forçada...', qErr);
+    try {
+      const keys = Object.keys(inMemoryProductImageCache);
+      const trimmed: Record<string, string> = {};
+      keys.slice(Math.floor(keys.length * 0.5)).forEach(k => {
+        trimmed[k] = inMemoryProductImageCache![k];
+      });
+      inMemoryProductImageCache = trimmed;
+      localStorage.setItem(PRODUCT_IMAGES_CACHE_KEY, JSON.stringify(trimmed));
+    } catch {}
+  }
+};
 
 export const getProductImageCache = (): Record<string, string> => {
+  if (inMemoryProductImageCache) {
+    return inMemoryProductImageCache;
+  }
   try {
-    const raw = localStorage.getItem(PRODUCT_IMAGES_CACHE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const raw = (typeof localStorage !== 'undefined') ? localStorage.getItem(PRODUCT_IMAGES_CACHE_KEY) : null;
+    inMemoryProductImageCache = raw ? JSON.parse(raw) : {};
+    return inMemoryProductImageCache || {};
   } catch {
+    inMemoryProductImageCache = {};
     return {};
   }
 };
@@ -2447,33 +2481,31 @@ export const saveProductImageToCache = (
     }
 
     if (hasChanges) {
-      try {
-        localStorage.setItem(PRODUCT_IMAGES_CACHE_KEY, JSON.stringify(cache));
-      } catch (qErr) {
-        // Se a quota de cache do navegador for atingida, preserva as fotos mais recentes
-        const keys = Object.keys(cache);
-        if (keys.length > 20) {
-          const trimmedCache: Record<string, string> = {};
-          keys.slice(Math.floor(keys.length * 0.25)).forEach(k => {
-            trimmedCache[k] = cache[k];
-          });
-          try {
-            localStorage.setItem(PRODUCT_IMAGES_CACHE_KEY, JSON.stringify(trimmedCache));
-          } catch {}
-        }
-      }
+      // Debounce do salvamento em disco para evitar dezenas de I/O por segundo
+      if (imageCachePersistTimer) clearTimeout(imageCachePersistTimer);
+      imageCachePersistTimer = setTimeout(() => {
+        persistImageCacheToDisk();
+        imageCachePersistTimer = null;
+      }, 250);
+
+      // Debounce do evento global para evitar cascatas de re-render de componentes
+      lastDispatchedImageDetail = {
+        imageUrl: cleanUrl,
+        name: identifier.name,
+        partNumber: identifier.partNumber,
+        sku: identifier.sku
+      };
 
       if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-        try {
-          window.dispatchEvent(new CustomEvent('infodesk_product_images_updated', {
-            detail: {
-              imageUrl: cleanUrl,
-              name: identifier.name,
-              partNumber: identifier.partNumber,
-              sku: identifier.sku
-            }
-          }));
-        } catch { /* noop */ }
+        if (imageUpdateEventTimer) clearTimeout(imageUpdateEventTimer);
+        imageUpdateEventTimer = setTimeout(() => {
+          try {
+            window.dispatchEvent(new CustomEvent('infodesk_product_images_updated', {
+              detail: lastDispatchedImageDetail
+            }));
+          } catch { /* noop */ }
+          imageUpdateEventTimer = null;
+        }, 200);
       }
     }
   } catch (err) {
@@ -2517,12 +2549,18 @@ export const findProductImageInCache = (
   }
 };
 
+let hasRecoveredImagesThisSession = false;
+
 /**
  * Resgate Ativo de Fotos de Orçamentos:
  * Vasculha propostas salvas, rascunhos em tela e backups para recuperar fotos coladas
  * de prints que porventura não tenham chegado ao catálogo geral.
+ * Otimizado para executar apenas 1 vez por sessão da aba para economizar memória e I/O.
  */
-export const recoverProductImagesFromQuotes = (): number => {
+export const recoverProductImagesFromQuotes = (force: boolean = false): number => {
+  if (hasRecoveredImagesThisSession && !force) return 0;
+  hasRecoveredImagesThisSession = true;
+
   let recoveredCount = 0;
   try {
     // 1. Rascunho atual de tela

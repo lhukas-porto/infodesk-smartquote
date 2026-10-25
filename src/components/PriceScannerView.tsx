@@ -582,16 +582,18 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
   // Mapa de fornecedores parceiros cadastrados no sistema
   const registeredSuppliersSet = useMemo(() => {
+    if (!isVisible) return new Set<string>();
     try {
       const list = getAllRegisteredSuppliers(products, quotes);
       return new Set(list.map(s => s.toLowerCase().trim()));
     } catch {
       return new Set<string>();
     }
-  }, [products, quotes]);
+  }, [products, quotes, isVisible]);
 
   // SUGESTÕES DINÂMICAS: Os 7 itens mais cotados no histórico de todas as cotações
   const topQuotedSuggestions = useMemo(() => {
+    if (!isVisible) return [];
     let sourceQuotes: Quote[] = [];
     try {
       sourceQuotes = (quotes && quotes.length > 0) ? quotes : getQuotes();
@@ -695,7 +697,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     }
 
     return dynamicPills;
-  }, [quotes]);
+  }, [quotes, isVisible]);
 
   // Fase 1: Dedução Técnica 360° (Padrão Infodesk Store)
   const [discoveredProducts, setDiscoveredProducts] = useState<DiscoveredProduct[]>([]);
