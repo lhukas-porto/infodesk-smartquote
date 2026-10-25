@@ -502,7 +502,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-scaleIn">
+      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl h-[680px] max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-scaleIn">
         
         {/* Cabeçalho do Modal */}
         <div className="p-5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
@@ -1037,7 +1037,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
               
               {/* Painel: CATEGORIAS */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col h-[460px]">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col h-[500px]">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-sky-50 text-sky-700 rounded-lg border border-sky-200">
@@ -1172,7 +1172,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               {/* Painel: UNIDADES DE MEDIDA */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col h-[460px]">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col h-[500px]">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-sky-50 text-sky-700 rounded-lg border border-sky-200">
@@ -1325,7 +1325,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Conteúdo da Aba Formas de Pagamento */}
         {activeTab === 'payments' && (
           <div className="p-6 overflow-y-auto space-y-4 flex-1">
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col h-[520px]">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col h-[500px]">
               <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200">
@@ -1473,7 +1473,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Conteúdo da Aba Fornecedores */}
         {activeTab === 'suppliers' && (
           <div className="p-6 overflow-y-auto space-y-4 flex-1">
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col h-[520px]">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col h-[500px]">
               
               {/* Cabeçalho da Aba */}
               <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">

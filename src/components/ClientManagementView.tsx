@@ -27,11 +27,12 @@ import {
   Globe,
   ExternalLink
 } from 'lucide-react';
-import { ClientCompany, ClientContact } from '../types';
+import { ClientCompany, ClientContact, Quote } from '../types';
 import { maskPhone } from '../utils/aiEmailParser';
 
 interface ClientManagementViewProps {
   companies: ClientCompany[];
+  quotes?: Quote[];
   onSaveCompanies: (companies: ClientCompany[]) => void;
   onDeleteCompany?: (companyId: string) => void;
   onDeleteContact?: (contactId: string, companyId: string) => void;
@@ -347,6 +348,7 @@ const WebsiteFaviconPreview: React.FC<{
 
 export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   companies,
+  quotes,
   onSaveCompanies,
   onDeleteCompany,
   onDeleteContact,
@@ -356,6 +358,31 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(() => companies[0]?.id || '');
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Métrica CRM: Contagem de propostas comerciais emitidas por empresa
+  const quotesCountByCompany = useMemo(() => {
+    const map = new Map<string, number>();
+    let list = quotes;
+    if (!list || list.length === 0) {
+      try {
+        const raw = localStorage.getItem('infodesk_quotes');
+        if (raw) list = JSON.parse(raw);
+      } catch { /* noop */ }
+    }
+    if (Array.isArray(list)) {
+      list.forEach((q: any) => {
+        if (!q) return;
+        if (q.clientCompanyId) {
+          map.set(q.clientCompanyId, (map.get(q.clientCompanyId) || 0) + 1);
+        }
+        if (q.clientCompany) {
+          const norm = q.clientCompany.toLowerCase().trim().replace(/^(ao|à|a|para)\s+/i, '');
+          map.set(norm, (map.get(norm) || 0) + 1);
+        }
+      });
+    }
+    return map;
+  }, [quotes]);
 
   // Deletion confirmation
   const [companyIdToDelete, setCompanyIdToDelete] = useState<string | null>(null);
@@ -795,6 +822,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5 flex-1 overflow-y-auto pr-0.5 custom-scrollbar content-start">
               {paginatedCompanies.map(comp => {
                 const isSelected = selectedCompany?.id === comp.id;
+                const cleanCompName = comp.name.toLowerCase().trim().replace(/^(ao|à|a|para)\s+/i, '');
+                const proposalCount = (quotesCountByCompany.get(comp.id) || 0) + (quotesCountByCompany.get(cleanCompName) || 0);
 
                 return (
                   <div
@@ -820,15 +849,28 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Card Footer: Buyers count + Delete */}
-                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-100/80">
-                      <span className="text-[10px] text-slate-500 font-medium">
-                        {comp.contacts.length} {comp.contacts.length === 1 ? 'comprador' : 'compradores'}
-                      </span>
+                    {/* Card Footer: Buyers count + Proposals count + Delete */}
+                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-100/80 gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          {comp.contacts.length} {comp.contacts.length === 1 ? 'comprador' : 'compradores'}
+                        </span>
+                        {proposalCount > 0 && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.2 rounded-md shadow-2xs" title={`${proposalCount} proposta(s) comercial(is) emitida(s) para esta empresa`}>
+                            <FileText className="w-2.5 h-2.5" />
+                            <span>{proposalCount} {proposalCount === 1 ? 'proposta' : 'propostas'}</span>
+                          </span>
+                        )}
+                        {proposalCount >= 3 && (
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1 py-0.2 rounded" title="Cliente com alto volume de cotações">
+                            ⭐ Frequente
+                          </span>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setSelectedCompanyId(comp.id); setCompanyIdToDelete(comp.id); }}
-                        className="text-slate-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                        className="text-slate-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition cursor-pointer shrink-0"
                         title="Excluir empresa"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

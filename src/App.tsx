@@ -2951,6 +2951,7 @@ export const App: React.FC = () => {
         {activeTab === 'clients' && (
           <ClientManagementView
             companies={clientCompanies}
+            quotes={quotes}
             onSaveCompanies={handleSaveCompanies}
             onDeleteCompany={handleDeleteCompany}
             onDeleteContact={handleDeleteContact}

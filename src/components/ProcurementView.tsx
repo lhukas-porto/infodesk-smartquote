@@ -2140,6 +2140,40 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
     showToast(`Pedido de compra para "${group.supplierName}" copiado para a área de transferência!`);
   };
 
+  // Copiar Lista de Compras da Proposta Formatada para WhatsApp
+  const handleCopyQuotePurchaseOrder = (group: {
+    quoteCode: string;
+    clientCompany: string;
+    clientOrderNumber?: string;
+    items: ProcurementItem[];
+    totalQuotedCost: number;
+    totalActualCost: number;
+  }) => {
+    const dateStr = new Date().toLocaleDateString('pt-BR');
+    const itemsLines = group.items.map((it, idx) => {
+      const skuStr = it.partNumber ? ` (Cód/SKU: ${it.partNumber})` : '';
+      const suppStr = it.supplier ? ` [Fornecedor: ${it.supplier}]` : '';
+      const unitCost = it.quotedCostPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${idx + 1}. *${it.name}*${skuStr}${suppStr}\n   • Qtd: *${it.quantity} ${it.unit || 'un'}* | Custo Est: R$ ${unitCost}`;
+    }).join('\n\n');
+
+    const totalStr = group.totalQuotedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const ocStr = group.clientOrderNumber ? `\n📌 *OC do Cliente:* ${group.clientOrderNumber}` : '';
+
+    const message = `📋 *LISTA DE COMPRAS - PROPOSTA ${group.quoteCode}*
+🗓️ *Data:* ${dateStr}
+🏢 *Cliente:* ${group.clientCompany}${ocStr}
+
+📦 *ITENS DA PROPOSTA:*
+${itemsLines}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *Custo Total Estimado:* R$ ${totalStr} (${group.items.length} produtos)`;
+
+    navigator.clipboard.writeText(message);
+    showToast(`Itens da proposta ${group.quoteCode} copiados com sucesso!`);
+  };
+
   // Abrir WhatsApp com Pedido de Compra Pré-preenchido
   const handleOpenWhatsAppSupplierOrder = (group: {
     supplierName: string;
@@ -2827,8 +2861,8 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     </div>
                   </div>
 
-                  {/* Resumo Financeiro da Proposta */}
-                  <div className="flex items-center gap-4 sm:gap-6 shrink-0 self-end md:self-auto">
+                  {/* Resumo Financeiro da Proposta e Ações */}
+                  <div className="flex items-center gap-3 sm:gap-4 shrink-0 self-end md:self-auto flex-wrap" onClick={(e) => e.stopPropagation()}>
                     <div className="text-right">
                       <span className="text-[10px] uppercase font-semibold text-slate-400 block">
                         Venda Total
@@ -2847,7 +2881,20 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       </span>
                     </div>
 
-                    <div className="p-1 rounded-lg text-slate-400 hover:text-slate-700 transition">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyQuotePurchaseOrder(group)}
+                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Copiar lista de compras desta proposta formatada para WhatsApp"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Copiar Pedido</span>
+                    </button>
+
+                    <div 
+                      onClick={() => toggleQuoteCollapse(group.quoteId)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                    >
                       {isCollapsed ? (
                         <ChevronDown className="w-5 h-5" />
                       ) : (
