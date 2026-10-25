@@ -41,6 +41,7 @@ import {
   WordCaseStyle,
   buildCompleteProductDescription,
   buildDirectPurchaseUrl,
+  reconcileSupplierAndProductUrl,
   normalizeSearchText,
   normalizeToOfficialCategory,
   resolveProductModelAndPartNumber,
@@ -1104,6 +1105,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
       : (prod.suggestedPrice || undefined);
 
+    const reconciled = reconcileSupplierAndProductUrl(
+      existingInCatalog ? existingInCatalog.name : prod.standardizedName,
+      existingInCatalog?.supplier || prod.supplier,
+      prod.sourceUrl || existingInCatalog?.sourceUrl
+    );
+
     const itemData: Partial<QuoteItem> = {
       productId: existingInCatalog ? existingInCatalog.id : undefined,
       name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
@@ -1120,8 +1127,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       unitPrice,
       quantity: prod.quantity || 1,
       unit: prod.unit || existingInCatalog?.unit || 'Un.',
-      supplier: sanitizeSupplierName(existingInCatalog?.supplier || prod.supplier || directInfo.store),
-      sourceUrl: prod.sourceUrl || directInfo.url || existingInCatalog?.sourceUrl
+      supplier: reconciled.supplier,
+      sourceUrl: reconciled.sourceUrl
     };
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
@@ -1254,6 +1261,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
         : (prod.suggestedPrice || undefined);
 
+      const reconciled = reconcileSupplierAndProductUrl(
+        existingInCatalog ? existingInCatalog.name : prod.standardizedName,
+        existingInCatalog?.supplier || prod.supplier,
+        prod.sourceUrl || existingInCatalog?.sourceUrl
+      );
+
       return {
         productId: existingInCatalog ? existingInCatalog.id : undefined,
         name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
@@ -1270,8 +1283,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         unitPrice,
         quantity: prod.quantity || 1,
         unit: prod.unit || existingInCatalog?.unit || 'Un.',
-        supplier: sanitizeSupplierName(existingInCatalog?.supplier || prod.supplier || directInfo.store),
-        sourceUrl: prod.sourceUrl || directInfo.url || existingInCatalog?.sourceUrl
+        supplier: reconciled.supplier,
+        sourceUrl: reconciled.sourceUrl
       };
     });
 
@@ -1340,6 +1353,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
       const chosenPhoto = (item.images && item.images[item.selectedImageIndex ?? 0]) || item.imageUrl || '';
 
+      const reconciled = reconcileSupplierAndProductUrl(
+        existingInCatalog ? existingInCatalog.name : item.standardizedName,
+        existingInCatalog?.supplier || item.store,
+        item.buyUrl || existingInCatalog?.sourceUrl
+      );
+
       return {
         productId: existingInCatalog ? existingInCatalog.id : undefined,
         name: existingInCatalog ? existingInCatalog.name : item.standardizedName,
@@ -1355,8 +1374,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         unitPrice,
         quantity: item.quantity || 1,
         unit: item.unit || existingInCatalog?.unit || 'Un.',
-        supplier: sanitizeSupplierName(existingInCatalog?.supplier || item.store || directInfo.store),
-        sourceUrl: item.buyUrl || directInfo.url || existingInCatalog?.sourceUrl
+        supplier: reconciled.supplier,
+        sourceUrl: reconciled.sourceUrl
       };
     });
 
@@ -1402,6 +1421,11 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       : undefined;
 
     const chosenPhoto = (item.images && item.images[item.selectedImageIndex ?? 0]) || item.imageUrl || '';
+    const reconciled = reconcileSupplierAndProductUrl(
+      existingInCatalog ? existingInCatalog.name : item.standardizedName,
+      existingInCatalog?.supplier || item.store,
+      item.buyUrl || existingInCatalog?.sourceUrl
+    );
 
     const itemData: Partial<QuoteItem> = {
       productId: existingInCatalog ? existingInCatalog.id : undefined,
@@ -1418,8 +1442,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       unitPrice,
       quantity: item.quantity || 1,
       unit: item.unit || existingInCatalog?.unit || 'Un.',
-      supplier: sanitizeSupplierName(existingInCatalog?.supplier || item.store || directInfo.store),
-      sourceUrl: item.buyUrl || directInfo.url || existingInCatalog?.sourceUrl
+      supplier: reconciled.supplier,
+      sourceUrl: reconciled.sourceUrl
     };
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {

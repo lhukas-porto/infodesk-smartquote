@@ -119,6 +119,7 @@ import {
   formatProposalValidityText,
   extractContactPhone,
   isExactProductUrl,
+  reconcileSupplierAndProductUrl,
   extractEmailFromText,
   extractContactPersonFromText,
   generateQuoteCode,
@@ -2207,6 +2208,12 @@ export const App: React.FC = () => {
       const qty = item.quantity || 1;
       const totalPrice = Number((unitPrice * qty).toFixed(2));
 
+      const reconciled = reconcileSupplierAndProductUrl(
+        item.name || '',
+        item.supplier,
+        item.sourceUrl
+      );
+
       const newItem: QuoteItem = {
         id: `item-${Date.now()}`,
         productId: item.productId,
@@ -2225,8 +2232,8 @@ export const App: React.FC = () => {
         markupPercent: markup,
         unitPrice,
         totalPrice,
-        sourceUrl: item.sourceUrl || '',
-        supplier: item.supplier || ''
+        sourceUrl: reconciled.sourceUrl,
+        supplier: reconciled.supplier
       };
 
       const updatedItems = [...currentQuote.items, newItem];
@@ -2283,6 +2290,12 @@ export const App: React.FC = () => {
       const qty = item.quantity || 1;
       const totalPrice = Number((unitPrice * qty).toFixed(2));
 
+      const reconciled = reconcileSupplierAndProductUrl(
+        item.name || '',
+        item.supplier,
+        item.sourceUrl
+      );
+
       return {
         id: `item-${Date.now()}-${idx}`,
         itemNumber: idx + 1,
@@ -2300,8 +2313,8 @@ export const App: React.FC = () => {
         markupPercent,
         unitPrice,
         totalPrice,
-        sourceUrl: item.sourceUrl || '',
-        supplier: item.supplier || ''
+        sourceUrl: reconciled.sourceUrl,
+        supplier: reconciled.supplier
       };
     });
 

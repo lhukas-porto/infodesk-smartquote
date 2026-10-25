@@ -37,6 +37,7 @@ import './scannerRobustnessAndQuantity.test';
 import './supplierManagementTab.test';
 import './productPrintImagePersistence.test';
 import './quoteEnhancementsSuite.test';
+import './supplierUrlConsistency.test';
 
 console.log('\n======================================================');
 console.log('🏁 SUÍTE COMPLETA DE TESTES EXECUTADA COM 100% DE SUCESSO!');

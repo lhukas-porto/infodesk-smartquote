@@ -2387,6 +2387,14 @@ export function extractStoreNameFromUrl(url?: string): string {
     if (hostname.includes('ferramentaskennedy')) return 'Ferramentas Kennedy';
     if (hostname.includes('anhangueraferramentas')) return 'Anhanguera Ferramentas';
     if (hostname.includes('dutotec')) return 'Dutotec';
+    if (hostname.includes('comprasparaguai')) return 'Compras Paraguai';
+    if (hostname.includes('lojasparaguai')) return 'Lojas Paraguai';
+    if (hostname.includes('casanissei') || hostname.includes('nissei')) return 'Casa Nissei';
+    if (hostname.includes('cellshop')) return 'Cellshop';
+    if (hostname.includes('madridcenter') || hostname.includes('madrid')) return 'Madrid Center';
+    if (hostname.includes('megaeletronicos')) return 'Mega Eletrônicos';
+    if (hostname.includes('atacadogames')) return 'Atacado Games';
+    if (hostname.includes('atacadocollections')) return 'Atacado Collections';
     if (hostname.includes('mercadolivre') || hostname.includes('mercado-livre')) return 'Mercado Livre';
     if (hostname.includes('kabum')) return 'KaBuM!';
     if (hostname.includes('amazon')) return 'Amazon';
@@ -3624,22 +3632,219 @@ export function buildCompleteProductDescription(item: {
 }
 
 /**
+ * Constrói a URL oficial de pesquisa interna dentro do e-commerce do fornecedor especificado.
+ * Evita telas 404 de links fabricados e permite que o comprador caia diretamente nas ofertas reais daquela loja.
+ */
+export function buildStoreSearchUrl(supplierName: string, query: string): string {
+  const cleanStore = normalizeSearchText(supplierName);
+  const cleanQ = (query || '').trim();
+  const encodedQ = encodeURIComponent(cleanQ);
+  if (!cleanQ) return '';
+
+  if (cleanStore.includes('compras paraguai') || cleanStore.includes('comprasparaguai')) {
+    return `https://www.comprasparaguai.com.br/busca/?q=${encodedQ}`;
+  }
+  if (cleanStore.includes('lojas paraguai') || cleanStore.includes('lojasparaguai')) {
+    return `https://www.lojasparaguai.com.br/busca?q=${encodedQ}`;
+  }
+  if (cleanStore.includes('mercado livre') || cleanStore.includes('mercadolivre') || cleanStore.includes('mlb')) {
+    const dashed = cleanQ.replace(/[^\w\sáàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ-]/g, '').trim().replace(/\s+/g, '-');
+    return `https://lista.mercadolivre.com.br/${encodeURIComponent(dashed)}`;
+  }
+  if (cleanStore.includes('kabum')) {
+    return `https://www.kabum.com.br/busca/${encodedQ}`;
+  }
+  if (cleanStore.includes('amazon')) {
+    return `https://www.amazon.com.br/s?k=${encodedQ}`;
+  }
+  if (cleanStore.includes('magalu') || cleanStore.includes('magazine luiza')) {
+    return `https://www.magazineluiza.com.br/busca/${encodedQ}`;
+  }
+  if (cleanStore.includes('kalunga')) {
+    return `https://www.kalunga.com.br/busca/1?q=${encodedQ}`;
+  }
+  if (cleanStore.includes('leroy merlin') || cleanStore.includes('leroymerlin')) {
+    return `https://www.leroymerlin.com.br/search?term=${encodedQ}`;
+  }
+  if (cleanStore.includes('dutra maquinas') || cleanStore.includes('dutramaquinas')) {
+    return `https://www.dutramaquinas.com.br/busca?busca=${encodedQ}`;
+  }
+  if (cleanStore.includes('loja do mecanico') || cleanStore.includes('lojadomecanico')) {
+    return `https://www.lojadomecanico.com.br/busca?q=${encodedQ}`;
+  }
+  if (cleanStore.includes('palacio das ferramentas') || cleanStore.includes('palaciodasferramentas')) {
+    return `https://www.palaciodasferramentas.com.br/busca?q=${encodedQ}`;
+  }
+  if (cleanStore.includes('ferramentas kennedy') || cleanStore.includes('ferramentaskennedy')) {
+    return `https://www.ferramentaskennedy.com.br/busca?q=${encodedQ}`;
+  }
+  if (cleanStore.includes('pichau')) {
+    return `https://www.pichau.com.br/search?q=${encodedQ}`;
+  }
+  if (cleanStore.includes('terabyte')) {
+    return `https://www.terabyteshop.com.br/busca?str=${encodedQ}`;
+  }
+  if (cleanStore.includes('casas bahia') || cleanStore.includes('casasbahia')) {
+    return `https://www.casasbahia.com.br/s?k=${encodedQ}`;
+  }
+  if (cleanStore.includes('ponto frio') || cleanStore.includes('pontofrio')) {
+    return `https://www.pontofrio.com.br/s?k=${encodedQ}`;
+  }
+  if (cleanStore.includes('fast shop') || cleanStore.includes('fastshop')) {
+    return `https://www.fastshop.com.br/web/s/${encodedQ}`;
+  }
+  if (cleanStore.includes('shopee')) {
+    return `https://shopee.com.br/search?keyword=${encodedQ}`;
+  }
+  if (cleanStore.includes('aliexpress')) {
+    return `https://pt.aliexpress.com/wholesale?SearchText=${encodedQ}`;
+  }
+  if (cleanStore.includes('samsung')) {
+    return `https://www.samsung.com/br/search/?searchvalue=${encodedQ}`;
+  }
+  if (cleanStore.includes('dell')) {
+    return `https://www.dell.com/pt-br/search/${encodedQ}`;
+  }
+  if (cleanStore.includes('apple')) {
+    return `https://www.apple.com/br/search/${encodedQ}`;
+  }
+  if (cleanStore.includes('dufrio')) {
+    return `https://www.dufrio.com.br/busca?q=${encodedQ}`;
+  }
+  if (cleanStore.includes('central brasil')) {
+    return `https://www.centralbrasilinstrumentos.com.br/busca?q=${encodedQ}`;
+  }
+  if (cleanStore.includes('intelbras')) {
+    return `https://www.intelbras.com/pt-br/busca?q=${encodedQ}`;
+  }
+
+  // Fallback seguro: busca direcionada no Google Shopping combinando a loja e o termo
+  const targetName = supplierName && supplierName.trim() ? `${supplierName.trim()} ${cleanQ}` : cleanQ;
+  return `https://www.google.com/search?q=${encodeURIComponent(targetName)}&tbm=shop`;
+}
+
+/**
+ * Verifica se a URL do produto pertence ou é semanticamente consistente com o fornecedor informado.
+ * Exemplo:
+ *  - supplier="Compras Paraguai", url="https://samsung.com/br/..." -> FALSE (Inconsistente!)
+ *  - supplier="Compras Paraguai", url="https://comprasparaguai.com.br/..." -> TRUE
+ *  - supplier="Samsung", url="https://samsung.com/br/..." -> TRUE
+ */
+export function isUrlConsistentWithSupplier(url?: string | null, supplier?: string | null): boolean {
+  if (!url || typeof url !== 'string' || !url.trim()) return false;
+  const cleanUrl = url.trim().toLowerCase();
+  if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) return false;
+
+  const cleanSupp = sanitizeSupplierName(supplier);
+  if (!cleanSupp) {
+    // Se não há fornecedor especificado, a URL não tem conflito com fornecedor
+    return true;
+  }
+
+  const detectedStore = extractStoreNameFromUrl(cleanUrl);
+  if (!detectedStore) {
+    try {
+      const parsed = new URL(cleanUrl);
+      const host = parsed.hostname.toLowerCase().replace(/^(www\.|vendas\.|loja\.|shop\.)+/, '');
+      const suppNorm = normalizeSearchText(cleanSupp).replace(/\s+/g, '');
+      const hostNorm = host.replace(/[^a-z0-9]/g, '');
+      return hostNorm.includes(suppNorm) || suppNorm.includes(hostNorm);
+    } catch {
+      return false;
+    }
+  }
+
+  const normSupp = normalizeSearchText(cleanSupp).replace(/\s+/g, '');
+  const normDet = normalizeSearchText(detectedStore).replace(/\s+/g, '');
+
+  if (normSupp === normDet) return true;
+  if (normSupp.includes(normDet) || normDet.includes(normSupp)) return true;
+
+  // Aliases conhecidos
+  const isMagalu = (normSupp.includes('magalu') || normSupp.includes('magazineluiza')) &&
+                   (normDet.includes('magalu') || normDet.includes('magazineluiza'));
+  if (isMagalu) return true;
+
+  const isML = (normSupp.includes('mercadolivre') || normSupp.includes('mlb')) &&
+               (normDet.includes('mercadolivre') || normDet.includes('mlb'));
+  if (isML) return true;
+
+  const isKabum = normSupp.includes('kabum') && normDet.includes('kabum');
+  if (isKabum) return true;
+
+  const isComprasParaguai = normSupp.includes('comprasparaguai') && normDet.includes('comprasparaguai');
+  if (isComprasParaguai) return true;
+
+  const isTerabyte = normSupp.includes('terabyte') && normDet.includes('terabyte');
+  if (isTerabyte) return true;
+
+  const isPonto = (normSupp.includes('pontofrio') || normSupp.includes('ponto')) &&
+                  (normDet.includes('pontofrio') || normDet.includes('ponto'));
+  if (isPonto) return true;
+
+  return false;
+}
+
+/**
+ * Reconcilia e blinda o vínculo entre Fornecedor e URL de Compra em todo o sistema.
+ * 1. Rejeita URLs de fabricantes hallucinados quando a oferta veio de outra loja (ex: Compras Paraguai vs Samsung).
+ * 2. Se a URL fornecida for inconsistente com o fornecedor, gera fallback seguro de busca direta na loja real (evitando 404).
+ * 3. Se a URL estiver ausente mas o fornecedor for conhecido, constrói a busca oficial na loja.
+ * 4. Se a URL estiver presente e o fornecedor ausente, extrai o fornecedor da URL automaticamente.
+ */
+export function reconcileSupplierAndProductUrl(
+  productName: string,
+  supplier?: string | null,
+  rawUrl?: string | null
+): { supplier: string; sourceUrl: string; isSearchFallback: boolean } {
+  let cleanSupplier = sanitizeSupplierName(supplier);
+  let cleanUrl = (rawUrl || '').trim();
+
+  // 1. Se veio URL válida, analisa se a loja coincide
+  if (cleanUrl && isExactProductUrl(cleanUrl)) {
+    const storeFromUrl = extractStoreNameFromUrl(cleanUrl);
+
+    // Se não havia fornecedor, o fornecedor se torna a loja detectada na URL
+    if (!cleanSupplier) {
+      cleanSupplier = storeFromUrl;
+      return { supplier: cleanSupplier, sourceUrl: cleanUrl, isSearchFallback: false };
+    }
+
+    // Se já havia fornecedor, valida a consistência
+    if (isUrlConsistentWithSupplier(cleanUrl, cleanSupplier)) {
+      return { supplier: cleanSupplier, sourceUrl: cleanUrl, isSearchFallback: false };
+    }
+
+    // INCONSISTÊNCIA DETECTADA!
+    // A URL aponta para um domínio diferente do fornecedor indicado (ex: Compras Paraguai vs samsung.com)
+    // Descartamos a URL inconsistente e geramos a busca na loja real do fornecedor
+    const storeSearchUrl = buildStoreSearchUrl(cleanSupplier, productName);
+    return { supplier: cleanSupplier, sourceUrl: storeSearchUrl, isSearchFallback: true };
+  }
+
+  // 2. Se a URL não for exata ou estiver vazia, mas tivermos o fornecedor
+  if (cleanSupplier) {
+    const storeSearchUrl = buildStoreSearchUrl(cleanSupplier, productName);
+    return { supplier: cleanSupplier, sourceUrl: storeSearchUrl, isSearchFallback: true };
+  }
+
+  // 3. Se nenhum dos dois estiver disponível
+  return { supplier: '', sourceUrl: '', isSearchFallback: false };
+}
+
+/**
  * Constrói ou refina um link de compra direto para e-commerce.
- * REGRA (Lucas): Se não for para trazer o link correto do produto, deve vir em branco ('').
+ * Reconcilia fornecedor e URL com tolerância zero a links cruzados e páginas 404.
  */
 export function buildDirectPurchaseUrl(
   productName: string,
-  preferredStoreUrl?: string
+  preferredStoreUrl?: string,
+  preferredSupplier?: string
 ): { url: string; store: string } {
-  if (preferredStoreUrl && isExactProductUrl(preferredStoreUrl)) {
-    const detectedStore = extractStoreNameFromUrl(preferredStoreUrl) || 'Loja';
-    return { url: preferredStoreUrl.trim(), store: detectedStore };
-  }
-
-  // Se não houver link exato do produto, retorna estritamente em branco
+  const reconciled = reconcileSupplierAndProductUrl(productName, preferredSupplier, preferredStoreUrl);
   return {
-    url: '',
-    store: ''
+    url: reconciled.sourceUrl,
+    store: reconciled.supplier
   };
 }
 

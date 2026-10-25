@@ -13,6 +13,8 @@ import {
   getCategoryFromNcm, 
   buildCompleteProductDescription, 
   buildDirectPurchaseUrl, 
+  reconcileSupplierAndProductUrl,
+  isUrlConsistentWithSupplier,
   isExactProductUrl,
   resolveProductModelAndPartNumber,
   sanitizeSupplierName,
@@ -3536,8 +3538,8 @@ Retorne ESTRITAMENTE um JSON no formato:
                 ? [...customerPhotoUrls, ...baseGallery.filter(u => !customerPhotoUrls.includes(u))]
                 : baseGallery;
 
-              const directPurchase = buildDirectPurchaseUrl(stdName, item.buyUrl || item.sourceUrl);
-              const resolvedSupplier = sanitizeSupplierName(item.supplier || item.store || directPurchase.store);
+              const directPurchase = buildDirectPurchaseUrl(stdName, item.buyUrl || item.sourceUrl, item.supplier || item.store);
+              const resolvedSupplier = sanitizeSupplierName(directPurchase.store || item.supplier || item.store);
 
               const resolvedCodes = resolveProductModelAndPartNumber({
                 nameOrQuery: stdName || rawText,
@@ -4049,28 +4051,51 @@ Retorne ESTRITAMENTE um objeto JSON válido:
 
       // 1. Se não veio do Google Shopping, tenta extrair URL real da loja nos chunks do Google Search Grounding
       if (!shoppingBestOffer) {
+        const targetStore = sanitizeSupplierName(parsed.store);
         const groundingChunks = data?.candidates?.[0]?.groundingMetadata?.groundingChunks;
-        if (Array.isArray(groundingChunks) && (!finalBuyUrl || finalBuyUrl.includes('google.com/search') || finalBuyUrl.includes('exemplo.com'))) {
-          for (const chunk of groundingChunks) {
-            const uri = chunk?.web?.uri;
-            if (uri && typeof uri === 'string' && uri.startsWith('http') && !uri.includes('google.com/search')) {
-              finalBuyUrl = uri;
-              break;
+        if (Array.isArray(groundingChunks)) {
+          // Prioridade 1: Procura chunk cuja URL pertença estritamente à loja detectada
+          if (targetStore) {
+            for (const chunk of groundingChunks) {
+              const uri = chunk?.web?.uri;
+              if (uri && typeof uri === 'string' && uri.startsWith('http') && !uri.includes('google.com/search')) {
+                if (isUrlConsistentWithSupplier(uri, targetStore)) {
+                  finalBuyUrl = uri;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Prioridade 2: Se ainda não tiver URL, só aceita chunk genérico se NÃO houver loja definida
+          if (!finalBuyUrl || finalBuyUrl.includes('google.com/search') || finalBuyUrl.includes('exemplo.com')) {
+            if (!targetStore) {
+              for (const chunk of groundingChunks) {
+                const uri = chunk?.web?.uri;
+                if (uri && typeof uri === 'string' && uri.startsWith('http') && !uri.includes('google.com/search')) {
+                  finalBuyUrl = uri;
+                  break;
+                }
+              }
             }
           }
         }
       }
 
-      // 2. Se não encontrou link direto de loja, constrói URL direta de compra no Mercado Livre (evita busca genérica do Google)
-      const directPurchase = buildDirectPurchaseUrl(stdName, finalBuyUrl || (discovered as any).sourceUrl);
-      finalBuyUrl = shoppingBestOffer ? shoppingBestOffer.link : directPurchase.url;
-      const finalStore = shoppingBestOffer
+      // 2. Reconciliação universal Fornecedor x URL (tolerância zero a links 404 e lojas cruzadas)
+      const preliminaryStore = shoppingBestOffer
         ? sanitizeSupplierName(shoppingBestOffer.store)
         : sanitizeSupplierName(
             (parsed.store && parsed.store !== 'Nome da Loja' && parsed.store !== 'E-commerce Nacional')
               ? parsed.store
-              : directPurchase.store
+              : ''
           );
+
+      const candidateUrl = shoppingBestOffer ? shoppingBestOffer.link : (finalBuyUrl || (discovered as any).sourceUrl);
+      const reconciled = reconcileSupplierAndProductUrl(stdName, preliminaryStore, candidateUrl);
+
+      finalBuyUrl = reconciled.sourceUrl;
+      const finalStore = reconciled.supplier || preliminaryStore;
 
       const scannedNcm = cleanNcmCode(parsed.ncm || (discovered as any).ncm);
       let scannedCategory = getCategoryFromNcm(scannedNcm, discovered.category);

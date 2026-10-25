@@ -84,6 +84,9 @@ import {
   extractStoreNameFromUrl,
   getCategoryFromNcm,
   buildDirectPurchaseUrl,
+  reconcileSupplierAndProductUrl,
+  buildStoreSearchUrl,
+  isUrlConsistentWithSupplier,
   buildCompleteProductDescription,
   normalizeSearchText,
   normalizeToOfficialCategory,
@@ -4425,31 +4428,66 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             <span>{item.imageUrl ? 'Cotar com Foto (IA)' : 'Pesquisar Preço'}</span>
                           </button>
 
-                          {item.sourceUrl && item.sourceUrl.trim() !== '' ? (
-                            <a
-                              href={sanitizeExternalUrl(item.sourceUrl)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => openInNewWindow(item.sourceUrl, e)}
-                              className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
-                              title={item.supplier ? `Abrir link do produto em ${item.supplier} em nova janela` : 'Abrir link do produto em nova janela'}
-                            >
-                              <ExternalLink className="w-3 h-3 text-emerald-600" />
-                              <span>Link do Produto</span>
-                            </a>
-                          ) : (
-                            <a
-                              href={`https://www.google.com/search?q=${encodeURIComponent(item.rawSearchQuery || item.name)}&tbm=shop`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => openInNewWindow(`https://www.google.com/search?q=${encodeURIComponent(item.rawSearchQuery || item.name)}&tbm=shop`, e)}
-                              className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-300 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
-                              title="Produto sem link direto! Clique para buscar no Google Shopping em nova janela"
-                            >
-                              <ExternalLink className="w-3 h-3 text-red-600" />
-                              <span>Link do Produto</span>
-                            </a>
-                          )}
+                          {(() => {
+                            const reconciled = reconcileSupplierAndProductUrl(
+                              item.name,
+                              item.supplier,
+                              item.sourceUrl
+                            );
+                            const effectiveUrl = reconciled.sourceUrl || (
+                              item.supplier && item.supplier.trim() !== ''
+                                ? buildStoreSearchUrl(item.supplier, item.rawSearchQuery || item.name)
+                                : `https://www.google.com/search?q=${encodeURIComponent(item.rawSearchQuery || item.name)}&tbm=shop`
+                            );
+                            const hasExactLink = Boolean(reconciled.sourceUrl && !reconciled.isSearchFallback);
+                            const targetStore = item.supplier || (reconciled.supplier || 'Loja');
+
+                            if (hasExactLink) {
+                              return (
+                                <a
+                                  href={sanitizeExternalUrl(effectiveUrl)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => openInNewWindow(effectiveUrl, e)}
+                                  className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
+                                  title={`Abrir link do produto em ${targetStore} em nova janela`}
+                                >
+                                  <ExternalLink className="w-3 h-3 text-emerald-600" />
+                                  <span>Link do Produto</span>
+                                </a>
+                              );
+                            }
+
+                            if (item.supplier && item.supplier.trim() !== '') {
+                              return (
+                                <a
+                                  href={sanitizeExternalUrl(effectiveUrl)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => openInNewWindow(effectiveUrl, e)}
+                                  className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-300 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
+                                  title={`Buscar produto no site oficial de ${item.supplier} em nova janela (sem risco de 404)`}
+                                >
+                                  <ExternalLink className="w-3 h-3 text-sky-600" />
+                                  <span>Buscar em {item.supplier}</span>
+                                </a>
+                              );
+                            }
+
+                            return (
+                              <a
+                                href={sanitizeExternalUrl(effectiveUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => openInNewWindow(effectiveUrl, e)}
+                                className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-300 px-1.5 py-0.5 rounded-md font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
+                                title="Produto sem link direto! Clique para buscar no Google Shopping em nova janela"
+                              >
+                                <ExternalLink className="w-3 h-3 text-red-600" />
+                                <span>Link do Produto</span>
+                              </a>
+                            );
+                          })()}
 
                           {item.supplier && item.supplier.trim() !== '' && (
                             <span
