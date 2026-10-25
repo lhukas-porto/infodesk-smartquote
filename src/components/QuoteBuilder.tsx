@@ -50,7 +50,9 @@ import {
   Tag,
   Clock,
   ChevronRight,
-  History
+  History,
+  Target,
+  Boxes
 } from 'lucide-react';
 import { ClientCompany, ClientContact, CompanySettings, Product, Quote, QuoteItem } from '../types';
 import { 
@@ -99,7 +101,8 @@ import {
   saveRegisteredCategory,
   sanitizeQuoteItemForDuplication,
   saveProductImageToCache,
-  findProductImageInCache
+  findProductImageInCache,
+  getLastPriceForClient
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { UniversalListImportModal } from './UniversalListImportModal';
@@ -119,6 +122,9 @@ import { WhatsAppQuoteModal } from './WhatsAppQuoteModal';
 import { healAndRecoverQuote } from '../services/quoteHealingService';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
 import { DiscountSimulatorModal } from './DiscountSimulatorModal';
+import { TargetPriceModal } from './TargetPriceModal';
+import { KitsModal } from './KitsModal';
+import { QuoteAuditModal, auditQuote } from './QuoteAuditModal';
 import { buildSingleItemWhatsAppText } from '../utils/whatsappFormatter';
 import { parseQuoteTimestamp } from '../utils/dateUtils';
 import { enrichQuoteItemsWithOfficialSpecs, itemNeedsSpecEnrichment } from '../services/specSearchService';
@@ -347,6 +353,12 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   // Seleção múltipla de itens para Ações em Lote e campo de Margem/Lucro % em Lote
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [batchMarkupInput, setBatchMarkupInput] = useState<string>('');
+
+  // Novos Módulos Comerciais: Preço Alvo, Kits e Auditor de Proposta
+  const [isTargetPriceModalOpen, setIsTargetPriceModalOpen] = useState(false);
+  const [isKitsModalOpen, setIsKitsModalOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [auditProceedCallback, setAuditProceedCallback] = useState<(() => void) | null>(null);
 
   // Modo de visualização da tabela (Compacto vs Completo com NCM/PartNumber/Links)
   const [isCompactTableMode, setIsCompactTableMode] = useState<boolean>(false);
@@ -1027,6 +1039,69 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
     if (onUpdateSettings) {
       onUpdateSettings({ ...settings, defaultMarkupPercent: markup });
+    }
+  };
+
+  const handleApplyTargetMarkup = (markupPercent: number) => {
+    handleApplyGlobalMarkup(markupPercent);
+    setLinkNotification(`Preço Alvo aplicado com sucesso! Markup ajustado para ${markupPercent}%.`);
+    setTimeout(() => setLinkNotification(null), 4000);
+  };
+
+  const handleInsertKitItems = (kitItems: QuoteItem[]) => {
+    if (!kitItems || kitItems.length === 0) return;
+    const currentCount = currentQuote.items.length;
+    const newItems: QuoteItem[] = kitItems.map((it, idx) => {
+      const shipping = it.shippingCost ?? globalShipping;
+      const tax = it.taxPercent ?? globalTax;
+      const markup = it.markupPercent ?? globalMarkup;
+      const unitPrice = calculateItemUnitPrice(it.costPrice || 0, shipping, markup, tax);
+      const totalPrice = Number((unitPrice * (it.quantity || 1)).toFixed(2));
+      return {
+        ...it,
+        id: `item-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
+        itemNumber: currentCount + idx + 1,
+        shippingCost: shipping,
+        taxPercent: tax,
+        markupPercent: markup,
+        unitPrice,
+        totalPrice
+      };
+    });
+    const updated = [...currentQuote.items, ...newItems];
+    const totals = recalculateQuote(updated);
+    setCurrentQuote(prev => ({
+      ...prev,
+      items: updated,
+      ...totals
+    }));
+    setLinkNotification(`Kit inserido com sucesso! ${newItems.length} produto(s) adicionado(s) à proposta.`);
+    setTimeout(() => setLinkNotification(null), 4000);
+  };
+
+  const handleToggleOptionalItem = (itemId: string) => {
+    const updated = currentQuote.items.map(it => {
+      if (it.id === itemId) {
+        return { ...it, isOptional: !it.isOptional };
+      }
+      return it;
+    });
+    const totals = recalculateQuote(updated);
+    setCurrentQuote(prev => ({
+      ...prev,
+      items: updated,
+      ...totals
+    }));
+  };
+
+  const handleAuditBeforeProceed = (action: () => void) => {
+    const issues = auditQuote(currentQuote);
+    const criticals = issues.filter(i => i.type === 'critical');
+    if (criticals.length > 0) {
+      setAuditProceedCallback(() => action);
+      setIsAuditModalOpen(true);
+    } else {
+      action();
     }
   };
 
@@ -2430,7 +2505,17 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-emerald-700 transition">Lucro Real ({globalMarkup}%)</span>
             <div className="flex items-center gap-1">
               <span className="text-[9px] text-emerald-600 opacity-0 group-hover:opacity-100 transition font-bold">Editar ✎</span>
-              {currentQuote.averageMargin < 12 && currentQuote.items.length > 0 ? (
+              {currentQuote.averageMargin >= 22 && currentQuote.items.length > 0 ? (
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                  <Sparkles className="w-3 h-3 text-emerald-600" />
+                  Margem Alta
+                </span>
+              ) : currentQuote.averageMargin >= 14 && currentQuote.items.length > 0 ? (
+                <span className="flex items-center gap-1 text-[10px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded-md">
+                  <Check className="w-3 h-3 text-sky-600" />
+                  Margem Saudável
+                </span>
+              ) : currentQuote.averageMargin < 14 && currentQuote.items.length > 0 ? (
                 <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md">
                   <AlertTriangle className="w-3 h-3 text-amber-600" />
                   Margem Baixa
@@ -2441,24 +2526,44 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             </div>
           </div>
           <p className={`text-base font-bold font-mono ${
-            currentQuote.averageMargin < 12 && currentQuote.items.length > 0 ? 'text-amber-800' : 'text-emerald-600'
+            currentQuote.averageMargin < 14 && currentQuote.items.length > 0 ? 'text-amber-800' : 'text-emerald-600'
           }`}>
             R$ {currentQuote.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
           <p className="text-[10px] text-slate-600 font-semibold pt-0.5" title={`% Margem Líquida (sobre venda): ${currentQuote.averageMargin.toFixed(1)}% | % Markup (sobre custo): ${globalMarkup}%`}>
-            % Margem Líq: <strong className={currentQuote.averageMargin < 12 && currentQuote.items.length > 0 ? 'text-amber-700 font-bold' : 'text-emerald-700'}>{currentQuote.averageMargin.toFixed(1)}% (venda)</strong>
+            % Margem Líq: <strong className={currentQuote.averageMargin < 14 && currentQuote.items.length > 0 ? 'text-amber-700 font-bold' : 'text-emerald-700'}>{currentQuote.averageMargin.toFixed(1)}% (venda)</strong>
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-200 p-4 rounded-2xl shadow-xs col-span-2 sm:col-span-1">
+        <div className="bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-200 p-4 rounded-2xl shadow-xs col-span-2 sm:col-span-1 relative group">
           <div className="flex items-center justify-between text-sky-800 mb-1">
             <span className="text-[11px] font-extrabold uppercase tracking-wider">Total Proposta</span>
-            <Calculator className="w-4 h-4 text-sky-600" />
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsTargetPriceModalOpen(true);
+                }}
+                className="text-[10px] font-bold text-sky-700 hover:text-sky-900 bg-white/90 hover:bg-sky-100/80 border border-sky-200 hover:border-sky-300 px-2 py-0.5 rounded-md flex items-center gap-1 transition shadow-2xs cursor-pointer active:scale-95"
+                title="Ajustar proposta para um Preço Alvo redondo (Reverse Markup)"
+              >
+                <Target className="w-3 h-3 text-sky-600" />
+                <span>Preço Alvo</span>
+              </button>
+            </div>
           </div>
           <p className="text-lg font-extrabold text-slate-900 font-mono">
             R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <span className="text-[10px] text-sky-700 font-medium">Valor final enviado ao cliente</span>
+          <div className="flex items-center justify-between text-[10px] text-sky-700 font-medium pt-0.5">
+            <span>Valor final enviado</span>
+            {currentQuote.optionalTotalAmount && currentQuote.optionalTotalAmount > 0 ? (
+              <span className="font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200" title="Itens adicionais opcionais/upgrades">
+                + R$ {currentQuote.optionalTotalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} opc.
+              </span>
+            ) : null}
+          </div>
         </div>
 
       </div>
@@ -3633,7 +3738,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       data-item-index={idx}
                       onClick={() => { activeImageUploadIndexRef.current = idx; }}
                       className={`transition align-top ${idx > 0 ? 'border-t border-slate-200/80' : ''} ${
-                        selectedItemIds.includes(item.id)
+                        item.isOptional
+                          ? 'bg-purple-50/40 hover:bg-purple-50/70 border-l-4 border-l-purple-500'
+                          : selectedItemIds.includes(item.id)
                           ? 'bg-sky-50/50 hover:bg-sky-50/80'
                           : 'hover:bg-slate-50/80'
                       }`}
@@ -4256,6 +4363,21 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             />
                             <span className="font-medium text-[10px] whitespace-nowrap">Foto na proposta</span>
                           </label>
+
+                          {/* Toggle Item Opcional / Upgrade */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleOptionalItem(item.id)}
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer whitespace-nowrap shrink-0 ${
+                              item.isOptional
+                                ? 'bg-purple-100 text-purple-800 border-purple-300 shadow-2xs'
+                                : 'bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-purple-700 border-slate-200 hover:border-purple-200'
+                            }`}
+                            title={item.isOptional ? 'Item marcado como Opcional / Upgrade. Não soma no total principal da proposta.' : 'Marcar item como Opcional / Upgrade (destacado e separado sem inflar o total)'}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${item.isOptional ? 'bg-purple-600' : 'bg-slate-400'}`}></span>
+                            <span>{item.isOptional ? '✓ Opcional / Upgrade' : '+ Opcional'}</span>
+                          </button>
 
                           {/* Botão Aa – Alterna maiúsculas/minúsculas do item */}
                           <button
@@ -5549,7 +5671,30 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
               <button
                 type="button"
-                onClick={() => persistAndProceed(onPreview, true)}
+                onClick={() => setIsKitsModalOpen(true)}
+                className="h-9 px-3.5 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
+                title="Inserir kit pronto ou salvar proposta atual como um kit reutilizável"
+              >
+                <Boxes className="w-3.5 h-3.5 text-purple-600" />
+                <span>Kits</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAuditProceedCallback(null);
+                  setIsAuditModalOpen(true);
+                }}
+                className="h-9 px-3.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
+                title="Auditar proposta comercial e checar NCM, custos e pendências"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                <span>Auditor</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAuditBeforeProceed(() => persistAndProceed(onPreview, true))}
                 className="h-9 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs whitespace-nowrap cursor-pointer active:scale-95"
                 title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
               >
@@ -5572,7 +5717,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
               <button
                 type="button"
-                onClick={() => persistAndProceed(onPreview, true)}
+                onClick={() => handleAuditBeforeProceed(() => persistAndProceed(onPreview, true))}
                 className="h-8 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                 title="Enviar proposta"
               >
@@ -5600,6 +5745,31 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       Mais Ações da Proposta
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMoreActionsOpen(false);
+                        setIsKitsModalOpen(true);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs font-semibold text-purple-800 hover:bg-purple-50 flex items-center gap-2 transition"
+                    >
+                      <Boxes className="w-4 h-4 text-purple-600" />
+                      <span>Kits Comerciais</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMoreActionsOpen(false);
+                        setAuditProceedCallback(null);
+                        setIsAuditModalOpen(true);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs font-semibold text-amber-800 hover:bg-amber-50 flex items-center gap-2 transition"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-amber-600" />
+                      <span>Auditor de Proposta</span>
+                    </button>
 
                     <button
                       type="button"
@@ -5695,6 +5865,46 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           globalTax={currentQuote.globalTaxPercent ?? globalTax}
           globalShipping={currentQuote.globalShipping ?? globalShipping}
           onApplyDiscount={handleApplyGlobalDiscount}
+        />
+      )}
+
+      {/* Modal de Preço Alvo (Reverse Markup) */}
+      {isTargetPriceModalOpen && (
+        <TargetPriceModal
+          isOpen={isTargetPriceModalOpen}
+          onClose={() => setIsTargetPriceModalOpen(false)}
+          items={currentQuote.items || []}
+          globalShippingCost={currentQuote.globalShipping ?? globalShipping}
+          globalTaxPercent={currentQuote.globalTaxPercent ?? globalTax}
+          onApplyTargetMarkup={handleApplyTargetMarkup}
+        />
+      )}
+
+      {/* Modal de Kits Comerciais */}
+      {isKitsModalOpen && (
+        <KitsModal
+          isOpen={isKitsModalOpen}
+          onClose={() => setIsKitsModalOpen(false)}
+          currentQuoteItems={currentQuote.items || []}
+          onInsertKitItems={handleInsertKitItems}
+        />
+      )}
+
+      {/* Modal de Auditor de Proposta Comercial */}
+      {isAuditModalOpen && (
+        <QuoteAuditModal
+          isOpen={isAuditModalOpen}
+          onClose={() => {
+            setIsAuditModalOpen(false);
+            setAuditProceedCallback(null);
+          }}
+          quote={currentQuote}
+          onProceed={auditProceedCallback ? () => {
+            const cb = auditProceedCallback;
+            setAuditProceedCallback(null);
+            setIsAuditModalOpen(false);
+            cb();
+          } : undefined}
         />
       )}
 

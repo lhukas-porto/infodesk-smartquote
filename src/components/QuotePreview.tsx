@@ -276,7 +276,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {quote.items.map((item) => {
+                  {quote.items.filter(it => !it.isOptional).map((item) => {
                     const excDetails = extractDeliveryExceptionDetails(quote.deliveryDays);
                     const isException = excDetails.hasException && excDetails.itemNumbers.includes(item.itemNumber);
                     return (
@@ -328,6 +328,70 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Tabela de Itens Opcionais / Upgrades Sugeridos */}
+            {(() => {
+              const optionalItems = (quote.items || []).filter(it => it.isOptional);
+              if (optionalItems.length === 0) return null;
+              const optionalTotal = optionalItems.reduce((acc, it) => acc + ((it.unitPrice || 0) * (it.quantity || 1)), 0);
+
+              return (
+                <div className="mb-5 sq-avoid-break">
+                  <div className="mb-1.5 text-left">
+                    <span className="font-bold uppercase tracking-wider text-[8pt] bg-slate-100 px-2 py-0.5 border border-slate-300 inline-block text-slate-800">
+                      Itens Opcionais / Sugestões de Upgrade (Valores Adicionais):
+                    </span>
+                  </div>
+                  <table 
+                    className="w-full text-left border-collapse"
+                    style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '9pt', maxWidth: '18.52cm' }}
+                  >
+                    <thead>
+                      <tr className="font-bold text-black bg-slate-50">
+                        <th className="p-1 text-center font-bold" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000', width: '6%' }}>Item</th>
+                        <th className="p-1 text-center font-bold" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000', width: '46%' }}>Descrição do Item Opcional</th>
+                        <th className="p-1 text-center font-bold" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000', width: '6%' }}>Qtd.</th>
+                        <th className="p-1 text-center font-bold" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000', width: '6%' }}>Un.</th>
+                        <th className="p-1 text-center font-bold" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000', width: '18%' }}>Preço unit.</th>
+                        <th className="p-1 text-center font-bold" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000', width: '18%' }}>Preço total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {optionalItems.map((item, optIdx) => (
+                        <tr key={item.id}>
+                          <td className="p-1 text-center align-middle" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000' }}>
+                            Op-{optIdx + 1}
+                          </td>
+                          <td className="p-1 text-left align-middle" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000' }}>
+                            <span className="font-medium">{item.name}</span>
+                          </td>
+                          <td className="p-1 text-center align-middle" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000' }}>
+                            {item.quantity}
+                          </td>
+                          <td className="p-1 text-center align-middle" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000' }}>
+                            {item.unit || 'Un.'}
+                          </td>
+                          <td className="p-1 text-center whitespace-nowrap align-middle" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000' }}>
+                            R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="p-1 text-center whitespace-nowrap align-middle" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000' }}>
+                            R$ {item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <td colSpan={5} className="p-1 text-right font-bold" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000' }}>
+                          Subtotal Opcionais:
+                        </td>
+                        <td className="p-1 text-center font-bold whitespace-nowrap" style={{ fontSize: '8.5pt', border: '0.5pt solid #000000' }}>
+                          R$ {optionalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
 
             {/* General Conditions */}
             <div 

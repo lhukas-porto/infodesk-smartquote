@@ -54,6 +54,7 @@ export interface QuoteItem {
   supplier?: string;
   dollarPrice?: number;
   alternativeOffers?: SupplierOffer[];
+  isOptional?: boolean; // Item Opcional / Sugestão de Upgrade (não soma no total principal)
   // Campos de Aprovação Parcial e Central de Compras
   approved?: boolean;
   approvedQuantity?: number;
@@ -101,6 +102,7 @@ export interface Quote {
   totalTaxes?: number;
   totalProfit: number;
   totalAmount: number;
+  optionalTotalAmount?: number;
   averageMargin: number;
   globalMarkupPercent?: number;
   globalTaxPercent?: number;
@@ -296,6 +298,16 @@ export interface DiscoveredProduct {
   productBoundingBox?: { ymin: number; xmin: number; ymax: number; xmax: number };
   supplier?: string;
   sourceUrl?: string;
+}
+
+export interface QuoteKit {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  items: Array<Omit<QuoteItem, 'id' | 'itemNumber'> & { id?: string }>;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 

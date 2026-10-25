@@ -1,4 +1,4 @@
-import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
+import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem, QuoteKit } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
 import { normalizeSearchText, normalizeToOfficialCategory } from './aiEmailParser';
 import { 
@@ -2613,6 +2613,120 @@ export const recoverProductImagesFromQuotes = (force: boolean = false): number =
     console.warn('Erro ao recuperar fotos dos orçamentos:', err);
   }
   return recoveredCount;
+};
+
+// ==============================================================================
+// 17. KITS COMERCIAIS & MEMÓRIA DE PREÇO POR CLIENTE
+// ==============================================================================
+const KITS_KEY = 'infodesk_quote_kits_v1';
+
+export const getQuoteKits = (): QuoteKit[] => {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(KITS_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.warn('Erro ao carregar kits comerciais:', err);
+  }
+  return [];
+};
+
+export const saveQuoteKit = (kit: QuoteKit): void => {
+  if (!kit || !kit.name) return;
+  try {
+    const kits = getQuoteKits();
+    const idx = kits.findIndex(k => k.id === kit.id);
+    let next: QuoteKit[];
+    if (idx >= 0) {
+      next = [...kits];
+      next[idx] = { ...kit, updatedAt: new Date().toISOString() };
+    } else {
+      next = [{ ...kit, createdAt: kit.createdAt || new Date().toISOString() }, ...kits];
+    }
+    localStorage.setItem(KITS_KEY, JSON.stringify(next));
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('infodesk_kits_changed'));
+    }
+  } catch (err) {
+    console.warn('Erro ao salvar kit comercial:', err);
+  }
+};
+
+export const deleteQuoteKit = (kitId: string): void => {
+  if (!kitId) return;
+  try {
+    const kits = getQuoteKits().filter(k => k.id !== kitId);
+    localStorage.setItem(KITS_KEY, JSON.stringify(kits));
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('infodesk_kits_changed'));
+    }
+  } catch (err) {
+    console.warn('Erro ao excluir kit comercial:', err);
+  }
+};
+
+/**
+ * Consulta o último preço praticado para um produto específico para determinado cliente
+ */
+export const getLastPriceForClient = (
+  clientCompany: string,
+  identifier: { name?: string; partNumber?: string; sku?: string },
+  sourceQuotes?: Quote[]
+): { unitPrice: number; markupPercent: number; date: string; quoteCode: string; quantity: number } | null => {
+  if (!clientCompany || !clientCompany.trim()) return null;
+  const cleanClient = normalizeSearchText(clientCompany);
+  if (!cleanClient) return null;
+
+  const targetPn = (identifier.partNumber || '').trim().toLowerCase();
+  const targetSku = (identifier.sku || '').trim().toLowerCase();
+  const targetName = normalizeSearchText(identifier.name || '');
+
+  if (!targetPn && !targetSku && (!targetName || targetName.length < 3)) return null;
+
+  try {
+    const allQuotes = (sourceQuotes && sourceQuotes.length > 0) ? sourceQuotes : getQuotes();
+    // Filtra propostas daquele cliente ordenadas da mais recente para a mais antiga
+    const clientQuotes = allQuotes
+      .filter(q => {
+        if (!q.clientCompany) return false;
+        const qClient = normalizeSearchText(q.clientCompany);
+        return qClient === cleanClient || qClient.includes(cleanClient) || cleanClient.includes(qClient);
+      })
+      .sort((a, b) => new Date(b.date || b.updatedAt || 0).getTime() - new Date(a.date || a.updatedAt || 0).getTime());
+
+    for (const q of clientQuotes) {
+      if (!q.items || !Array.isArray(q.items)) continue;
+      for (const it of q.items) {
+        if (!it.unitPrice || it.unitPrice <= 0) continue;
+
+        const itPn = (it.partNumber || '').trim().toLowerCase();
+        const itName = normalizeSearchText(it.name || '');
+
+        let match = false;
+        if (targetPn && itPn && targetPn.length >= 3 && itPn === targetPn) {
+          match = true;
+        } else if (targetName && itName && targetName.length >= 4 && (itName === targetName || itName.includes(targetName) || targetName.includes(itName))) {
+          match = true;
+        }
+
+        if (match) {
+          return {
+            unitPrice: it.unitPrice,
+            markupPercent: it.markupPercent ?? 23.5,
+            date: q.date || (q.updatedAt ? q.updatedAt.split('T')[0] : 'Recente'),
+            quoteCode: q.code || '',
+            quantity: it.quantity || 1
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Erro ao consultar histórico de preço do cliente:', err);
+  }
+
+  return null;
 };
 
 

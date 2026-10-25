@@ -41,17 +41,17 @@ export function buildWhatsAppQuoteMessage(
   const companyPhone = settings?.phone || '(61) 9 9627-2630';
 
   const allItems = quote.items || [];
-  const items = itemIdsToInclude && itemIdsToInclude.length > 0
+  const selectedItems = itemIdsToInclude && itemIdsToInclude.length > 0
     ? allItems.filter(it => itemIdsToInclude.includes(it.id))
     : allItems;
 
-  const totalAmount = itemIdsToInclude && itemIdsToInclude.length > 0
-    ? items.reduce((acc, it) => acc + ((it.unitPrice || 0) * (it.quantity || 1)), 0)
-    : quote.totalAmount;
+  const baseItems = selectedItems.filter(it => !it.isOptional);
+  const optionalItems = selectedItems.filter(it => it.isOptional);
 
-  const totalFormatted = totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const baseTotal = baseItems.reduce((acc, it) => acc + ((it.unitPrice || 0) * (it.quantity || 1)), 0);
+  const optionalTotal = optionalItems.reduce((acc, it) => acc + ((it.unitPrice || 0) * (it.quantity || 1)), 0);
 
-  const itemsLines = items.map((item, index) => {
+  const formatLine = (item: any, index: number) => {
     const qty = item.quantity || 1;
     const unit = item.unit || 'un.';
     const unitPrice = item.unitPrice ? item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
@@ -59,16 +59,23 @@ export function buildWhatsAppQuoteMessage(
     const partNumberInfo = item.partNumber ? ` (PN: ${item.partNumber})` : '';
 
     return `*${index + 1}.* ${item.name}${partNumberInfo}\n   ▪ *Qtd:* ${qty} ${unit} | *Unit:* R$ ${unitPrice} | *Subtotal:* R$ ${subtotal}`;
-  });
+  };
+
+  const baseItemsLines = baseItems.map(formatLine);
+  const optionalItemsLines = optionalItems.map(formatLine);
+
+  const totalFormatted = baseTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const optionalFormatted = optionalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const parts = [
     greeting,
     `Segue o resumo da proposta comercial *#${quote.code || 'PROPOSTA'}* para *${companyName}*:`,
     '',
     `📦 *ITENS DA PROPOSTA:*`,
-    itemsLines.join('\n\n'),
+    baseItemsLines.length > 0 ? baseItemsLines.join('\n\n') : 'Nenhum item base selecionado.',
     '',
-    `💰 *VALOR TOTAL:* R$ ${totalFormatted}`,
+    optionalItems.length > 0 ? `✨ *ITENS OPCIONAIS & UPGRADES SUGERIDOS:*\n${optionalItemsLines.join('\n\n')}\n\n➕ *Subtotal Opcionais:* + R$ ${optionalFormatted}\n` : null,
+    `💰 *VALOR TOTAL${optionalItems.length > 0 ? ' (BASE)' : ''}:* R$ ${totalFormatted}`,
     `📅 *Prazo de Entrega:* ${quote.deliveryDays || 'Imediato / a combinar'}`,
     `💳 *Condições de Pagamento:* ${quote.paymentTerms || '28 DDL (Faturado)'}`,
     `🛡️ *Garantia:* ${quote.warrantyTerms || '12 meses contra defeitos de fabricação'}`,

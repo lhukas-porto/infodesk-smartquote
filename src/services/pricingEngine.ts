@@ -14,6 +14,23 @@ export interface QuoteTotalsResult {
   totalProfit: number;
   totalAmount: number;
   averageMargin: number;
+  // Totais separados de Itens Opcionais / Sugestões
+  optionalTotalAmount: number;
+  optionalTotalCost: number;
+  optionalTotalShipping: number;
+  optionalTotalProfit: number;
+  optionalItemsCount: number;
+}
+
+export interface TargetPriceCalculationResult {
+  targetTotal: number;
+  calculatedTotal: number;
+  difference: number;
+  suggestedMarkupPercent: number;
+  netProfit: number;
+  profitMarginPercent: number;
+  isHealthyMargin: boolean; // >= 14%
+  itemsCount: number;
 }
 
 /**
@@ -96,6 +113,12 @@ export function recalculateQuoteTotals(
   let totalAmount = 0;
   let totalTaxes = 0;
 
+  let optionalTotalCost = 0;
+  let optionalTotalShipping = 0;
+  let optionalTotalAmount = 0;
+  let optionalTotalTaxes = 0;
+  let optionalItemsCount = 0;
+
   items.forEach(item => {
     const qty = item.quantity > 0 ? item.quantity : 1;
     const itemCost = (item.costPrice || 0) * qty;
@@ -105,15 +128,25 @@ export function recalculateQuoteTotals(
     const taxRate = (item.taxPercent ?? defaultTax) / 100;
     const itemTaxAmount = itemTotal * taxRate;
 
-    totalCost += itemCost;
-    totalShipping += itemShipping;
-    totalAmount += itemTotal;
-    totalTaxes += itemTaxAmount;
+    if (item.isOptional === true) {
+      optionalTotalCost += itemCost;
+      optionalTotalShipping += itemShipping;
+      optionalTotalAmount += itemTotal;
+      optionalTotalTaxes += itemTaxAmount;
+      optionalItemsCount++;
+    } else {
+      totalCost += itemCost;
+      totalShipping += itemShipping;
+      totalAmount += itemTotal;
+      totalTaxes += itemTaxAmount;
+    }
   });
 
   const totalProfit = totalAmount - totalCost - totalShipping - totalTaxes;
   const baseTotalCost = totalCost + totalShipping;
   const averageMargin = baseTotalCost > 0 ? (totalProfit / baseTotalCost) * 100 : 0;
+
+  const optionalTotalProfit = optionalTotalAmount - optionalTotalCost - optionalTotalShipping - optionalTotalTaxes;
 
   return {
     totalCost: Number(totalCost.toFixed(2)),
@@ -121,7 +154,94 @@ export function recalculateQuoteTotals(
     totalTaxes: Number(totalTaxes.toFixed(2)),
     totalProfit: Number(totalProfit.toFixed(2)),
     totalAmount: Number(totalAmount.toFixed(2)),
-    averageMargin: Number(averageMargin.toFixed(1))
+    averageMargin: Number(averageMargin.toFixed(1)),
+    optionalTotalAmount: Number(optionalTotalAmount.toFixed(2)),
+    optionalTotalCost: Number(optionalTotalCost.toFixed(2)),
+    optionalTotalShipping: Number(optionalTotalShipping.toFixed(2)),
+    optionalTotalProfit: Number(optionalTotalProfit.toFixed(2)),
+    optionalItemsCount
+  };
+}
+
+/**
+ * Motor de Preço Alvo (Reverse Markup):
+ * Dado um valor final desejado pelo cliente (ex: R$ 5.000,00), calcula o markup uniforme ideal
+ * considerando os custos individuais, impostos e a regra oficial de arredondamento comercial da Infodesk.
+ */
+export function calculateMarkupForTargetTotal(
+  items: QuoteItem[],
+  targetTotal: number,
+  options: PricingCalculationOptions = {}
+): TargetPriceCalculationResult | null {
+  const baseItems = items.filter(it => !it.isOptional && ((it.costPrice || 0) > 0 || (it.unitPrice || 0) > 0));
+  if (baseItems.length === 0 || targetTotal <= 0) return null;
+
+  const defaultShipping = options.globalShipping ?? 0;
+  const defaultTax = options.globalTax ?? 9.1;
+
+  let totalBaseCost = 0;
+  baseItems.forEach(it => {
+    const qty = it.quantity > 0 ? it.quantity : 1;
+    const cost = (it.costPrice || 0) + (it.shippingCost ?? defaultShipping);
+    totalBaseCost += cost * qty;
+  });
+
+  if (totalBaseCost <= 0) return null;
+
+  // Estimativa teórica inicial do markup
+  const avgTaxRate = defaultTax / 100;
+  const netRevenueNeeded = targetTotal * (1 - avgTaxRate);
+  const estimatedMarkup = ((netRevenueNeeded - totalBaseCost) / totalBaseCost) * 100;
+
+  let bestMarkup = estimatedMarkup;
+  let minDiff = Infinity;
+  let bestCalculatedTotal = 0;
+
+  // Varredura fina em janela de +/- 10% com passos de 0.1% para bater a regra de arredondamento comercial
+  const startM = Math.max(-40, estimatedMarkup - 12);
+  const endM = estimatedMarkup + 12;
+
+  for (let m = startM; m <= endM; m += 0.1) {
+    let currentTotal = 0;
+    baseItems.forEach(it => {
+      const qty = it.quantity > 0 ? it.quantity : 1;
+      const shipping = it.shippingCost ?? defaultShipping;
+      const tax = it.taxPercent ?? defaultTax;
+      const p = calculateCommercialUnitPrice(it.costPrice || 0, shipping, m, tax);
+      currentTotal += p * qty;
+    });
+
+    const diff = Math.abs(currentTotal - targetTotal);
+    if (diff < minDiff) {
+      minDiff = diff;
+      bestMarkup = Number(m.toFixed(1));
+      bestCalculatedTotal = currentTotal;
+      if (diff === 0) break;
+    }
+  }
+
+  // Apura impostos e lucro líquido com o melhor markup encontrado
+  let totalTaxes = 0;
+  baseItems.forEach(it => {
+    const qty = it.quantity > 0 ? it.quantity : 1;
+    const shipping = it.shippingCost ?? defaultShipping;
+    const tax = it.taxPercent ?? defaultTax;
+    const p = calculateCommercialUnitPrice(it.costPrice || 0, shipping, bestMarkup, tax);
+    totalTaxes += (p * qty) * (tax / 100);
+  });
+
+  const netProfit = bestCalculatedTotal - totalBaseCost - totalTaxes;
+  const profitMarginPercent = totalBaseCost > 0 ? (netProfit / totalBaseCost) * 100 : 0;
+
+  return {
+    targetTotal: Number(targetTotal.toFixed(2)),
+    calculatedTotal: Number(bestCalculatedTotal.toFixed(2)),
+    difference: Number((bestCalculatedTotal - targetTotal).toFixed(2)),
+    suggestedMarkupPercent: bestMarkup,
+    netProfit: Number(netProfit.toFixed(2)),
+    profitMarginPercent: Number(profitMarginPercent.toFixed(1)),
+    isHealthyMargin: profitMarginPercent >= 14,
+    itemsCount: baseItems.length
   };
 }
 
