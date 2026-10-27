@@ -256,7 +256,7 @@ export async function fetchQuotesFromSupabase(
           if (rawImg && rawImg.startsWith('data:') && rawImg.length > 70000) return '';
           const finalImg = rawImg || findProductImageInCache(row.name, row.part_number) || '';
           if (finalImg) {
-            saveProductImageToCache({ name: row.name, partNumber: row.part_number }, finalImg);
+            saveProductImageToCache({ name: row.name, partNumber: row.part_number }, finalImg, true);
           }
           return finalImg;
         })(),
@@ -860,7 +860,7 @@ export async function fetchProductsFromSupabase(options?: { forceFull?: boolean 
         const rawImg = p.image_url || '';
         const finalImg = rawImg || findProductImageInCache(p.name, p.part_number, p.sku) || '';
         if (finalImg) {
-          saveProductImageToCache({ name: p.name, partNumber: p.part_number, sku: p.sku }, finalImg);
+          saveProductImageToCache({ name: p.name, partNumber: p.part_number, sku: p.sku }, finalImg, true);
         }
         return finalImg;
       })(),

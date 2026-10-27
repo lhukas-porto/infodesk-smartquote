@@ -292,6 +292,15 @@ export const getCurrentDraftQuote = (): Quote | null => {
         }
 
         if (Array.isArray(parsed.items)) {
+          parsed.items = parsed.items.map((it: QuoteItem) => {
+            if (it && (!it.imageUrl || !it.imageUrl.trim()) && (it.name || it.partNumber)) {
+              const cachedImg = findProductImageInCache(it.name, it.partNumber);
+              if (cachedImg) {
+                return { ...it, imageUrl: cachedImg };
+              }
+            }
+            return it;
+          });
           if (!parsed.openingText || parsed.openingText.trim() === 'Em atenção...' || parsed.openingText.trim() === 'Em atenção' || parsed.openingText.trim().startsWith('Em atenção ao que foi solicitado')) {
             parsed.openingText = defaultCompanySettings.defaultOpeningText;
           }
@@ -339,6 +348,15 @@ export const saveCurrentDraftQuote = (quote: Quote | null): void => {
     ? sanitizeDraftQuote(quote)
     : quote;
 
+  // Garante que fotos recém-adicionadas nos itens do rascunho já sejam salvas no cache de imagens
+  if (Array.isArray(quoteToSave.items)) {
+    quoteToSave.items.forEach(item => {
+      if (item && item.imageUrl && item.imageUrl.trim()) {
+        saveProductImageToCache({ name: item.name, partNumber: item.partNumber }, item.imageUrl.trim(), false);
+      }
+    });
+  }
+
   const serialized = JSON.stringify(quoteToSave);
 
   try {
@@ -349,17 +367,17 @@ export const saveCurrentDraftQuote = (quote: Quote | null): void => {
     try {
       localStorage.setItem(CURRENT_DRAFT_QUOTE_KEY, serialized);
     } catch (retryErr) {
-      // Fallback resiliente: salva versão preservando todos os dados comerciais e removendo apenas imagens base64 pesadas (>5KB)
+      // Fallback resiliente: salva versão preservando todos os dados comerciais e removendo apenas imagens base64 muito pesadas (>90KB)
       try {
         const lightweightQuote: Quote = {
           ...quote,
           items: (quote.items || []).map(item => {
             if (item.imageUrl && item.imageUrl.trim()) {
-              saveProductImageToCache({ name: item.name, partNumber: item.partNumber }, item.imageUrl.trim());
+              saveProductImageToCache({ name: item.name, partNumber: item.partNumber }, item.imageUrl.trim(), false);
             }
             return {
               ...item,
-              imageUrl: (item.imageUrl && item.imageUrl.startsWith('data:') && item.imageUrl.length > 35000) ? '' : item.imageUrl
+              imageUrl: (item.imageUrl && item.imageUrl.startsWith('data:') && item.imageUrl.length > 90000) ? '' : item.imageUrl
             };
           })
         };
@@ -391,11 +409,11 @@ export const saveQuoteItemsBackup = (key: string, items: QuoteItem[]): void => {
     const cleanKey = key.trim().replace(/\s+/g, '_').toUpperCase();
     const cleanItems = items.map(it => {
       if (it.imageUrl && it.imageUrl.trim()) {
-        saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim());
+        saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim(), true);
       }
       return {
         ...it,
-        imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:') && it.imageUrl.length > 35000) ? '' : it.imageUrl
+        imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:') && it.imageUrl.length > 90000) ? '' : it.imageUrl
       };
     });
     localStorage.setItem(`infodesk_backup_items_${cleanKey}`, JSON.stringify(cleanItems));
@@ -412,7 +430,15 @@ export const getQuoteItemsBackup = (key: string): QuoteItem[] | null => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.map((it: QuoteItem) => {
+          if (it && (!it.imageUrl || !it.imageUrl.trim()) && (it.name || it.partNumber)) {
+            const cachedImg = findProductImageInCache(it.name, it.partNumber);
+            if (cachedImg) {
+              return { ...it, imageUrl: cachedImg };
+            }
+          }
+          return it;
+        });
       }
     }
   } catch (e) {
@@ -606,55 +632,62 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
       const existing = result[existingIdx];
       const pTime = p.lastUpdated ? new Date(p.lastUpdated).getTime() : 0;
       const exTime = existing.lastUpdated ? new Date(existing.lastUpdated).getTime() : 0;
-      const isPNewer = pTime >= exTime;
+      // Quando os timestamps são iguais ou ausentes, 'existing' (que veio primeiro na lista, ex: recém-salvo no topo) vence!
+      const isPNewer = pTime > exTime;
+      const winner = isPNewer ? p : existing;
+      const loser = isPNewer ? existing : p;
 
-      const chosenCategory = (isPNewer && p.category)
-        ? normalizeToOfficialCategory(p.category)
-        : (existing.category ? normalizeToOfficialCategory(existing.category) : normalizeToOfficialCategory(p.category || 'Diversos & Sazonais'));
+      const chosenCategory = winner.category
+        ? normalizeToOfficialCategory(winner.category)
+        : normalizeToOfficialCategory(loser.category || 'Diversos & Sazonais');
 
-      const chosenLastUpdated = (isPNewer && p.lastUpdated)
-        ? p.lastUpdated
-        : (existing.lastUpdated || p.lastUpdated || new Date().toISOString());
-
+      const chosenLastUpdated = winner.lastUpdated || loser.lastUpdated || new Date().toISOString();
       const chosenCreatedAt = existing.createdAt || p.createdAt || existing.lastUpdated || p.lastUpdated || new Date().toISOString();
 
+      const chosenImageUrl = (winner.imageUrl && winner.imageUrl.trim())
+        ? winner.imageUrl.trim()
+        : (loser.imageUrl && loser.imageUrl.trim())
+        ? loser.imageUrl.trim()
+        : (findProductImageInCache(winner.name, winner.partNumber, winner.sku) || '');
+
       result[existingIdx] = {
-        ...existing,
-        ...p,
-        name: (isPNewer && p.name ? p.name : (p.name || existing.name || '')).trim(),
-        description: (p.description !== undefined && p.description !== null && p.description.trim() !== '') 
-          ? p.description.trim() 
-          : (existing.description || ''),
-        partNumber: (p.partNumber !== undefined && p.partNumber !== null && p.partNumber.trim() !== '')
-          ? p.partNumber.trim()
-          : (existing.partNumber || ''),
-        sku: (p.sku !== undefined && p.sku !== null && p.sku.trim() !== '')
-          ? p.sku.trim()
-          : (existing.sku || ''),
-        ncm: (p.ncm !== undefined && p.ncm !== null && p.ncm.trim() !== '')
-          ? p.ncm.trim()
-          : (existing.ncm || ''),
-        imageUrl: ((p.imageUrl && p.imageUrl.trim())
-          ? p.imageUrl.trim()
-          : (existing.imageUrl && existing.imageUrl.trim())
-          ? existing.imageUrl.trim()
-          : (findProductImageInCache(p.name, p.partNumber, p.sku) || '')),
-        sourceUrl: (p.sourceUrl !== undefined && p.sourceUrl !== null && p.sourceUrl.trim() !== '')
-          ? p.sourceUrl.trim()
-          : (existing.sourceUrl || ''),
-        supplier: (p.supplier !== undefined && p.supplier !== null && p.supplier.trim() !== '')
-          ? p.supplier.trim()
-          : (existing.supplier || ''),
+        ...loser,
+        ...winner,
+        id: existing.id || p.id,
+        name: (winner.name && winner.name.trim() ? winner.name : (loser.name || '')).trim(),
+        description: (winner.description !== undefined && winner.description !== null && winner.description.trim() !== '')
+          ? winner.description.trim()
+          : (loser.description || ''),
+        partNumber: (winner.partNumber !== undefined && winner.partNumber !== null && winner.partNumber.trim() !== '')
+          ? winner.partNumber.trim()
+          : (loser.partNumber || ''),
+        sku: (winner.sku !== undefined && winner.sku !== null && winner.sku.trim() !== '')
+          ? winner.sku.trim()
+          : (loser.sku || ''),
+        ncm: (winner.ncm !== undefined && winner.ncm !== null && winner.ncm.trim() !== '')
+          ? winner.ncm.trim()
+          : (loser.ncm || ''),
+        imageUrl: chosenImageUrl,
+        sourceUrl: (winner.sourceUrl !== undefined && winner.sourceUrl !== null && winner.sourceUrl.trim() !== '')
+          ? winner.sourceUrl.trim()
+          : (loser.sourceUrl || ''),
+        supplier: (winner.supplier !== undefined && winner.supplier !== null && winner.supplier.trim() !== '')
+          ? winner.supplier.trim()
+          : (loser.supplier || ''),
         category: chosenCategory,
-        costPrice: Number(p.costPrice) > 0 ? Number(p.costPrice) : (Number(existing.costPrice) || 0),
-        unit: p.unit || existing.unit || 'Un.',
-        stock: p.stock !== undefined ? Number(p.stock) : (existing.stock ?? 10),
+        costPrice: Number(winner.costPrice) > 0 ? Number(winner.costPrice) : (Number(loser.costPrice) || 0),
+        unit: winner.unit || loser.unit || 'Un.',
+        stock: winner.stock !== undefined ? Number(winner.stock) : (loser.stock ?? 10),
         createdAt: chosenCreatedAt,
         lastUpdated: chosenLastUpdated
       };
 
       if (result[existingIdx].imageUrl) {
-        saveProductImageToCache({ name: p.name, partNumber: p.partNumber, sku: p.sku }, result[existingIdx].imageUrl!);
+        saveProductImageToCache(
+          { name: result[existingIdx].name, partNumber: result[existingIdx].partNumber, sku: result[existingIdx].sku },
+          result[existingIdx].imageUrl!,
+          true
+        );
       }
       continue;
     }
@@ -669,7 +702,7 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
       : (findProductImageInCache(p.name, p.partNumber, p.sku) || '');
 
     if (resolvedInitialImg) {
-      saveProductImageToCache({ name: p.name, partNumber: p.partNumber, sku: p.sku }, resolvedInitialImg);
+      saveProductImageToCache({ name: p.name, partNumber: p.partNumber, sku: p.sku }, resolvedInitialImg, true);
     }
 
     result.push({
@@ -686,7 +719,7 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
 /**
  * Realiza a mesclagem bidirecional inteligente entre produtos remotos (Supabase)
  * e o cache local (localStorage), garantindo que modificações feitas localmente
- * (como troca de categoria, preços ou dados) NUNCA sejam sobrescritas por um dado remoto mais antigo.
+ * (como troca de categoria, maiúsculas/minúsculas, fotos, preços ou dados) NUNCA sejam sobrescritas por um dado remoto mais antigo.
  */
 export const mergeRemoteProductsWithLocal = (remote: Product[], local: Product[]): Product[] => {
   if (!remote || !Array.isArray(remote) || remote.length === 0) return local || [];
@@ -724,7 +757,7 @@ export const mergeRemoteProductsWithLocal = (remote: Product[], local: Product[]
         ? rp.imageUrl.trim()
         : (findProductImageInCache(rp.name, rp.partNumber, rp.sku) || '');
       if (fallbackImg) {
-        saveProductImageToCache({ name: rp.name, partNumber: rp.partNumber, sku: rp.sku }, fallbackImg);
+        saveProductImageToCache({ name: rp.name, partNumber: rp.partNumber, sku: rp.sku }, fallbackImg, true);
         return { ...rp, imageUrl: fallbackImg };
       }
       return rp;
@@ -732,31 +765,39 @@ export const mergeRemoteProductsWithLocal = (remote: Product[], local: Product[]
 
     const localTime = localMatch.lastUpdated ? new Date(localMatch.lastUpdated).getTime() : 0;
     const remoteTime = rp.lastUpdated ? new Date(rp.lastUpdated).getTime() : 0;
+    const isLocalNewer = (localTime + 5000) >= remoteTime;
 
-    // PRESERVAÇÃO ABSOLUTA DE FOTOS:
-    // Se a versão local ou cache possui imagem e a versão remota não possui, NUNCA sobrescreve com vazio!
-    const effectiveImageUrl = (localMatch.imageUrl && localMatch.imageUrl.trim())
-      ? localMatch.imageUrl.trim()
-      : (rp.imageUrl && rp.imageUrl.trim())
-      ? rp.imageUrl.trim()
-      : (findProductImageInCache(rp.name, rp.partNumber, rp.sku) || '');
+    // PRESERVAÇÃO ABSOLUTA DE FOTOS E DADOS MAIS RECENTES:
+    const effectiveImageUrl = isLocalNewer
+      ? ((localMatch.imageUrl && localMatch.imageUrl.trim())
+          ? localMatch.imageUrl.trim()
+          : (rp.imageUrl && rp.imageUrl.trim())
+          ? rp.imageUrl.trim()
+          : (findProductImageInCache(localMatch.name, localMatch.partNumber, localMatch.sku) || ''))
+      : ((rp.imageUrl && rp.imageUrl.trim())
+          ? rp.imageUrl.trim()
+          : (localMatch.imageUrl && localMatch.imageUrl.trim())
+          ? localMatch.imageUrl.trim()
+          : (findProductImageInCache(rp.name, rp.partNumber, rp.sku) || ''));
 
     if (effectiveImageUrl) {
-      saveProductImageToCache({ name: rp.name, partNumber: rp.partNumber, sku: rp.sku }, effectiveImageUrl);
+      saveProductImageToCache({ name: localMatch.name || rp.name, partNumber: localMatch.partNumber || rp.partNumber, sku: localMatch.sku || rp.sku }, effectiveImageUrl, true);
     }
 
     // Se o produto local for mais recente (ou tiver sido modificado recentemente), preserva a versão local!
-    if (localTime > remoteTime) {
+    if (isLocalNewer) {
       return {
         ...rp,
         ...localMatch,
+        name: localMatch.name || rp.name,
         imageUrl: effectiveImageUrl,
         category: localMatch.category ? normalizeToOfficialCategory(localMatch.category) : normalizeToOfficialCategory(rp.category),
-        lastUpdated: localMatch.lastUpdated
+        lastUpdated: localMatch.lastUpdated || rp.lastUpdated
       };
     }
 
     return {
+      ...localMatch,
       ...rp,
       imageUrl: effectiveImageUrl,
       category: rp.category ? normalizeToOfficialCategory(rp.category) : (localMatch.category ? normalizeToOfficialCategory(localMatch.category) : 'Diversos & Sazonais')
@@ -1050,11 +1091,26 @@ export const getQuotes = (): Quote[] => {
         const cleaned = parsed
           .filter(q => !isQuoteDeleted(q))
           .map(q => {
-            if (doesQuoteNeedDraftSanitization(q)) {
+            let nextQ = q;
+            if (doesQuoteNeedDraftSanitization(nextQ)) {
               hasFixedAny = true;
-              return sanitizeDraftQuote(q);
+              nextQ = sanitizeDraftQuote(nextQ);
             }
-            return q;
+            if (Array.isArray(nextQ.items)) {
+              nextQ = {
+                ...nextQ,
+                items: nextQ.items.map((it: QuoteItem) => {
+                  if (it && (!it.imageUrl || !it.imageUrl.trim()) && (it.name || it.partNumber)) {
+                    const cachedImg = findProductImageInCache(it.name, it.partNumber);
+                    if (cachedImg) {
+                      return { ...it, imageUrl: cachedImg };
+                    }
+                  }
+                  return it;
+                })
+              };
+            }
+            return nextQ;
           });
         if (hasFixedAny) {
           saveQuotes(cleaned);
@@ -1092,7 +1148,8 @@ export const saveQuotes = (quotes: Quote[]): void => {
         ccEmails: safeEmailString(q.ccEmails),
         items: (q.items || []).map(it => {
           if (it.imageUrl && it.imageUrl.trim()) {
-            saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim());
+            // Usa onlyIfMissing=true para que orçamentos antigos no final da lista nunca sobrescrevam fotos novas no cache!
+            saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim(), true);
           }
           return {
             ...it,
@@ -2445,7 +2502,8 @@ export const getProductImageCache = (): Record<string, string> => {
 
 export const saveProductImageToCache = (
   identifier: { name?: string; partNumber?: string; sku?: string },
-  imageUrl: string
+  imageUrl: string,
+  onlyIfMissing: boolean = false
 ): void => {
   if (!imageUrl || (!identifier.name && !identifier.partNumber && !identifier.sku)) return;
   const cleanUrl = imageUrl.trim();
@@ -2459,7 +2517,7 @@ export const saveProductImageToCache = (
     // 1. Chave por Part Number
     if (identifier.partNumber && identifier.partNumber.trim()) {
       const pnKey = `pn:${identifier.partNumber.trim().toLowerCase()}`;
-      if (cache[pnKey] !== cleanUrl) {
+      if ((!onlyIfMissing || !cache[pnKey]) && cache[pnKey] !== cleanUrl) {
         cache[pnKey] = cleanUrl;
         hasChanges = true;
       }
@@ -2468,7 +2526,7 @@ export const saveProductImageToCache = (
     // 2. Chave por SKU
     if (identifier.sku && identifier.sku.trim()) {
       const skuKey = `sku:${identifier.sku.trim().toLowerCase()}`;
-      if (cache[skuKey] !== cleanUrl) {
+      if ((!onlyIfMissing || !cache[skuKey]) && cache[skuKey] !== cleanUrl) {
         cache[skuKey] = cleanUrl;
         hasChanges = true;
       }
@@ -2479,7 +2537,7 @@ export const saveProductImageToCache = (
       const normName = normalizeSearchText(identifier.name);
       if (normName && normName.length >= 3) {
         const nameKey = `name:${normName}`;
-        if (cache[nameKey] !== cleanUrl) {
+        if ((!onlyIfMissing || !cache[nameKey]) && cache[nameKey] !== cleanUrl) {
           cache[nameKey] = cleanUrl;
           hasChanges = true;
         }
@@ -2561,7 +2619,8 @@ let hasRecoveredImagesThisSession = false;
  * Resgate Ativo de Fotos de Orçamentos:
  * Vasculha propostas salvas, rascunhos em tela e backups para recuperar fotos coladas
  * de prints que porventura não tenham chegado ao catálogo geral.
- * Otimizado para executar apenas 1 vez por sessão da aba para economizar memória e I/O.
+ * Otimizado para executar apenas 1 vez por sessão da aba para economizar memória e I/O,
+ * usando onlyIfMissing=true para NUNCA sobrescrever uma foto nova com foto de orçamento antigo.
  */
 export const recoverProductImagesFromQuotes = (force: boolean = false): number => {
   if (hasRecoveredImagesThisSession && !force) return 0;
@@ -2569,31 +2628,31 @@ export const recoverProductImagesFromQuotes = (force: boolean = false): number =
 
   let recoveredCount = 0;
   try {
-    // 1. Rascunho atual de tela
+    // 1. Rascunho atual de tela (mais recente: prioridade máxima)
     const draft = getCurrentDraftQuote();
     if (draft && Array.isArray(draft.items)) {
       draft.items.forEach(it => {
         if (it.imageUrl && it.imageUrl.trim() && (it.name || it.partNumber)) {
-          saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim());
+          saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim(), true);
           recoveredCount++;
         }
       });
     }
 
-    // 2. Cotações salvas no histórico
+    // 2. Cotações salvas no histórico (apenas preenche se ainda não houver foto no cache)
     const quotes = getQuotes();
     if (Array.isArray(quotes)) {
       quotes.forEach(q => {
         (q.items || []).forEach(it => {
           if (it.imageUrl && it.imageUrl.trim() && (it.name || it.partNumber)) {
-            saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim());
+            saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim(), true);
             recoveredCount++;
           }
         });
       });
     }
 
-    // 3. Backups locais de itens de propostas
+    // 3. Backups locais de itens de propostas (apenas preenche se ainda não houver foto no cache)
     if (typeof localStorage !== 'undefined') {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
@@ -2605,7 +2664,7 @@ export const recoverProductImagesFromQuotes = (force: boolean = false): number =
               if (Array.isArray(items)) {
                 items.forEach((it: any) => {
                   if (it && it.imageUrl && it.imageUrl.trim() && (it.name || it.partNumber)) {
-                    saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim());
+                    saveProductImageToCache({ name: it.name, partNumber: it.partNumber }, it.imageUrl.trim(), true);
                     recoveredCount++;
                   }
                 });

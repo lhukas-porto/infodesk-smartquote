@@ -715,7 +715,15 @@ export const App: React.FC = () => {
               if (isConfirmedSent && (rq.status === 'draft' || !rq.status)) {
                 rq = { ...rq, status: 'sent', sentAt: rq.sentAt || rq.createdAt || undefined };
               }
-              const localMatch = prevQuotes.find(lq => isSameQuote(lq, rq));
+              const isBeingEditedNow = Boolean(
+                currentQuoteRef.current &&
+                isSameQuote(currentQuoteRef.current, rq) &&
+                Array.isArray(currentQuoteRef.current.items) &&
+                currentQuoteRef.current.items.length > 0
+              );
+              const localMatch = isBeingEditedNow
+                ? currentQuoteRef.current
+                : prevQuotes.find(lq => isSameQuote(lq, rq));
               const isValidRealItems = (itList?: QuoteItem[] | null): boolean => {
                 return areLegitimateQuoteItems(itList);
               };
@@ -727,13 +735,14 @@ export const App: React.FC = () => {
               const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
               const remoteTime = remoteUpdatedAt ? new Date(remoteUpdatedAt).getTime() : 0;
 
-              // Versão local é autoritativa se for mais recente (com 5s de tolerância contra drift de relógio de servidor),
+              // Versão local é autoritativa se estiver sendo editada agora, se for mais recente (com 5s de tolerância),
               // ou se o local já tiver avançado além de draft enquanto o remoto ainda está em draft
               const isLocalAuthoritative = Boolean(
-                localMatch && (
+                isBeingEditedNow ||
+                (localMatch && (
                   (localTime + 5000) >= remoteTime ||
                   (localMatch.status && localMatch.status !== 'draft' && rq.status === 'draft')
-                )
+                ))
               );
 
               let items = (isLocalAuthoritative && isValidRealItems(localMatch?.items))
@@ -832,8 +841,17 @@ export const App: React.FC = () => {
                   ? (locIt?.quotedSupplier ?? purchaseRecord?.quotedSupplier ?? remIt.quotedSupplier ?? (isPurchased && effectiveSupplier !== remIt.supplier ? remIt.supplier : undefined))
                   : undefined;
 
+                const resolvedItemImage = (isLocalAuthoritative && locIt?.imageUrl && locIt.imageUrl.trim())
+                  ? locIt.imageUrl
+                  : ((remIt.imageUrl && remIt.imageUrl.trim())
+                      ? remIt.imageUrl
+                      : (locIt?.imageUrl || findProductImageInCache(remIt.name, remIt.partNumber) || ''));
+
                 return {
                   ...remIt,
+                  name: (isLocalAuthoritative && locIt?.name) ? locIt.name : remIt.name,
+                  imageUrl: resolvedItemImage,
+                  showImage: Boolean(resolvedItemImage),
                   purchaseStatus,
                   approved,
                   approvedQuantity: isParentQuoteApproved ? (remIt.approvedQuantity !== undefined ? remIt.approvedQuantity : locIt?.approvedQuantity) : undefined,
@@ -905,13 +923,26 @@ export const App: React.FC = () => {
           });
 
           setCurrentQuote(prev => {
-            const draft = getCurrentDraftQuote();
-            // Apenas restaura rascunho ativo se ele possuir itens reais e não for teste
+            // BLINDAGEM TOTAL DA COTAÇÃO ATIVA EM EDIÇÃO:
+            // Se `prev` já possui itens na memória, NUNCA sobrescreve `prev` com `draft` do localStorage,
+            // pois o usuário pode ter acabado de editar maiúsculas/minúsculas ou colado uma foto!
             let chosen: Quote = prev;
-            if (draft && Array.isArray(draft.items) && draft.items.length > 0 && !isQuoteDeleted(draft)) {
-              chosen = draft;
-            } else if (isQuoteDeleted(prev) && validRemoteQuotes[0]) {
-              chosen = validRemoteQuotes[0];
+            if (Array.isArray(prev.items) && prev.items.length > 0 && !isQuoteDeleted(prev)) {
+              chosen = {
+                ...prev,
+                items: prev.items.map(it => {
+                  if (it.imageUrl && it.imageUrl.trim()) return it;
+                  const cachedImg = findProductImageInCache(it.name, it.partNumber);
+                  return cachedImg ? { ...it, imageUrl: cachedImg, showImage: true } : it;
+                })
+              };
+            } else {
+              const draft = getCurrentDraftQuote();
+              if (draft && Array.isArray(draft.items) && draft.items.length > 0 && !isQuoteDeleted(draft)) {
+                chosen = draft;
+              } else if (isQuoteDeleted(prev) && validRemoteQuotes[0]) {
+                chosen = validRemoteQuotes[0];
+              }
             }
             if (!chosen.openingText || chosen.openingText.trim() === 'Em atenção...' || chosen.openingText.trim() === 'Em atenção') {
               chosen = {
@@ -1014,25 +1045,6 @@ export const App: React.FC = () => {
     }
 
     hydrateFromSupabase();
-
-    // Sincronização automática entre computadores (ex: Casa -> Escritório):
-    // Quando o usuário volta para a aba/janela em outro computador após > 60s, busca apenas os deltas no Supabase sem precisar de F5
-    let lastFocusHydrateMs = Date.now();
-    const handleCrossDeviceFocusSync = () => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      const now = Date.now();
-      if (now - lastFocusHydrateMs > 60000) {
-        lastFocusHydrateMs = now;
-        hydrateFromSupabase();
-      }
-    };
-
-    window.addEventListener('focus', handleCrossDeviceFocusSync);
-    document.addEventListener('visibilitychange', handleCrossDeviceFocusSync);
-    return () => {
-      window.removeEventListener('focus', handleCrossDeviceFocusSync);
-      document.removeEventListener('visibilitychange', handleCrossDeviceFocusSync);
-    };
   }, [authenticatedUserEmail]);
 
   // Atualizador Inteligente de Nova Versão (Deploy na Vercel -> Refresh Único Automático)
@@ -1748,7 +1760,8 @@ export const App: React.FC = () => {
       if (resolvedImg) {
         saveProductImageToCache(
           { name: p.name, partNumber: p.partNumber, sku: p.sku },
-          resolvedImg
+          resolvedImg,
+          false
         );
       }
 
@@ -2576,18 +2589,42 @@ export const App: React.FC = () => {
         const qty = updatedData.quantity || current.quantity || 1;
         const totalPrice = Number((unitPrice * qty).toFixed(2));
 
+        // Preserva o nome (incluindo maiúsculas/minúsculas já editadas no orçamento) e a foto já adicionada pelo usuário!
+        const preservedName = (current.name && current.name.trim()) ? current.name : (updatedData.name || '');
+        const preservedImage = (current.imageUrl && current.imageUrl.trim())
+          ? current.imageUrl
+          : (updatedData.imageUrl || findProductImageInCache(preservedName, current.partNumber || updatedData.partNumber) || '');
+
+        if (preservedImage) {
+          saveProductImageToCache(
+            { name: preservedName, partNumber: current.partNumber || updatedData.partNumber },
+            preservedImage,
+            false
+          );
+        }
+
         updatedItems[idx] = {
           ...current,
           ...updatedData,
+          name: preservedName,
+          imageUrl: preservedImage,
+          showImage: Boolean(preservedImage),
           costPrice,
           markupPercent: markup,
           unitPrice,
           totalPrice
         };
       }
+      const totals = recalculateQuoteTotals(updatedItems, {
+        globalShipping: prev.globalShipping ?? settings.defaultShippingCost ?? 0,
+        globalMarkup: prev.globalMarkupPercent ?? settings.defaultMarkupPercent ?? 23.5,
+        globalTax: prev.globalTaxPercent ?? settings.defaultTaxPercent ?? 9.1
+      });
       return {
         ...prev,
-        items: updatedItems
+        items: updatedItems,
+        ...totals,
+        updatedAt: new Date().toISOString()
       };
     });
   }, [settings.defaultShippingCost, settings.defaultMarkupPercent, settings.defaultTaxPercent]);

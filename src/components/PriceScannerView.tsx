@@ -1293,7 +1293,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
       return {
         productId: existingInCatalog ? existingInCatalog.id : undefined,
-        name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
+        name: (prod.standardizedName && prod.standardizedName.trim()) ? prod.standardizedName : (existingInCatalog ? existingInCatalog.name : ''),
         description: existingInCatalog?.description || fullDesc || prod.description || '',
         partNumber: existingInCatalog?.partNumber || cleanAlphanumericCode(prod.partNumber || ''),
         ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
@@ -1385,7 +1385,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
       return {
         productId: existingInCatalog ? existingInCatalog.id : undefined,
-        name: existingInCatalog ? existingInCatalog.name : item.standardizedName,
+        name: (item.standardizedName && item.standardizedName.trim()) ? item.standardizedName : (existingInCatalog ? existingInCatalog.name : ''),
         description: existingInCatalog?.description || fullDesc || item.description || '',
         partNumber: existingInCatalog?.partNumber || resolvedBatchCode.partNumber,
         ncm: existingInCatalog?.ncm || cleanNcmCode(item.ncm || ''),
@@ -1453,7 +1453,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     const itemData: Partial<QuoteItem> = {
       productId: existingInCatalog ? existingInCatalog.id : undefined,
-      name: existingInCatalog ? existingInCatalog.name : item.standardizedName,
+      name: (item.standardizedName && item.standardizedName.trim()) ? item.standardizedName : (existingInCatalog ? existingInCatalog.name : ''),
       description: existingInCatalog?.description || fullDesc || item.description || '',
       partNumber: existingInCatalog?.partNumber || resolvedSingleCode.partNumber,
       ncm: existingInCatalog?.ncm || cleanNcmCode(item.ncm || ''),

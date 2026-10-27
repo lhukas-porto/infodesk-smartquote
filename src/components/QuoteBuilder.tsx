@@ -586,26 +586,28 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     });
 
     if (hasMismatch) {
-      const fixedItems = currentQuote.items.map(it => {
-        const expectedTotal = Number(((it.unitPrice || 0) * (it.quantity || 1)).toFixed(2));
-        let markup = it.markupPercent;
-        if (it.costPrice > 0 && it.unitPrice > 0) {
-          const sCost = it.shippingCost ?? globalShipping;
-          const tRate = it.taxPercent ?? globalTax;
-          markup = calculateMarkupFromUnitPrice(it.unitPrice, it.costPrice, sCost, tRate);
-        }
+      setCurrentQuote(prev => {
+        const fixedItems = (prev.items || []).map(it => {
+          const expectedTotal = Number(((it.unitPrice || 0) * (it.quantity || 1)).toFixed(2));
+          let markup = it.markupPercent;
+          if (it.costPrice > 0 && it.unitPrice > 0) {
+            const sCost = it.shippingCost ?? globalShipping;
+            const tRate = it.taxPercent ?? globalTax;
+            markup = calculateMarkupFromUnitPrice(it.unitPrice, it.costPrice, sCost, tRate);
+          }
+          return {
+            ...it,
+            markupPercent: markup !== undefined ? markup : globalMarkup,
+            totalPrice: expectedTotal
+          };
+        });
+        const totals = recalculateQuote(fixedItems);
         return {
-          ...it,
-          markupPercent: markup !== undefined ? markup : globalMarkup,
-          totalPrice: expectedTotal
+          ...prev,
+          items: fixedItems,
+          ...totals
         };
       });
-      const totals = recalculateQuote(fixedItems);
-      setCurrentQuote(prev => ({
-        ...prev,
-        items: fixedItems,
-        ...totals
-      }));
     }
   }, [currentQuote.items, globalShipping, globalTax, globalMarkup]);
 
@@ -698,6 +700,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       setCurrentQuote(prev => {
         const updatedItems = prev.items.map((item, idx) => {
           if ((targetId && item.id === targetId) || (!targetId && idx === targetIdx)) {
+            if (selectedUrl && selectedUrl.trim()) {
+              saveProductImageToCache(
+                { name: item.name, partNumber: item.partNumber },
+                selectedUrl.trim(),
+                false
+              );
+            }
             return {
               ...item,
               imageUrl: selectedUrl,
@@ -709,7 +718,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
         return {
           ...prev,
-          items: updatedItems
+          items: updatedItems,
+          updatedAt: new Date().toISOString()
         };
       });
     } else if (webImagePickerItem.type === 'catalog_review') {
@@ -1203,7 +1213,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       if (item.imageUrl && item.imageUrl.trim()) {
         saveProductImageToCache(
           { name: item.name, partNumber: item.partNumber },
-          item.imageUrl.trim()
+          item.imageUrl.trim(),
+          false
         );
       }
 
@@ -1213,7 +1224,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       return {
         ...prev,
         items: updatedItems,
-        ...totals
+        ...totals,
+        updatedAt: new Date().toISOString()
       };
     });
   };
@@ -1494,18 +1506,15 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   // Listener global de teclado (Ctrl+V) em qualquer lugar da tela (fase de captura)
   React.useEffect(() => {
     const handleGlobalPaste = async (e: ClipboardEvent) => {
+      // Se o modal da Ficha do Produto (ProductEditModal) estiver aberto, deixa o próprio modal processar o Ctrl+V
+      if (isCatalogModalOpen) return;
+
       const dataUrl = await extractImageFromClipboard(e.clipboardData);
       if (!dataUrl) return;
 
       // Se há imagem no print screen copiado:
       e.preventDefault();
       e.stopPropagation();
-
-      // 1. Se o modal do catálogo estiver aberto, cola nele
-      if (isCatalogModalOpen) {
-        setCatalogReviewProduct(prev => prev ? { ...prev, imageUrl: dataUrl } : null);
-        return;
-      }
 
       // 2. Se houver item ativo clicado recentemente
       if (activeImageUploadIndexRef.current !== null && activeImageUploadIndexRef.current !== undefined) {
@@ -1742,9 +1751,15 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         const unitPrice = calculateItemUnitPrice(cost, shipping, markup, tax);
         const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
 
+        const preservedImg = (item.imageUrl && item.imageUrl.trim())
+          ? item.imageUrl
+          : (up.imageUrl || '');
+
         return {
           ...item,
           ...up,
+          imageUrl: preservedImg,
+          showImage: Boolean(preservedImg),
           costPrice: cost,
           markupPercent: markup,
           unitPrice,
@@ -1756,7 +1771,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       return {
         ...prev,
         items: nextItems,
-        ...totals
+        ...totals,
+        updatedAt: new Date().toISOString()
       };
     });
   };
@@ -1945,7 +1961,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     if (enrichedProd.imageUrl && enrichedProd.imageUrl.trim()) {
       saveProductImageToCache(
         { name: enrichedProd.name, partNumber: enrichedProd.partNumber, sku: enrichedProd.sku },
-        enrichedProd.imageUrl.trim()
+        enrichedProd.imageUrl.trim(),
+        false
       );
     }
 
@@ -1989,7 +2006,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         setCurrentQuote(prev => ({
           ...prev,
           items: updatedItems,
-          ...totals
+          ...totals,
+          updatedAt: new Date().toISOString()
         }));
       }
 
@@ -2168,15 +2186,21 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const handleApplyCaseToQuoteItems = (style: WordCaseStyle) => {
     setActiveQuoteCaseStyle(style);
     setIsQuoteCaseMenuOpen(false);
+    setActiveItemAutocompleteId(null);
     const hasSelection = selectedItemIds.length > 0;
     setCurrentQuote(prev => ({
       ...prev,
+      updatedAt: new Date().toISOString(),
       items: prev.items.map(it => {
         // Se há seleção, aplica só nos selecionados; caso contrário, aplica em todos
         if (hasSelection && !selectedItemIds.includes(it.id)) return it;
+        const newName = applyTextCase(it.name, style);
+        if (it.imageUrl && it.imageUrl.trim()) {
+          saveProductImageToCache({ name: newName, partNumber: it.partNumber }, it.imageUrl.trim(), false);
+        }
         return { 
           ...it, 
-          name: applyTextCase(it.name, style),
+          name: newName,
           description: it.description ? applyTextCase(it.description, style) : it.description
         };
       })
@@ -2191,6 +2215,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     const item = currentQuote.items[idx];
     if (!item) return;
 
+    setActiveItemAutocompleteId(null);
     const textarea = itemNameTextareaRefs.current[itemId];
     const fullText = item.name || '';
 
@@ -2213,8 +2238,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
     handleItemChange(idx, 'name', newFullText);
 
-    // Restaura a seleção do trecho e devolve o foco no textarea
+    // Restaura a seleção do trecho e devolve o foco no textarea sem abrir o autocomplete
     setTimeout(() => {
+      setActiveItemAutocompleteId(null);
       if (textarea) {
         textarea.focus();
         textarea.setSelectionRange(start, start + transformedPart.length);
@@ -3879,9 +3905,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                               value={item.name}
                               onFocus={() => {
                                 activeImageUploadIndexRef.current = idx;
-                                if ((item.name || '').trim().length >= 2) {
-                                  setActiveItemAutocompleteId(item.id);
-                                }
                               }}
                               onChange={(e) => {
                                 const val = e.target.value;
