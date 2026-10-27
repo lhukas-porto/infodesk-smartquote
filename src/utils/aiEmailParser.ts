@@ -1685,46 +1685,8 @@ export function getCategoryFromNcm(ncmCode: string | undefined, fallbackCategory
   return fallbackCategory ? normalizeToOfficialCategory(fallbackCategory) : 'Diversos & Sazonais';
 }
 
-/**
- * Regra de arredondamento comercial solicitada por Lucas:
- * - Abaixo de R$ 10,00: preserva 2 casas decimais (centavos exatos) para evitar prejuízo em itens de baixo custo.
- * - A partir de R$ 10,00: se os centavos estiverem abaixo de 0,50 (ex: 59,20), arredonda para baixo (ex: 59,00);
- *   se estiverem iguais ou acima de 0,50 (ex: 59,50 ou 59,70), arredonda para cima (ex: 60,00).
- */
-export function applyCommercialPriceRounding(rawPrice: number): number {
-  if (rawPrice <= 0) return 0;
-  if (rawPrice < 10) {
-    return Number(rawPrice.toFixed(2));
-  }
-  return Math.round(rawPrice);
-}
-
-/**
- * Calcula o Preço de Venda garantindo que a porcentagem de Lucro Líquido
- * incida diretamente sobre o Custo Real dos produtos, e o Imposto incida sobre o Preço de Venda.
- *
- * Regra Lucas: centavos exatos para < R$ 10 e arredondamento comercial para >= R$ 10.
- */
-export function calculateCommercialUnitPrice(
-  costPrice: number,
-  shippingCost: number = 0,
-  profitMarginPercent: number = 23.5,
-  taxPercent: number = 9.1
-): number {
-  const baseCost = Number(costPrice || 0) + Number(shippingCost || 0);
-  if (baseCost <= 0) return 0;
-
-  const taxRate = Number(taxPercent || 0) / 100;
-  const marginRate = Number(profitMarginPercent || 0) / 100;
-  const netDivisor = 1 - taxRate;
-
-  // Evita divisão por zero se imposto >= 100%
-  const rawPrice = netDivisor <= 0.01
-    ? (baseCost * (1 + marginRate)) / 0.01
-    : (baseCost * (1 + marginRate)) / netDivisor;
-
-  return applyCommercialPriceRounding(rawPrice);
-}
+// Re-exporta as funções matemáticas oficiais de precificação como Single Source of Truth
+export { applyCommercialPriceRounding, calculateCommercialUnitPrice } from '../services/pricingEngine';
 
 export interface ProductCandidateListing {
   id: string;

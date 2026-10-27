@@ -1041,6 +1041,8 @@ export const App: React.FC = () => {
           saveEmails(remoteEmails, false);
         }
       } catch (err) {
+        console.error('[Supabase] Erro ao sincronizar dados iniciais:', err);
+        reportError('Falha ao Carregar Dados do Supabase', err, 'App - hydrateFromSupabase');
       }
     }
 
