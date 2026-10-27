@@ -14,7 +14,7 @@ import {
   updateDraftQuotesToToday 
 } from './utils/dateUtils';
 
-import { lazyWithRetry } from './utils/lazyWithRetry';
+import { lazyWithRetry, startAutoVersionWatcher } from './utils/lazyWithRetry';
 
 // Code-Splitting dinâmico com lazyWithRetry para tolerância contra atualizações de versão (deploys)
 const CatalogView = lazyWithRetry(() => import('./components/CatalogView').then(m => ({ default: m.CatalogView })));
@@ -680,8 +680,6 @@ export const App: React.FC = () => {
                 }
               }
             });
-            saveDirectPurchases(Array.from(map.values()), false);
-          } else if (localDirectPurchases.length > 0) {
             syncDirectPurchasesToSupabase(localDirectPurchases).catch(() => {});
           }
         } catch (err) {
@@ -1000,7 +998,6 @@ export const App: React.FC = () => {
           setClientCompanies(finalCompanies);
           saveClientCompanies(finalCompanies, false);
 
-          // Sincroniza de volta para o Supabase apenas se houver empresas 100% novas locais
           if (localOnlyCompanies.length > 0 || finalCompanies.some(c => c.website && !sanitizedRemote.find(rc => rc.id === c.id)?.website)) {
             syncClientCompaniesToSupabase(finalCompanies).catch(() => {});
           }
@@ -1013,12 +1010,43 @@ export const App: React.FC = () => {
           saveEmails(remoteEmails, false);
         }
       } catch (err) {
-        console.warn('Sincronização inicial com Supabase:', err);
       }
     }
 
     hydrateFromSupabase();
+
+    // Sincronização automática entre computadores (ex: Casa -> Escritório):
+    // Quando o usuário volta para a aba/janela em outro computador após > 60s, busca apenas os deltas no Supabase sem precisar de F5
+    let lastFocusHydrateMs = Date.now();
+    const handleCrossDeviceFocusSync = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const now = Date.now();
+      if (now - lastFocusHydrateMs > 60000) {
+        lastFocusHydrateMs = now;
+        hydrateFromSupabase();
+      }
+    };
+
+    window.addEventListener('focus', handleCrossDeviceFocusSync);
+    document.addEventListener('visibilitychange', handleCrossDeviceFocusSync);
+    return () => {
+      window.removeEventListener('focus', handleCrossDeviceFocusSync);
+      document.removeEventListener('visibilitychange', handleCrossDeviceFocusSync);
+    };
   }, [authenticatedUserEmail]);
+
+  // Atualizador Inteligente de Nova Versão (Deploy na Vercel -> Refresh Único Automático)
+  useEffect(() => {
+    const stopWatcher = startAutoVersionWatcher(() => {
+      if (currentQuoteRef.current) {
+        saveCurrentDraftQuote(currentQuoteRef.current);
+      }
+      if (quotesRef.current && quotesRef.current.length > 0) {
+        saveQuotes(quotesRef.current);
+      }
+    });
+    return () => stopWatcher();
+  }, []);
 
   // Manter estado de clientCompanies sincronizado quando houver alterações em qualquer componente
   useEffect(() => {

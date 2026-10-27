@@ -110,8 +110,38 @@ function geminiProxyPlugin(): Plugin {
   };
 }
 
+const APP_BUILD_ID = `sq-${Date.now()}`;
+
+function versionManifestPlugin(): Plugin {
+  const payload = JSON.stringify({
+    buildId: APP_BUILD_ID,
+    builtAt: new Date().toISOString()
+  });
+
+  return {
+    name: 'version-manifest-plugin',
+    configureServer(server) {
+      server.middlewares.use('/version.json', (_req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.end(payload);
+      });
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: payload
+      });
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), imageSearchPlugin(), googleShoppingPlugin(), geminiProxyPlugin()],
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(APP_BUILD_ID)
+  },
+  plugins: [react(), versionManifestPlugin(), imageSearchPlugin(), googleShoppingPlugin(), geminiProxyPlugin()],
   server: {
     port: 5173,
     host: true
