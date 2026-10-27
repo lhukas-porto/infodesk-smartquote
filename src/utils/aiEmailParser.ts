@@ -2313,31 +2313,70 @@ export function isExactProductUrl(url?: string): boolean {
   // 1. Rejeita mecanismos de busca e páginas de listagem/categoria (preserva links de produtos do Google Shopping / aclk)
   if ((lower.includes('google.com') || lower.includes('google.com.br')) && !lower.includes('/aclk') && !lower.includes('/shopping/product/')) return false;
   if (lower.includes('bing.com') || lower.includes('yahoo.com')) return false;
-  if (lower.includes('/busca') || lower.includes('/search') || lower.includes('search?') || lower.includes('query=') || lower.includes('#d[a:')) return false;
-  if (lower.includes('amazon.com.br/s') || lower.includes('amazon.com/s')) return false;
   if (lower.includes('lista.mercadolivre.com.br')) return false;
-  if (lower.includes('mercadolivre.com.br/c/') || lower.includes('mercadolivre.com.br/categorias')) return false;
 
   try {
     const parsed = new URL(clean);
     const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
     const pathname = parsed.pathname.trim();
+    const pathLower = pathname.toLowerCase();
+    const searchLower = (parsed.search || '').toLowerCase();
 
     // 2. Se não houver pathname ou for apenas "/", é a homepage da loja (ex: mercadolivre.com.br, kabum.com.br)
     if (!pathname || pathname === '/' || pathname === '') {
       return false;
     }
 
-    // 3. Validação rigorosa para Mercado Livre: deve ser rota oficial de anúncio
-    if (host.includes('mercadolivre')) {
-      const isMlbProduct = host.startsWith('produto.') || pathname.includes('/mlb-') || pathname.includes('/p/mlb') || /\bmlb[-\d]/i.test(pathname);
+    // Rejeita rotas explícitas de busca ou categoria no pathname (sem penalizar hashes de rastreio como #polycard_client=search-nordic ou #D[A:...])
+    if (
+      pathLower.startsWith('/busca') ||
+      pathLower.includes('/busca/') ||
+      pathLower === '/search' ||
+      pathLower.startsWith('/search/') ||
+      pathLower === '/s' ||
+      pathLower.startsWith('/s/') ||
+      pathLower.startsWith('/c/') ||
+      pathLower.startsWith('/categorias')
+    ) {
+      return false;
+    }
+
+    // Se não for rota de produto conhecida e tiver query típica de busca na loja
+    if ((searchLower.includes('?q=') || searchLower.includes('&q=') || searchLower.includes('query=') || searchLower.includes('busca=')) && !lower.includes('/aclk') && !lower.includes('/shopping/product/')) {
+      return false;
+    }
+
+    // 3. Validação para Mercado Livre: aceita todas as rotas reais de anúncio, catálogo (/p/MLB), user product (/up/MLBU), afiliados (/sec/, /social/) e links curtos (meli.la)
+    if (host.includes('mercadolivre') || host.includes('mercadolibre') || host === 'meli.la' || host.endsWith('.meli.la')) {
+      if (host === 'meli.la' || host.endsWith('.meli.la')) {
+        return pathname.length > 1;
+      }
+      const isMlbProduct =
+        host.startsWith('produto.') ||
+        host.startsWith('oferta.') ||
+        host.startsWith('click') ||
+        pathLower.includes('/mlb-') ||
+        pathLower.includes('/mlb') ||
+        pathLower.includes('/p/mlb') ||
+        pathLower.includes('/up/mlb') ||
+        pathLower.startsWith('/sec/') ||
+        pathLower.startsWith('/social/') ||
+        pathLower.includes('/jm/item') ||
+        /\bmlbu?[-\d]/i.test(pathname) ||
+        /\bmlbu?[-\d]/i.test(searchLower) ||
+        (pathLower.length > 4 &&
+          !pathLower.startsWith('/ofertas') &&
+          !pathLower.startsWith('/historico') &&
+          !pathLower.startsWith('/ajuda') &&
+          !pathLower.startsWith('/navigation'));
       if (!isMlbProduct) {
         return false;
       }
+      return true;
     }
 
     // 4. Para qualquer outro e-commerce, o caminho precisa ter profundidade de produto
-    if (pathname.length <= 4 || pathname === '/home' || pathname === '/index.html') {
+    if (pathname.length <= 4 || pathLower === '/home' || pathLower === '/index.html') {
       return false;
     }
 
@@ -2395,7 +2434,7 @@ export function extractStoreNameFromUrl(url?: string): string {
     if (hostname.includes('megaeletronicos')) return 'Mega Eletrônicos';
     if (hostname.includes('atacadogames')) return 'Atacado Games';
     if (hostname.includes('atacadocollections')) return 'Atacado Collections';
-    if (hostname.includes('mercadolivre') || hostname.includes('mercado-livre')) return 'Mercado Livre';
+    if (hostname.includes('mercadolivre') || hostname.includes('mercado-livre') || hostname.includes('mercadolibre') || hostname === 'meli.la' || hostname.endsWith('.meli.la')) return 'Mercado Livre';
     if (hostname.includes('kabum')) return 'KaBuM!';
     if (hostname.includes('amazon')) return 'Amazon';
     if (hostname.includes('magazineluiza') || hostname.includes('magalu')) return 'Magazine Luiza';
@@ -3799,8 +3838,11 @@ export function reconcileSupplierAndProductUrl(
 ): { supplier: string; sourceUrl: string; isSearchFallback: boolean } {
   let cleanSupplier = sanitizeSupplierName(supplier);
   let cleanUrl = (rawUrl || '').trim();
+  if (cleanUrl && !cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://') && /^[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(cleanUrl)) {
+    cleanUrl = `https://${cleanUrl}`;
+  }
 
-  // 1. Se veio URL válida, analisa se a loja coincide
+  // 1. Se veio URL exata de produto válida, analisa se a loja coincide
   if (cleanUrl && isExactProductUrl(cleanUrl)) {
     const storeFromUrl = extractStoreNameFromUrl(cleanUrl);
 
@@ -3822,14 +3864,26 @@ export function reconcileSupplierAndProductUrl(
     return { supplier: cleanSupplier, sourceUrl: storeSearchUrl, isSearchFallback: true };
   }
 
-  // 2. Se a URL não for exata ou estiver vazia, mas tivermos o fornecedor
+  // 2. Se a URL não for de produto exato (ex: link de busca/listagem da loja como lista.mercadolivre.com.br),
+  // mas ainda assim for uma URL válida consistente com a loja (ou se o fornecedor estava em branco)
+  if (cleanUrl) {
+    const storeFromUrl = extractStoreNameFromUrl(cleanUrl);
+    if (!cleanSupplier && storeFromUrl) {
+      cleanSupplier = storeFromUrl;
+    }
+    if (cleanSupplier && isUrlConsistentWithSupplier(cleanUrl, cleanSupplier)) {
+      return { supplier: cleanSupplier, sourceUrl: cleanUrl, isSearchFallback: true };
+    }
+  }
+
+  // 3. Se a URL estiver vazia ou inconsistente, mas tivermos o fornecedor
   if (cleanSupplier) {
     const storeSearchUrl = buildStoreSearchUrl(cleanSupplier, productName);
     return { supplier: cleanSupplier, sourceUrl: storeSearchUrl, isSearchFallback: true };
   }
 
-  // 3. Se nenhum dos dois estiver disponível
-  return { supplier: '', sourceUrl: '', isSearchFallback: false };
+  // 4. Se nenhum dos dois estiver disponível
+  return { supplier: '', sourceUrl: cleanUrl || '', isSearchFallback: false };
 }
 
 /**

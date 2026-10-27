@@ -460,22 +460,18 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     // Sincroniza imediatamente ao abrir a tela de catálogo
     autoSyncFromCloud();
 
-    // Sincroniza automaticamente quando a janela ganha foco (com limitação de no máximo 1x a cada 30s)
+    // Sincroniza quando a janela ganha foco (no máximo 1x a cada 10 minutos para economizar Egress e Log Ingestion do Supabase)
     const handleFocus = () => {
-      if (Date.now() - lastSyncTime > 30000) {
+      if (Date.now() - lastSyncTime > 600000) {
         lastSyncTime = Date.now();
         autoSyncFromCloud();
       }
     };
     window.addEventListener('focus', handleFocus);
 
-    // Mantém sincronização periódica a cada 60 segundos enquanto estiver na tela
-    const interval = setInterval(autoSyncFromCloud, 60000);
-
     return () => {
       isMounted = false;
       window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
     };
   }, [setProducts]);
 

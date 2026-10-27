@@ -83,6 +83,7 @@ import {
   getDeletedUnits,
   getDeletedPaymentMethods,
   isProductDeleted,
+  unrecordDeletedProduct,
   isBlockedOrTestQuote,
   isQuoteDeleted,
   getDeletedQuoteCodes,
@@ -679,7 +680,7 @@ export const App: React.FC = () => {
                 }
               }
             });
-            saveDirectPurchases(Array.from(map.values()));
+            saveDirectPurchases(Array.from(map.values()), false);
           } else if (localDirectPurchases.length > 0) {
             syncDirectPurchasesToSupabase(localDirectPurchases).catch(() => {});
           }
@@ -997,7 +998,7 @@ export const App: React.FC = () => {
           const finalCompanies = [...mergedCompanies, ...localOnlyCompanies];
 
           setClientCompanies(finalCompanies);
-          saveClientCompanies(finalCompanies);
+          saveClientCompanies(finalCompanies, false);
 
           // Sincroniza de volta para o Supabase apenas se houver empresas 100% novas locais
           if (localOnlyCompanies.length > 0 || finalCompanies.some(c => c.website && !sanitizedRemote.find(rc => rc.id === c.id)?.website)) {
@@ -1009,7 +1010,7 @@ export const App: React.FC = () => {
         const remoteEmails = await fetchIncomingEmailsFromSupabase();
         if (remoteEmails && remoteEmails.length > 0) {
           setEmails(remoteEmails);
-          saveEmails(remoteEmails);
+          saveEmails(remoteEmails, false);
         }
       } catch (err) {
         console.warn('Sincronização inicial com Supabase:', err);
@@ -1181,7 +1182,7 @@ export const App: React.FC = () => {
   }, [products]);
 
   useEffect(() => {
-    const t = setTimeout(() => saveEmails(emails), 400);
+    const t = setTimeout(() => saveEmails(emails, false), 400);
     return () => clearTimeout(t);
   }, [emails]);
 
@@ -1190,11 +1191,11 @@ export const App: React.FC = () => {
     return () => clearTimeout(t);
   }, [quotes]);
 
-  // Debounce suave de 400ms para salvar rascunho de tela e espelhar edições de cotações históricas em tempo real
+  // Debounce suave de 400ms para salvar rascunho de tela e espelhar edições de cotações salvas/históricas em tempo real
   useEffect(() => {
     const timer = setTimeout(() => {
       saveCurrentDraftQuote(currentQuote);
-      if (editingHistoricalQuoteIdRef.current && currentQuote && currentQuote.items && currentQuote.items.length > 0) {
+      if (currentQuote && currentQuote.items && currentQuote.items.length > 0) {
         if (currentQuote.code) saveQuoteItemsBackup(currentQuote.code, currentQuote.items);
         if (currentQuote.id) saveQuoteItemsBackup(currentQuote.id, currentQuote.items);
         setQuotes(prev => {
@@ -1218,7 +1219,7 @@ export const App: React.FC = () => {
       if (currentQuoteRef.current) {
         const cur = currentQuoteRef.current;
         saveCurrentDraftQuote(cur);
-        if (editingHistoricalQuoteIdRef.current && cur.items && cur.items.length > 0) {
+        if (cur.items && cur.items.length > 0) {
           if (cur.code) saveQuoteItemsBackup(cur.code, cur.items);
           if (cur.id) saveQuoteItemsBackup(cur.id, cur.items);
           const savedQuotes = getQuotes();
@@ -1688,7 +1689,12 @@ export const App: React.FC = () => {
   };
 
   const handleSaveProductToCatalog = async (p: Product) => {
-    let savedProduct = p;
+    const nowIso = new Date().toISOString();
+    let savedProduct: Product = {
+      ...p,
+      lastUpdated: nowIso
+    };
+
     setProducts(prev => {
       const normName = normalizeSearchText(p.name);
       const normPn = (p.partNumber || '').trim().toLowerCase();
@@ -1720,20 +1726,25 @@ export const App: React.FC = () => {
 
       let next: Product[];
       if (existingIdx >= 0) {
+        const existing = prev[existingIdx];
         savedProduct = { 
-          ...prev[existingIdx], 
+          ...existing, 
           ...p, 
-          id: prev[existingIdx].id,
-          sku: prev[existingIdx].sku || p.sku,
-          partNumber: prev[existingIdx].partNumber || p.partNumber,
-          imageUrl: resolvedImg
+          id: existing.id,
+          sku: (p.sku && p.sku.trim()) || existing.sku || '',
+          partNumber: (p.partNumber && p.partNumber.trim()) || existing.partNumber || '',
+          sourceUrl: p.sourceUrl !== undefined ? p.sourceUrl : (existing.sourceUrl || ''),
+          supplier: (p.supplier && p.supplier.trim()) || existing.supplier || '',
+          imageUrl: resolvedImg,
+          lastUpdated: nowIso
         };
         next = [...prev];
         next[existingIdx] = savedProduct;
       } else {
         savedProduct = {
           ...p,
-          imageUrl: resolvedImg
+          imageUrl: resolvedImg,
+          lastUpdated: nowIso
         };
         next = [savedProduct, ...prev];
       }
@@ -1741,6 +1752,8 @@ export const App: React.FC = () => {
       saveProducts(deduped);
       return deduped;
     });
+
+    unrecordDeletedProduct(savedProduct);
     await syncProductToSupabase(savedProduct);
   };
 

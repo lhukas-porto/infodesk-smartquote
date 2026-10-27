@@ -1846,13 +1846,26 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       : matchedCatalogProd?.category 
       ? normalizeToOfficialCategory(matchedCatalogProd.category)
       : getCategoryFromNcm(freshItem.ncm, 'Diversos & Sazonais');
-    const directInfo = buildDirectPurchaseUrl(freshItem.name, freshItem.sourceUrl);
+
+    const freshUrl = (freshItem.sourceUrl || '').trim();
+    const catalogUrl = (matchedCatalogProd?.sourceUrl || '').trim();
+    const isFreshGenericSearch = freshUrl.includes('google.com/search');
+    const preferredRawUrl = (freshUrl && (!isFreshGenericSearch || !catalogUrl)) ? freshUrl : catalogUrl;
+    const preferredSupplier =
+      sanitizeSupplierName(freshItem.supplier) ||
+      sanitizeSupplierName(matchedCatalogProd?.supplier) ||
+      extractStoreNameFromUrl(preferredRawUrl) ||
+      '';
+
+    const directInfo = buildDirectPurchaseUrl(freshItem.name, preferredRawUrl, preferredSupplier);
+    const resolvedSourceUrl = preferredRawUrl || directInfo.url || '';
+    const resolvedSupplier = sanitizeSupplierName(preferredSupplier || directInfo.store || extractStoreNameFromUrl(resolvedSourceUrl));
 
     const fallbackSpecs = buildCompleteProductDescription({
       description: (freshItem.description && freshItem.description.trim()) || (matchedCatalogProd?.description && matchedCatalogProd.description.trim()) || '',
       partNumber: freshItem.partNumber || matchedCatalogProd?.partNumber,
       ncm: freshItem.ncm || matchedCatalogProd?.ncm,
-      supplier: sanitizeSupplierName(freshItem.supplier || matchedCatalogProd?.supplier),
+      supplier: resolvedSupplier,
       category: initialCategory
     });
 
@@ -1876,10 +1889,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       category: initialCategory,
       costPrice: freshItem.costPrice || 0,
       unit: freshItem.unit || 'Un.',
-      supplier: sanitizeSupplierName(freshItem.supplier || directInfo.store),
+      supplier: resolvedSupplier,
       stock: matchedCatalogProd?.stock ?? 10,
       lastUpdated: new Date().toISOString(),
-      sourceUrl: directInfo.url,
+      sourceUrl: resolvedSourceUrl,
       imageUrl: resolvedImageUrl
     });
     setCatalogReviewCostInput(formatCurrencyPtBr(freshItem.costPrice || 0));
@@ -1892,41 +1905,62 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const handleSaveProductFromReviewModal = (finalProd: Product, shippingCost?: number) => {
     if (!finalProd || !finalProd.name) return;
 
+    let cleanSourceUrl = (finalProd.sourceUrl || '').trim();
+    if (
+      cleanSourceUrl &&
+      !cleanSourceUrl.startsWith('http://') &&
+      !cleanSourceUrl.startsWith('https://') &&
+      /^[a-z0-9-]+(\.[a-z0-9-]+)+/i.test(cleanSourceUrl)
+    ) {
+      cleanSourceUrl = `https://${cleanSourceUrl}`;
+    }
+
+    const resolvedSupplier =
+      sanitizeSupplierName(finalProd.supplier) ||
+      (cleanSourceUrl ? extractStoreNameFromUrl(cleanSourceUrl) : '') ||
+      '';
+
+    const enrichedProd: Product = {
+      ...finalProd,
+      supplier: resolvedSupplier || finalProd.supplier || 'Fornecedor Web / Mercado',
+      sourceUrl: cleanSourceUrl
+    };
+
     // Registra unidade e categoria para ficarem permanentemente disponíveis
-    if (finalProd.unit) {
-      saveRegisteredUnit(finalProd.unit);
+    if (enrichedProd.unit) {
+      saveRegisteredUnit(enrichedProd.unit);
       setRegisteredUnits(getRegisteredUnits());
     }
-    if (finalProd.category) {
-      saveRegisteredCategory(finalProd.category);
+    if (enrichedProd.category) {
+      saveRegisteredCategory(enrichedProd.category);
       setRegisteredCategories(getRegisteredCategories());
     }
 
     // APRENDIZADO CONTÍNUO (Diretriz do Lucas): Aprende o fornecedor vinculado à URL da loja
-    if (finalProd.sourceUrl && finalProd.supplier) {
-      learnSupplier(finalProd.sourceUrl, finalProd.supplier);
+    if (enrichedProd.sourceUrl && resolvedSupplier) {
+      learnSupplier(enrichedProd.sourceUrl, resolvedSupplier);
     }
 
     // Memoriza a imagem permanentemente no cache de fotos de produtos
-    if (finalProd.imageUrl && finalProd.imageUrl.trim()) {
+    if (enrichedProd.imageUrl && enrichedProd.imageUrl.trim()) {
       saveProductImageToCache(
-        { name: finalProd.name, partNumber: finalProd.partNumber, sku: finalProd.sku },
-        finalProd.imageUrl.trim()
+        { name: enrichedProd.name, partNumber: enrichedProd.partNumber, sku: enrichedProd.sku },
+        enrichedProd.imageUrl.trim()
       );
     }
 
     // 1. Salvar ou atualizar na base de produtos (catálogo geral e Supabase)
     if (onSaveToCatalog) {
-      onSaveToCatalog(finalProd);
+      onSaveToCatalog(enrichedProd);
     }
 
-    // 2. Salvar na proposta corrente (atualiza item com foto, valores, frete, descrição, etc.)
+    // 2. Salvar na proposta corrente (atualiza item com foto, valores, frete, descrição, link, fornecedor, etc.)
     if (targetQuoteItemId) {
       const itemIdx = currentQuote.items.findIndex(it => it.id === targetQuoteItemId);
       if (itemIdx >= 0) {
         const updatedItems = [...currentQuote.items];
         const currentItem = updatedItems[itemIdx];
-        const newCost = Number(finalProd.costPrice) || currentItem.costPrice;
+        const newCost = Number(enrichedProd.costPrice) || currentItem.costPrice;
         const newShipping = shippingCost !== undefined && !isNaN(shippingCost) ? shippingCost : (currentItem.shippingCost ?? globalShipping);
         const newMarkup = currentItem.markupPercent ?? globalMarkup;
         const newTax = currentItem.taxPercent ?? globalTax;
@@ -1934,19 +1968,19 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
         updatedItems[itemIdx] = {
           ...currentItem,
-          productId: finalProd.id,
-          category: finalProd.category,
-          name: finalProd.name,
-          description: finalProd.description,
-          imageUrl: finalProd.imageUrl,
-          showImage: Boolean(finalProd.imageUrl),
-          partNumber: finalProd.partNumber,
-          ncm: finalProd.ncm,
+          productId: enrichedProd.id,
+          category: enrichedProd.category,
+          name: enrichedProd.name,
+          description: enrichedProd.description,
+          imageUrl: enrichedProd.imageUrl,
+          showImage: Boolean(enrichedProd.imageUrl),
+          partNumber: enrichedProd.partNumber,
+          ncm: enrichedProd.ncm,
           costPrice: newCost,
           shippingCost: newShipping,
-          unit: finalProd.unit,
-          supplier: sanitizeSupplierName(finalProd.supplier),
-          sourceUrl: finalProd.sourceUrl,
+          unit: enrichedProd.unit,
+          supplier: resolvedSupplier,
+          sourceUrl: cleanSourceUrl,
           unitPrice: newUnitPrice,
           totalPrice: Number((newUnitPrice * currentItem.quantity).toFixed(2))
         };

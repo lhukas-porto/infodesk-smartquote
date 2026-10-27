@@ -133,18 +133,68 @@ function normalizeEmailListString(val: any): string | undefined {
   return undefined;
 }
 
-export async function fetchQuotesFromSupabase(limitCount: number = 500): Promise<Quote[] | null> {
+const LAST_QUOTES_SYNC_TS_KEY = 'infodesk_last_quotes_sync_ts';
+const LAST_PRODUCTS_SYNC_TS_KEY = 'infodesk_last_products_sync_ts';
+const DELTA_SYNC_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h: garante sync completo 1x ao dia e Delta Sync leve em todos os F5 do dia
+const DELTA_SAFETY_WINDOW_MS = 5 * 60 * 1000; // 5 minutos de margem contra drift de relógio
+
+function getLocalStoredList<T>(storageKey: string): T[] {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchQuotesFromSupabase(
+  limitCount: number = 500,
+  options?: { forceFull?: boolean }
+): Promise<Quote[] | null> {
   if (!supabase) return null;
   try {
-    const { data: quotesData, error: quotesError } = await supabase
+    const localQuotes = getLocalStoredList<Quote>('infodesk_quotes');
+    const lastSyncRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(LAST_QUOTES_SYNC_TS_KEY) : null;
+    const lastSyncMs = lastSyncRaw ? new Date(lastSyncRaw).getTime() : 0;
+    const nowMs = Date.now();
+    const canUseDelta =
+      !options?.forceFull &&
+      localQuotes.length >= 3 &&
+      lastSyncMs > 0 &&
+      (nowMs - lastSyncMs) < DELTA_SYNC_MAX_AGE_MS;
+
+    let query = supabase
       .from('quotes')
       .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limitCount);
+      .order('created_at', { ascending: false });
+
+    if (canUseDelta) {
+      const sinceIso = new Date(lastSyncMs - DELTA_SAFETY_WINDOW_MS).toISOString();
+      query = query.gte('updated_at', sinceIso).limit(100);
+    } else {
+      query = query.limit(limitCount);
+    }
+
+    const { data: quotesData, error: quotesError } = await query;
 
     if (quotesError || !quotesData) {
       console.warn('Erro ao carregar orçamentos do Supabase:', quotesError);
-      return null;
+      return canUseDelta ? localQuotes : null;
+    }
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(LAST_QUOTES_SYNC_TS_KEY, new Date(nowMs).toISOString());
+      }
+    } catch { /* ignore */ }
+
+    // Modo Econômico (Delta Sync): se nenhuma proposta foi alterada no banco desde o último F5,
+    // retorna imediatamente as propostas locais com ZERO download de quote_items (0 KB de Egress!)
+    if (canUseDelta && quotesData.length === 0) {
+      return localQuotes;
     }
 
     const quoteIds = quotesData.map((q: any) => q.id).filter(Boolean);
@@ -238,7 +288,7 @@ export async function fetchQuotesFromSupabase(limitCount: number = 500): Promise
       });
     });
 
-    return quotesData.map((q: any): Quote => {
+    const mappedQuotes: Quote[] = quotesData.map((q: any): Quote => {
       const quoteItems = (itemsByQuoteId[q.id] && itemsByQuoteId[q.id].length > 0)
         ? itemsByQuoteId[q.id]
         : [];
@@ -282,6 +332,33 @@ export async function fetchQuotesFromSupabase(limitCount: number = 500): Promise
         sentAt: q.sent_at || ((q.code && q.code.trim().toUpperCase() === 'CNC 210926-3') ? q.created_at || new Date().toISOString() : undefined)
       };
     });
+
+    if (canUseDelta) {
+      const deltaById = new Map<string, Quote>();
+      const deltaByCode = new Map<string, Quote>();
+      mappedQuotes.forEach(mq => {
+        if (mq.id) deltaById.set(mq.id, mq);
+        const normCode = normalizeQuoteCode(mq.code);
+        if (normCode) deltaByCode.set(normCode, mq);
+      });
+
+      const merged = localQuotes.map(lq => {
+        const normCode = normalizeQuoteCode(lq.code);
+        const match = (lq.id && deltaById.get(lq.id)) || (normCode && deltaByCode.get(normCode));
+        if (match) {
+          deltaById.delete(match.id);
+          const mCode = normalizeQuoteCode(match.code);
+          if (mCode) deltaByCode.delete(mCode);
+          return match;
+        }
+        return lq;
+      });
+
+      const brandNew = Array.from(deltaById.values());
+      return [...brandNew, ...merged];
+    }
+
+    return mappedQuotes;
   } catch (err) {
     console.warn('Erro ao consultar orçamentos no Supabase:', err);
     reportError('Falha ao Carregar Orçamentos do Supabase', err);
@@ -699,13 +776,42 @@ export async function deleteQuoteFromSupabase(code?: string, id?: string): Promi
 // ==============================================================================
 // 3. CATÁLOGO DE PRODUTOS (products)
 // ==============================================================================
-export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
+export async function fetchProductsFromSupabase(options?: { forceFull?: boolean }): Promise<Product[] | null> {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-    if (error || !data || data.length === 0) return null;
+    const localProducts = getLocalStoredList<Product>('infodesk_products');
+    const lastSyncRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(LAST_PRODUCTS_SYNC_TS_KEY) : null;
+    const lastSyncMs = lastSyncRaw ? new Date(lastSyncRaw).getTime() : 0;
+    const nowMs = Date.now();
+    const canUseDelta =
+      !options?.forceFull &&
+      localProducts.length >= 5 &&
+      lastSyncMs > 0 &&
+      (nowMs - lastSyncMs) < DELTA_SYNC_MAX_AGE_MS;
 
-    // Deduplicação inteligente e higienização automática do banco
+    let query = supabase.from('products').select('*').order('created_at', { ascending: false });
+    if (canUseDelta) {
+      const sinceIso = new Date(lastSyncMs - DELTA_SAFETY_WINDOW_MS).toISOString();
+      query = query.gte('updated_at', sinceIso);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) return canUseDelta ? localProducts : null;
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(LAST_PRODUCTS_SYNC_TS_KEY, new Date(nowMs).toISOString());
+      }
+    } catch { /* ignore */ }
+
+    // Modo Econômico (Delta Sync): se nenhum produto mudou no Supabase desde o último sync,
+    // retorna imediatamente o catálogo local sem trafegar megabytes de fotos Base64!
+    if (canUseDelta && data.length === 0) {
+      return localProducts;
+    }
+    if (data.length === 0) return null;
+
+    // Deduplicação inteligente
     const seenPns = new Set<string>();
     const seenNames = new Set<string>();
     const seenSkus = new Set<string>();
@@ -733,19 +839,12 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
       }
     }
 
-    // Expurgo automático em background das linhas duplicadas encontradas no Supabase
-    if (duplicateIdsToDelete.length > 0) {
-      console.log(`[SmartQuote] Saneando catálogo: removendo ${duplicateIdsToDelete.length} duplicatas do Supabase...`);
-      supabase.from('products').delete().in('id', duplicateIdsToDelete).then(({ error: delErr }) => {
-        if (delErr) {
-          console.warn('[SmartQuote] Aviso ao expurgar duplicatas de produtos:', delErr.message);
-        } else {
-          console.log(`[SmartQuote] Catálogo saneado: ${duplicateIdsToDelete.length} duplicatas removidas com sucesso.`);
-        }
-      });
+    // Expurgo automático em background das linhas duplicadas encontradas no Supabase (apenas em sync completo)
+    if (!canUseDelta && duplicateIdsToDelete.length > 0) {
+      supabase.from('products').delete().in('id', duplicateIdsToDelete).then(() => {});
     }
 
-    return uniqueRows.map((p: any) => ({
+    const mappedRemote: Product[] = uniqueRows.map((p: any) => ({
       id: p.id,
       sku: (p.sku && !p.sku.toLowerCase().startsWith('inf-auto-') && !p.sku.toLowerCase().startsWith('sku-auto-')) ? p.sku : (p.part_number || ''),
       partNumber: p.part_number || '',
@@ -768,6 +867,12 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
       sourceUrl: p.source_url || '',
       lastUpdated: p.updated_at
     }));
+
+    if (canUseDelta) {
+      return [...mappedRemote, ...localProducts];
+    }
+
+    return mappedRemote;
   } catch (err) {
     console.warn('Erro ao carregar produtos do Supabase:', err);
     return null;
@@ -805,21 +910,51 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
   };
 
   try {
-    // 1. Procura por ID direto se fornecido e for UUID válido
+    const updateExistingRow = async (targetId: string) => {
+      const { error } = await supabase!.from('products').update(payload).eq('id', targetId);
+      if (error) {
+        if (error.code === '23505') {
+          const { sku: _omitSku, ...payloadWithoutSku } = payload;
+          const { error: retryErr } = await supabase!.from('products').update(payloadWithoutSku).eq('id', targetId);
+          if (retryErr) {
+            reportError('Falha ao atualizar Ficha do Produto no banco', retryErr, `Produto: ${cleanName}`);
+          }
+        } else {
+          reportError('Falha ao atualizar Ficha do Produto no banco', error, `Produto: ${cleanName}`);
+        }
+      }
+    };
+
+    // 1. Otimização de Log Ingestion: se já possui UUID válido, atualiza diretamente em 1 única chamada (sem SELECT prévio!)
     if (product.id && isValidUuid(product.id)) {
-      const { data: byId } = await supabase.from('products').select('id').eq('id', product.id).limit(1);
-      if (byId && byId.length > 0) {
-        await supabase.from('products').update(payload).eq('id', product.id);
+      const { data: updatedById, error: errById } = await supabase
+        .from('products')
+        .update(payload)
+        .eq('id', product.id)
+        .select('id');
+
+      if (!errById && updatedById && updatedById.length > 0) {
         return;
+      }
+      if (errById && errById.code === '23505') {
+        const { sku: _omitSku, ...payloadWithoutSku } = payload;
+        const { data: retryData, error: retryErr } = await supabase
+          .from('products')
+          .update(payloadWithoutSku)
+          .eq('id', product.id)
+          .select('id');
+        if (!retryErr && retryData && retryData.length > 0) {
+          return;
+        }
       }
     }
 
-    // 2. Procura por Part Number se informado (ignora maiúsculas/minúsculas)
+    // 2. Procura registro existente por SKU, Part Number ou Nome em uma consulta enxuta
     if (rawPn && rawPn.length >= 3) {
-      const { data: byPn } = await supabase.from('products').select('id').ilike('part_number', rawPn);
+      const { data: byPn } = await supabase.from('products').select('id').ilike('part_number', rawPn).limit(5);
       if (byPn && byPn.length > 0) {
         const primaryId = byPn[0].id;
-        await supabase.from('products').update(payload).eq('id', primaryId);
+        await updateExistingRow(primaryId);
         if (byPn.length > 1) {
           const extraIds = byPn.slice(1).map(r => r.id);
           await supabase.from('products').delete().in('id', extraIds);
@@ -828,12 +963,11 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
       }
     }
 
-    // 3. Procura por SKU oficial/existente
     if (rawSku && rawSku.length >= 3) {
-      const { data: bySku } = await supabase.from('products').select('id').eq('sku', rawSku);
+      const { data: bySku } = await supabase.from('products').select('id').eq('sku', rawSku).limit(5);
       if (bySku && bySku.length > 0) {
         const primaryId = bySku[0].id;
-        await supabase.from('products').update(payload).eq('id', primaryId);
+        await updateExistingRow(primaryId);
         if (bySku.length > 1) {
           const extraIds = bySku.slice(1).map(r => r.id);
           await supabase.from('products').delete().in('id', extraIds);
@@ -842,11 +976,10 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
       }
     }
 
-    // 4. Procura por Nome idêntico/similar
-    const { data: byName } = await supabase.from('products').select('id').ilike('name', cleanName);
+    const { data: byName } = await supabase.from('products').select('id').ilike('name', cleanName).limit(5);
     if (byName && byName.length > 0) {
       const primaryId = byName[0].id;
-      await supabase.from('products').update(payload).eq('id', primaryId);
+      await updateExistingRow(primaryId);
       if (byName.length > 1) {
         const extraIds = byName.slice(1).map(r => r.id);
         await supabase.from('products').delete().in('id', extraIds);
@@ -854,10 +987,21 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
       return;
     }
 
-    // 5. Se não existe, insere como novo produto
-    await supabase.from('products').insert(payload);
+    // 3. Se não existe, insere como novo produto
+    const { error: insertError } = await supabase.from('products').insert(payload);
+    if (insertError) {
+      if (insertError.code === '23505') {
+        const fallbackSku = `${sku}-${Date.now().toString().slice(-4)}`;
+        const { error: retryInsertErr } = await supabase.from('products').insert({ ...payload, sku: fallbackSku });
+        if (retryInsertErr) {
+          reportError('Falha ao inserir produto no catálogo (Supabase)', retryInsertErr, `Produto: ${cleanName}`);
+        }
+      } else {
+        reportError('Falha ao inserir produto no catálogo (Supabase)', insertError, `Produto: ${cleanName}`);
+      }
+    }
   } catch (err) {
-    console.warn('Erro ao sincronizar produto no Supabase:', err);
+    reportError('Erro inesperado ao sincronizar produto no banco', err, `Produto: ${cleanName}`);
   }
 }
 
@@ -871,6 +1015,7 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
 
     // Deduplica rigorosamente a lista antes de sincronizar
     for (const p of products) {
+      if (!p || !p.name) continue;
       let sku = (p.sku || p.partNumber || '').trim();
       if (!sku) {
         const safeNameHash = (p.name || 'PROD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase();
@@ -886,8 +1031,28 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
     const validProducts = Array.from(seenMap.values());
     if (validProducts.length === 0) return;
 
-    for (const p of validProducts) {
-      await syncProductToSupabase(p);
+    // Otimização de Log Ingestion e Performance: Upsert em lotes de 50 (1 chamada HTTP por lote em vez de centenas!)
+    const nowIso = new Date().toISOString();
+    const payloads = validProducts.map(p => ({
+      sku: p.sku,
+      part_number: (p.partNumber || '').trim() || null,
+      ncm: p.ncm || null,
+      name: p.name.trim(),
+      description: p.description || '',
+      category: normalizeToOfficialCategory(p.category || 'Informática, Hardware & Periféricos'),
+      cost_price: Number(p.costPrice) || 0,
+      unit: p.unit || 'Un.',
+      supplier: p.supplier || null,
+      stock: p.stock ?? 0,
+      image_url: p.imageUrl || null,
+      source_url: p.sourceUrl || null,
+      updated_at: nowIso
+    }));
+
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < payloads.length; i += BATCH_SIZE) {
+      const chunk = payloads.slice(i, i + BATCH_SIZE);
+      await supabase.from('products').upsert(chunk, { onConflict: 'sku' });
     }
   } catch (err) {
     console.warn('Erro ao sincronizar lote de produtos no Supabase:', err);
@@ -1146,8 +1311,9 @@ export async function fetchIncomingEmailsFromSupabase(): Promise<IncomingEmail[]
   try {
     const { data, error } = await supabase
       .from('incoming_emails')
-      .select('*')
-      .order('date', { ascending: false });
+      .select('id, thread_id, sender_name, sender_company, sender_email, sender_phone, subject, date, snippet, body, delivery_location, unread, status, suggested_items')
+      .order('date', { ascending: false })
+      .limit(50);
 
     if (error || !data || data.length === 0) return null;
 

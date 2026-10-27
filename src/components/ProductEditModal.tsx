@@ -369,6 +369,29 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const parsedShipping = parsePtBrNumber(shippingInput);
     const parsedDollar = parsePtBrNumber(dollarInput);
 
+    let normalizedSourceUrl = (draft.sourceUrl || '').trim();
+    if (
+      normalizedSourceUrl &&
+      !normalizedSourceUrl.startsWith('http://') &&
+      !normalizedSourceUrl.startsWith('https://') &&
+      /^[a-z0-9-]+(\.[a-z0-9-]+)+/i.test(normalizedSourceUrl)
+    ) {
+      normalizedSourceUrl = `https://${normalizedSourceUrl}`;
+    }
+
+    const detectedStoreFromUrl = normalizedSourceUrl ? extractStoreNameFromUrl(normalizedSourceUrl) : '';
+    const rawDraftSupplier = (draft.supplier || '').trim();
+    const isGenericSupplier =
+      !rawDraftSupplier ||
+      rawDraftSupplier.toLowerCase() === 'fornecedor web / mercado' ||
+      rawDraftSupplier.toLowerCase() === 'fornecedor local';
+
+    const resolvedSupplier =
+      (!isGenericSupplier ? rawDraftSupplier : '') ||
+      detectedStoreFromUrl ||
+      rawDraftSupplier ||
+      'Fornecedor Web / Mercado';
+
     const finalProd: Product = {
       id: draft.id || `prod-${Date.now()}`,
       sku: unifiedCode || draft.sku || '',
@@ -380,11 +403,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       costPrice: parsedCost,
       dollarPrice: parsedDollar > 0 ? parsedDollar : undefined,
       unit: draft.unit || 'Un.',
-      supplier: draft.supplier || 'Fornecedor Web / Mercado',
+      supplier: resolvedSupplier,
       stock: draft.stock !== undefined ? Number(draft.stock) : 10,
       createdAt: draft.createdAt || product?.createdAt || draft.lastUpdated || new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
-      sourceUrl: draft.sourceUrl || '',
+      sourceUrl: normalizedSourceUrl,
       imageUrl: draft.imageUrl || '',
       shippingCost: parsedShipping
     };
@@ -810,7 +833,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </label>
                 <div className="flex items-center gap-2">
                   <input
-                    type="url"
+                    type="text"
                     value={draft.sourceUrl || ''}
                     onChange={(e) => {
                       const newUrl = e.target.value;

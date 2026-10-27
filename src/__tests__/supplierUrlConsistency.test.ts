@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import {
+  isExactProductUrl,
   isUrlConsistentWithSupplier,
   buildStoreSearchUrl,
   reconcileSupplierAndProductUrl,
@@ -137,5 +138,36 @@ describe('Blindagem Universal de Fornecedor x URL (Tolerância Zero a 404 e Link
     assert.strictEqual(extractStoreNameFromUrl('https://www.lojasparaguai.com.br/item/456'), 'Lojas Paraguai');
     assert.strictEqual(extractStoreNameFromUrl('https://casanissei.com/br/eletronicos'), 'Casa Nissei');
     assert.strictEqual(extractStoreNameFromUrl('https://cellshop.com/br/smartphones'), 'Cellshop');
+  });
+
+  it('8. Mercado Livre: deve aceitar e preservar todos os formatos modernos de URL na Ficha do Produto', () => {
+    // 8.1 Novo formato User Product (/up/MLBU...) com maiúsculas e hash de busca
+    const mlbuUrl = 'https://www.mercadolivre.com.br/ssd-kingston-nv2-1tb-m2-2280-pcie-nvme/up/MLBU123456789#polycard_client=search-nordic&search_layout=stack';
+    assert.strictEqual(isExactProductUrl(mlbuUrl), true, 'Deve aprovar link /up/MLBU com hash #polycard_client=search-nordic');
+    const recMlbu = reconcileSupplierAndProductUrl('SSD Kingston NV2 1TB', '', mlbuUrl);
+    assert.strictEqual(recMlbu.supplier, 'Mercado Livre');
+    assert.strictEqual(recMlbu.sourceUrl, mlbuUrl);
+    assert.strictEqual(recMlbu.isSearchFallback, false);
+
+    // 8.2 Formato Catálogo (/p/MLB...) com letras maiúsculas e fragmento #D[A:...]
+    const mlbCatalogUrl = 'https://www.mercadolivre.com.br/switch-8-portas-gigabit-tp-link-ls1008g/p/MLB15584920#D[A:switch%20tp-link]';
+    assert.strictEqual(isExactProductUrl(mlbCatalogUrl), true, 'Deve aprovar link /p/MLB mesmo com #D[A:...] no hash');
+    const recCatalog = reconcileSupplierAndProductUrl('Switch 8 Portas TP-Link', 'Mercado Livre', mlbCatalogUrl);
+    assert.strictEqual(recCatalog.supplier, 'Mercado Livre');
+    assert.strictEqual(recCatalog.sourceUrl, mlbCatalogUrl);
+    assert.strictEqual(recCatalog.isSearchFallback, false);
+
+    // 8.3 Links de compartilhamento / afiliados (/sec/ e meli.la)
+    const secUrl = 'https://mercadolivre.com/sec/2xYz9Ab';
+    const meliLaUrl = 'https://meli.la/1a2b3c4';
+    assert.strictEqual(isExactProductUrl(secUrl), true, 'Deve aprovar link curto /sec/ do Mercado Livre');
+    assert.strictEqual(isExactProductUrl(meliLaUrl), true, 'Deve aprovar link curto meli.la do Mercado Livre');
+    assert.strictEqual(extractStoreNameFromUrl(meliLaUrl), 'Mercado Livre');
+
+    // 8.4 Link de lista do Mercado Livre colado manualmente não deve ser apagado quando fornecedor está vazio
+    const listaUrl = 'https://lista.mercadolivre.com.br/cabo-rede-furukawa-cat6';
+    const recLista = reconcileSupplierAndProductUrl('Cabo de Rede Furukawa Cat6', '', listaUrl);
+    assert.strictEqual(recLista.supplier, 'Mercado Livre');
+    assert.strictEqual(recLista.sourceUrl, listaUrl);
   });
 });

@@ -998,7 +998,7 @@ export const getEmails = (): IncomingEmail[] => {
   return initialEmails.map(sanitizeEmailObject);
 };
 
-export const saveEmails = (emails: IncomingEmail[]): void => {
+export const saveEmails = (emails: IncomingEmail[], syncToCloud: boolean = true): void => {
   if (!emails || !Array.isArray(emails)) return;
 
   try {
@@ -1032,10 +1032,12 @@ export const saveEmails = (emails: IncomingEmail[]): void => {
     console.error('Erro ao processar saveEmails:', err);
   }
 
-  // Cloud-First: Sincroniza imediatamente com o Supabase
-  syncIncomingEmailsToSupabase(emails).catch(err => {
-    console.warn('[Storage] Erro ao sincronizar e-mails no Supabase:', err);
-  });
+  // Cloud-First: Sincroniza com o Supabase apenas quando solicitado (evita re-upload no F5)
+  if (syncToCloud) {
+    syncIncomingEmailsToSupabase(emails).catch(err => {
+      console.warn('[Storage] Erro ao sincronizar e-mails no Supabase:', err);
+    });
+  }
 };
 
 export const getQuotes = (): Quote[] => {
@@ -1327,7 +1329,7 @@ export const getClientCompanies = (): ClientCompany[] => {
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 };
 
-export const saveClientCompanies = (companies: ClientCompany[]): void => {
+export const saveClientCompanies = (companies: ClientCompany[], syncToCloud: boolean = true): void => {
   try {
     const prefixMap = getCompanyPrefixesMap();
     companies.forEach(c => {
@@ -1371,7 +1373,9 @@ export const saveClientCompanies = (companies: ClientCompany[]): void => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('infodesk_companies_changed', { detail: normalized }));
     }
-    syncClientCompaniesToSupabase(normalized).catch(() => {});
+    if (syncToCloud) {
+      syncClientCompaniesToSupabase(normalized).catch(() => {});
+    }
   } catch (err) {
     console.warn('Erro ao salvar empresas no localStorage:', err);
   }
@@ -1912,7 +1916,7 @@ export const getDirectPurchases = (): import('../types').ProcurementItem[] => {
   return [];
 };
 
-export const saveDirectPurchases = (items: import('../types').ProcurementItem[]): void => {
+export const saveDirectPurchases = (items: import('../types').ProcurementItem[], syncToCloud: boolean = true): void => {
   try {
     localStorage.setItem(DIRECT_PURCHASES_KEY, JSON.stringify(items));
     if (typeof window !== 'undefined') {
@@ -1921,10 +1925,12 @@ export const saveDirectPurchases = (items: import('../types').ProcurementItem[])
   } catch (e) {
     console.warn('Erro ao salvar compras diretas:', e);
   }
-  // Sincroniza em nuvem no Supabase
-  syncDirectPurchasesToSupabase(items).catch(err => {
-    console.warn('[Storage] Erro ao sincronizar compras diretas com Supabase:', err);
-  });
+  // Sincroniza em nuvem no Supabase apenas quando solicitado
+  if (syncToCloud) {
+    syncDirectPurchasesToSupabase(items).catch(err => {
+      console.warn('[Storage] Erro ao sincronizar compras diretas com Supabase:', err);
+    });
+  }
 };
 
 const DELETED_DIRECT_PURCHASE_IDS_KEY = 'infodesk_deleted_direct_purchase_ids';
