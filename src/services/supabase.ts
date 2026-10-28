@@ -770,6 +770,7 @@ export async function deleteQuoteFromSupabase(code?: string, id?: string): Promi
     }
   } catch (err) {
     console.warn('Erro ao deletar orçamento no Supabase:', err);
+    reportError('Falha ao excluir orçamento do banco', err, `Quote: ${id || code}`);
   }
 }
 
@@ -1095,6 +1096,7 @@ export async function deleteProductFromSupabase(
     }
   } catch (err) {
     console.warn('Erro ao excluir produto no Supabase:', err);
+    reportError('Falha ao excluir produto do banco', err, `Produto: ${productIdOrSku}`);
   }
 }
 
@@ -1288,6 +1290,7 @@ export async function deleteCompanyFromSupabase(companyId: string): Promise<void
     await supabase.from('client_companies').delete().eq('id', companyId);
   } catch (err) {
     console.warn('Erro ao deletar empresa do Supabase:', err);
+    reportError('Falha ao excluir empresa do banco', err, `Empresa ID: ${companyId}`);
   }
 }
 
@@ -1300,6 +1303,7 @@ export async function deleteContactFromSupabase(contactId: string, companyId?: s
     }
   } catch (err) {
     console.warn('Erro ao deletar comprador do Supabase:', err);
+    reportError('Falha ao excluir comprador do banco', err, `Comprador ID: ${contactId}`);
   }
 }
 

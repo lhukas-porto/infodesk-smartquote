@@ -1,3 +1,4 @@
+import { reportError } from '../services/errorReporter';
 import React, { useRef, useState, useEffect } from 'react';
 import { 
   Printer, 
@@ -73,6 +74,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       await exportQuoteToWord(quote, settings);
     } catch (err) {
       console.error('Erro ao gerar proposta em Word:', err);
+      reportError('Falha ao gerar proposta em Word (.docx)', err, 'QuotePreview - handleDownloadDoc');
       alert('Não foi possível gerar o arquivo Word (.docx). Por favor, tente novamente.');
     } finally {
       setDownloadingDoc(false);
@@ -161,6 +163,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                 await exportCostSheetToExcel(quote);
               } catch (err) {
                 console.error('Erro ao exportar planilha Excel:', err);
+                reportError('Falha ao exportar planilha Excel (.xlsx)', err, 'QuotePreview - handleDownloadExcel');
               }
             }}
             className="flex items-center gap-1.5 px-3 py-2 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold transition shadow-2xs active:scale-95"

@@ -4201,10 +4201,11 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             : (item.shippingCost !== undefined && item.shippingCost > 0 ? formatCurrencyPtBr(item.shippingCost) : '0,00')
                         }
                         onFocus={() => {
-                          const shipVal = item.shippingCost ?? 0;
+                          const qty = Number(item.quantity) > 0 ? Number(item.quantity) : 1;
+                          const currentTotalFreight = (item.shippingCost ?? 0) * qty;
                           setEditingInputs(prev => ({
                             ...prev,
-                            [`${idx}-shippingCost`]: shipVal > 0 ? formatCurrencyPtBr(shipVal) : ''
+                            [`${idx}-shippingCost`]: currentTotalFreight > 0 ? formatCurrencyPtBr(currentTotalFreight) : ''
                           }));
                         }}
                         onChange={(e) => {
@@ -4231,9 +4232,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             (e.target as HTMLInputElement).blur();
                           }
                         }}
-                        title="Frete unitário deste item (R$)"
+                        title="Frete deste item (R$) - ao inserir o frete total, o sistema rateia automaticamente pela quantidade"
                         className="w-full h-8 min-w-[72px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-mono text-amber-700 font-semibold focus:outline-none focus:border-amber-500 focus:bg-white leading-none"
                       />
+                      {item.quantity > 1 && item.shippingCost !== undefined && item.shippingCost > 0 && (
+                        <div className="text-[9px] text-amber-600 font-semibold font-mono tracking-tight mt-0.5">
+                          total R$ {formatCurrencyPtBr(item.shippingCost * item.quantity)}
+                        </div>
+                      )}
                     </td>
 
                     {/* Margem Lucro */}

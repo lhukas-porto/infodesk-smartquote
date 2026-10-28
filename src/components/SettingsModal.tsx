@@ -1,3 +1,4 @@
+import { reportError } from '../services/errorReporter';
 import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
@@ -493,6 +494,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }, 800);
     } catch (err) {
       console.error('Erro ao salvar configurações:', err);
+      reportError('Falha ao salvar configurações', err, 'SettingsModal - handleSubmit');
     } finally {
       setIsSaving(false);
     }

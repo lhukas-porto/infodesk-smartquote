@@ -1,3 +1,4 @@
+import { reportError } from '../services/errorReporter';
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Package, 
@@ -387,6 +388,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       setTimeout(() => setImportStatus(null), 5000);
     } catch (err: any) {
       console.error('Erro ao exportar produtos para Conta Azul:', err);
+      reportError('Falha ao exportar produtos para Conta Azul', err, 'CatalogView - handleExportContaAzul');
       alert('Erro ao exportar produtos: ' + (err.message || 'Erro desconhecido'));
     } finally {
       setIsExportingContaAzul(false);

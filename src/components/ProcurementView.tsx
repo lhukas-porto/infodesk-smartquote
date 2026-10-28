@@ -1,3 +1,4 @@
+import { reportError } from '../services/errorReporter';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   ShoppingCart, 
@@ -2216,6 +2217,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
       exportPurchasesToExcel(filteredItems);
     } catch (err) {
       console.error('Erro ao exportar compras para Excel:', err);
+      reportError('Falha ao exportar compras para Excel', err, 'ProcurementView - handleExportExcel');
     }
   };
 
