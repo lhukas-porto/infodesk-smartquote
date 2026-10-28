@@ -1151,8 +1151,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       unitPrice,
       quantity: prod.quantity || 1,
       unit: prod.unit || existingInCatalog?.unit || 'Un.',
-      supplier: reconciled.supplier,
-      sourceUrl: reconciled.sourceUrl
+      supplier: '',
+      sourceUrl: ''
     };
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
@@ -1307,8 +1307,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         unitPrice,
         quantity: prod.quantity || 1,
         unit: prod.unit || existingInCatalog?.unit || 'Un.',
-        supplier: reconciled.supplier,
-        sourceUrl: reconciled.sourceUrl
+        supplier: '',
+        sourceUrl: ''
       };
     });
 
@@ -1398,8 +1398,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         unitPrice,
         quantity: item.quantity || 1,
         unit: item.unit || existingInCatalog?.unit || 'Un.',
-        supplier: reconciled.supplier,
-        sourceUrl: reconciled.sourceUrl
+        supplier: '',
+        sourceUrl: ''
       };
     });
 
@@ -1466,8 +1466,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       unitPrice,
       quantity: item.quantity || 1,
       unit: item.unit || existingInCatalog?.unit || 'Un.',
-      supplier: reconciled.supplier,
-      sourceUrl: reconciled.sourceUrl
+      supplier: '',
+      sourceUrl: ''
     };
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
@@ -1756,8 +1756,8 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                   description: catalogProd?.description || recentCachedPrice.name,
                   partNumber: recentCachedPrice.partNumber,
                   costPrice: recentCachedPrice.costPrice,
-                  supplier: recentCachedPrice.supplier,
-                  sourceUrl: recentCachedPrice.sourceUrl,
+                  supplier: '',
+                  sourceUrl: '',
                   quantity: 1
                 });
                 showToast('Preço do histórico adicionado à cotação!');

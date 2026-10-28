@@ -1866,16 +1866,11 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     const freshUrl = (freshItem.sourceUrl || '').trim();
     const catalogUrl = (matchedCatalogProd?.sourceUrl || '').trim();
     const isFreshGenericSearch = freshUrl.includes('google.com/search');
-    const preferredRawUrl = (freshUrl && (!isFreshGenericSearch || !catalogUrl)) ? freshUrl : catalogUrl;
-    const preferredSupplier =
-      sanitizeSupplierName(freshItem.supplier) ||
-      sanitizeSupplierName(matchedCatalogProd?.supplier) ||
-      extractStoreNameFromUrl(preferredRawUrl) ||
-      '';
-
-    const directInfo = buildDirectPurchaseUrl(freshItem.name, preferredRawUrl, preferredSupplier);
-    const resolvedSourceUrl = preferredRawUrl || directInfo.url || '';
-    const resolvedSupplier = sanitizeSupplierName(preferredSupplier || directInfo.store || extractStoreNameFromUrl(resolvedSourceUrl));
+    // Fornecedor e Link Direto de Compra ou Referência permanecem em branco se vierem do scanner ou não existirem
+    const resolvedSourceUrl = (freshUrl && !isFreshGenericSearch) ? freshUrl : (catalogUrl && !catalogUrl.includes('google.com/search') ? catalogUrl : '');
+    const resolvedSupplier = (freshItem.supplier && freshItem.supplier.trim())
+      ? sanitizeSupplierName(freshItem.supplier)
+      : (matchedCatalogProd?.supplier ? sanitizeSupplierName(matchedCatalogProd.supplier) : '');
 
     const fallbackSpecs = buildCompleteProductDescription({
       description: (freshItem.description && freshItem.description.trim()) || (matchedCatalogProd?.description && matchedCatalogProd.description.trim()) || '',
@@ -4220,7 +4215,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           const rawVal = editingInputs[`${idx}-shippingCost`];
                           if (rawVal !== undefined) {
                             const parsed = parsePtBrNumber(rawVal);
-                            handleItemChange(idx, 'shippingCost', parsed);
+                            const qty = Number(item.quantity) > 0 ? Number(item.quantity) : 1;
+                            const unitShipping = parsed > 0 ? Number((parsed / qty).toFixed(2)) : 0;
+                            handleItemChange(idx, 'shippingCost', unitShipping);
                             setEditingInputs(prev => {
                               const copy = { ...prev };
                               delete copy[`${idx}-shippingCost`];
@@ -4435,7 +4432,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       <td className="py-0 px-1"></td>
                       <td colSpan={9} className="pt-0 pb-2.5 px-2">
                         <div className="flex items-center flex-nowrap gap-2 pl-0.5 text-[10px] whitespace-nowrap overflow-x-auto no-scrollbar py-0.5">
-                          {/* ZONA 1: MÍDIA & FOTO */}
+                          {/* 1. Foto na proposta & Trocar Foto */}
                           <div className="flex items-center gap-1.5 shrink-0">
                             <label className="inline-flex items-center gap-1.5 text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg cursor-pointer select-none transition">
                               <input
@@ -4467,159 +4464,139 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           {/* Divisor vertical suave */}
                           <div className="h-4 w-px bg-slate-200 shrink-0 hidden sm:block" />
 
-                          {/* ZONA 2: INTELIGÊNCIA DE PREÇO & FORNECEDOR UNIFICADO */}
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          {/* 2. Alternador Aa (Maiúscula / Minúscula) */}
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleCycleItemTextCase(idx, item.id)}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-2 py-0.5 rounded-lg transition cursor-pointer shrink-0"
+                            title="Alternar maiúsculas/minúsculas da palavra sob o cursor, da seleção ou do nome completo"
+                          >
+                            <span className="font-serif font-bold text-[11px] tracking-tight text-sky-700">Aa</span>
+                          </button>
+
+                          {/* 3. Salvar/Revisar no Catálogo (Ficha) */}
+                          {onSaveToCatalog && (
                             <button
                               type="button"
-                              onClick={() => {
-                                if (onOpenWebSearch) {
-                                  onOpenWebSearch(item.name, idx, item);
-                                }
-                              }}
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg transition cursor-pointer shadow-2xs shrink-0"
-                              title={item.imageUrl ? "Pesquisar menor preço no Scanner IA usando a foto anexada como referência visual" : "Pesquisar menor preço no Scanner IA"}
+                              onClick={() => handleOpenCatalogReviewModal(item)}
+                              title="Cadastrar ou revisar foto, NCM, SKU e ficha técnica no Catálogo Geral"
+                              className={`text-[10px] font-semibold inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border transition cursor-pointer whitespace-nowrap shrink-0 ${savedCatalogIds[item.id]
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 text-slate-600 border-slate-200'
+                              }`}
                             >
-                              <Zap className="w-2.5 h-2.5 text-amber-600 fill-amber-500" />
-                              <span>{item.imageUrl ? 'Cotar com Foto (IA)' : 'Pesquisar Preço'}</span>
+                              {savedCatalogIds[item.id] ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span>Salvo</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Package className="w-3 h-3 text-slate-500" />
+                                  <span>Ficha</span>
+                                </>
+                              )}
                             </button>
+                          )}
 
-                            {/* Pílula Única Integrada de Fornecedor & Link de Compra */}
-                            {(() => {
-                              const reconciled = reconcileSupplierAndProductUrl(
-                                item.name,
-                                item.supplier,
-                                item.sourceUrl
-                              );
-                              const effectiveUrl = reconciled.sourceUrl || (
-                                item.supplier && item.supplier.trim() !== ''
-                                  ? buildStoreSearchUrl(item.supplier, item.rawSearchQuery || item.name)
-                                  : `https://www.google.com/search?q=${encodeURIComponent(item.rawSearchQuery || item.name)}&tbm=shop`
-                              );
-                              const hasExactLink = Boolean(reconciled.sourceUrl && !reconciled.isSearchFallback);
-                              const targetStore = item.supplier || (reconciled.supplier || '');
+                          {/* 4. Pílula Única Integrada de Fornecedor & Link de Compra */}
+                          {(() => {
+                            const reconciled = reconcileSupplierAndProductUrl(
+                              item.name,
+                              item.supplier,
+                              item.sourceUrl
+                            );
+                            const effectiveUrl = reconciled.sourceUrl || (
+                              item.supplier && item.supplier.trim() !== ''
+                                ? buildStoreSearchUrl(item.supplier, item.rawSearchQuery || item.name)
+                                : `https://www.google.com/search?q=${encodeURIComponent(item.rawSearchQuery || item.name)}&tbm=shop`
+                            );
+                            const hasExactLink = Boolean(reconciled.sourceUrl && !reconciled.isSearchFallback);
+                            const targetStore = item.supplier || (reconciled.supplier || '');
 
-                              if (targetStore && hasExactLink) {
-                                return (
-                                  <a
-                                    href={sanitizeExternalUrl(effectiveUrl)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => openInNewWindow(effectiveUrl, e)}
-                                    className="inline-flex items-center gap-1 text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
-                                    title={`Abrir link direto do produto em ${targetStore} em nova janela`}
-                                  >
-                                    <Building className="w-3 h-3 text-emerald-600" />
-                                    <span>{targetStore}</span>
-                                    <ExternalLink className="w-2.5 h-2.5 text-emerald-600" />
-                                  </a>
-                                );
-                              }
-
-                              if (targetStore) {
-                                return (
-                                  <a
-                                    href={sanitizeExternalUrl(effectiveUrl)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => openInNewWindow(effectiveUrl, e)}
-                                    className="inline-flex items-center gap-1 text-sky-800 hover:text-sky-950 bg-sky-50 hover:bg-sky-100 border border-sky-300 px-2 py-0.5 rounded-lg font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
-                                    title={`Buscar produto no site oficial de ${targetStore} em nova janela (sem risco de 404)`}
-                                  >
-                                    <Building className="w-3 h-3 text-sky-600" />
-                                    <span>{targetStore}</span>
-                                    <ExternalLink className="w-2.5 h-2.5 text-sky-600" />
-                                  </a>
-                                );
-                              }
-
+                            if (targetStore && hasExactLink) {
                               return (
                                 <a
                                   href={sanitizeExternalUrl(effectiveUrl)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => openInNewWindow(effectiveUrl, e)}
-                                  className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg font-medium transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
-                                  title="Produto sem link direto! Clique para buscar no Google Shopping em nova janela"
+                                  className="inline-flex items-center gap-1 text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+                                  title={`Abrir link direto do produto em ${targetStore} em nova janela`}
                                 >
-                                  <Search className="w-3 h-3 text-slate-500" />
-                                  <span>Buscar na Web</span>
+                                  <Building className="w-3 h-3 text-emerald-600" />
+                                  <span>{targetStore}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 text-emerald-600" />
                                 </a>
                               );
-                            })()}
-                          </div>
+                            }
+
+                            if (targetStore) {
+                              return (
+                                <a
+                                  href={sanitizeExternalUrl(effectiveUrl)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => openInNewWindow(effectiveUrl, e)}
+                                  className="inline-flex items-center gap-1 text-sky-800 hover:text-sky-950 bg-sky-50 hover:bg-sky-100 border border-sky-300 px-2 py-0.5 rounded-lg font-bold transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+                                  title={`Buscar produto no site oficial de ${targetStore} em nova janela (sem risco de 404)`}
+                                >
+                                  <Building className="w-3 h-3 text-sky-600" />
+                                  <span>{targetStore}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 text-sky-600" />
+                                </a>
+                              );
+                            }
+
+                            return (
+                              <a
+                                href={sanitizeExternalUrl(effectiveUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => openInNewWindow(effectiveUrl, e)}
+                                className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg font-medium transition text-[10px] whitespace-nowrap shrink-0 cursor-pointer"
+                                title="Produto sem link direto! Clique para buscar no Google Shopping em nova janela"
+                              >
+                                <Search className="w-3 h-3 text-slate-500" />
+                                <span>Buscar na Web</span>
+                              </a>
+                            );
+                          })()}
 
                           {/* Divisor vertical suave */}
                           <div className="h-4 w-px bg-slate-200 shrink-0 hidden sm:block" />
 
-                          {/* ZONA 3: AÇÕES E FORMATAÇÃO */}
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {/* Alternador Aa */}
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleCycleItemTextCase(idx, item.id)}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-2 py-0.5 rounded-lg transition cursor-pointer shrink-0"
-                              title="Alternar maiúsculas/minúsculas da palavra sob o cursor, da seleção ou do nome completo"
-                            >
-                              <span className="font-serif font-bold text-[11px] tracking-tight text-sky-700">Aa</span>
-                            </button>
+                          {/* 5. Toggle Opcional / Upgrade */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleOptionalItem(item.id)}
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer whitespace-nowrap shrink-0 ${
+                              item.isOptional
+                                ? 'bg-purple-100 text-purple-800 border-purple-300 shadow-2xs'
+                                : 'bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-purple-700 border-slate-200 hover:border-purple-200'
+                            }`}
+                            title={item.isOptional ? 'Item marcado como Opcional / Upgrade. Não soma no total principal da proposta.' : 'Marcar item como Opcional / Upgrade (destacado e separado sem inflar o total)'}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${item.isOptional ? 'bg-purple-600' : 'bg-slate-400'}`}></span>
+                            <span>{item.isOptional ? '✓ Opcional' : '+ Opcional'}</span>
+                          </button>
 
-                            {/* Toggle Opcional / Upgrade */}
-                            <button
-                              type="button"
-                              onClick={() => handleToggleOptionalItem(item.id)}
-                              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer whitespace-nowrap shrink-0 ${
-                                item.isOptional
-                                  ? 'bg-purple-100 text-purple-800 border-purple-300 shadow-2xs'
-                                  : 'bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-purple-700 border-slate-200 hover:border-purple-200'
-                              }`}
-                              title={item.isOptional ? 'Item marcado como Opcional / Upgrade. Não soma no total principal da proposta.' : 'Marcar item como Opcional / Upgrade (destacado e separado sem inflar o total)'}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full ${item.isOptional ? 'bg-purple-600' : 'bg-slate-400'}`}></span>
-                              <span>{item.isOptional ? '✓ Opcional' : '+ Opcional'}</span>
-                            </button>
-
-                            {/* Salvar/Revisar no Catálogo */}
-                            {onSaveToCatalog && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenCatalogReviewModal(item)}
-                                title="Cadastrar ou revisar foto, NCM, SKU e ficha técnica no Catálogo Geral"
-                                className={`text-[10px] font-semibold inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border transition cursor-pointer whitespace-nowrap shrink-0 ${savedCatalogIds[item.id]
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                  : 'bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 text-slate-600 border-slate-200'
-                                }`}
-                              >
-                                {savedCatalogIds[item.id] ? (
-                                  <>
-                                    <Check className="w-3 h-3 text-emerald-600" />
-                                    <span>Salvo</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Package className="w-3 h-3 text-slate-500" />
-                                    <span>Ficha</span>
-                                  </>
-                                )}
-                              </button>
-                            )}
-
-                            {/* WhatsApp */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const text = buildSingleItemWhatsAppText(item, idx);
-                                navigator.clipboard?.writeText(text);
-                                setCopiedItemRowId(item.id);
-                                setTimeout(() => setCopiedItemRowId(null), 2000);
-                              }}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg transition cursor-pointer whitespace-nowrap shrink-0"
-                              title="Copiar texto formatado deste item para WhatsApp"
-                            >
-                              <Share2 className="w-2.5 h-2.5 text-emerald-600" />
-                              <span>{copiedItemRowId === item.id ? '✓ Copiado!' : 'WhatsApp'}</span>
-                            </button>
-                          </div>
+                          {/* 6. WhatsApp */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const text = buildSingleItemWhatsAppText(item, idx);
+                              navigator.clipboard?.writeText(text);
+                              setCopiedItemRowId(item.id);
+                              setTimeout(() => setCopiedItemRowId(null), 2000);
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg transition cursor-pointer whitespace-nowrap shrink-0"
+                            title="Copiar texto formatado deste item para WhatsApp"
+                          >
+                            <Share2 className="w-2.5 h-2.5 text-emerald-600" />
+                            <span>{copiedItemRowId === item.id ? '✓ Copiado!' : 'WhatsApp'}</span>
+                          </button>
 
                           {/* Memória de Último Preço do Cliente */}
                           {(() => {

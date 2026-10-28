@@ -389,8 +389,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const resolvedSupplier =
       (!isGenericSupplier ? rawDraftSupplier : '') ||
       detectedStoreFromUrl ||
-      rawDraftSupplier ||
-      'Fornecedor Web / Mercado';
+      '';
 
     const finalProd: Product = {
       id: draft.id || `prod-${Date.now()}`,
@@ -819,7 +818,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         learnSupplier(draft.sourceUrl, val);
                       }
                     }}
-                    defaultValue="Fornecedor Web / Mercado"
                     textAlign="left"
                     inputClassName="h-10"
                   />
