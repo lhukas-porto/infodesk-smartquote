@@ -94,10 +94,10 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
  * gemini-3.6-flash e 3.5-flash atuam como fallbacks adicionais.
  */
 export const MODERN_GEMINI_MODELS = [
-  'gemini-3.1-flash-lite',
   'gemini-3.5-flash',
+  'gemini-3-flash-preview',
   'gemini-3.6-flash',
-  'gemini-3.8-flash'
+  'gemini-3.1-flash-lite'
 ];
 
 /**
@@ -158,9 +158,16 @@ export async function fetchGeminiWithTimeout(
       if (proxyRes.ok) {
         const data = await proxyRes.json().catch(() => null);
         if (data) return { ok: true, status: 200, data };
-      } else if (proxyRes.status === 429) {
-        console.warn('[Gemini Proxy] Rate limit 429 retornado.');
-        return { ok: false, status: 429, errorText: 'Quota exceeded for model', rateLimited: true };
+      } else {
+        const errJson = await proxyRes.json().catch(() => ({}));
+        const errMsg = errJson?.error?.message || errJson?.error || `Erro HTTP ${proxyRes.status}`;
+        console.warn(`[Gemini Proxy] Modelo ${model} retornou ${proxyRes.status}:`, errMsg);
+        return { 
+          ok: false, 
+          status: proxyRes.status, 
+          errorText: errMsg, 
+          rateLimited: proxyRes.status === 429 || proxyRes.status === 503 
+        };
       }
     } catch {
       // Se falhar a chamada do proxy (ex: offline), prossegue com fallback direto
