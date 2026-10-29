@@ -138,7 +138,8 @@ export async function executeConcurrentBatchScan(
           }
         }
 
-        if (cached && cached.costPrice > 0) {
+        // Verificação estrita de validade do cache: apenas preços RECENTES (isRecent === true) são aceitos diretamente
+        if (cached && cached.costPrice > 0 && cached.isRecent) {
           cachedCount++;
           foundCount++;
           completedCount++;
@@ -152,13 +153,16 @@ export async function executeConcurrentBatchScan(
             costPrice: cached.costPrice,
             supplier: cached.supplier || 'Histórico / Catálogo',
             buyUrl: cached.sourceUrl || '',
-            message: `Preço em cache: R$ ${cached.costPrice.toFixed(2)} (${cached.supplier || 'Catálogo'})`
+            message: `Preço recente: R$ ${cached.costPrice.toFixed(2)} (${cached.supplier || 'Catálogo'})`
           };
           results[targetIdx] = updated;
           onItemProgress?.(updated);
           notifyOverall(completedCount >= total);
           continue;
         }
+
+        // Se o preço em cache está vencido (ex: 2020), armazena como referência histórica mas OBRIGA a varredura web
+        const expiredHistorical = (cached && cached.costPrice > 0 && !cached.isRecent) ? cached : null;
 
         // 3. Camada 2: Varredura Web com IA e Google Search Grounding
         if (abortSignal?.aborted) break;
@@ -190,6 +194,23 @@ export async function executeConcurrentBatchScan(
             imageUrl: scanResult.imageUrl,
             ncm: scanResult.ncm,
             message: `R$ ${scanResult.bestPrice.toFixed(2)} (${scanResult.store || 'Web'})`
+          };
+          results[targetIdx] = updated;
+          onItemProgress?.(updated);
+        } else if (expiredHistorical) {
+          // Se não encontrou preço recente na web, utiliza o histórico antigo mas com aviso explícito de validade
+          foundCount++;
+          completedCount++;
+          const updated: BatchItemProgress = {
+            id: item.id,
+            itemNumber: item.itemNumber,
+            name: item.name,
+            status: 'cached',
+            isCached: false,
+            costPrice: expiredHistorical.costPrice,
+            supplier: `${expiredHistorical.supplier || 'Histórico'} (Preço Vencido: ${expiredHistorical.daysAgo} dias)`,
+            buyUrl: expiredHistorical.sourceUrl || '',
+            message: `Preço histórico vencido (${expiredHistorical.daysAgo} dias): R$ ${expiredHistorical.costPrice.toFixed(2)}`
           };
           results[targetIdx] = updated;
           onItemProgress?.(updated);

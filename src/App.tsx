@@ -1193,7 +1193,7 @@ export const App: React.FC = () => {
           });
 
           syncQuoteToSupabase(qToPersist).catch(err => {
-            console.warn('Aviso sync ao sair do editor:', err);
+            reportError('Erro ao Sincronizar Proposta ao Sair do Editor', err, 'App - syncQuoteToSupabase');
           });
         }
 
@@ -2725,8 +2725,8 @@ export const App: React.FC = () => {
           saveCurrentDraftQuote(updated);
         }
         syncQuoteToSupabase(updated).catch(err => {
-          console.warn('Aviso sync status:', err);
-          notifySync(`Status de "${updated.code}" salvo no navegador. Sincronização com o banco será retomada ao restabelecer a conexão.`);
+          reportError('Falha ao Sincronizar Status da Proposta no Banco', err, 'App - syncQuoteToSupabase');
+          notifySync(`Status de "${updated.code}" salvo no navegador. Sincronização com o banco falhou.`);
         });
       }
       return next;
@@ -2780,7 +2780,7 @@ export const App: React.FC = () => {
     });
 
     syncQuoteToSupabase(updated).catch(err => {
-      console.warn('Aviso sync status pelo builder:', err);
+      reportError('Falha ao Sincronizar Status da Proposta', err, 'App - syncQuoteToSupabase');
     });
   }, [currentQuote]);
 
@@ -2794,8 +2794,8 @@ export const App: React.FC = () => {
       const next = prev.map(q => isSameQuote(q, quoteToPersist) ? quoteToPersist : q);
       saveQuotes(next);
       syncQuoteToSupabase(quoteToPersist).catch(err => {
-        console.warn('Aviso sync quote aprovado:', err);
-        notifySync(`Aprovação de "${quoteToPersist.code}" salva localmente. Sincronização na nuvem pendente.`);
+        reportError('Falha ao Sincronizar Proposta Aprovada no Banco', err, 'App - syncQuoteToSupabase');
+        notifySync(`Aprovação de "${quoteToPersist.code}" salva localmente. Sincronização com o banco falhou.`);
       });
       return next;
     });
@@ -3019,8 +3019,8 @@ export const App: React.FC = () => {
                 const next = prev.map(q => isSameQuote(q, updatedQuote) ? updatedQuote : q);
                 saveQuotes(next);
                 syncQuoteToSupabase(updatedQuote).catch(err => {
-                  console.warn('Aviso sync compra:', err);
-                  notifySync(`Compra de "${updatedQuote.code}" salva no dispositivo. Sincronização na nuvem pendente.`);
+                  reportError('Falha ao Sincronizar Compra no Banco', err, 'App - syncQuoteToSupabase');
+                  notifySync(`Compra de "${updatedQuote.code}" salva no dispositivo. Sincronização na nuvem falhou.`);
                 });
                 return next;
               });

@@ -388,5 +388,26 @@ universalTestCases.forEach((tc, idx) => {
   console.log(`      -> Modelo:        "${enriched.model || '(vazio)'}" | P/N: "${enriched.partNumber || '(vazio)'}"`);
 });
 
+// ============================================================================
+// TESTE 12: Item com especificações em linhas separadas (Monitor LG com resolução, conexão, cor)
+// ============================================================================
+console.log('\n[Teste 12] Agregação de especificações multi-linhas no mesmo item');
+const multiLineItemInput = `10 un Monitor LG 24MS500-B
+Resolução: Full HD
+Conexão: HDMI
+Cor: Preto`;
+
+const multiLineParsed = parsePastedProductListWithQty(multiLineItemInput);
+if (multiLineParsed.length !== 1) {
+  throw new Error(`Falha no parser multi-linhas: esperava 1 item único, mas produziu ${multiLineParsed.length} itens.`);
+}
+if (multiLineParsed[0].quantity !== 10) {
+  throw new Error(`Quantidade incorreta no parser multi-linhas: esperava 10, obteve ${multiLineParsed[0].quantity}`);
+}
+if (!multiLineParsed[0].query.includes('Monitor LG 24MS500-B') || !multiLineParsed[0].query.includes('Resolução: Full HD') || !multiLineParsed[0].query.includes('HDMI')) {
+  throw new Error(`Especificações não foram agregadas corretamente ao item: "${multiLineParsed[0].query}"`);
+}
+console.log('  ✓ Item multi-linhas com especificações agregado com sucesso em 1 produto único:', multiLineParsed[0]);
+
 console.log('\n🎉 TODOS OS TESTES DE ROBUSTEZ E QUANTIDADES DO SCANNER IA PASSARAM COM 100% DE SUCESSO!\n');
 

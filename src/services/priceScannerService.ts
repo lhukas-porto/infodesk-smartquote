@@ -791,10 +791,7 @@ function saveScanResultToCache(query: string, result: ScannedPriceResult): void 
 
 export function getStoredGeminiKey(): string {
   try {
-    const envKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (envKey && typeof envKey === 'string' && envKey.trim()) {
-      return envKey.trim();
-    }
+    // Chave personalizada configurada localmente pelo usuário ou delegada ao proxy backend seguro
     const localKey = localStorage.getItem(STORAGE_GEMINI_KEY);
     if (localKey && typeof localKey === 'string' && localKey.trim()) {
       return localKey.trim();
@@ -988,6 +985,21 @@ export function parsePastedProductListWithQty(rawText: string): ParsedBatchQuery
     return /^(?:m|v|w|a|hz|khz|mhz|ghz|gb|tb|mb|kb|mm|cm|pol|polegadas?|portas?|p|ch|canais|plus|fps|dpi|k|kv|kva|va|ah|mah|rpm|pinos?)$/i.test(token);
   };
 
+  const isSpecOrAttributeLine = (l: string): boolean => {
+    const trimmed = l.trim();
+    if (!trimmed) return false;
+    // Prefixos conhecidos de especificações técnicas de produtos
+    if (/^(?:resolu[cç][aã]o|conex[aã]o|conector|cor|tamanho|painel|taxa\s+de\s+atualiza[cç][aã]o|brilho|contraste|voltagem|tens[aã]o|modelo|marca|pn|part\s*number|sku|garantia|peso|dimens[oõ]es?|mem[oó]ria|armazenamento|processador|pot[eê]ncia|interface|entradas?|sa[ií]das?|frequ[eê]ncia|velocidade|capacidade|material|acabamento|tipo|uso)[:\s-]/i.test(trimmed)) {
+      return true;
+    }
+    // Linha genérica chave: valor curta sem quantidade
+    const colonMatch = trimmed.match(/^([a-zA-ZÀ-ÿ\s]{2,20}):\s*(.+)$/i);
+    if (colonMatch && !/^\d+/.test(colonMatch[2].trim())) {
+      return true;
+    }
+    return false;
+  };
+
   for (let i = 0; i < rawLines.length; i++) {
     let line = rawLines[i];
 
@@ -995,6 +1007,13 @@ export function parsePastedProductListWithQty(rawText: string): ParsedBatchQuery
     const isTableSeparator = new RegExp('^\\|?\\s*[-' + ':\\s|]+\\s*\\|?$');
     if (isTableSeparator.test(line)) continue;
     if (/^\|?\s*(produto|descri[cç][aã]o|item|nome|qtd|quantidade|comprar)\s*\|?/i.test(line)) continue;
+
+    // Se a linha for atributo/especificação técnica (ex: Resolução:, Conexão:, Cor:), associa ao item anterior
+    if (isSpecOrAttributeLine(line) && parsedItems.length > 0) {
+      const last = parsedItems[parsedItems.length - 1];
+      last.query = `${last.query} | ${line.trim()}`;
+      continue;
+    }
 
     // Se a linha for puramente quantidade, associa ao produto anterior se necessário
     if (isQtyLine(line)) {

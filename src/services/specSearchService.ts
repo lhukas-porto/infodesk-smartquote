@@ -19,6 +19,8 @@ export interface SpecSearchParams {
   geminiApiKey?: string;
 }
 
+export type SpecFieldConfidence = 'confirmed' | 'user_informed' | 'suggested' | 'unknown';
+
 export interface SpecSearchResult {
   /** Descrição técnica completa formatada com parágrafos e tópicos de especificações (padrão Scanner IA) */
   description: string;
@@ -28,7 +30,7 @@ export interface SpecSearchResult {
   specifications: Array<{ label: string; value: string }>;
   /** NCM oficial de 8 dígitos formatado */
   ncm?: string;
-  /** Part Number ou SKU autêntico do fabricante (se identificado com certeza) */
+  /** Part Number ou SKU autêntico do fabricante (apenas se confirmado) */
   partNumber?: string;
   /** Marca comercial autêntica */
   brand?: string;
@@ -38,14 +40,22 @@ export interface SpecSearchResult {
   model?: string;
   /** Categoria oficial padronizada do sistema */
   category?: string;
-  /** Peso aproximado da embalagem em kg */
+  /** Peso real da embalagem em kg (vazio se desconhecido) */
   weight?: string;
-  /** Dimensões aproximadas no formato CxLxA cm */
+  /** Dimensões reais da embalagem no formato CxLxA cm (vazio se desconhecido) */
   dimensions?: string;
   /** Nome comercial padronizado e conciso sugerido */
   standardizedName?: string;
   /** Fonte identificada das especificações (fabricante ou e-commerce) */
   sourceReference?: string;
+  /** Grau de evidência e confiabilidade estruturados por campo */
+  fieldConfidence?: {
+    partNumber?: SpecFieldConfidence;
+    model?: SpecFieldConfidence;
+    weight?: SpecFieldConfidence;
+    dimensions?: SpecFieldConfidence;
+    ncm?: SpecFieldConfidence;
+  };
 }
 
 /**
@@ -103,13 +113,13 @@ DIRETRIZES DE ENRIQUECIMENTO (MÁXIMA RIQUEZA E PROFUNDIDADE):
 1. "standardizedName": TÍTULO COMERCIAL PADRONIZADO E CONCISO (máximo 5 a 15 palavras). Padrão: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. Use acentuação e cedilhas completas da língua portuguesa. NUNCA use vírgulas no nome.
 2. "brand": Marca comercial autêntica do produto (ex: "Intelbras", "Dell", "Furukawa", "Logitech", "HP", "Aquário", etc.) ou "Genérica".
 3. "manufacturer": Fabricante ou Razão Social oficial da marca.
-4. "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA): Extraia prioritariamente o MODELO que já consta no nome do produto (ex: 'Lark M2S', 'P2723D', 'E20', 'MX Keys Mini', 'C9200L'). Se não constar, identifique o modelo oficial de fábrica.
-5. "partNumber": PART NUMBER / CÓDIGO DE REFERÊNCIA OFICIAL (PRIORIDADE MÁXIMA): Extraia o Part Number ou Código de Referência oficial das especificações ou do nome. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D'), use a sigla do modelo como Part Number (ex: 'M2S', 'P2723D') para servir como código oficial da peça. O produto NUNCA deve ficar sem código de identificação.
+4. "model": MODELO COMERCIAL OFICIAL: Identifique o modelo comercial oficial de fábrica (ex: 'Lark M2', 'UltraSharp P2723D', 'MX Keys Mini').
+5. "partNumber": PART NUMBER / SKU AUTÊNTICO DO FABRICANTE: Extraia APENAS se houver código autêntico de peça/SKU fornecido pelo fabricante (ex: '210-BCKM', '01-SSC-0218', 'JL682A', 'SKC3000S/1024G'). NUNCA transforme o nome do modelo comercial em Part Number artificial. Se o fabricante não publicar ou o produto não tiver Part Number distinto do modelo, retorne string vazia "".
 6. "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as categorias oficiais do sistema:
    ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"].
 7. "ncm": NCM oficial do Brasil formatado com 8 dígitos (ex: 8471.70.40, 8528.52.00, 8517.62.54).
-8. "weight": Peso aproximado da embalagem para frete em kg (ex: "0.350 kg", "1.500 kg").
-9. "dimensions": Dimensões aproximadas no formato "CxLxA cm" (ex: "25cm x 18cm x 5cm").
+8. "weight": Peso oficial da embalagem para frete em kg conforme documentação técnica ou datasheet oficial. Se não houver dado oficial confirmado, retorne string vazia "" (NUNCA invente ou estime valores aproximados).
+9. "dimensions": Dimensões oficiais da embalagem no formato "CxLxA cm" conforme documentação técnica do fabricante. Se não houver dado oficial confirmado, retorne string vazia "" (NUNCA invente ou estime valores aproximados).
 10. "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, em português gramaticalmente perfeito com acentuação e cedilhas preservadas, destacando utilidades, materiais, durabilidade, estrutura, ergonomia, resistência e diferenciais de qualidade. NUNCA use vírgulas para separar atributos.
 11. "specifications": Array rico de 6 a 12 especificações técnicas detalhadas no formato [{"label": "Nome da Característica", "value": "Valor"}], cobrindo minuciosamente:
     - Capacidade / Potência / Resolução / Velocidade / Desempenho
@@ -234,6 +244,12 @@ function parseSpecJson(raw: string, params?: SpecSearchParams): SpecSearchResult
       category: categoryClean
     });
 
+    const userHadPn = Boolean(params?.partNumber && params.partNumber.trim());
+    const hasResolvedPn = Boolean(partClean && partClean.trim());
+    const hasWeight = Boolean(weightClean && weightClean.trim());
+    const hasDimensions = Boolean(dimensionsClean && dimensionsClean.trim());
+    const hasNcm = Boolean(ncmClean && ncmClean.trim());
+
     return {
       description: richDescription || summaryText,
       summaryDescription: summaryText,
@@ -246,7 +262,15 @@ function parseSpecJson(raw: string, params?: SpecSearchParams): SpecSearchResult
       category: categoryClean,
       weight: weightClean,
       dimensions: dimensionsClean,
-      standardizedName: obj.standardizedName ? String(obj.standardizedName).trim() : undefined
+      standardizedName: obj.standardizedName ? String(obj.standardizedName).trim() : undefined,
+      sourceReference: obj.sourceReference ? String(obj.sourceReference).trim() : 'Site Oficial do Fabricante',
+      fieldConfidence: {
+        partNumber: userHadPn ? 'user_informed' : (hasResolvedPn ? 'confirmed' : 'unknown'),
+        model: modelClean ? 'confirmed' : 'unknown',
+        weight: hasWeight ? 'confirmed' : 'unknown',
+        dimensions: hasDimensions ? 'confirmed' : 'unknown',
+        ncm: hasNcm ? (params?.ncm ? 'user_informed' : 'suggested') : 'unknown'
+      }
     };
   } catch (e) {
     console.warn('[parseSpecJson] Falha ao parsear JSON:', e);

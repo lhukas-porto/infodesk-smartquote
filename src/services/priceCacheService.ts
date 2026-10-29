@@ -132,16 +132,34 @@ export async function findRecentPriceByPartNumber(
     };
   }
 
-  // Tenta consultar no Supabase produtos cadastrados com esse Part Number
+  // Tenta consultar no Supabase produtos cadastrados com esse Part Number com correspondência exata
   try {
-    const { data, error } = await supabase
+    const cleanPn = partNumber.trim();
+    // 1. Tenta correspondência exata primeiro (evita colisão de variantes ou códigos parciais)
+    let { data, error } = await supabase
       .from('products')
       .select('id, name, part_number, cost_price, supplier, source_url, updated_at')
-      .ilike('part_number', `%${partNumber.trim()}%`)
+      .eq('part_number', cleanPn)
       .limit(1)
       .maybeSingle();
 
-    if (!error && data && data.cost_price > 0) {
+    // 2. Se não encontrar exato com pontuação, tenta busca ilike exata (sem wildcard percentual)
+    if (!data) {
+      const { data: ilikeData, error: ilikeErr } = await supabase
+        .from('products')
+        .select('id, name, part_number, cost_price, supplier, source_url, updated_at')
+        .ilike('part_number', cleanPn)
+        .limit(1)
+        .maybeSingle();
+      data = ilikeData;
+      error = ilikeErr;
+    }
+
+    // 3. Validação estrita: O Part Number retornado normalizado DEVE coincidir com o buscado
+    const matchPn = data?.part_number ? normalizePartNumber(data.part_number) : '';
+    const isStrictMatch = matchPn === normPn;
+
+    if (!error && data && data.cost_price > 0 && isStrictMatch) {
       const updatedDate = new Date(data.updated_at || new Date().toISOString());
       const daysAgo = Math.floor((Date.now() - updatedDate.getTime()) / (1000 * 60 * 60 * 24));
 

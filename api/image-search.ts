@@ -2,6 +2,9 @@ export const config = {
   runtime: 'nodejs'
 };
 
+const imageIpRateMap = new Map<string, { count: number; resetAt: number }>();
+
+
 export default async function handler(req: any, res: any) {
   // CORS restrito e seguro para origens oficiais
   const origin = (req.headers?.origin as string) || '';
@@ -24,6 +27,19 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
+  }
+
+  // Rate Limiting defensivo por IP (máximo 60 req/min)
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'local';
+  const now = Date.now();
+  const rateInfo = imageIpRateMap.get(clientIp);
+  if (rateInfo && rateInfo.resetAt > now) {
+    if (rateInfo.count >= 60) {
+      return res.status(429).json({ success: false, error: 'Limite de taxa excedido (60 req/min). Aguarde alguns segundos.' });
+    }
+    rateInfo.count++;
+  } else {
+    imageIpRateMap.set(clientIp, { count: 1, resetAt: now + 60000 });
   }
 
   try {

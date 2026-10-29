@@ -7,6 +7,7 @@ import {
   extractContactPersonFromText 
 } from '../utils/aiEmailParser';
 import { extractQuoteItemsWithAI } from './multiItemExtractorService';
+import { fetchGeminiWithTimeout } from './priceScannerService';
 
 export interface ExtractedImageQuoteData {
   senderName: string;
@@ -470,34 +471,31 @@ async function extractWithGeminiVision(
     ];
     for (const model of modelsToTry) {
       try {
-        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  { text: prompt },
-                  {
-                    inlineData: {
-                      mimeType: imgData.mimeType,
-                      data: imgData.base64
-                    }
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey || ''}`;
+        const res = await fetchGeminiWithTimeout(endpoint, {
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: imgData.mimeType,
+                    data: imgData.base64
                   }
-                ]
-              }
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              responseMimeType: 'application/json'
+                }
+              ]
             }
-          })
-        });
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json'
+          }
+        }, 30000);
 
-        if (!resp.ok) continue;
+        if (!res.ok || !res.data) continue;
 
-        const data = await resp.json();
+        const data = res.data;
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) continue;
 
@@ -545,15 +543,15 @@ export async function extractDataFromQuotationImage(
   imageSource: string | File,
   onProgress?: (percent: number, message: string) => void
 ): Promise<ExtractedImageQuoteData> {
-  const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('infodesk_gemini_api_key') || localStorage.getItem('gemini_api_key') || '').trim();
+  const geminiKey = (localStorage.getItem('infodesk_gemini_api_key') || localStorage.getItem('gemini_api_key') || '').trim();
 
   const isPdf = typeof imageSource === 'object' && imageSource !== null && (
     (imageSource as File).type === 'application/pdf' || 
     Boolean((imageSource as File).name && (imageSource as File).name.toLowerCase().endsWith('.pdf'))
   );
 
-  // ─── 1. Tentar Gemini Vision se a chave estiver configurada ─────────────────
-  if (geminiKey) {
+  // ─── 1. Tentar Gemini Vision (usa chave local ou proxy seguro do backend) ────
+  if (geminiKey || typeof window !== 'undefined') {
     onProgress?.(10, isPdf ? 'Conectando ao Gemini para leitura do PDF...' : 'Conectando ao Gemini Vision...');
     const visionResult = await extractWithGeminiVision(imageSource, geminiKey, onProgress);
     if (visionResult && visionResult.items.length > 0) {

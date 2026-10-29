@@ -51,25 +51,31 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
   // Cálculo de economia potencial
   const currentTotalCost = localItems.reduce((acc, item) => acc + (item.costPrice || 0) * (item.quantity || 1), 0);
 
-  // Calcula a cesta mais barata
-  const calculateOptimizedItems = (): { optimized: QuoteItem[]; minCost: number } => {
-    let minCost = 0;
-    const optimized = localItems.map(item => {
-      const allOffers = item.alternativeOffers || [];
-      if (allOffers.length === 0) {
-        minCost += (item.costPrice || 0) * (item.quantity || 1);
-        return item;
-      }
+  // Estado da Estratégia de Compra
+  // 'lowest_total_cost': Menor Custo Total Consolidado (considera frete por fornecedor e evita fragmentação)
+  // 'lowest_unit_price': Menor Preço Isolado por Item (split máximo)
+  const [strategyMode, setStrategyMode] = useState<'lowest_total_cost' | 'lowest_unit_price'>('lowest_total_cost');
 
-      // Encontrar a oferta com menor custo > 0
+  // Frete estimado padrão por fornecedor quando desconhecido na proposta
+  const ESTIMATED_FREIGHT_PER_SUPPLIER = 35.0;
+
+  // 1. Estratégia de Menor Preço Isolado por Item
+  const calculateCheapestUnitItems = (): { items: QuoteItem[]; totalItemsCost: number; supplierCount: number; estimatedFreight: number; landedTotal: number } => {
+    let totalItemsCost = 0;
+    const electedSuppliers = new Set<string>();
+
+    const items = localItems.map(item => {
+      const allOffers = item.alternativeOffers || [];
       const validOffers = allOffers.filter(o => o.costPrice > 0);
       if (validOffers.length === 0) {
-        minCost += (item.costPrice || 0) * (item.quantity || 1);
+        totalItemsCost += (item.costPrice || 0) * (item.quantity || 1);
+        if (item.supplier) electedSuppliers.add(item.supplier.toLowerCase().trim());
         return item;
       }
 
       const cheapest = validOffers.reduce((prev, curr) => (curr.costPrice < prev.costPrice ? curr : prev), validOffers[0]);
-      minCost += cheapest.costPrice * (item.quantity || 1);
+      totalItemsCost += cheapest.costPrice * (item.quantity || 1);
+      electedSuppliers.add(cheapest.supplier.toLowerCase().trim());
 
       return {
         ...item,
@@ -83,10 +89,85 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
       };
     });
 
-    return { optimized, minCost };
+    const supplierCount = Math.max(electedSuppliers.size, 1);
+    const estimatedFreight = supplierCount * ESTIMATED_FREIGHT_PER_SUPPLIER;
+    return { items, totalItemsCost, supplierCount, estimatedFreight, landedTotal: totalItemsCost + estimatedFreight };
   };
 
-  const { optimized, minCost: optimizedTotalCost } = calculateOptimizedItems();
+  // 2. Estratégia de Menor Custo Total Consolidado (TCO Inteligente)
+  // Prioriza consolidar itens no fornecedor com melhor custo global para economizar fretes múltiplos
+  const calculateConsolidatedTcoItems = (): { items: QuoteItem[]; totalItemsCost: number; supplierCount: number; estimatedFreight: number; landedTotal: number; strategyName: string } => {
+    const splitStrategy = calculateCheapestUnitItems();
+
+    // Mapeia fornecedores que possuem ofertas para a maioria dos itens
+    const supplierCoverage = new Map<string, { totalCost: number; coveredItems: number; itemsMap: Map<string, SupplierOffer> }>();
+
+    localItems.forEach(item => {
+      const offers = (item.alternativeOffers || []).filter(o => o.costPrice > 0);
+      offers.forEach(off => {
+        const supKey = off.supplier.toLowerCase().trim();
+        if (!supplierCoverage.has(supKey)) {
+          supplierCoverage.set(supKey, { totalCost: 0, coveredItems: 0, itemsMap: new Map() });
+        }
+        const data = supplierCoverage.get(supKey)!;
+        data.totalCost += off.costPrice * (item.quantity || 1);
+        data.coveredItems += 1;
+        data.itemsMap.set(item.id, off);
+      });
+    });
+
+    // Encontra se há um fornecedor único que atende 100% dos itens com frete único
+    let bestSingleSupplier: { key: string; landed: number; totalCost: number } | null = null;
+    supplierCoverage.forEach((val, supKey) => {
+      if (val.coveredItems === localItems.length) {
+        const singleLanded = val.totalCost + ESTIMATED_FREIGHT_PER_SUPPLIER;
+        if (!bestSingleSupplier || singleLanded < bestSingleSupplier.landed) {
+          bestSingleSupplier = { key: supKey, landed: singleLanded, totalCost: val.totalCost };
+        }
+      }
+    });
+
+    // Se o fornecedor único com frete único for mais barato que a soma dos itens fragmentados + fretes múltiplos:
+    if (bestSingleSupplier && (bestSingleSupplier as any).landed < splitStrategy.landedTotal) {
+      const targetSupKey = (bestSingleSupplier as any).key;
+      const targetSupplierData = supplierCoverage.get(targetSupKey)!;
+      const consolidatedItems = localItems.map(item => {
+        const off = targetSupplierData.itemsMap.get(item.id);
+        return {
+          ...item,
+          costPrice: off?.costPrice || item.costPrice,
+          supplier: off?.supplier || item.supplier,
+          sourceUrl: off?.sourceUrl || item.sourceUrl,
+          alternativeOffers: (item.alternativeOffers || []).map(o => ({
+            ...o,
+            isSelected: o.supplier.toLowerCase().trim() === targetSupKey
+          }))
+        };
+      });
+
+      return {
+        items: consolidatedItems,
+        totalItemsCost: (bestSingleSupplier as any).totalCost,
+        supplierCount: 1,
+        estimatedFreight: ESTIMATED_FREIGHT_PER_SUPPLIER,
+        landedTotal: (bestSingleSupplier as any).landed,
+        strategyName: 'Fornecedor Único Consolidado (1 Frete)'
+      };
+    }
+
+    return {
+      ...splitStrategy,
+      strategyName: 'Melhores Preços Combinados'
+    };
+  };
+
+  const splitResult = calculateCheapestUnitItems();
+  const tcoResult = calculateConsolidatedTcoItems();
+
+  const activeStrategyResult = strategyMode === 'lowest_total_cost' ? tcoResult : splitResult;
+  const optimized = activeStrategyResult.items;
+  const optimizedTotalCost = activeStrategyResult.totalItemsCost;
+
   const potentialSavings = Math.max(currentTotalCost - optimizedTotalCost, 0);
   const savingsPercent = currentTotalCost > 0 ? (potentialSavings / currentTotalCost) * 100 : 0;
 
@@ -147,31 +228,65 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
           </button>
         </div>
 
-        {/* Card de Economia / Simulação */}
-        <div className="px-6 py-3.5 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-b border-emerald-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        {/* Card de Estratégia de Compra e Economia */}
+        <div className="px-6 py-3.5 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-b border-emerald-100 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
               <TrendingDown className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-xs font-bold text-emerald-950">
-                Economia Potencial na Compra: R$ {potentialSavings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({savingsPercent.toFixed(1)}%)
-              </span>
-              <p className="text-[11px] text-slate-600">
-                Custo atual: R$ {currentTotalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Cesta Otimizada: R$ {optimizedTotalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-950">
+                  Economia Potencial nos Itens: R$ {potentialSavings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({savingsPercent.toFixed(1)}%)
+                </span>
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-semibold text-[10px]">
+                  {activeStrategyResult.supplierCount} {activeStrategyResult.supplierCount === 1 ? 'Fornecedor' : 'Fornecedores'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                Itens: R$ {optimizedTotalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} + Frete Estimado: R$ {activeStrategyResult.estimatedFreight.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} = <strong>Custo Total: R$ {activeStrategyResult.landedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleApplyCheapestBasket}
-            disabled={potentialSavings <= 0}
-            className="sq-btn-emerald flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Simular Cesta Mais Barata</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Seletor de Estratégia de Compra */}
+            <div className="inline-flex rounded-xl bg-slate-200/80 p-0.5 border border-slate-300/80">
+              <button
+                type="button"
+                onClick={() => setStrategyMode('lowest_total_cost')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  strategyMode === 'lowest_total_cost'
+                    ? 'bg-white text-emerald-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Calcula o menor custo total considerando itens + frete por fornecedor"
+              >
+                Menor Custo Total (TCO)
+              </button>
+              <button
+                type="button"
+                onClick={() => setStrategyMode('lowest_unit_price')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  strategyMode === 'lowest_unit_price'
+                    ? 'bg-white text-sky-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Escolhe o menor preço unitário por item independentemente do fornecedor"
+              >
+                Menor Preço por Item
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleApplyCheapestBasket}
+              className="sq-btn-emerald flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Aplicar {strategyMode === 'lowest_total_cost' ? 'Cesta Consolidada' : 'Cesta por Item'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Lista de Itens e Fornecedores com Scroll */}
@@ -229,6 +344,13 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
                           </span>
                           <span className="text-[10px] text-slate-500 font-mono">
                             Total: R$ {(offer.costPrice * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+
+                        {/* Indicação explícita de condições desconhecidas */}
+                        <div className="pt-1 border-t border-slate-200/60 mt-1">
+                          <span className="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-200/70 px-1.5 py-0.5 rounded inline-block font-medium">
+                            Frete / Pedido Mínimo a Confirmar
                           </span>
                         </div>
 

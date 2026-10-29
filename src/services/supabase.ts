@@ -107,13 +107,17 @@ export async function syncCompanySettingsToSupabase(settings: CompanySettings): 
       }
     }
 
-    if (targetId) {
-      await supabase.from('company_settings').update(payload).eq('id', targetId);
-    } else {
-      await supabase.from('company_settings').insert(payload);
+    const { error: opError } = targetId
+      ? await supabase.from('company_settings').update(payload).eq('id', targetId)
+      : await supabase.from('company_settings').insert(payload);
+
+    if (opError) {
+      reportError('Falha ao Salvar Configurações da Empresa', opError, 'Supabase - company_settings');
+      throw new Error(`Falha no Supabase ao gravar configurações: ${opError.message}`);
     }
   } catch (err) {
-    console.warn('Erro ao sincronizar configurações no Supabase:', err);
+    reportError('Erro na Sincronização de Configurações', err, 'Supabase - syncCompanySettings');
+    throw err;
   }
 }
 
@@ -624,98 +628,42 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         .select()
         .single();
 
-      // Fallback resiliente auto-adaptativo: caso novas colunas de quotes ainda não existam no Supabase
-      let currentQuotePayload: any = { ...sanitizedQuotePayload };
-      let quoteRetryCount = 0;
-      while (quoteError && (quoteError.message?.includes('column') || quoteError.message?.includes('schema cache')) && quoteRetryCount < 5) {
-        quoteRetryCount++;
-        const match = quoteError.message.match(/['"]([a-zA-Z0-9_]+)['"]\s*column/) ||
-                      quoteError.message.match(/column\s*['"]([a-zA-Z0-9_]+)['"]/);
-        const missingColumn = match ? match[1] : null;
-
-        if (missingColumn && missingColumn in currentQuotePayload) {
-          console.warn(`[Supabase] Coluna '${missingColumn}' não existe em quotes no banco remoto. Removendo e retentando...`);
-          delete currentQuotePayload[missingColumn];
-          const retry = await supabase
-            .from('quotes')
-            .upsert(currentQuotePayload, { onConflict: 'code' })
-            .select()
-            .single();
-          savedQuote = retry.data;
-          quoteError = retry.error;
-        } else {
-          console.warn('[Supabase] Colunas de aprovação/extras ainda não existem em quotes. Gravando apenas campos essenciais...');
-          const { client_order_number, approved_at, approved_total_amount, ...baseQuotePayload } = currentQuotePayload;
-          const retry = await supabase
-            .from('quotes')
-            .upsert(baseQuotePayload, { onConflict: 'code' })
-            .select()
-            .single();
-          savedQuote = retry.data;
-          quoteError = retry.error;
-          break;
-        }
-      }
-
       if (quoteError || !savedQuote) {
-        console.error('Erro ao salvar quote no Supabase:', quoteError);
-        throw new Error(`Falha no banco Supabase: ${quoteError?.message || 'registro não retornado'}`);
+        reportError('Incompatibilidade de Schema no Banco (Tabela quotes)', quoteError, 'Supabase - quotes.upsert');
+        throw new Error(`Falha no banco Supabase ao persistir proposta: ${quoteError?.message || 'registro não retornado'}. Os dados locais foram preservados.`);
       }
+
+      // Preservação transacional defensiva: busca itens anteriores antes de qualquer deleção
+      const { data: previousItems } = await supabase
+        .from('quote_items')
+        .select('*')
+        .eq('quote_id', savedQuote.id);
 
       // Limpar itens anteriores e recriar com itens rigorosamente únicos
-      await supabase.from('quote_items').delete().eq('quote_id', savedQuote.id);
+      const { error: deleteError } = await supabase.from('quote_items').delete().eq('quote_id', savedQuote.id);
+      if (deleteError) {
+        reportError('Falha ao Limpar Itens Anteriores da Cotação', deleteError, 'Supabase - quote_items.delete');
+        throw new Error(`Falha ao atualizar itens da proposta no Supabase: ${deleteError.message}`);
+      }
 
       const itemsToInsert = uniqueItemsPayload.map(it => ({
         ...it,
         quote_id: savedQuote.id
       }));
 
-      let currentItemsToInsert = itemsToInsert;
-      let { error: itemsInsertError } = await supabase.from('quote_items').insert(currentItemsToInsert);
-
-      // Fallback resiliente auto-adaptativo: caso colunas recentes (como 'supplier') ainda não existam no schema cache do Supabase
-      let retryCount = 0;
-      while (itemsInsertError && (itemsInsertError.message?.includes('column') || itemsInsertError.message?.includes('schema cache')) && retryCount < 5) {
-        retryCount++;
-        // Tenta identificar o nome exato da coluna ausente no erro retornado pelo PostgREST
-        // Exemplos:
-        // "Could not find the 'supplier' column of 'quote_items' in the schema cache"
-        // 'column "supplier" of relation "quote_items" does not exist'
-        const match = itemsInsertError.message.match(/['"]([a-zA-Z0-9_]+)['"]\s*column/) ||
-                      itemsInsertError.message.match(/column\s*['"]([a-zA-Z0-9_]+)['"]/);
-        const missingColumn = match ? match[1] : null;
-
-        if (missingColumn && currentItemsToInsert.length > 0 && missingColumn in currentItemsToInsert[0]) {
-          console.warn(`[Supabase] Coluna '${missingColumn}' não existe em quote_items no banco remoto. Removendo do payload e retentando gravação...`);
-          currentItemsToInsert = currentItemsToInsert.map(it => {
-            const copy = { ...it };
-            delete (copy as any)[missingColumn];
-            return copy;
-          });
-          const retry = await supabase.from('quote_items').insert(currentItemsToInsert);
-          itemsInsertError = retry.error;
-        } else {
-          // Fallback estrutural abrangente: remove todos os campos não essenciais que podem faltar no banco remoto
-          console.warn('[Supabase] Gravando itens com campos estruturais compatíveis...', itemsInsertError.message);
-          currentItemsToInsert = currentItemsToInsert.map(it => {
-            const {
-              supplier,
-              approved, approved_quantity, purchase_status, actual_cost_price, actual_unit_cost_price,
-              actual_purchase_url, actual_shipping_cost, shipping_pending, payment_method,
-              purchased_at, purchase_notes, actual_tax_percent, client_order_number,
-              ...compatible
-            } = it as any;
-            return compatible;
-          });
-          const retry = await supabase.from('quote_items').insert(currentItemsToInsert);
-          itemsInsertError = retry.error;
-          break;
-        }
-      }
+      const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
 
       if (itemsInsertError) {
-        console.error('Erro ao inserir itens da cotação no Supabase:', itemsInsertError);
-        throw new Error(`Falha ao gravar itens no banco: ${itemsInsertError.message}`);
+        // ROLLBACK DEFENSIVO: Restaura imediatamente os itens anteriores para nunca perder dados no banco
+        if (previousItems && previousItems.length > 0) {
+          try {
+            await supabase.from('quote_items').insert(previousItems);
+          } catch {
+            // Silencioso se a rede caiu
+          }
+        }
+        reportError('Incompatibilidade de Schema no Banco (Tabela quote_items)', itemsInsertError, 'Supabase - quote_items.insert');
+        throw new Error(`Falha ao gravar itens da proposta no Supabase: ${itemsInsertError.message}. Os itens anteriores foram restaurados e os dados locais mantidos.`);
       }
     }
   } finally {
@@ -1243,7 +1191,11 @@ export async function syncClientCompaniesToSupabase(companies: ClientCompany[]):
     if (upsertErr) {
       console.warn('Tentativa com prefix falhou no Supabase, tentando fallback sem prefix:', upsertErr.message);
       const fallbackPayload = companiesPayload.map(({ prefix, ...rest }) => rest);
-      await supabase.from('client_companies').upsert(fallbackPayload);
+      const { error: fallbackErr } = await supabase.from('client_companies').upsert(fallbackPayload);
+      if (fallbackErr) {
+        reportError('Falha ao Sincronizar Empresas no Supabase', fallbackErr, 'Supabase - client_companies');
+        throw fallbackErr;
+      }
     }
 
     // 2. Batch upsert de todos os contatos
@@ -1270,14 +1222,16 @@ export async function syncClientCompaniesToSupabase(companies: ClientCompany[]):
       if (ctErr) {
         console.warn('Upsert de contatos falhou, tentando fallback sem coluna role:', ctErr.message);
         const fallbackContacts = allContactsPayload.map(({ role, ...rest }) => rest);
-        await supabase.from('client_contacts').upsert(fallbackContacts);
+        const { error: ctFallbackErr } = await supabase.from('client_contacts').upsert(fallbackContacts);
+        if (ctFallbackErr) {
+          reportError('Falha ao Sincronizar Contatos da Empresa no Supabase', ctFallbackErr, 'Supabase - client_contacts');
+          throw ctFallbackErr;
+        }
       }
     }
-
-    // Observação: Exclusões de contatos são tratadas de forma explícita via deleteContactFromSupabase,
-    // evitando deleção acidental de compradores por estados parciais ou dessincronizados.
   } catch (err) {
-    console.warn('Erro ao sincronizar empresas no Supabase:', err);
+    reportError('Erro ao Sincronizar Empresas no Supabase', err, 'Supabase - syncClientCompanies');
+    throw err;
   }
 }
 
@@ -1753,11 +1707,13 @@ export async function syncDirectPurchasesToSupabase(items: import('../types').Pr
     if (records.length > 0) {
       const { error } = await supabase.from('procurement_items').upsert(records, { onConflict: 'id' });
       if (error) {
-        console.warn('Aviso ao sincronizar compras diretas no Supabase (requer aplicação do migration_normalized_tables.sql):', error.message);
+        reportError('Falha ao Sincronizar Compras Diretas no Supabase', error, 'Supabase - procurement_items');
+        throw error;
       }
     }
   } catch (err) {
-    console.warn('Erro silencioso ao sincronizar procurement_items no Supabase:', err);
+    reportError('Erro ao Sincronizar Compras Diretas no Supabase', err, 'Supabase - syncDirectPurchases');
+    throw err;
   }
 }
 

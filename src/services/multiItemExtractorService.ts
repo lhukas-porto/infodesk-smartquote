@@ -34,10 +34,10 @@ export async function extractQuoteItemsWithAI(
     return { items: [], source: 'heuristic_fallback' };
   }
 
-  const activeApiKey = apiKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || localStorage.getItem('infodesk_gemini_api_key') || localStorage.getItem('gemini_api_key') || '';
+  const activeApiKey = apiKey || localStorage.getItem('infodesk_gemini_api_key') || localStorage.getItem('gemini_api_key') || '';
 
-  // Se não houver chave disponível, utiliza imediatamente a engine determinística com fallback
-  if (!activeApiKey) {
+  // Se não houver chave e não estiver em ambiente web com proxy, utiliza imediatamente a engine determinística
+  if (!activeApiKey && typeof window === 'undefined') {
     const fallbackItems = extractItemsFromEmailContent(rawText);
     return {
       items: fallbackItems.map(it => ({

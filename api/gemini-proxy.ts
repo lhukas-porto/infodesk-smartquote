@@ -2,6 +2,17 @@ export const config = {
   runtime: 'nodejs'
 };
 
+const ALLOWED_MODELS = new Set([
+  'gemini-3.5-flash',
+  'gemini-3-flash-preview',
+  'gemini-3.6-flash',
+  'gemini-3.1-flash-lite'
+]);
+
+// Rate limiter em memória por IP (máximo 60 req/min)
+const ipRateMap = new Map<string, { count: number; resetAt: number }>();
+
+
 export default async function handler(req: any, res: any) {
   // Garante compatibilidade com Connect middleware do Vite dev server
   if (!res.status) {
@@ -52,7 +63,26 @@ export default async function handler(req: any, res: any) {
       body = {};
     }
 
-    const model = (body.model as string) || 'gemini-3.5-flash';
+    // Validação e isolamento estrito de modelos permitidos
+    const requestedModel = (body.model as string) || 'gemini-3.5-flash';
+    const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : 'gemini-3.5-flash';
+
+    // Rate Limiting defensivo por IP
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'local';
+    const now = Date.now();
+    const rateInfo = ipRateMap.get(clientIp);
+    if (rateInfo && rateInfo.resetAt > now) {
+      if (rateInfo.count >= 60) {
+        return res.status(429).json({ 
+          success: false, 
+          error: 'Limite de taxa excedido (60 req/min). Aguarde alguns segundos.' 
+        });
+      }
+      rateInfo.count++;
+    } else {
+      ipRateMap.set(clientIp, { count: 1, resetAt: now + 60000 });
+    }
+
     const contents = body.contents;
 
     if (!contents) {

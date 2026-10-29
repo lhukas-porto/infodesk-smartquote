@@ -2,6 +2,9 @@ export const config = {
   runtime: 'nodejs'
 };
 
+const shoppingIpRateMap = new Map<string, { count: number; resetAt: number }>();
+
+
 export interface ShoppingOffer {
   title: string;
   price: number;
@@ -73,6 +76,19 @@ export default async function handler(req: any, res: any) {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  // Rate Limiting defensivo por IP (máximo 60 req/min)
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'local';
+  const now = Date.now();
+  const rateInfo = shoppingIpRateMap.get(clientIp);
+  if (rateInfo && rateInfo.resetAt > now) {
+    if (rateInfo.count >= 60) {
+      return res.status(429).json({ success: false, error: 'Limite de taxa excedido (60 req/min). Aguarde alguns segundos.' });
+    }
+    rateInfo.count++;
+  } else {
+    shoppingIpRateMap.set(clientIp, { count: 1, resetAt: now + 60000 });
   }
 
   try {
