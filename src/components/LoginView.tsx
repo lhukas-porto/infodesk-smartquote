@@ -101,7 +101,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               />
             </div>
             <div className="h-6 w-px bg-white/20" />
-            <SmartQuoteLogo size="lg" inverted={true} showBadge={true} />
+            <SmartQuoteLogo size="lg" inverted={true} showBadge={false} />
           </div>
           <p className="text-xs text-slate-300 font-medium">
             Sistema Oficial de Orçamentação Comercial & Compras

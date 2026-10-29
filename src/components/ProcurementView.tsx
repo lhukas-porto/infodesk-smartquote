@@ -2253,7 +2253,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
           <div className="space-y-0.5">
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="sq-page-title">Central de Compras</h1>
-              <span className="sq-badge-code">COMPRAS</span>
             </div>
             <p className="sq-page-subtitle">
               Acompanhe compras aprovadas de propostas, cadastre novas compras, consulte preços pagos e concilie faturas.

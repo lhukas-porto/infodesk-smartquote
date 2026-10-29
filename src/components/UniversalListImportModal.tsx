@@ -736,7 +736,6 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
             <div>
               <h3 className="sq-page-title text-base md:text-lg flex items-center gap-2">
                 <span>Importação Inteligente de Listas & Planilhas</span>
-                <span className="sq-badge-code text-[10px]">Multi-Formato</span>
               </h3>
               <p className="sq-page-subtitle">
                 Importe planilhas Excel (.xlsx), documentos PDF (.pdf), tabelas CSV ou copie e cole mensagens de cotação

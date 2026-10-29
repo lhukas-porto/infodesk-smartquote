@@ -108,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="h-7 md:h-8 w-auto object-contain shrink-0 transition-transform group-hover:opacity-90" 
               />
               <div className="h-6 w-px bg-slate-200 shrink-0 hidden sm:block" />
-              <SmartQuoteLogo size="md" showBadge={true} showSubtitle={true} className="group-hover:opacity-95 transition-opacity" />
+              <SmartQuoteLogo size="md" showBadge={false} showSubtitle={true} className="group-hover:opacity-95 transition-opacity" />
             </div>
           </div>
 
