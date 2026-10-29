@@ -2420,11 +2420,15 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
       {/* Header Bar with Action Buttons */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg md:text-xl font-bold text-slate-900">
-              {isEditingHistoricalQuote ? 'Editando Proposta Comercial' : 'Nova Proposta Comercial'}
-            </h1>
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
+            <FileText className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
+                {isEditingHistoricalQuote ? 'Editando Proposta Comercial' : 'Nova Proposta Comercial'}
+              </h1>
             <span className={`px-2.5 py-0.5 border text-xs font-bold rounded-lg font-mono ${
               isEditingHistoricalQuote 
                 ? 'bg-amber-50 text-amber-800 border-amber-300' 
@@ -2491,6 +2495,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             })}
           </div>
         </div>
+      </div>
 
         {isEditingHistoricalQuote && onNewQuote && (
           <button

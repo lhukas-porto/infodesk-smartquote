@@ -461,17 +461,17 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
       
       {/* Header com Design System Oficial */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-sky-50 text-sky-600 rounded-xl border border-sky-100 shrink-0">
-            <History className="w-5 h-5 text-sky-600" />
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
+            <History className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
+              <h1 className="sq-page-title">
                 Histórico Comercial
               </h1>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="sq-page-subtitle">
               Gerencie as propostas, acompanhe valores em negociação e análises.
             </p>
           </div>

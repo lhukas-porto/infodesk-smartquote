@@ -174,8 +174,8 @@ export const WebImagePickerModal: React.FC<WebImagePickerModalProps> = ({
         {/* Header */}
         <div className="shrink-0 p-4 sm:p-5 border-b border-slate-200 bg-gradient-to-r from-sky-50/70 via-white to-emerald-50/70 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-xs">
-              <ImageIcon className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
+              <ImageIcon className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">

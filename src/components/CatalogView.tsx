@@ -681,17 +681,21 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     <div className="space-y-6">
       
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-sky-600" />
-            <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">Catálogo de Produtos</h1>
-            <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
-              {products.length} ITENS
-            </span>
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
+            <Package className="w-6 h-6" />
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Gerencie sua base de produtos com preços de custo, códigos e especificações técnicas da Infodesk.
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">Catálogo de Produtos</h1>
+              <span className="px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
+                {products.length} ITENS
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Gerencie sua base de produtos com preços de custo, códigos e especificações técnicas da Infodesk.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

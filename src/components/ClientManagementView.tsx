@@ -686,10 +686,15 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       )}
 
       {/* Header Unificado & Métricas Compactas em Linha */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h1 className="sq-page-title">Empresas &amp; Compradores</h1>
-          <p className="sq-page-subtitle">Gestão centralizada de clientes, compradores e locais de entrega.</p>
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
+            <Building className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="sq-page-title">Empresas &amp; Compradores</h1>
+            <p className="sq-page-subtitle">Gestão centralizada de clientes, compradores e locais de entrega.</p>
+          </div>
         </div>
 
         {/* Métricas Compactas em Linha */}

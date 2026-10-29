@@ -584,7 +584,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
         
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
           <div className="flex items-start gap-4">
-            <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-sky-600 shadow-xs">
+            <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
               <Mail className="w-6 h-6" />
             </div>
             <div>

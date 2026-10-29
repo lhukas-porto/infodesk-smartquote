@@ -2246,17 +2246,19 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
     <div className="space-y-6">
       {/* 1. Header Oficial do Sistema */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="sq-page-title flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-sky-600" />
-              <span>Central de Compras</span>
-            </h1>
-            <span className="sq-badge-code">COMPRAS</span>
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
+            <ShoppingCart className="w-6 h-6" />
           </div>
-          <p className="sq-page-subtitle">
-            Acompanhe compras aprovadas de propostas, cadastre novas compras, consulte preços pagos e concilie faturas.
-          </p>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="sq-page-title">Central de Compras</h1>
+              <span className="sq-badge-code">COMPRAS</span>
+            </div>
+            <p className="sq-page-subtitle">
+              Acompanhe compras aprovadas de propostas, cadastre novas compras, consulte preços pagos e concilie faturas.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">

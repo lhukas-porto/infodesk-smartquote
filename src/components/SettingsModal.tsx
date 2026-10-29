@@ -509,8 +509,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Cabeçalho do Modal */}
         <div className="p-5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-sky-50 border border-sky-200 rounded-xl text-sky-600 shadow-xs">
-              <Settings className="w-5 h-5" />
+            <div className="p-2.5 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-xl shadow-xs shrink-0 flex items-center justify-center">
+              <Settings className="w-5 h-5 text-white" />
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">Configurações da Infodesk</h2>

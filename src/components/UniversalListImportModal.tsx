@@ -730,8 +730,8 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
         {/* Cabeçalho do Modal */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center text-sky-700 shadow-xs">
-              <FileSpreadsheet className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-xs shrink-0">
+              <FileSpreadsheet className="w-5 h-5 text-white" />
             </div>
             <div>
               <h3 className="sq-page-title text-base md:text-lg flex items-center gap-2">
