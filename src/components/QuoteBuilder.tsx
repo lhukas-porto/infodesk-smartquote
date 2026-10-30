@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Plus,
   Trash2,
@@ -157,6 +157,205 @@ interface QuoteBuilderProps {
   isEditingHistoricalQuote?: boolean;
   onUpdateStatus?: (newStatus: Quote['status']) => void;
 }
+
+interface ItemNameTextareaProps {
+  itemId: string;
+  itemIndex: number;
+  initialValue: string;
+  onCommit: (val: string) => void;
+  onFocus: () => void;
+  onPasteImage: (e: React.ClipboardEvent) => void;
+  products: Product[];
+  onApplyProduct: (targetIdx: number, p: Product) => void;
+  setTextareaRef: (el: HTMLTextAreaElement | null) => void;
+  adjustHeight: (el: HTMLTextAreaElement | null) => void;
+}
+
+const ItemNameTextarea: React.FC<ItemNameTextareaProps> = React.memo(({
+  itemId,
+  itemIndex,
+  initialValue,
+  onCommit,
+  onFocus,
+  onPasteImage,
+  products,
+  onApplyProduct,
+  setTextareaRef,
+  adjustHeight
+}) => {
+  const [localValue, setLocalValue] = useState(initialValue || '');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
+  const isFocusedRef = useRef(false);
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCommittedRef = useRef(initialValue || '');
+  const localValueRef = useRef(localValue);
+  localValueRef.current = localValue;
+  const textareaDomRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Sincroniza quando o valor for atualizado externamente (ex: botão Aa, duplicação, etc.)
+  useEffect(() => {
+    if (initialValue !== lastCommittedRef.current) {
+      setLocalValue(initialValue || '');
+      lastCommittedRef.current = initialValue || '';
+      if (textareaDomRef.current) {
+        adjustHeight(textareaDomRef.current);
+      }
+    }
+  }, [initialValue, adjustHeight]);
+
+  // Flush ao desmontar: garante zero perda se o usuário trocar de aba ou salvar imediatamente
+  useEffect(() => {
+    return () => {
+      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      if (localValueRef.current !== lastCommittedRef.current) {
+        onCommit(localValueRef.current);
+      }
+    };
+  }, [onCommit]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setLocalValue(val);
+    adjustHeight(e.target);
+
+    // Debounce de 250ms para persistir no estado global da cotação sem travar a digitação
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    commitTimerRef.current = setTimeout(() => {
+      lastCommittedRef.current = val;
+      onCommit(val);
+    }, 250);
+
+    // Debounce de 150ms para alimentar o autocomplete sem concorrência com o teclado
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setSearchQuery(val.trim());
+      setIsAutocompleteOpen(val.trim().length >= 2);
+    }, 150);
+  };
+
+  const handleBlur = () => {
+    isFocusedRef.current = false;
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    if (localValue !== lastCommittedRef.current) {
+      lastCommittedRef.current = localValue;
+      onCommit(localValue);
+    }
+    // Fecha o autocomplete com pequeno delay para permitir clique nas opções
+    setTimeout(() => {
+      setIsAutocompleteOpen(false);
+    }, 250);
+  };
+
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    if (!q || q.length < 2) return [];
+    return (products || [])
+      .filter(p => {
+        if ((p.name || '').trim().toLowerCase() === q) return false;
+        const nameMatch = (p.name || '').toLowerCase().includes(q);
+        const skuMatch = (p.sku || '').toLowerCase().includes(q);
+        const partMatch = (p.partNumber || '').toLowerCase().includes(q);
+        const catMatch = (p.category || '').toLowerCase().includes(q);
+        return nameMatch || skuMatch || partMatch || catMatch;
+      })
+      .slice(0, 8);
+  }, [searchQuery, products]);
+
+  return (
+    <div className="flex-1 min-w-0 relative sq-item-autocomplete-container">
+      <textarea
+        ref={(el) => {
+          textareaDomRef.current = el;
+          setTextareaRef(el);
+          if (el) adjustHeight(el);
+        }}
+        rows={1}
+        value={localValue}
+        onFocus={() => {
+          isFocusedRef.current = true;
+          onFocus();
+        }}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setIsAutocompleteOpen(false);
+          }
+        }}
+        onPaste={(e) => {
+          onPasteImage(e);
+          setTimeout(() => {
+            if (textareaDomRef.current) adjustHeight(textareaDomRef.current);
+          }, 0);
+        }}
+        className="w-full min-h-[32px] bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white resize-none leading-snug overflow-hidden"
+      />
+
+      {isAutocompleteOpen && filteredProducts.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col animate-scaleIn max-h-72">
+          <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
+            <span className="flex items-center gap-1.5 text-sky-700">
+              <Package className="w-3.5 h-3.5 text-sky-600" />
+              <span>Produtos no Catálogo ({filteredProducts.length})</span>
+            </span>
+            <span className="text-[9.5px] text-slate-400 font-normal lowercase">clique para preencher dados e custo</span>
+          </div>
+
+          <div className="p-1 overflow-y-auto divide-y divide-slate-100">
+            {filteredProducts.map(p => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onApplyProduct(itemIndex, p);
+                  setIsAutocompleteOpen(false);
+                }}
+                className="w-full text-left p-2 hover:bg-sky-50 rounded-xl transition flex items-center gap-2.5 border border-transparent hover:border-sky-200 cursor-pointer group"
+              >
+                {p.imageUrl ? (
+                  <img
+                    src={p.imageUrl}
+                    alt={p.name}
+                    className="w-8 h-8 object-contain bg-white border border-slate-200 rounded-lg p-0.5 shrink-0"
+                    onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                    <Package className="w-3.5 h-3.5" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-sky-800 truncate">
+                    {p.name}
+                  </p>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                    {p.partNumber && <span>Part: {p.partNumber}</span>}
+                    {p.sku && <span>SKU: {p.sku}</span>}
+                    {p.category && <span className="text-slate-400 font-sans">• {p.category}</span>}
+                    <span className="text-slate-400 font-sans">• {p.unit || 'Un.'}</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-xs font-bold text-emerald-700 font-mono block">
+                    R$ {Number(p.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[9px] text-slate-400">Custo Base</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
 
 const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   currentQuote,
@@ -568,6 +767,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   }, [currentQuote.id, currentQuote.deliveryDays, currentQuote.globalMarkupPercent, settings.defaultMarkupPercent, settings.defaultTaxPercent, settings.defaultShippingCost, settings.cityState]);
 
   // Sincronização e auto-correção: garante que totalPrice e markupPercent de cada item correspondam exatamente à matemática real
+  // Executa apenas quando campos numéricos/financeiros mudam, NUNCA durante digitação de texto
+  const itemsFinancialKey = useMemo(() => {
+    return (currentQuote.items || [])
+      .map(it => `${it.id}:${it.costPrice}:${it.unitPrice}:${it.quantity}:${it.totalPrice}:${it.markupPercent}:${it.taxPercent}:${it.shippingCost}`)
+      .join('|');
+  }, [currentQuote.items]);
+
   React.useEffect(() => {
     if (!currentQuote.items || currentQuote.items.length === 0) return;
     const hasMismatch = currentQuote.items.some(it => {
@@ -609,7 +815,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         };
       });
     }
-  }, [currentQuote.items, globalShipping, globalTax, globalMarkup]);
+  }, [itemsFinancialKey, globalShipping, globalTax, globalMarkup]);
 
   // Fechar dropdowns de busca ao clicar fora
   React.useEffect(() => {
@@ -629,12 +835,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   }, []);
 
   // Auto-ajuste dinâmico da altura das caixas de texto de descrição
-  const adjustItemTextareaHeight = (el: HTMLTextAreaElement | null) => {
+  const adjustItemTextareaHeight = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.max(32, el.scrollHeight)}px`;
-  };
+  }, []);
 
+  // Ajusta altura das caixas de texto apenas quando a estrutura de itens muda (adicionado, removido ou troca de proposta)
+  const itemIdsKey = useMemo(() => (currentQuote.items || []).map(i => i.id).join(','), [currentQuote.items]);
   React.useEffect(() => {
     currentQuote.items.forEach(item => {
       const el = itemNameTextareaRefs.current[item.id];
@@ -642,7 +850,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         adjustItemTextareaHeight(el);
       }
     });
-  }, [currentQuote.items]);
+  }, [itemIdsKey, adjustItemTextareaHeight]);
 
   // Garante que a validade da cotação sempre inclua o complemento oficial "ou enquanto durar o estoque."
   React.useEffect(() => {
@@ -1182,6 +1390,15 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       if (!updatedItems[index]) return prev;
       const item = { ...updatedItems[index], ...updates };
 
+      const isFinancialChange =
+        'costPrice' in updates ||
+        'markupPercent' in updates ||
+        'shippingCost' in updates ||
+        'taxPercent' in updates ||
+        'unitPrice' in updates ||
+        'quantity' in updates ||
+        'isOptional' in updates;
+
       if ('costPrice' in updates || 'markupPercent' in updates || 'shippingCost' in updates || 'taxPercent' in updates) {
         const cost = item.costPrice;
         const markup = item.markupPercent ?? globalMarkup;
@@ -1210,7 +1427,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         }
       }
 
-      if (item.imageUrl && item.imageUrl.trim()) {
+      // Salva imagem no cache APENAS quando a imagem for de fato adicionada ou alterada, NUNCA durante digitação de texto
+      if ('imageUrl' in updates && item.imageUrl && item.imageUrl.trim()) {
         saveProductImageToCache(
           { name: item.name, partNumber: item.partNumber },
           item.imageUrl.trim(),
@@ -1219,12 +1437,20 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       }
 
       updatedItems[index] = item;
-      const totals = recalculateQuote(updatedItems);
+
+      if (isFinancialChange) {
+        const totals = recalculateQuote(updatedItems);
+        return {
+          ...prev,
+          items: updatedItems,
+          ...totals,
+          updatedAt: new Date().toISOString()
+        };
+      }
 
       return {
         ...prev,
         items: updatedItems,
-        ...totals,
         updatedAt: new Date().toISOString()
       };
     });
@@ -3894,119 +4120,19 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             )}
                           </div>
 
-                          {/* Campo de Descrição com Busca Preditiva no Banco / Catálogo */}
-                          <div className="flex-1 min-w-0 relative sq-item-autocomplete-container">
-                            <textarea
-                              ref={(el) => {
-                                itemNameTextareaRefs.current[item.id] = el;
-                                if (el) adjustItemTextareaHeight(el);
-                              }}
-                              rows={1}
-                              value={item.name}
-                              onFocus={() => {
-                                activeImageUploadIndexRef.current = idx;
-                              }}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                handleItemChange(idx, 'name', val);
-                                adjustItemTextareaHeight(e.target);
-                                if (val.trim().length >= 2) {
-                                  setActiveItemAutocompleteId(item.id);
-                                } else {
-                                  setActiveItemAutocompleteId(null);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
-                                  setActiveItemAutocompleteId(null);
-                                }
-                              }}
-                              onPaste={(e) => {
-                                handlePasteImageToItem(e, idx);
-                                setTimeout(() => {
-                                  const el = itemNameTextareaRefs.current[item.id];
-                                  if (el) adjustItemTextareaHeight(el);
-                                }, 0);
-                              }}
-                              className="w-full min-h-[32px] bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white resize-none leading-snug overflow-hidden"
-                            />
-
-                            {/* Dropdown de Autocomplete com Produtos Cadastrados */}
-                            {activeItemAutocompleteId === item.id && (() => {
-                              const query = (item.name || '').trim().toLowerCase();
-                              if (!query || query.length < 2) return null;
-
-                              const filtered = (products || [])
-                                .filter(p => {
-                                  if ((p.name || '').trim().toLowerCase() === query) return false;
-                                  const nameMatch = (p.name || '').toLowerCase().includes(query);
-                                  const skuMatch = (p.sku || '').toLowerCase().includes(query);
-                                  const partMatch = (p.partNumber || '').toLowerCase().includes(query);
-                                  const catMatch = (p.category || '').toLowerCase().includes(query);
-                                  return nameMatch || skuMatch || partMatch || catMatch;
-                                })
-                                .slice(0, 8);
-
-                              if (filtered.length === 0) return null;
-
-                              return (
-                                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col animate-scaleIn max-h-72">
-                                  <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
-                                    <span className="flex items-center gap-1.5 text-sky-700">
-                                      <Package className="w-3.5 h-3.5 text-sky-600" />
-                                      <span>Produtos no Catálogo ({filtered.length})</span>
-                                    </span>
-                                    <span className="text-[9.5px] text-slate-400 font-normal lowercase">clique para preencher dados e custo</span>
-                                  </div>
-
-                                  <div className="p-1 overflow-y-auto divide-y divide-slate-100">
-                                    {filtered.map(p => (
-                                      <button
-                                        key={p.id}
-                                        type="button"
-                                        onMouseDown={(e) => {
-                                          e.preventDefault();
-                                          handleApplyProductToRow(idx, p);
-                                        }}
-                                        className="w-full text-left p-2 hover:bg-sky-50 rounded-xl transition flex items-center gap-2.5 border border-transparent hover:border-sky-200 cursor-pointer group"
-                                      >
-                                        {p.imageUrl ? (
-                                          <img
-                                            src={p.imageUrl}
-                                            alt={p.name}
-                                            className="w-8 h-8 object-contain bg-white border border-slate-200 rounded-lg p-0.5 shrink-0"
-                                          />
-                                        ) : (
-                                          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
-                                            <Package className="w-4 h-4" />
-                                          </div>
-                                        )}
-
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-xs font-bold text-slate-900 group-hover:text-sky-800 truncate">
-                                            {p.name}
-                                          </p>
-                                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
-                                            {p.partNumber && <span>Part: {p.partNumber}</span>}
-                                            {p.sku && <span>SKU: {p.sku}</span>}
-                                            {p.category && <span className="text-slate-400 font-sans">• {p.category}</span>}
-                                            <span className="text-slate-400 font-sans">• {p.unit || 'Un.'}</span>
-                                          </div>
-                                        </div>
-
-                                        <div className="text-right shrink-0">
-                                          <span className="text-xs font-bold text-emerald-700 font-mono block">
-                                            R$ {p.costPrice.toFixed(2)}
-                                          </span>
-                                          <span className="text-[9px] text-slate-400">Custo Base</span>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
+                          {/* Campo de Descrição com Buffer Local de Digitação Instantânea e Busca Preditiva Desacoplada */}
+                          <ItemNameTextarea
+                            itemId={item.id}
+                            itemIndex={idx}
+                            initialValue={item.name}
+                            onCommit={(val) => handleItemChange(idx, 'name', val)}
+                            onFocus={() => { activeImageUploadIndexRef.current = idx; }}
+                            onPasteImage={(e) => handlePasteImageToItem(e, idx)}
+                            products={products}
+                            onApplyProduct={handleApplyProductToRow}
+                            setTextareaRef={(el) => { itemNameTextareaRefs.current[item.id] = el; }}
+                            adjustHeight={adjustItemTextareaHeight}
+                          />
                         </div>
                       </td>
 
