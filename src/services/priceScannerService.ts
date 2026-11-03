@@ -94,10 +94,10 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
  * gemini-3.6-flash e 3.5-flash atuam como fallbacks adicionais.
  */
 export const MODERN_GEMINI_MODELS = [
-  'gemini-3.5-flash',
-  'gemini-3-flash-preview',
   'gemini-3.6-flash',
-  'gemini-3.1-flash-lite'
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3-flash-preview'
 ];
 
 /**
@@ -162,12 +162,28 @@ export async function fetchGeminiWithTimeout(
         const errJson = await proxyRes.json().catch(() => ({}));
         const errMsg = errJson?.error?.message || errJson?.error || `Erro HTTP ${proxyRes.status}`;
         console.warn(`[Gemini Proxy] Modelo ${model} retornou ${proxyRes.status}:`, errMsg);
-        return { 
-          ok: false, 
-          status: proxyRes.status, 
-          errorText: errMsg, 
-          rateLimited: proxyRes.status === 429 || proxyRes.status === 503 
-        };
+
+        // Se for 429 ou 503 vindo diretamente do proxy, propaga como rate limited
+        if (proxyRes.status === 429 || proxyRes.status === 503) {
+          return { 
+            ok: false, 
+            status: proxyRes.status, 
+            errorText: errMsg, 
+            rateLimited: true 
+          };
+        }
+
+        // Se o proxy falhou com outro erro (ex: 413 Payload Too Large, 500, 502, 504) e temos chave direta do usuário,
+        // NÃO aborte aqui: permita que o código prossiga para o fallback direto no navegador!
+        if (!keyFromUrl) {
+          return { 
+            ok: false, 
+            status: proxyRes.status, 
+            errorText: errMsg, 
+            rateLimited: false 
+          };
+        }
+        console.warn(`[Gemini Proxy Fallback] Proxy retornou ${proxyRes.status}. Tentando chamada direta ao Google com a chave do usuário...`);
       }
     } catch {
       // Se falhar a chamada do proxy (ex: offline), prossegue com fallback direto
@@ -3224,6 +3240,8 @@ export async function phase1DiscoverProductsFromText(
     }
   }
 
+  const modelFailures: string[] = [];
+
   if (activeKey) {
     const models = MODERN_GEMINI_MODELS;
 
@@ -3385,7 +3403,10 @@ Retorne ESTRITAMENTE um JSON no formato:
 }`;
 
     for (const model of models) {
-      if (isGeminiCircuitBreakerActive()) break;
+      if (isGeminiCircuitBreakerActive()) {
+        modelFailures.push('Circuit Breaker ativo (resfriamento de cota da IA)');
+        break;
+      }
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
         const parts: any[] = [];
@@ -3408,12 +3429,15 @@ Retorne ESTRITAMENTE um JSON no formato:
         }, 45000);
 
         if (callRes.rateLimited) {
+          modelFailures.push(`${model}: Rate Limit 429 (cota momentânea ou diária excedida)`);
           console.warn(`[Phase1][${model}] Rate limited (429) no modelo ${model}, tentando próximo da cascata...`);
           continue;
         }
 
         if (!callRes.ok || !callRes.data) {
-          console.error(`[Phase1][${model}] Falha HTTP ${callRes.status}:`, callRes.errorText?.slice(0, 300));
+          const errMsg = callRes.errorText || `Status HTTP ${callRes.status}`;
+          modelFailures.push(`${model}: ${errMsg}`);
+          console.error(`[Phase1][${model}] Falha HTTP ${callRes.status}:`, errMsg.slice(0, 300));
           continue;
         }
 
@@ -3422,12 +3446,14 @@ Retorne ESTRITAMENTE um JSON no formato:
         if (!rawOutput) {
           const finishReason = data?.candidates?.[0]?.finishReason;
           const safetyRatings = data?.candidates?.[0]?.safetyRatings;
+          modelFailures.push(`${model}: Sem texto de resposta gerado (finishReason: ${finishReason || 'nenhum'})`);
           console.error(`[Phase1][${model}] Sem rawOutput. finishReason:`, finishReason, '| safety:', JSON.stringify(safetyRatings));
           continue;
         }
 
         const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
+          modelFailures.push(`${model}: Resposta não veio em formato JSON válido`);
           console.error(`[Phase1][${model}] Resposta não é JSON:`, rawOutput.slice(0, 200));
           continue;
         }
@@ -3436,6 +3462,7 @@ Retorne ESTRITAMENTE um JSON no formato:
         let list = Array.isArray(parsed.products) ? parsed.products : (parsed.standardizedName ? [parsed] : []);
 
         if (list.length === 0) {
+          modelFailures.push(`${model}: Retornou lista vazia de produtos`);
           console.error(`[Phase1][${model}] Gemini retornou lista vazia de produtos. JSON:`, rawOutput.slice(0, 200));
           continue;
         }
@@ -3643,9 +3670,16 @@ Retorne ESTRITAMENTE um JSON no formato:
   );
 
   if (activeKey && !isGeminiCircuitBreakerActive()) {
+    const errorDetails = modelFailures.length > 0
+      ? `Modelos testados na cascata:\n${modelFailures.map(f => `• ${f}`).join('\n')}`
+      : 'Todos os modelos da cascata falharam ou não retornaram dados válidos.';
+
     reportError(
       'Aviso da API Gemini: Dedução Técnica Ativada',
-      'A API do Google Gemini não respondeu com sucesso para esta consulta. O motor de Dedução Técnica Heurística de alta precisão foi acionado automaticamente para garantir a ficha técnica do produto.',
+      {
+        message: 'A API do Google Gemini não respondeu com sucesso para esta consulta. O motor de Dedução Técnica Heurística de alta precisão foi acionado automaticamente para garantir a ficha técnica do produto.',
+        details: errorDetails
+      },
       'Price Scanner - Fase 1'
     );
   }

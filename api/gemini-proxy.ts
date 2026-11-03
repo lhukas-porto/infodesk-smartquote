@@ -3,10 +3,10 @@ export const config = {
 };
 
 const ALLOWED_MODELS = new Set([
-  'gemini-3.5-flash',
-  'gemini-3-flash-preview',
   'gemini-3.6-flash',
-  'gemini-3.1-flash-lite'
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3-flash-preview'
 ]);
 
 // Rate limiter em memória por IP (máximo 60 req/min)
@@ -64,8 +64,8 @@ export default async function handler(req: any, res: any) {
     }
 
     // Validação e isolamento estrito de modelos permitidos
-    const requestedModel = (body.model as string) || 'gemini-3.5-flash';
-    const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : 'gemini-3.5-flash';
+    const requestedModel = (body.model as string) || 'gemini-3.6-flash';
+    const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : 'gemini-3.6-flash';
 
     // Rate Limiting defensivo por IP
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'local';
