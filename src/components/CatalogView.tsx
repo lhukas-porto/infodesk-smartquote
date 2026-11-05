@@ -974,6 +974,14 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                             <span className="font-mono font-bold text-slate-900 text-xs">
                               R$ {p.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
+                            {p.dollarPrice !== undefined && p.dollarPrice > 0 && (
+                              <span 
+                                className="inline-flex items-center gap-0.5 text-[9.5px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 mt-0.5 shadow-2xs"
+                                title={`Preço em Dólar: US$ ${p.dollarPrice.toFixed(2)}${p.dollarSurchargePercent ? ` (+${p.dollarSurchargePercent}%)` : ''}`}
+                              >
+                                US$ {p.dollarPrice.toFixed(2)}{p.dollarSurchargePercent ? ` (+${p.dollarSurchargePercent}%)` : ''}
+                              </span>
+                            )}
                             {isStale && (
                               <span 
                                 className="inline-flex items-center gap-1 text-[9.5px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 shadow-2xs"

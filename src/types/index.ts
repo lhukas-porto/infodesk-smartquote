@@ -16,6 +16,7 @@ export interface Product {
   imageUrl?: string;
   shippingCost?: number;
   dollarPrice?: number;
+  dollarSurchargePercent?: number;
   sellingPrice?: number;
 }
 
@@ -53,6 +54,7 @@ export interface QuoteItem {
   sourceUrl?: string;
   supplier?: string;
   dollarPrice?: number;
+  dollarSurchargePercent?: number;
   alternativeOffers?: SupplierOffer[];
   isOptional?: boolean; // Item Opcional / Sugestão de Upgrade (não soma no total principal)
   // Campos de Aprovação Parcial e Central de Compras

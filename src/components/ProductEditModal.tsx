@@ -29,6 +29,10 @@ import { getSettings, findProductImageInCache, saveProductImageToCache } from '.
 import { fetchProductSpecsOnline } from '../services/specSearchService';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
 import { getAllRegisteredSuppliers, learnSupplier } from '../services/supplierLearningService';
+import {
+  learnDollarSurcharge,
+  predictDollarSurcharge
+} from '../services/dollarSurchargeLearningService';
 
 export interface ProductEditModalProps {
   isOpen: boolean;
@@ -144,6 +148,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 }) => {
   const [draft, setDraft] = useState<Partial<Product>>(() => product || {});
   const [dollarInput, setDollarInput] = useState<string>('');
+  const [dollarSurchargeInput, setDollarSurchargeInput] = useState<string>('');
+  const [suggestedSurcharge, setSuggestedSurcharge] = useState<{
+    percent: number;
+    confidence: 'Inicial' | 'Frequente' | 'Consolidado';
+    label: string;
+    sampleCount: number;
+  } | null>(null);
   const [costInput, setCostInput] = useState<string>('');
   const [shippingInput, setShippingInput] = useState<string>('');
 
@@ -206,6 +217,16 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       const initialDollar = (product as any)?.dollarPrice;
       setDollarInput(initialDollar && initialDollar > 0 ? formatCurrencyPtBr(initialDollar) : '');
 
+      const initialSurcharge = (product as any)?.dollarSurchargePercent;
+      if (initialSurcharge !== undefined && initialSurcharge > 0) {
+        setDollarSurchargeInput(formatCurrencyPtBr(initialSurcharge));
+      } else {
+        setDollarSurchargeInput('');
+      }
+
+      const prediction = predictDollarSurcharge(product?.name, initialCat);
+      setSuggestedSurcharge(prediction);
+
       const resolvedShipping = initialShippingCost !== undefined && initialShippingCost > 0
         ? initialShippingCost
         : (product?.shippingCost || 0);
@@ -216,37 +237,50 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
   }, [isOpen, product, initialShippingCost]);
 
-  // Conversão de Dólar para Real
-  const handleDollarChange = (val: string) => {
-    setDollarInput(val);
-    const parsedDollar = parsePtBrNumber(val);
+  // Consulta predição de acréscimo de dólar quando o nome ou a categoria mudarem
+  useEffect(() => {
+    if (!draft.name && !draft.category) {
+      setSuggestedSurcharge(null);
+      return;
+    }
+    const prediction = predictDollarSurcharge(draft.name, draft.category);
+    setSuggestedSurcharge(prediction);
+  }, [draft.name, draft.category]);
+
+  // Conversão Inteligente de Dólar + Acréscimo do Fornecedor para Real (Diretriz do Lucas)
+  const recalculateCostFromDollar = (dollarVal: string, surchargeVal: string) => {
+    const parsedDollar = parsePtBrNumber(dollarVal);
+    const parsedSurcharge = parsePtBrNumber(surchargeVal);
     if (parsedDollar > 0) {
-      const calculatedCostBrl = Number((parsedDollar * effectiveDollarRate).toFixed(2));
+      const surchargeMultiplier = parsedSurcharge > 0 ? (1 + (parsedSurcharge / 100)) : 1;
+      const calculatedCostBrl = Number((parsedDollar * surchargeMultiplier * effectiveDollarRate).toFixed(2));
       setCostInput(formatCurrencyPtBr(calculatedCostBrl));
       setDraft(prev => ({
         ...prev,
         dollarPrice: parsedDollar,
+        dollarSurchargePercent: parsedSurcharge > 0 ? parsedSurcharge : undefined,
         costPrice: calculatedCostBrl
       }));
     } else {
       setDraft(prev => ({
         ...prev,
-        dollarPrice: undefined
+        dollarPrice: undefined,
+        dollarSurchargePercent: parsedSurcharge > 0 ? parsedSurcharge : undefined
       }));
     }
+  };
+
+  const handleDollarChange = (val: string) => {
+    setDollarInput(val);
+    recalculateCostFromDollar(val, dollarSurchargeInput);
   };
 
   const handleDollarBlur = () => {
     const parsedDollar = parsePtBrNumber(dollarInput);
     if (parsedDollar > 0) {
-      setDollarInput(formatCurrencyPtBr(parsedDollar));
-      const calculatedCostBrl = Number((parsedDollar * effectiveDollarRate).toFixed(2));
-      setCostInput(formatCurrencyPtBr(calculatedCostBrl));
-      setDraft(prev => ({
-        ...prev,
-        dollarPrice: parsedDollar,
-        costPrice: calculatedCostBrl
-      }));
+      const formatted = formatCurrencyPtBr(parsedDollar);
+      setDollarInput(formatted);
+      recalculateCostFromDollar(formatted, dollarSurchargeInput);
     } else {
       setDollarInput('');
       setDraft(prev => ({
@@ -254,6 +288,29 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         dollarPrice: undefined
       }));
     }
+  };
+
+  const handleSurchargeChange = (val: string) => {
+    setDollarSurchargeInput(val);
+    recalculateCostFromDollar(dollarInput, val);
+  };
+
+  const handleSurchargeBlur = () => {
+    const parsedSurcharge = parsePtBrNumber(dollarSurchargeInput);
+    if (parsedSurcharge > 0) {
+      const formatted = formatCurrencyPtBr(parsedSurcharge);
+      setDollarSurchargeInput(formatted);
+      recalculateCostFromDollar(dollarInput, formatted);
+    } else {
+      setDollarSurchargeInput('');
+      recalculateCostFromDollar(dollarInput, '');
+    }
+  };
+
+  const applySuggestedSurcharge = (percent: number) => {
+    const formatted = formatCurrencyPtBr(percent);
+    setDollarSurchargeInput(formatted);
+    recalculateCostFromDollar(dollarInput, formatted);
   };
 
   // Captura global de Ctrl+V quando o modal está aberto
@@ -368,6 +425,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const parsedCost = parsePtBrNumber(costInput);
     const parsedShipping = parsePtBrNumber(shippingInput);
     const parsedDollar = parsePtBrNumber(dollarInput);
+    const parsedSurcharge = parsePtBrNumber(dollarSurchargeInput);
 
     let normalizedSourceUrl = (draft.sourceUrl || '').trim();
     if (
@@ -401,6 +459,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       category: normalizeToOfficialCategory(draft.category || 'Diversos & Sazonais'),
       costPrice: parsedCost,
       dollarPrice: parsedDollar > 0 ? parsedDollar : undefined,
+      dollarSurchargePercent: parsedSurcharge > 0 ? parsedSurcharge : undefined,
       unit: draft.unit || 'Un.',
       supplier: resolvedSupplier,
       stock: draft.stock !== undefined ? Number(draft.stock) : 10,
@@ -410,6 +469,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       imageUrl: draft.imageUrl || '',
       shippingCost: parsedShipping
     };
+
+    // APRENDIZADO CONTÍNUO (Diretriz do Lucas): Aprende a porcentagem de acréscimo do fornecedor para o tipo de produto
+    if (finalProd.name && parsedDollar > 0 && parsedSurcharge > 0) {
+      learnDollarSurcharge(finalProd.name, parsedSurcharge, finalProd.category);
+    }
 
     // APRENDIZADO CONTÍNUO (Diretriz do Lucas): Aprende e memoriza o nome do fornecedor para a URL/loja
     if (finalProd.sourceUrl && finalProd.supplier) {
@@ -660,11 +724,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               </div>
 
-              {/* Preço em Dólar, Preço de Custo, Frete Unitário, Custo Total e Unidade */}
-              <div className={`grid grid-cols-1 ${showShippingFields ? 'sm:grid-cols-5' : 'sm:grid-cols-3'} gap-3 items-start`}>
+              {/* Preço em Dólar, Acréscimo Fornecedor %, Preço de Custo, Frete Unitário, Custo Total e Unidade */}
+              <div className={`grid grid-cols-2 ${showShippingFields ? 'sm:grid-cols-6' : 'sm:grid-cols-4'} gap-3 items-start`}>
                 <div className="flex flex-col">
                   <label className="h-8 flex items-end justify-center sm:justify-start text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
-                    <span>Preço em Dólar (US$)</span>
+                    <span>Preço Dólar (US$)</span>
                   </label>
                   <input
                     type="text"
@@ -684,6 +748,36 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     <p className="text-[9px] text-slate-400 text-center mt-1 font-medium truncate" title="Cotação do dia definida nas Configurações">
                       US$ = R$ {effectiveDollarRate.toFixed(2).replace('.', ',')}
                     </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="h-8 flex items-end justify-center sm:justify-start text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                    <span>Acréscimo (%)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={dollarSurchargeInput}
+                    onFocus={() => {
+                      const parsed = parsePtBrNumber(dollarSurchargeInput);
+                      if (parsed <= 0) {
+                        setDollarSurchargeInput('');
+                      }
+                    }}
+                    onChange={(e) => handleSurchargeChange(e.target.value)}
+                    onBlur={handleSurchargeBlur}
+                    title="Porcentagem de acréscimo cobrada pelo fornecedor sobre o valor em dólar"
+                    className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
+                  />
+                  {suggestedSurcharge && (!dollarSurchargeInput || parsePtBrNumber(dollarSurchargeInput) <= 0) && (
+                    <button
+                      type="button"
+                      onClick={() => applySuggestedSurcharge(suggestedSurcharge.percent)}
+                      className="text-[9px] text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded px-1.5 py-0.5 mt-1 font-semibold text-center transition cursor-pointer truncate"
+                      title={`Padrão aprendido para ${suggestedSurcharge.label}: ${suggestedSurcharge.percent}% (${suggestedSurcharge.confidence}). Clique para aplicar.`}
+                    >
+                      💡 Sugerido: {suggestedSurcharge.percent}%
+                    </button>
                   )}
                 </div>
 

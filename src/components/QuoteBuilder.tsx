@@ -2050,6 +2050,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         quantity: 1,
         unit: prod.unit || 'Un.',
         costPrice: prod.costPrice,
+        dollarPrice: prod.dollarPrice,
+        dollarSurchargePercent: prod.dollarSurchargePercent,
         shippingCost: globalShipping,
         taxPercent: globalTax,
         markupPercent: globalMarkup,
@@ -2125,6 +2127,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       description: finalDescription,
       category: initialCategory,
       costPrice: freshItem.costPrice || 0,
+      dollarPrice: freshItem.dollarPrice || matchedCatalogProd?.dollarPrice,
+      dollarSurchargePercent: freshItem.dollarSurchargePercent || matchedCatalogProd?.dollarSurchargePercent,
       unit: freshItem.unit || 'Un.',
       supplier: resolvedSupplier,
       stock: matchedCatalogProd?.stock ?? 10,
@@ -2215,6 +2219,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           partNumber: enrichedProd.partNumber,
           ncm: enrichedProd.ncm,
           costPrice: newCost,
+          dollarPrice: enrichedProd.dollarPrice,
+          dollarSurchargePercent: enrichedProd.dollarSurchargePercent,
           shippingCost: newShipping,
           unit: enrichedProd.unit,
           supplier: resolvedSupplier,
@@ -4320,6 +4326,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         }}
                         className="w-full h-8 min-w-[68px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-mono text-slate-700 focus:outline-none focus:border-sky-500 focus:bg-white leading-none"
                       />
+                      {item.dollarPrice !== undefined && item.dollarPrice > 0 && (
+                        <div
+                          className="text-[9.5px] text-emerald-700 font-mono font-bold leading-tight mt-0.5 truncate cursor-help"
+                          title={`Origem em Dólar: US$ ${item.dollarPrice.toFixed(2)}${item.dollarSurchargePercent ? ` (+${item.dollarSurchargePercent}%)` : ''}`}
+                        >
+                          US$ {item.dollarPrice.toFixed(2)}{item.dollarSurchargePercent ? ` (+${item.dollarSurchargePercent}%)` : ''}
+                        </div>
+                      )}
                     </td>
 
                     {/* Frete Unitário por Item */}

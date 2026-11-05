@@ -139,6 +139,10 @@ import {
   learnSuppliersFromQuotes
 } from './services/supplierLearningService';
 import {
+  learnDollarSurchargesFromProducts,
+  learnDollarSurchargesFromQuotes
+} from './services/dollarSurchargeLearningService';
+import {
   isSupabaseConfigured,
   fetchCompanySettingsFromSupabase,
   syncCompanySettingsToSupabase,
@@ -362,13 +366,15 @@ export const App: React.FC = () => {
     }
   }, [quotes]);
 
-  // APRENDIZADO CONTÍNUO DE FORNECEDORES: Aprende e memoriza nomes e domínios de fornecedores a partir dos produtos e cotações
+  // APRENDIZADO CONTÍNUO DE FORNECEDORES E TAXAS DE DÓLAR: Aprende e memoriza fornecedores e acréscimos de dólar do histórico
   useEffect(() => {
     if (products && products.length > 0) {
       learnSuppliersFromProducts(products);
+      learnDollarSurchargesFromProducts(products);
     }
     if (quotes && quotes.length > 0) {
       learnSuppliersFromQuotes(quotes);
+      learnDollarSurchargesFromQuotes(quotes);
     }
   }, [products, quotes]);
 
@@ -2283,6 +2289,8 @@ export const App: React.FC = () => {
         quantity: qty,
         unit: item.unit || 'Un.',
         costPrice: cost,
+        dollarPrice: item.dollarPrice,
+        dollarSurchargePercent: item.dollarSurchargePercent,
         shippingCost: shipping,
         taxPercent: tax,
         markupPercent: markup,
@@ -2366,6 +2374,8 @@ export const App: React.FC = () => {
         quantity: qty,
         unit: item.unit || 'Un.',
         costPrice: cost,
+        dollarPrice: item.dollarPrice,
+        dollarSurchargePercent: item.dollarSurchargePercent,
         shippingCost: shipping,
         taxPercent: tax,
         markupPercent,
@@ -2483,6 +2493,8 @@ export const App: React.FC = () => {
         quantity: 1,
         unit: product.unit || 'Un.',
         costPrice: product.costPrice,
+        dollarPrice: product.dollarPrice,
+        dollarSurchargePercent: product.dollarSurchargePercent,
         markupPercent: markup,
         unitPrice,
         totalPrice: unitPrice,
