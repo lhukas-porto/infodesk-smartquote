@@ -2354,6 +2354,8 @@ export const App: React.FC = () => {
 
       return {
         id: `item-${Date.now()}-${idx}`,
+        productId: item.productId,
+        category: item.category,
         itemNumber: idx + 1,
         name: item.name || '',
         description: item.description || '',
@@ -2591,11 +2593,14 @@ export const App: React.FC = () => {
         const qty = updatedData.quantity || current.quantity || 1;
         const totalPrice = Number((unitPrice * qty).toFixed(2));
 
-        // Preserva o nome (incluindo maiúsculas/minúsculas já editadas no orçamento) e a foto já adicionada pelo usuário!
-        const preservedName = (current.name && current.name.trim()) ? current.name : (updatedData.name || '');
-        const preservedImage = (current.imageUrl && current.imageUrl.trim())
-          ? current.imageUrl
-          : (updatedData.imageUrl || findProductImageInCache(preservedName, current.partNumber || updatedData.partNumber) || '');
+        // Se o item veio vinculado a um produto do catálogo (com productId), usa o nome e a foto oficiais do catálogo.
+        // Caso contrário, preserva o nome e foto já existentes se não vazios.
+        const preservedName = (updatedData.productId || !current.name?.trim())
+          ? (updatedData.name || current.name || '')
+          : current.name;
+        const preservedImage = (updatedData.productId || !current.imageUrl?.trim())
+          ? (updatedData.imageUrl || current.imageUrl || '')
+          : current.imageUrl;
 
         if (preservedImage) {
           saveProductImageToCache(

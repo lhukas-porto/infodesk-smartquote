@@ -1113,58 +1113,87 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     const catalogMatch = findCatalogMatchDetails(prod, products);
     const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
 
-    const resolvedCode = resolveProductModelAndPartNumber({
-      nameOrQuery: prod.standardizedName,
-      description: fullDesc || prod.description,
-      brand: prod.brand,
-      category: prod.category,
-      scannerModel: prod.model,
-      scannerPartNumber: prod.partNumber
-    });
+    let itemData: Partial<QuoteItem>;
 
-    const cost = existingInCatalog && existingInCatalog.costPrice > 0
-      ? existingInCatalog.costPrice
-      : (prod.costPrice && prod.costPrice > 0
+    if (existingInCatalog) {
+      // REGRA DO LUCAS: Quando achar o produto no catálogo, usa EXATAMENTE o produto já existente no catálogo.
+      // Sem alterar, sem sobrescrever e sem inventar dados novos para ele.
+      const cost = existingInCatalog.costPrice || 0;
+      const itemMarkup = targetMarginPercent !== null
+        ? targetMarginPercent
+        : getScannerTieredMarkup(cost);
+
+      const unitPrice = (existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0)
+        ? existingInCatalog.sellingPrice
+        : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax) : (prod.suggestedPrice || undefined));
+
+      itemData = {
+        productId: existingInCatalog.id,
+        name: existingInCatalog.name,
+        description: existingInCatalog.description || '',
+        partNumber: existingInCatalog.partNumber || existingInCatalog.sku || '',
+        ncm: existingInCatalog.ncm || '',
+        category: existingInCatalog.category || '',
+        imageUrl: existingInCatalog.imageUrl || '',
+        showImage: Boolean(existingInCatalog.imageUrl),
+        costPrice: cost,
+        shippingCost: existingInCatalog.shippingCost !== undefined ? existingInCatalog.shippingCost : effectiveShipping,
+        taxPercent: effectiveTax,
+        markupPercent: itemMarkup,
+        unitPrice,
+        quantity: prod.quantity || 1,
+        unit: existingInCatalog.unit || 'Un.',
+        supplier: existingInCatalog.supplier || '',
+        sourceUrl: existingInCatalog.sourceUrl || ''
+      };
+    } else {
+      const resolvedCode = resolveProductModelAndPartNumber({
+        nameOrQuery: prod.standardizedName,
+        description: fullDesc || prod.description,
+        brand: prod.brand,
+        category: prod.category,
+        scannerModel: prod.model,
+        scannerPartNumber: prod.partNumber
+      });
+
+      const cost = prod.costPrice && prod.costPrice > 0
         ? prod.costPrice
-        : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0));
+        : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0);
 
-    const itemMarkup = targetMarginPercent !== null
-      ? targetMarginPercent
-      : getScannerTieredMarkup(cost);
+      const itemMarkup = targetMarginPercent !== null
+        ? targetMarginPercent
+        : getScannerTieredMarkup(cost);
 
-    const unitPrice = cost > 0
-      ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
-      : (prod.suggestedPrice || undefined);
+      const unitPrice = cost > 0
+        ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
+        : (prod.suggestedPrice || undefined);
 
-    const reconciled = reconcileSupplierAndProductUrl(
-      existingInCatalog ? existingInCatalog.name : prod.standardizedName,
-      existingInCatalog?.supplier || prod.supplier,
-      prod.sourceUrl || existingInCatalog?.sourceUrl
-    );
-
-    const itemData: Partial<QuoteItem> = {
-      productId: existingInCatalog ? existingInCatalog.id : undefined,
-      name: existingInCatalog ? existingInCatalog.name : prod.standardizedName,
-      description: existingInCatalog?.description || fullDesc || prod.description || '',
-      partNumber: existingInCatalog?.partNumber || resolvedCode.partNumber,
-      ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
-      category: existingInCatalog?.category || prod.category,
-      imageUrl: chosenImage || existingInCatalog?.imageUrl,
-      showImage: !!(chosenImage || existingInCatalog?.imageUrl),
-      costPrice: cost,
-      shippingCost: effectiveShipping,
-      taxPercent: effectiveTax,
-      markupPercent: itemMarkup,
-      unitPrice,
-      quantity: prod.quantity || 1,
-      unit: prod.unit || existingInCatalog?.unit || 'Un.',
-      supplier: '',
-      sourceUrl: ''
-    };
+      itemData = {
+        productId: undefined,
+        name: prod.standardizedName,
+        description: fullDesc || prod.description || '',
+        partNumber: resolvedCode.partNumber,
+        ncm: cleanNcmCode(prod.ncm || ''),
+        category: prod.category,
+        imageUrl: chosenImage,
+        showImage: !!chosenImage,
+        costPrice: cost,
+        shippingCost: effectiveShipping,
+        taxPercent: effectiveTax,
+        markupPercent: itemMarkup,
+        unitPrice,
+        quantity: prod.quantity || 1,
+        unit: prod.unit || 'Un.',
+        supplier: '',
+        sourceUrl: ''
+      };
+    }
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
       onUpdateQuoteItem(targetItemIndex, itemData);
-      showToast('Item atualizado na cotação! A especificação oficial será gerada ao salvar.');
+      showToast(existingInCatalog 
+        ? `Item substituído pelo produto "${existingInCatalog.name}" do catálogo!`
+        : 'Item atualizado na cotação! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     } else if (onStartNewQuoteWithItems) {
       onStartNewQuoteWithItems([itemData]);
@@ -1175,7 +1204,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     } else {
       onAddToQuote(itemData);
       showToast(existingInCatalog 
-        ? `Item vinculado a "${existingInCatalog.name}" (Cód: ${existingInCatalog.sku || existingInCatalog.partNumber}) e inserido na cotação!`
+        ? `Item do catálogo "${existingInCatalog.name}" (Cód: ${existingInCatalog.sku || existingInCatalog.partNumber}) inserido na cotação!`
         : 'Item inserido na sua cotação! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     }
@@ -1189,10 +1218,10 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   ) => {
     // Se existing não foi passado explicitamente, checa pelo matching inteligente do catálogo
     const actualExisting = existing || (findCatalogMatchDetails(prod, products)?.product || null);
-    const actualMatch = matchInfo || (actualExisting ? (findCatalogMatchDetails(prod, products) || undefined) : undefined);
 
     if (actualExisting) {
-      setCatalogConflictItem({ discovered: prod, existing: actualExisting, matchInfo: actualMatch });
+      // REGRA DO LUCAS: Produtos já existentes no catálogo não devem ser alterados pelo scanner.
+      showToast(`O produto "${actualExisting.name}" já está salvo no seu catálogo e seu cadastro original foi preservado.`);
     } else {
       executeSaveProductToCatalog(prod, null, 'create_new');
     }
@@ -1210,24 +1239,10 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     const directInfo = buildDirectPurchaseUrl(prod.standardizedName, prod.sourceUrl);
 
     if (mode === 'update' && existing) {
-      const updatedProd: Product = {
-        ...existing,
-        name: prod.standardizedName || existing.name,
-        description: fullDesc || prod.description || existing.description,
-        costPrice: cost > 0 ? Number(cost.toFixed(2)) : existing.costPrice,
-        partNumber: cleanAlphanumericCode(prod.partNumber || '') || existing.partNumber,
-        ncm: cleanNcmCode(prod.ncm || '') || existing.ncm,
-        category: prod.category || existing.category,
-        unit: prod.unit || existing.unit || 'Un.',
-        supplier: sanitizeSupplierName(prod.supplier || directInfo.store || existing.supplier),
-        imageUrl: chosenImage || existing.imageUrl,
-        sourceUrl: prod.sourceUrl || directInfo.url || existing.sourceUrl,
-        lastUpdated: new Date().toISOString()
-      };
-      onSaveToCatalog(updatedProd);
+      // REGRA DO LUCAS: É proibido atualizar/sobrescrever produtos pré-existentes do catálogo com dados do scanner.
+      showToast(`O produto "${existing.name}" já está no catálogo e foi mantido sem alterações.`);
       setCatalogConflictItem(null);
-      setSavedInSessionIds(prev => new Set(prev).add(prod.id));
-      showToast(`Ficha técnica do produto "${existing.name}" atualizada com sucesso no catálogo!`);
+      return;
     } else {
       const isDuplicate = Boolean(existing);
       const resolved = resolveProductModelAndPartNumber({
@@ -1271,18 +1286,55 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     if (discoveredProducts.length === 0) return;
 
     const itemsData: Partial<QuoteItem>[] = discoveredProducts.map(prod => {
-      const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
-      const fullDesc = buildCompleteProductDescription(prod);
-      const directInfo = buildDirectPurchaseUrl(prod.standardizedName, prod.sourceUrl);
-
       const catalogMatch = findCatalogMatchDetails(prod, products);
       const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
 
-      const cost = existingInCatalog && existingInCatalog.costPrice > 0 
-        ? existingInCatalog.costPrice 
-        : (prod.costPrice && prod.costPrice > 0 
-          ? prod.costPrice 
-          : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0));
+      if (existingInCatalog) {
+        // REGRA DO LUCAS: Quando achar o produto no catálogo, usa EXATAMENTE o produto já existente no catálogo.
+        // Sem alterar, sem sobrescrever e sem inventar dados novos para ele.
+        const cost = existingInCatalog.costPrice || 0;
+        const itemMarkup = targetMarginPercent !== null
+          ? targetMarginPercent
+          : getScannerTieredMarkup(cost);
+        const unitPrice = (existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0)
+          ? existingInCatalog.sellingPrice
+          : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax) : (prod.suggestedPrice || undefined));
+
+        return {
+          productId: existingInCatalog.id,
+          name: existingInCatalog.name,
+          description: existingInCatalog.description || '',
+          partNumber: existingInCatalog.partNumber || existingInCatalog.sku || '',
+          ncm: existingInCatalog.ncm || '',
+          category: existingInCatalog.category || '',
+          imageUrl: existingInCatalog.imageUrl || '',
+          showImage: Boolean(existingInCatalog.imageUrl),
+          costPrice: cost,
+          shippingCost: existingInCatalog.shippingCost !== undefined ? existingInCatalog.shippingCost : effectiveShipping,
+          taxPercent: effectiveTax,
+          markupPercent: itemMarkup,
+          unitPrice,
+          quantity: prod.quantity || 1,
+          unit: existingInCatalog.unit || 'Un.',
+          supplier: existingInCatalog.supplier || '',
+          sourceUrl: existingInCatalog.sourceUrl || ''
+        };
+      }
+
+      const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
+      const fullDesc = buildCompleteProductDescription(prod);
+      const resolvedCode = resolveProductModelAndPartNumber({
+        nameOrQuery: prod.standardizedName,
+        description: fullDesc || prod.description,
+        brand: prod.brand,
+        category: prod.category,
+        scannerModel: prod.model,
+        scannerPartNumber: prod.partNumber
+      });
+
+      const cost = prod.costPrice && prod.costPrice > 0 
+        ? prod.costPrice 
+        : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0);
 
       const itemMarkup = targetMarginPercent !== null
         ? targetMarginPercent
@@ -1292,28 +1344,22 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
         : (prod.suggestedPrice || undefined);
 
-      const reconciled = reconcileSupplierAndProductUrl(
-        existingInCatalog ? existingInCatalog.name : prod.standardizedName,
-        existingInCatalog?.supplier || prod.supplier,
-        prod.sourceUrl || existingInCatalog?.sourceUrl
-      );
-
       return {
-        productId: existingInCatalog ? existingInCatalog.id : undefined,
-        name: (prod.standardizedName && prod.standardizedName.trim()) ? prod.standardizedName : (existingInCatalog ? existingInCatalog.name : ''),
-        description: existingInCatalog?.description || fullDesc || prod.description || '',
-        partNumber: existingInCatalog?.partNumber || cleanAlphanumericCode(prod.partNumber || ''),
-        ncm: existingInCatalog?.ncm || cleanNcmCode(prod.ncm || ''),
-        category: existingInCatalog?.category || prod.category,
-        imageUrl: chosenImage || existingInCatalog?.imageUrl,
-        showImage: !!(chosenImage || existingInCatalog?.imageUrl),
+        productId: undefined,
+        name: prod.standardizedName,
+        description: fullDesc || prod.description || '',
+        partNumber: resolvedCode.partNumber,
+        ncm: cleanNcmCode(prod.ncm || ''),
+        category: prod.category,
+        imageUrl: chosenImage,
+        showImage: !!chosenImage,
         costPrice: cost,
         shippingCost: effectiveShipping,
         taxPercent: effectiveTax,
         markupPercent: itemMarkup,
         unitPrice,
         quantity: prod.quantity || 1,
-        unit: prod.unit || existingInCatalog?.unit || 'Un.',
+        unit: prod.unit || 'Un.',
         supplier: '',
         sourceUrl: ''
       };
@@ -1354,9 +1400,41 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     if (selected.length === 0) return;
 
     const itemsToAdd: Partial<QuoteItem>[] = selected.map(item => {
-      const fullDesc = buildCompleteProductDescription(item);
-      const directInfo = buildDirectPurchaseUrl(item.standardizedName, item.buyUrl);
+      const catalogMatch = findCatalogMatchDetails(item, products);
+      const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
 
+      if (existingInCatalog) {
+        // REGRA DO LUCAS: Quando achar no catálogo, usa EXATAMENTE o produto já existente no catálogo
+        const cost = existingInCatalog.costPrice || 0;
+        const margin = targetMarginPercent !== null
+          ? targetMarginPercent
+          : getScannerTieredMarkup(cost);
+        const unitPrice = (existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0)
+          ? existingInCatalog.sellingPrice
+          : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, margin, effectiveTax) : undefined);
+
+        return {
+          productId: existingInCatalog.id,
+          name: existingInCatalog.name,
+          description: existingInCatalog.description || '',
+          partNumber: existingInCatalog.partNumber || existingInCatalog.sku || '',
+          ncm: existingInCatalog.ncm || '',
+          category: existingInCatalog.category || '',
+          imageUrl: existingInCatalog.imageUrl || '',
+          showImage: Boolean(existingInCatalog.imageUrl),
+          costPrice: cost,
+          shippingCost: existingInCatalog.shippingCost !== undefined ? existingInCatalog.shippingCost : effectiveShipping,
+          taxPercent: effectiveTax,
+          markupPercent: margin,
+          unitPrice,
+          quantity: item.quantity || 1,
+          unit: existingInCatalog.unit || 'Un.',
+          supplier: existingInCatalog.supplier || '',
+          sourceUrl: existingInCatalog.sourceUrl || ''
+        };
+      }
+
+      const fullDesc = buildCompleteProductDescription(item);
       const resolvedBatchCode = resolveProductModelAndPartNumber({
         nameOrQuery: item.standardizedName,
         description: fullDesc || item.description,
@@ -1367,13 +1445,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         scannerOffers: item.allOffers
       });
 
-      const catalogMatch = findCatalogMatchDetails(item, products);
-      const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
-
-      const cost = existingInCatalog && existingInCatalog.costPrice > 0 
-        ? existingInCatalog.costPrice 
-        : (item.bestPrice > 0 ? item.bestPrice : 0);
-
+      const cost = item.bestPrice > 0 ? item.bestPrice : 0;
       const margin = targetMarginPercent !== null
         ? targetMarginPercent
         : getScannerTieredMarkup(cost);
@@ -1384,27 +1456,22 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
       const chosenPhoto = (item.images && item.images[item.selectedImageIndex ?? 0]) || item.imageUrl || '';
 
-      const reconciled = reconcileSupplierAndProductUrl(
-        existingInCatalog ? existingInCatalog.name : item.standardizedName,
-        existingInCatalog?.supplier || item.store,
-        item.buyUrl || existingInCatalog?.sourceUrl
-      );
-
       return {
-        productId: existingInCatalog ? existingInCatalog.id : undefined,
-        name: (item.standardizedName && item.standardizedName.trim()) ? item.standardizedName : (existingInCatalog ? existingInCatalog.name : ''),
-        description: existingInCatalog?.description || fullDesc || item.description || '',
-        partNumber: existingInCatalog?.partNumber || resolvedBatchCode.partNumber,
-        ncm: existingInCatalog?.ncm || cleanNcmCode(item.ncm || ''),
-        imageUrl: chosenPhoto || existingInCatalog?.imageUrl,
-        showImage: !!(chosenPhoto || existingInCatalog?.imageUrl),
+        productId: undefined,
+        name: item.standardizedName || '',
+        description: fullDesc || item.description || '',
+        partNumber: resolvedBatchCode.partNumber,
+        ncm: cleanNcmCode(item.ncm || ''),
+        category: item.category,
+        imageUrl: chosenPhoto,
+        showImage: !!chosenPhoto,
         costPrice: cost,
         shippingCost: effectiveShipping,
         taxPercent: effectiveTax,
         markupPercent: margin,
         unitPrice,
         quantity: item.quantity || 1,
-        unit: item.unit || existingInCatalog?.unit || 'Un.',
+        unit: item.unit || 'Un.',
         supplier: '',
         sourceUrl: ''
       };
@@ -1423,71 +1490,101 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
   // Inserir item único da Fase 2 na cotação
   const handleAddSingleBatchResultToQuote = (item: ScannedPriceResult) => {
-    const fullDesc = buildCompleteProductDescription(item);
-    const directInfo = buildDirectPurchaseUrl(item.standardizedName, item.buyUrl);
-
-    const resolvedSingleCode = resolveProductModelAndPartNumber({
-      nameOrQuery: item.standardizedName,
-      description: fullDesc || item.description,
-      brand: item.brand,
-      category: item.category,
-      scannerModel: item.modelOrCode,
-      scannerPartNumber: item.partNumber,
-      scannerOffers: item.allOffers
-    });
-
     const catalogMatch = findCatalogMatchDetails(item, products);
     const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
 
-    const cost = existingInCatalog && existingInCatalog.costPrice > 0 
-      ? existingInCatalog.costPrice 
-      : (item.bestPrice > 0 ? item.bestPrice : 0);
+    let itemData: Partial<QuoteItem>;
 
-    const margin = targetMarginPercent !== null
-      ? targetMarginPercent
-      : getScannerTieredMarkup(cost);
+    if (existingInCatalog) {
+      // REGRA DO LUCAS: Quando achar no catálogo, usa EXATAMENTE o produto já existente no catálogo
+      const cost = existingInCatalog.costPrice || 0;
+      const margin = targetMarginPercent !== null
+        ? targetMarginPercent
+        : getScannerTieredMarkup(cost);
+      const unitPrice = (existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0)
+        ? existingInCatalog.sellingPrice
+        : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, margin, effectiveTax) : undefined);
 
-    const unitPrice = cost > 0 
-      ? calculateCommercialUnitPrice(cost, effectiveShipping, margin, effectiveTax) 
-      : undefined;
+      itemData = {
+        productId: existingInCatalog.id,
+        name: existingInCatalog.name,
+        description: existingInCatalog.description || '',
+        partNumber: existingInCatalog.partNumber || existingInCatalog.sku || '',
+        ncm: existingInCatalog.ncm || '',
+        category: existingInCatalog.category || '',
+        imageUrl: existingInCatalog.imageUrl || '',
+        showImage: Boolean(existingInCatalog.imageUrl),
+        costPrice: cost,
+        shippingCost: existingInCatalog.shippingCost !== undefined ? existingInCatalog.shippingCost : effectiveShipping,
+        taxPercent: effectiveTax,
+        markupPercent: margin,
+        unitPrice,
+        quantity: item.quantity || 1,
+        unit: existingInCatalog.unit || 'Un.',
+        supplier: existingInCatalog.supplier || '',
+        sourceUrl: existingInCatalog.sourceUrl || ''
+      };
+    } else {
+      const fullDesc = buildCompleteProductDescription(item);
+      const resolvedSingleCode = resolveProductModelAndPartNumber({
+        nameOrQuery: item.standardizedName,
+        description: fullDesc || item.description,
+        brand: item.brand,
+        category: item.category,
+        scannerModel: item.modelOrCode,
+        scannerPartNumber: item.partNumber,
+        scannerOffers: item.allOffers
+      });
 
-    const chosenPhoto = (item.images && item.images[item.selectedImageIndex ?? 0]) || item.imageUrl || '';
-    const reconciled = reconcileSupplierAndProductUrl(
-      existingInCatalog ? existingInCatalog.name : item.standardizedName,
-      existingInCatalog?.supplier || item.store,
-      item.buyUrl || existingInCatalog?.sourceUrl
-    );
+      const cost = item.bestPrice > 0 ? item.bestPrice : 0;
+      const margin = targetMarginPercent !== null
+        ? targetMarginPercent
+        : getScannerTieredMarkup(cost);
 
-    const itemData: Partial<QuoteItem> = {
-      productId: existingInCatalog ? existingInCatalog.id : undefined,
-      name: (item.standardizedName && item.standardizedName.trim()) ? item.standardizedName : (existingInCatalog ? existingInCatalog.name : ''),
-      description: existingInCatalog?.description || fullDesc || item.description || '',
-      partNumber: existingInCatalog?.partNumber || resolvedSingleCode.partNumber,
-      ncm: existingInCatalog?.ncm || cleanNcmCode(item.ncm || ''),
-      imageUrl: chosenPhoto || existingInCatalog?.imageUrl,
-      showImage: !!(chosenPhoto || existingInCatalog?.imageUrl),
-      costPrice: cost,
-      shippingCost: effectiveShipping,
-      taxPercent: effectiveTax,
-      markupPercent: margin,
-      unitPrice,
-      quantity: item.quantity || 1,
-      unit: item.unit || existingInCatalog?.unit || 'Un.',
-      supplier: '',
-      sourceUrl: ''
-    };
+      const unitPrice = cost > 0 
+        ? calculateCommercialUnitPrice(cost, effectiveShipping, margin, effectiveTax) 
+        : undefined;
+
+      const chosenPhoto = (item.images && item.images[item.selectedImageIndex ?? 0]) || item.imageUrl || '';
+
+      itemData = {
+        productId: undefined,
+        name: item.standardizedName || '',
+        description: fullDesc || item.description || '',
+        partNumber: resolvedSingleCode.partNumber,
+        ncm: cleanNcmCode(item.ncm || ''),
+        category: item.category,
+        imageUrl: chosenPhoto,
+        showImage: !!chosenPhoto,
+        costPrice: cost,
+        shippingCost: effectiveShipping,
+        taxPercent: effectiveTax,
+        markupPercent: margin,
+        unitPrice,
+        quantity: item.quantity || 1,
+        unit: item.unit || 'Un.',
+        supplier: '',
+        sourceUrl: ''
+      };
+    }
 
     if (targetItemIndex !== null && onUpdateQuoteItem) {
       onUpdateQuoteItem(targetItemIndex, itemData);
-      showToast('Item atualizado na cotação! A especificação oficial será gerada ao salvar.');
+      showToast(existingInCatalog 
+        ? `Item substituído pelo produto "${existingInCatalog.name}" do catálogo!`
+        : 'Item atualizado na cotação! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     } else if (onStartNewQuoteWithItems) {
       onStartNewQuoteWithItems([itemData]);
-      showToast('Novo orçamento criado com o produto! A especificação oficial será gerada ao salvar.');
+      showToast(existingInCatalog 
+        ? `Novo orçamento criado com o item "${existingInCatalog.name}" do catálogo!`
+        : 'Novo orçamento criado com o produto! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     } else {
       onAddToQuote(itemData);
-      showToast('Item inserido na sua cotação! A especificação oficial será gerada ao salvar.');
+      showToast(existingInCatalog 
+        ? `Item do catálogo "${existingInCatalog.name}" (Cód: ${existingInCatalog.sku || existingInCatalog.partNumber}) inserido na cotação!`
+        : 'Item inserido na sua cotação! A especificação oficial será gerada ao salvar.');
       onNavigateToQuote?.();
     }
   };
@@ -2302,28 +2399,18 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                               <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0 mt-0.5 sm:mt-0" />
                               <div className="min-w-0">
                                 <div>
-                                  <strong>Comparativo com o Catálogo:</strong> Identificado como <em>"{existingInCatalog.name}"</em> · Custo atual: <strong>R$ {(existingInCatalog.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                                  <strong>Produto Oficial no Catálogo:</strong> Identificado como <em>"{existingInCatalog.name}"</em> · Custo no catálogo: <strong>R$ {(existingInCatalog.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
                                 </div>
-                                {catalogMatch?.details && (
-                                  <div className="text-[11px] text-sky-700 font-medium mt-0.5 flex items-center gap-1">
-                                    <Sparkles className="w-3 h-3 text-sky-600 shrink-0" />
-                                    <span>{catalogMatch.details}</span>
-                                  </div>
-                                )}
+                                <div className="text-[11px] text-sky-700 font-medium mt-0.5 flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-sky-600 shrink-0" />
+                                  <span>Ao puxar para a cotação, será utilizado exatamente o cadastro oficial pré-existente (sem alterações no catálogo).</span>
+                                </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <span className="text-[10.5px] font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2 py-0.5 rounded-md font-mono">
                                 SKU: {existingInCatalog.sku || existingInCatalog.partNumber}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => handleRequestSaveOrUpdate(prod, existingInCatalog, catalogMatch || undefined)}
-                                className="text-[11px] font-bold text-sky-700 hover:text-sky-900 underline ml-1 cursor-pointer"
-                                title="Ver comparativo lado a lado e decidir se atualiza ou cria novo"
-                              >
-                                Comparar lado a lado
-                              </button>
                             </div>
                           </div>
                         )}
@@ -2493,21 +2580,19 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
                           {existingInCatalog ? (
                             <div className="flex items-center gap-2 flex-wrap">
-                              <button
-                                type="button"
-                                onClick={() => handleRequestSaveOrUpdate(prod, existingInCatalog, catalogMatch || undefined)}
-                                className="h-10 px-4 bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
-                                title="Atualizar dados, fotos e custos desta ficha no catálogo"
+                              <div
+                                className="h-10 px-3.5 bg-sky-50 border border-sky-300 text-sky-800 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-2xs"
+                                title="Produto já cadastrado no catálogo. Ele será puxado exatamente como está salvo, sem qualquer alteração na base."
                               >
-                                <RefreshCw className="w-4 h-4 text-sky-600" />
-                                <span>Atualizar no Catálogo</span>
-                              </button>
+                                <CheckCircle2 className="w-4 h-4 text-sky-600" />
+                                <span>Item do Catálogo Preservado</span>
+                              </div>
 
                               <button
                                 type="button"
                                 onClick={() => executeSaveProductToCatalog(prod, null, 'create_new')}
                                 className="h-10 px-4 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
-                                title="Cadastrar como um novo item independente no catálogo (outra marca ou modelo alternativo)"
+                                title="Cadastrar esta descoberta do scanner como um novo item independente no catálogo (com outro código)"
                               >
                                 <Plus className="w-4 h-4 text-emerald-600" />
                                 <span>Salvar como Novo</span>
@@ -2994,9 +3079,9 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                 </div>
               </div>
 
-              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+              <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-3 text-xs text-sky-900">
                 <p>
-                  <strong>Como deseja proceder?</strong> Você pode atualizar o registro existente para enriquecer a descrição, fotos e preços de mercado, ou criar um registro duplicado com código independente.
+                  <strong>Produto Preservado:</strong> O registro existente no seu catálogo foi configurado previamente e não será alterado pelo scanner. Se desejar salvar esta nova descoberta do scanner como um cadastro independente (outra marca ou modelo), clique abaixo em "Salvar como Novo Cadastro".
                 </p>
               </div>
             </div>
@@ -3007,28 +3092,18 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                 onClick={() => setCatalogConflictItem(null)}
                 className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
               >
-                Cancelar
+                Fechar
               </button>
 
               <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => executeSaveProductToCatalog(catalogConflictItem.discovered, catalogConflictItem.existing, 'create_new')}
-                  className="px-4 py-2.5 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-300 hover:border-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs"
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-98"
                   title="Cadastrar como um novo registro separado no catálogo (outra marca ou modelo)"
                 >
-                  <Plus className="w-4 h-4 text-emerald-600" />
-                  <span>Salvar como Novo (Outra Marca/Modelo)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => executeSaveProductToCatalog(catalogConflictItem.discovered, catalogConflictItem.existing, 'update')}
-                  className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-98"
-                  title="Substituir e enriquecer os dados técnicos do item existente no catálogo"
-                >
-                  <RefreshCw className="w-4 h-4 text-white" />
-                  <span>Atualizar Ficha Existente</span>
+                  <Plus className="w-4 h-4 text-white" />
+                  <span>Salvar como Novo Cadastro</span>
                 </button>
               </div>
             </div>
