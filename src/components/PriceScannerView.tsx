@@ -880,13 +880,21 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     let loadedCount = 0;
     const newPhotos: string[] = [];
 
+    const onAllLoaded = () => {
+      setAttachedProductPhotos(prev => [...prev, ...newPhotos]);
+      showToast(
+        newPhotos.length === 1
+          ? 'Foto anexada! Cole mais fotos se desejar ou clique em "Buscar Produto(s)".'
+          : `${newPhotos.length} fotos anexadas! Clique em "Buscar Produto(s)" quando desejar.`
+      );
+    };
+
     list.forEach((item) => {
       if (typeof item === 'string') {
         newPhotos.push(item);
         loadedCount++;
         if (loadedCount === list.length) {
-          setAttachedProductPhotos(prev => [...prev, ...newPhotos]);
-          showToast(`${newPhotos.length} foto(s) de produto anexada(s) ao scanner!`);
+          onAllLoaded();
         }
       } else {
         const reader = new FileReader();
@@ -895,8 +903,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
           if (dataUrl) newPhotos.push(dataUrl);
           loadedCount++;
           if (loadedCount === list.length) {
-            setAttachedProductPhotos(prev => [...prev, ...newPhotos]);
-            showToast(`${newPhotos.length} foto(s) de produto anexada(s) ao scanner!`);
+            onAllLoaded();
           }
         };
         reader.readAsDataURL(item);
@@ -1570,11 +1577,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       });
       if (files.length > 0) {
         handleAttachProductPhotos(files);
-        // Se colar um print e o campo de texto estiver vazio, transcreve silenciosamente e inicia a pesquisa
-        if (files.length === 1 && !batchRawInput.trim()) {
-          showToast('Print colado! Lendo imagem e transcrevendo produtos...');
-          handleProcessImageForOcr(files[0]);
-        }
       }
     }
   };
@@ -1679,7 +1681,14 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       </div>
 
       {/* Card de Busca e Entrada */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+      <div
+        onPaste={(e) => {
+          if ((e.target as HTMLElement)?.tagName !== 'TEXTAREA') {
+            handleBatchAreaPaste(e as any);
+          }
+        }}
+        className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4"
+      >
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <h2 className="sq-section-title">
