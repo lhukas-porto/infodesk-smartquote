@@ -60,8 +60,111 @@ const DEFAULT_SUPPLIERS_MAP: Record<string, string> = {
   'apple': 'Apple',
   'lenovo': 'Lenovo',
   'shopee': 'Shopee',
-  'aliexpress': 'AliExpress'
+  'aliexpress': 'AliExpress',
+  'comprasparaguai': 'Compras Paraguai',
+  'comprasparaguai.com.br': 'Compras Paraguai',
+  'lojasparaguai': 'Lojas Paraguai',
+  'lojasparaguai.com.br': 'Lojas Paraguai',
+  'casanissei': 'Casa Nissei',
+  'casanissei.com': 'Casa Nissei',
+  'cellshop': 'Cellshop',
+  'cellshop.com': 'Cellshop',
+  'madridcenter': 'Madrid Center',
+  'madridcenter.com': 'Madrid Center',
+  'megaeletronicos': 'Mega Eletrônicos',
+  'megaeletronicos.com': 'Mega Eletrônicos',
+  'atacadogames': 'Atacado Games',
+  'atacadogames.com': 'Atacado Games',
+  'atacadocollections': 'Atacado Collections',
+  'atacadocollections.com': 'Atacado Collections',
+  'balaodainformatica': 'Balão da Informática',
+  'balaodainformatica.com.br': 'Balão da Informática',
+  'gkinfostore': 'GK Info Store',
+  'gkinfostore.com.br': 'GK Info Store',
+  'patoloco': 'Patoloco',
+  'patoloco.com.br': 'Patoloco',
+  'guerradigital': 'Guerra Digital',
+  'guerradigital.net': 'Guerra Digital',
+  'waz': 'WAZ Hardware',
+  'waz.com.br': 'WAZ Hardware',
+  'ibyte': 'Ibyte',
+  'ibyte.com.br': 'Ibyte',
+  'oficinadosbits': 'Oficina dos Bits',
+  'oficinadosbits.com.br': 'Oficina dos Bits',
+  'hardstore': 'Hardstore',
+  'hardstore.com.br': 'Hardstore',
+  'fgtec': 'FGTEC Informática',
+  'fgtec.com.br': 'FGTEC Informática',
+  'inpower': 'InPower',
+  'inpower.com.br': 'InPower',
+  'gigantec': 'Gigantec',
+  'gigantec.com.br': 'Gigantec',
+  'shopinfo': 'Shopinfo',
+  'shopinfo.com.br': 'Shopinfo',
+  'chipart': 'Chipart',
+  'chipart.com.br': 'Chipart',
+  'mirandacomputacao': 'Miranda Computação',
+  'mirandacomputacao.com.br': 'Miranda Computação',
+  'nagem': 'Nagem',
+  'nagem.com.br': 'Nagem',
+  'starlink': 'Starlink',
+  'starlink.com': 'Starlink'
 };
+
+const CANONICAL_PROTECTED_DOMAINS: Record<string, string> = {
+  'comprasparaguai': 'Compras Paraguai',
+  'lojasparaguai': 'Lojas Paraguai',
+  'casanissei': 'Casa Nissei',
+  'cellshop': 'Cellshop',
+  'madridcenter': 'Madrid Center',
+  'megaeletronicos': 'Mega Eletrônicos',
+  'atacadogames': 'Atacado Games',
+  'atacadocollections': 'Atacado Collections',
+  'mercadolivre': 'Mercado Livre',
+  'kabum': 'KaBuM!',
+  'amazon': 'Amazon',
+  'magazineluiza': 'Magazine Luiza',
+  'magalu': 'Magazine Luiza',
+  'kalunga': 'Kalunga',
+  'pichau': 'Pichau',
+  'terabyte': 'Terabyte',
+  'terabyteshop': 'Terabyte',
+  'shopee': 'Shopee',
+  'aliexpress': 'AliExpress',
+  'casasbahia': 'Casas Bahia',
+  'pontofrio': 'Ponto Frio',
+  'fastshop': 'Fast Shop',
+  'leroymerlin': 'Leroy Merlin',
+  'carrefour': 'Carrefour',
+  'palaciodasferramentas': 'Palácio das Ferramentas',
+  'dutramaquinas': 'Dutra Máquinas',
+  'lojadomecanico': 'Loja do Mecânico',
+  'ferramentaskennedy': 'Ferramentas Kennedy'
+};
+
+const INVALID_GENERIC_SUPPLIERS = new Set([
+  'fornecedor local',
+  'fornecedor',
+  'local',
+  'sem fornecedor',
+  'loja',
+  'fornecedor web / mercado',
+  'fornecedor web',
+  'mercado',
+  'e-commerce nacional',
+  'mercado nacional',
+  'mercado local',
+  'generica',
+  'generico',
+  'genérica',
+  'genérico',
+  'não informado',
+  'nao informado',
+  'n/a',
+  'n/d',
+  'undefined',
+  'null'
+]);
 
 // Cache em memória compartilhado
 let memorySuppliersMap: Record<string, string> = { ...DEFAULT_SUPPLIERS_MAP };
@@ -120,6 +223,19 @@ function loadLearnedMap(): Record<string, string> {
         }
       }
     }
+
+    // Auto-cura: garante que lojas canônicas oficiais nunca fiquem contaminadas na memória local
+    for (const [slug, officialName] of Object.entries(CANONICAL_PROTECTED_DOMAINS)) {
+      const current = memorySuppliersMap[slug];
+      if (!current || INVALID_GENERIC_SUPPLIERS.has(current.toLowerCase())) {
+        memorySuppliersMap[slug] = officialName;
+      }
+      const full = `${slug}.com.br`;
+      const currentFull = memorySuppliersMap[full];
+      if (!currentFull || INVALID_GENERIC_SUPPLIERS.has(currentFull.toLowerCase())) {
+        memorySuppliersMap[full] = officialName;
+      }
+    }
   } catch (err) {
     console.warn('[supplierLearningService] Erro ao carregar aprendizado de fornecedores:', err);
   }
@@ -148,13 +264,26 @@ function persistLearnedMap(map: Record<string, string>): void {
 export function learnSupplier(urlOrDomain: string | undefined, supplierName: string | undefined): void {
   if (!urlOrDomain || !supplierName) return;
   const cleanName = supplierName.trim();
+  const lowerName = cleanName.toLowerCase();
+
   // Ignora nomes genéricos ou temporários
-  if (!cleanName || cleanName.length < 2 || ['fornecedor local', 'fornecedor', 'local', 'sem fornecedor', 'loja'].includes(cleanName.toLowerCase())) {
+  if (!cleanName || cleanName.length < 2 || INVALID_GENERIC_SUPPLIERS.has(lowerName)) {
     return;
   }
 
   const { fullDomain, baseSlug } = extractDomainKeys(urlOrDomain);
   if (!baseSlug || baseSlug.includes('google') || baseSlug.length < 2) return;
+
+  // Proteção canônica: impede que lojas oficiais conhecidas (ex: Compras Paraguai, Mercado Livre)
+  // sejam sobrescritas por marcas de fabricantes (ex: Samsung, Apple, Xiaomi, Kingston)
+  const canonicalStore = CANONICAL_PROTECTED_DOMAINS[baseSlug];
+  if (canonicalStore) {
+    const normStore = canonicalStore.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normName = lowerName.replace(/[^a-z0-9]/g, '');
+    if (!normName.includes(normStore) && !normStore.includes(normName)) {
+      return;
+    }
+  }
 
   const currentMap = loadLearnedMap();
   let changed = false;

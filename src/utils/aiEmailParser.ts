@@ -2396,6 +2396,22 @@ export function extractStoreNameFromUrl(url?: string): string {
     if (hostname.includes('megaeletronicos')) return 'Mega Eletrônicos';
     if (hostname.includes('atacadogames')) return 'Atacado Games';
     if (hostname.includes('atacadocollections')) return 'Atacado Collections';
+    if (hostname.includes('balaodainformatica')) return 'Balão da Informática';
+    if (hostname.includes('gkinfostore')) return 'GK Info Store';
+    if (hostname.includes('patoloco')) return 'Patoloco';
+    if (hostname.includes('guerradigital')) return 'Guerra Digital';
+    if (hostname.includes('waz.com') || hostname === 'waz.com.br') return 'WAZ Hardware';
+    if (hostname.includes('ibyte')) return 'Ibyte';
+    if (hostname.includes('oficinadosbits')) return 'Oficina dos Bits';
+    if (hostname.includes('hardstore')) return 'Hardstore';
+    if (hostname.includes('fgtec')) return 'FGTEC Informática';
+    if (hostname.includes('inpower')) return 'InPower';
+    if (hostname.includes('gigantec')) return 'Gigantec';
+    if (hostname.includes('shopinfo')) return 'Shopinfo';
+    if (hostname.includes('chipart')) return 'Chipart';
+    if (hostname.includes('mirandacomputacao')) return 'Miranda Computação';
+    if (hostname.includes('nagem')) return 'Nagem';
+    if (hostname.includes('starlink')) return 'Starlink';
     if (hostname.includes('mercadolivre') || hostname.includes('mercado-livre') || hostname.includes('mercadolibre') || hostname === 'meli.la' || hostname.endsWith('.meli.la')) return 'Mercado Livre';
     if (hostname.includes('kabum')) return 'KaBuM!';
     if (hostname.includes('amazon')) return 'Amazon';
@@ -3800,7 +3816,7 @@ export function reconcileSupplierAndProductUrl(
 ): { supplier: string; sourceUrl: string; isSearchFallback: boolean } {
   let cleanSupplier = sanitizeSupplierName(supplier);
   let cleanUrl = (rawUrl || '').trim();
-  if (cleanUrl && !cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://') && /^[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(cleanUrl)) {
+  if (cleanUrl && !cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
     cleanUrl = `https://${cleanUrl}`;
   }
 

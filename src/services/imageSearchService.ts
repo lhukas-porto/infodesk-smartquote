@@ -53,7 +53,7 @@ async function fetchSingleQueryImages(query: string, maxResults: number): Promis
   // Rota segura oficial (/api/image-search): tratada por Serverless Function na Vercel e middleware no Vite Dev
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    const timeout = setTimeout(() => controller.abort(), 9000);
     const res = await fetch(`/api/image-search?q=${encodeURIComponent(clean)}`, {
       signal: controller.signal
     });
@@ -117,6 +117,23 @@ export async function searchProductImages(
       const altFiltered = filterNegativeImages(altRaw, options.negativeKeywords);
 
       for (const img of altFiltered) {
+        if (!seen.has(img)) {
+          seen.add(img);
+          collected.push(img);
+          if (collected.length >= maxResults) break;
+        }
+      }
+    }
+  }
+
+  // 3. Fallback inteligente: se nada foi encontrado e a query tem mais de 3 palavras, tenta as 3 primeiras palavras (marca + modelo principal)
+  if (collected.length === 0) {
+    const words = clean.split(' ').filter(w => w.length >= 2);
+    if (words.length > 3) {
+      const coreWords = words.slice(0, 3).join(' ');
+      const fallbackRaw = await fetchSingleQueryImages(coreWords, maxResults);
+      const fallbackFiltered = filterNegativeImages(fallbackRaw, options?.negativeKeywords);
+      for (const img of fallbackFiltered) {
         if (!seen.has(img)) {
           seen.add(img);
           collected.push(img);
