@@ -35,14 +35,22 @@ export interface ImageSearchOptions {
   alternativeQueries?: string[];
 }
 
-function filterNegativeImages(urls: string[], negativeKeywords?: string[]): string[] {
-  if (!negativeKeywords || negativeKeywords.length === 0) return urls;
-  const negLower = negativeKeywords.map(k => k.toLowerCase().trim()).filter(Boolean);
-  if (negLower.length === 0) return urls;
-
+function filterNegativeImages(urls: string[], _negativeKeywords?: string[]): string[] {
+  if (!urls || urls.length === 0) return [];
+  // Filtra apenas imagens quebradas, placeholders, avatares ou SVGs (não descarta fotos por subpalavras em URLs de CDN)
   return urls.filter(u => {
+    if (!u || typeof u !== 'string' || !u.startsWith('http')) return false;
     const lower = u.toLowerCase();
-    return !negLower.some(neg => lower.includes(neg));
+    if (
+      lower.includes('.svg') ||
+      lower.includes('placeholder') ||
+      lower.includes('avatar') ||
+      lower.includes('icon') ||
+      lower.includes('unsplash.com')
+    ) {
+      return false;
+    }
+    return true;
   });
 }
 

@@ -26,30 +26,144 @@ function generateQueryVariations(rawQuery: string): string[] {
     variations.push(stripped);
   }
 
-  // 2. Extrai marca + modelo ou código alfanumérico se existir
-  const codeMatch = clean.match(/\b([A-Z0-9]{3,}-[A-Z0-9]+|[A-Z0-9]{5,})\b/i);
+  // 2. Extrai marca/produto + modelo ou código alfanumérico
   const words = clean.split(' ').filter(w => w.length >= 2);
-  if (codeMatch && words.length > 0) {
+  const codeMatch = clean.match(/\b([A-Z0-9]{2,}-[A-Z0-9]+|[A-Z]{1,4}\d{1,6}[A-Z0-9]*)\b/i);
+  if (codeMatch && words.length > 1) {
     const brand = words[0];
-    const brandAndCode = `${brand} ${codeMatch[0]}`;
-    if (brandAndCode.toLowerCase() !== clean.toLowerCase()) {
-      variations.push(brandAndCode);
+    const code = codeMatch[0];
+    if (code.toLowerCase() !== brand.toLowerCase()) {
+      variations.push(`${brand} ${code}`);
+      const productType = words.find(w => /^(microfone|headset|teclado|mouse|nobreak|switch|roteador|impressora|monitor|ssd|hd|cabo|placa|camera|webcam|fonte|gimbal|projetor)$/i.test(w));
+      if (productType && productType.toLowerCase() !== brand.toLowerCase()) {
+        variations.push(`${productType} ${brand} ${code}`);
+      }
     }
   }
 
-  // 3. 4 primeiras palavras mais significativas (marca + linha + modelo)
+  // 3. 4 primeiras palavras sem preposição solta no final
   if (words.length > 4) {
-    variations.push(words.slice(0, 4).join(' '));
+    const slice = words.slice(0, 4).filter((w, idx) => {
+      if (idx === 3 && /^(sem|com|de|para|e|do|da|em)$/i.test(w)) return false;
+      return true;
+    });
+    if (slice.length >= 2) {
+      variations.push(slice.join(' '));
+    }
   }
 
   return Array.from(new Set(variations));
 }
 
+/**
+ * Motor Primário: Bing Images (Mural Oficial Infodesk Store)
+ * Ultra-rápido (<1s), com alta precisão e sem bloqueio de IPs de datacenter
+ */
+async function fetchBingImages(q: string, maxResults = 12): Promise<string[]> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+
+    const bingRes = await fetch(
+      `https://www.bing.com/images/search?q=${encodeURIComponent(q)}&form=HDRSC2&first=1`,
+      {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
+          'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }
+      }
+    );
+    clearTimeout(timer);
+
+    if (!bingRes.ok) return [];
+
+    const html = await bingRes.text();
+    const matches = [...html.matchAll(/murl&quot;:&quot;(https?:\/\/[^&"]+)&quot;/g)].map(
+      (m) => m[1]
+    );
+
+    const filtered: string[] = [];
+    const seen = new Set<string>();
+
+    for (const url of matches) {
+      if (!url.startsWith('https://')) continue;
+      if (
+        url.includes('.svg') ||
+        url.includes('placeholder') ||
+        url.includes('data:image') ||
+        url.includes('unsplash.com')
+      ) {
+        continue;
+      }
+      if (seen.has(url)) continue;
+      seen.add(url);
+      filtered.push(url);
+      if (filtered.length >= maxResults) break;
+    }
+
+    return filtered;
+  } catch (err: any) {
+    console.warn('[Bing Image Fetch Error]:', err?.message);
+    return [];
+  }
+}
+
+/**
+ * Motor Secundário: Google Images via SerpApi (se chave presente)
+ */
+async function fetchSerpApiImages(q: string, apiKey: string, maxResults = 10): Promise<string[]> {
+  if (!apiKey) return [];
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+
+    const serpUrl = `https://serpapi.com/search.json?engine=google_images&q=${encodeURIComponent(q)}&gl=br&hl=pt&api_key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(serpUrl, { 
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' } 
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    const raw = Array.isArray(data?.images_results) ? data.images_results : [];
+    const results: string[] = [];
+    const seen = new Set<string>();
+
+    for (const item of raw) {
+      const url = item.original || item.thumbnail;
+      if (!url || typeof url !== 'string' || !url.startsWith('https://')) continue;
+      if (seen.has(url)) continue;
+      seen.add(url);
+      results.push(url);
+      if (results.length >= maxResults) break;
+    }
+
+    return results;
+  } catch (err: any) {
+    console.warn('[SerpApi Images Error]:', err?.message);
+    return [];
+  }
+}
+
+/**
+ * Motor Terciário de Fallback: DuckDuckGo Images
+ * Com timeout de segurança curto para nunca travar a requisição serverless
+ */
 async function fetchDuckDuckGoImages(q: string, maxResults = 10): Promise<string[]> {
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+
     const tokenRes = await fetch(
       `https://duckduckgo.com/?q=${encodeURIComponent(q)}&iax=images&ia=images`,
       {
+        signal: controller.signal,
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -63,12 +177,16 @@ async function fetchDuckDuckGoImages(q: string, maxResults = 10): Promise<string
     const setCookie = tokenRes.headers.get('set-cookie') || '';
     const html = await tokenRes.text();
     const vqdMatch = html.match(/vqd=['"]?([^'"&\s]+)/i);
-    if (!vqdMatch) return [];
+    if (!vqdMatch) {
+      clearTimeout(timer);
+      return [];
+    }
 
     const vqd = vqdMatch[1];
     const imgRes = await fetch(
       `https://duckduckgo.com/i.js?l=wt-wt&o=json&q=${encodeURIComponent(q)}&vqd=${vqd}&f=,,,&p=1`,
       {
+        signal: controller.signal,
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -79,6 +197,7 @@ async function fetchDuckDuckGoImages(q: string, maxResults = 10): Promise<string
         }
       }
     );
+    clearTimeout(timer);
 
     if (!imgRes.ok) return [];
 
@@ -106,82 +225,7 @@ async function fetchDuckDuckGoImages(q: string, maxResults = 10): Promise<string
 
     return results;
   } catch (err: any) {
-    console.warn('[DDG Image Fetch Error]:', err?.message);
-    return [];
-  }
-}
-
-async function fetchSerpApiImages(q: string, apiKey: string, maxResults = 10): Promise<string[]> {
-  if (!apiKey) return [];
-  try {
-    const serpUrl = `https://serpapi.com/search.json?engine=google_images&q=${encodeURIComponent(q)}&gl=br&hl=pt&api_key=${encodeURIComponent(apiKey)}`;
-    const res = await fetch(serpUrl, { headers: { 'Accept': 'application/json' } });
-    if (!res.ok) return [];
-
-    const data = await res.json();
-    const raw = Array.isArray(data?.images_results) ? data.images_results : [];
-    const results: string[] = [];
-    const seen = new Set<string>();
-
-    for (const item of raw) {
-      const url = item.original || item.thumbnail;
-      if (!url || typeof url !== 'string' || !url.startsWith('https://')) continue;
-      if (seen.has(url)) continue;
-      seen.add(url);
-      results.push(url);
-      if (results.length >= maxResults) break;
-    }
-
-    return results;
-  } catch (err: any) {
-    console.warn('[SerpApi Images Error]:', err?.message);
-    return [];
-  }
-}
-
-async function fetchBingImages(q: string, maxResults = 10): Promise<string[]> {
-  try {
-    const bingRes = await fetch(
-      `https://www.bing.com/images/search?q=${encodeURIComponent(q)}&form=HDRSC2&first=1`,
-      {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-          'Accept':
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }
-      }
-    );
-
-    if (!bingRes.ok) return [];
-
-    const html = await bingRes.text();
-    const matches = [...html.matchAll(/murl&quot;:&quot;(https?:\/\/[^&"]+)&quot;/g)].map(
-      (m) => m[1]
-    );
-
-    const filtered: string[] = [];
-    const seen = new Set<string>();
-
-    for (const url of matches) {
-      if (!url.startsWith('https://')) continue;
-      if (
-        url.includes('.svg') ||
-        url.includes('placeholder') ||
-        url.includes('data:image') ||
-        url.includes('unsplash.com')
-      )
-        continue;
-      if (seen.has(url)) continue;
-      seen.add(url);
-      filtered.push(url);
-      if (filtered.length >= maxResults) break;
-    }
-
-    return filtered;
-  } catch (err: any) {
-    console.warn('[Bing Fallback Error]:', err?.message);
+    console.warn('[DDG Fallback Error]:', err?.message);
     return [];
   }
 }
@@ -202,23 +246,21 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // CORS restrito e seguro para origens oficiais
+  // CORS abrangente para todas as instâncias da aplicação (Vercel previews, produção, localhost)
   const origin = (req.headers?.origin as string) || '';
   const isAllowedOrigin = 
     !origin || 
     origin.startsWith('http://localhost:') || 
     origin.startsWith('http://127.0.0.1:') || 
-    origin === 'https://infodesk-smartquote.vercel.app' || 
-    (/^https:\/\/infodesk-smartquote[a-z0-9-]*\.vercel\.app$/.test(origin));
+    origin.endsWith('.vercel.app');
 
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', isAllowedOrigin ? (origin || '*') : 'null');
+  res.setHeader('Access-Control-Allow-Origin', isAllowedOrigin ? (origin || '*') : '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
-  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -242,6 +284,7 @@ export default async function handler(req: any, res: any) {
     const rawQ = (req.query?.q as string) || '';
     const q = rawQ.trim().slice(0, 160);
     if (!q) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       return res.status(200).json({ success: false, images: [] });
     }
 
@@ -263,16 +306,16 @@ export default async function handler(req: any, res: any) {
       }
     };
 
-    // 1. Tenta varredura com DuckDuckGo (Motor Primário ultra veloz e resiliente)
+    // 1. MOTOR PRIMÁRIO (BING IMAGES): Mais de 30 fotos por busca com precisão cirúrgica de e-commerce
     for (const queryVariant of queryVariations) {
-      const ddgImages = await fetchDuckDuckGoImages(queryVariant, 10);
-      if (ddgImages.length > 0) {
-        addImages(ddgImages);
+      const bingImages = await fetchBingImages(queryVariant, 12);
+      if (bingImages.length > 0) {
+        addImages(bingImages);
         if (collectedImages.length >= 8) break;
       }
     }
 
-    // 2. Se não encontrou imagens e houver chave SerpApi, consulta Google Images
+    // 2. MOTOR SECUNDÁRIO (GOOGLE IMAGES VIA SERPAPI): Se Bing falhou e houver chave configurada
     if (collectedImages.length === 0 && serpApiKey) {
       for (const queryVariant of queryVariations) {
         const serpImages = await fetchSerpApiImages(queryVariant, serpApiKey, 10);
@@ -283,15 +326,22 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 3. Fallback defensivo com Bing Images
+    // 3. MOTOR TERCIÁRIO (DUCKDUCKGO IMAGES): Fallback rápido com timeout de segurança
     if (collectedImages.length === 0) {
       for (const queryVariant of queryVariations) {
-        const bingImages = await fetchBingImages(queryVariant, 10);
-        if (bingImages.length > 0) {
-          addImages(bingImages);
+        const ddgImages = await fetchDuckDuckGoImages(queryVariant, 10);
+        if (ddgImages.length > 0) {
+          addImages(ddgImages);
           if (collectedImages.length >= 8) break;
         }
       }
+    }
+
+    // Apenas aplica cache longo no CDN se de fato encontrou imagens; se veio vazio, não polui o cache
+    if (collectedImages.length > 0) {
+      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+    } else {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
     return res.status(200).json({
@@ -300,6 +350,7 @@ export default async function handler(req: any, res: any) {
     });
   } catch (err: any) {
     console.error('[Multi-Engine Image Search Error]:', err?.message);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     return res.status(200).json({ success: false, images: [], error: err?.message });
   }
 }

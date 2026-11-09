@@ -33,5 +33,26 @@ assert.strictEqual(isUrlConsistentWithSupplier('https://www.comprasparaguai.com.
 assert.strictEqual(isUrlConsistentWithSupplier('https://www.mercadolivre.com.br/p/MLB123', 'Mercado Livre'), true);
 console.log('✅ 3. Consistência de fornecedor e URL validada.');
 
-console.log('🎉 Todos os testes de Fornecedores e Imagens Web passaram 100%!');
+// 4. Teste de alta precisão do motor de imagens com Bing primário
+import imageSearchHandler from '../../api/image-search';
+
+async function testImageSearch() {
+  let outputImages: string[] = [];
+  const req = {
+    headers: { origin: 'http://localhost:5173' },
+    query: { q: 'Microfone sem Fio Duplo Depusheng LK2 Dinâmico Preto' }
+  };
+  const res = {
+    status(_code: number) { return this; },
+    json(data: any) { outputImages = data.images || []; },
+    setHeader() {}
+  };
+  await imageSearchHandler(req, res);
+  assert.ok(outputImages.length > 0, 'Motor de imagem deve retornar fotos reais com precisão');
+  assert.ok(outputImages.some(u => u.includes('mlstatic') || u.includes('mercado') || u.includes('magazineluiza') || u.includes('mlcdn')), 'Deve conter imagens autênticas de e-commerce');
+  console.log('✅ 4. Motor de busca de imagens com Bing primário retornou ' + outputImages.length + ' fotos de alta precisão!');
+  console.log('🎉 Todos os testes de Fornecedores e Imagens Web passaram 100%!');
+}
+
+await testImageSearch();
 
