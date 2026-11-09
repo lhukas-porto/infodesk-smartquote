@@ -967,10 +967,11 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         if (!it.name || !it.name.trim()) {
           issues.push({ type: 'error', message: `${itemLabel}: descrição do produto está vazia.` });
         }
-        if (it.unitPrice <= 0) {
-          issues.push({ type: 'error', message: `${itemLabel}: valor unitário está zerado (R$ 0,00).` });
+        if (it.unitPrice < 0) {
+          issues.push({ type: 'error', message: `${itemLabel}: valor unitário não pode ser negativo.` });
         }
-        if (it.costPrice <= 0) {
+        // Permite envio com preço zerado (R$ 0,00) a pedido do Lucas para indicar produto indisponível/sem cotação
+        if (it.unitPrice > 0 && it.costPrice <= 0) {
           issues.push({ type: 'warning', message: `${itemLabel}: preço de custo está zerado (R$ 0,00).` });
         }
         if (it.quantity <= 0) {
@@ -979,7 +980,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       });
     }
 
-    if (currentQuote.averageMargin < 10 && currentQuote.items.length > 0) {
+    if (currentQuote.totalAmount > 0 && currentQuote.averageMargin < 10 && currentQuote.items.length > 0) {
       issues.push({ type: 'warning', message: `Margem de lucro média está muito baixa (${currentQuote.averageMargin.toFixed(1)}%). Recomenda-se conferir os custos.` });
     }
 

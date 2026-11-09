@@ -158,11 +158,11 @@ export function buildSingleItemWhatsAppText(
   const partNumberInfo = item.partNumber ? ` (PN: ${item.partNumber.trim()})` : '';
 
   let text = `${prefix}${item.name}${partNumberInfo}\n  ▪ *Quantidade:* ${qty} ${unit}`;
-  if (item.unitPrice && item.unitPrice > 0) {
+  if (item.unitPrice !== undefined && item.unitPrice !== null) {
     const unitFormatted = item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     text += ` | *Unitário:* R$ ${unitFormatted}/${unit}`;
   }
-  if (item.totalPrice && item.totalPrice > 0) {
+  if (item.totalPrice !== undefined && item.totalPrice !== null) {
     const totalFormatted = item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     text += `\n  ▪ *Total:* R$ ${totalFormatted}`;
   }

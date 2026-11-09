@@ -26,12 +26,12 @@ export function auditQuote(quote: Quote): AuditIssue[] {
     return issues;
   }
 
-  // 2. Custos zerados
+  // 2. Custos zerados (apenas alertar se o item estiver sendo vendido por valor positivo)
   items.forEach(it => {
-    if (!it.costPrice || it.costPrice <= 0) {
+    if (it.unitPrice && it.unitPrice > 0 && (!it.costPrice || it.costPrice <= 0)) {
       issues.push({
         id: `zero_cost_${it.id}`,
-        type: 'critical',
+        type: 'warning',
         title: `Item ${it.itemNumber}: Custo de compra zerado (R$ 0,00)`,
         description: `"${it.name || 'Produto'}" está sem preço de custo cadastrado. Isso pode distorcer a margem ou gerar prejuízo.`,
         itemId: it.id,
