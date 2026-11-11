@@ -42,8 +42,11 @@ interface ClientManagementViewProps {
 const extractCleanDomain = (input: string): string => {
   if (!input) return '';
   let clean = input.trim().toLowerCase();
-  clean = clean.replace(/^(https?:\/\/)?(www\.)?/, '');
+  clean = clean.replace(/^https?:\/\//i, '');
   clean = clean.split('/')[0].split('?')[0].split('#')[0].trim();
+  // Se for domínio institucional que precisa de www. ou o usuário explicitamente digitou www.
+  // preserva o hostname completo ou normaliza sem o protocolo
+  clean = clean.replace(/^www\./i, '');
   return clean;
 };
 
@@ -138,7 +141,16 @@ const KNOWN_COMPANY_DOMAINS: Record<string, string> = {
   'confederação nacional do comércio': 'cnc.org.br',
   'confederacao nacional do comercio': 'cnc.org.br',
   micromed: 'micromed.health',
-  'micromed.health': 'micromed.health'
+  'micromed.health': 'micromed.health',
+  geap: 'www.geap.org.br',
+  'geap saude': 'www.geap.org.br',
+  'geap saúde': 'www.geap.org.br',
+  'geap autogestao': 'www.geap.org.br',
+  'geap autogestão': 'www.geap.org.br',
+  'geap autogestao em saude': 'www.geap.org.br',
+  'geap autogestão em saúde': 'www.geap.org.br',
+  'geap.org.br': 'www.geap.org.br',
+  'geap.com.br': 'www.geap.org.br'
 };
 
 const KNOWN_COMPANY_DIRECT_LOGOS: Record<string, string> = {
@@ -151,7 +163,11 @@ const KNOWN_COMPANY_DIRECT_LOGOS: Record<string, string> = {
   micromed: 'https://micromed.health/wp-content/uploads/2024/04/cropped-favicon-180x180.png',
   'cnc.org.br': 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png',
   'portaldocomercio.org.br': 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png',
-  cnc: 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png'
+  cnc: 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png',
+  'geap.org.br': 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
+  'www.geap.org.br': 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
+  'geap.com.br': 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
+  geap: 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico'
 };
 
 const getCandidateLogosForDomain = (domain: string): string[] => {
@@ -164,28 +180,45 @@ const getCandidateLogosForDomain = (domain: string): string[] => {
   if (KNOWN_COMPANY_DIRECT_LOGOS[clean]) {
     list.push(KNOWN_COMPANY_DIRECT_LOGOS[clean]);
   }
+  if (KNOWN_COMPANY_DIRECT_LOGOS[`www.${clean}`]) {
+    list.push(KNOWN_COMPANY_DIRECT_LOGOS[`www.${clean}`]);
+  }
 
-  // 1. Google Favicon v2 (scraper moderno que inspeciona o HTML da página e descobre favicons de CMS/WordPress)
-  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${clean}&size=128`);
-  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.${clean}&size=128`);
+  // Detecta se é domínio governamental ou institucional (.org.br, .gov.br, etc.) que normalmente exige www.
+  const isInstitutional = /\.(org|gov|leg|jus|edu|coop)\.br$/i.test(clean) || clean.startsWith('geap');
 
-  // 2. DuckDuckGo Favicon Service (altamente confiável para portais brasileiros .org.br e .gov.br)
-  list.push(`https://icons.duckduckgo.com/ip2/${clean}.ico`);
+  // Variantes de host: prioriza www. para institucionais (.org.br / .gov.br) e direto para os demais
+  const hostVariants = isInstitutional
+    ? [`www.${clean}`, clean]
+    : [clean, `www.${clean}`];
+
+  // 1. DuckDuckGo Favicon Service (altamente confiável e com cache global rápido)
+  for (const host of hostVariants) {
+    list.push(`https://icons.duckduckgo.com/ip2/${host}.ico`);
+  }
+
+  // 2. Google Favicon v2 (inspeciona HTML com suporte a HTTPS e fallback robusto)
+  for (const host of hostVariants) {
+    list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${host}&size=128`);
+    list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${host}&size=128`);
+  }
 
   // 3. Unavatar Aggregator
-  list.push(`https://unavatar.io/${clean}`);
+  for (const host of hostVariants) {
+    list.push(`https://unavatar.io/${host}`);
+  }
 
-  // 4. Ícones nativos da raiz da página (quando presentes)
-  list.push(`https://www.${clean}/apple-touch-icon.png`);
-  list.push(`https://${clean}/apple-touch-icon.png`);
-  list.push(`https://www.${clean}/favicon-32x32.png`);
-  list.push(`https://${clean}/favicon-32x32.png`);
-  list.push(`https://www.${clean}/favicon.ico`);
-  list.push(`https://${clean}/favicon.ico`);
+  // 4. Ícones nativos da raiz da página (HTTPS)
+  for (const host of hostVariants) {
+    list.push(`https://${host}/favicon.ico`);
+    list.push(`https://${host}/apple-touch-icon.png`);
+    list.push(`https://${host}/favicon-32x32.png`);
+  }
 
   // 5. Google Favicon v1 (fallback clássico)
-  list.push(`https://www.google.com/s2/favicons?domain=${clean}&sz=128`);
-  list.push(`https://www.google.com/s2/favicons?domain=www.${clean}&sz=128`);
+  for (const host of hostVariants) {
+    list.push(`https://www.google.com/s2/favicons?domain=${host}&sz=128`);
+  }
 
   return Array.from(new Set(list));
 };
