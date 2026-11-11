@@ -4443,36 +4443,45 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         const itemTotalProfit = itemUnitProfit * (item.quantity || 1);
                         const isNegative = itemUnitProfit < 0;
                         const effectiveMargin = itemNetRevenue > 0 ? (itemUnitProfit / itemNetRevenue) * 100 : 0;
-                        const isLowMargin = !isNegative && effectiveMargin < 8 && Number(item.unitPrice || 0) > 0;
+                        const isPrejuizo = isNegative;
+                        const isMargemBaixa = !isNegative && effectiveMargin < 15 && Number(item.unitPrice || 0) > 0;
+                        const isMargemExcelente = !isNegative && effectiveMargin >= 25 && Number(item.unitPrice || 0) > 0;
 
-                        if (isNegative) {
+                        if (isPrejuizo) {
                           return (
                             <div
-                              className="text-[9.5px] font-mono font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-0.2 mt-1 whitespace-nowrap inline-flex items-center gap-0.5"
+                              className="text-[9.5px] font-mono font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap inline-flex items-center gap-1 shadow-2xs"
                               title={`Atenção: Prejuízo neste item de R$ ${Math.abs(itemTotalProfit).toFixed(2)}`}
                             >
-                              🚨 Prejuízo {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <span>🚨</span>
+                              <span>Prejuízo R$ {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                           );
                         }
 
-                        if (isLowMargin) {
+                        if (isMargemBaixa) {
                           return (
                             <div
-                              className="text-[9.5px] font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1 py-0.2 mt-1 whitespace-nowrap inline-flex items-center gap-0.5"
-                              title={`Margem líquida baixa: ${effectiveMargin.toFixed(1)}%`}
+                              className="text-[9.5px] font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap inline-flex items-center gap-1 shadow-2xs"
+                              title={`Margem líquida apertada: ${effectiveMargin.toFixed(1)}% | Lucro: R$ ${itemTotalProfit.toFixed(2)}`}
                             >
-                              ⚠️ Margem Baixa ({effectiveMargin.toFixed(1)}%)
+                              <span>⚠️</span>
+                              <span>{effectiveMargin.toFixed(0)}% (+R$ {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })})</span>
                             </div>
                           );
                         }
 
                         return (
                           <div
-                            className="text-[10px] font-mono font-bold text-emerald-600 mt-1 whitespace-nowrap"
-                            title={`Lucro líquido deste item: R$ ${itemTotalProfit.toFixed(2)} (Unitário: R$ ${itemUnitProfit.toFixed(2)})`}
+                            className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded mt-1 whitespace-nowrap inline-flex items-center gap-1 border shadow-2xs ${
+                              isMargemExcelente 
+                                ? 'text-emerald-800 bg-emerald-50 border-emerald-200' 
+                                : 'text-teal-800 bg-teal-50/70 border-teal-200'
+                            }`}
+                            title={`Margem Líquida Saudável: ${effectiveMargin.toFixed(1)}% | Lucro Total: R$ ${itemTotalProfit.toFixed(2)}`}
                           >
-                            +R$ {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span>{isMargemExcelente ? '✨' : '✓'}</span>
+                            <span>+R$ {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({effectiveMargin.toFixed(0)}%)</span>
                           </div>
                         );
                       })()}
@@ -5361,6 +5370,77 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             </div>
           )}
         </div>
+        </div>
+      )}
+
+      {/* [E] Barra Inferior Flutuante Fixa de Lucro e Totais (Sticky Floating Summary) */}
+      {currentQuote.items.length > 0 && (
+        <div className="sticky bottom-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-4 py-3 -mx-4 sm:-mx-6 transition-all duration-200">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            {/* Lado Esquerdo: Métricas Principais de Lucro */}
+            <div className="flex items-center gap-4 flex-wrap justify-center sm:justify-start">
+              <div className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-sky-50 text-sky-700 border border-sky-200/80 flex items-center justify-center font-bold text-xs">
+                  {currentQuote.items.length}
+                </span>
+                <span className="text-xs font-semibold text-slate-600">
+                  {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'}
+                </span>
+              </div>
+
+              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+              <div className="text-xs">
+                <span className="text-slate-400 font-medium">Custo: </span>
+                <span className="font-mono font-bold text-slate-700">
+                  R$ {(currentQuote.totalCost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="text-xs">
+                <span className="text-slate-400 font-medium">Venda: </span>
+                <span className="font-mono font-bold text-slate-900 text-sm">
+                  R$ {(currentQuote.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+              <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-2.5 py-1 rounded-xl text-xs font-mono font-bold shadow-2xs">
+                <span className="text-[10px] text-emerald-600 uppercase tracking-wider font-sans font-bold">Lucro:</span>
+                <span>
+                  +R$ {(currentQuote.totalProfit || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.2 rounded-md font-sans">
+                  {(currentQuote.averageMargin || 0).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+
+            {/* Lado Direito: Ações Rápidas */}
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                title="Voltar ao topo da lista"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAuditBeforeProceed(() => persistAndProceed(onPreview, true))}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
+                title="Visualizar Proposta Comercial Oficial"
+              >
+                <Eye className="w-3.5 h-3.5 text-sky-400" />
+                <span>Ver Proposta</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

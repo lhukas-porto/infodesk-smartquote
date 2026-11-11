@@ -163,6 +163,9 @@ export interface ProcurementItem {
   splitFromId?: string; // id do item original quando fracionado
   splitBatchNumber?: number; // lote 1, lote 2, etc.
   splitTotalBatches?: number; // total de lotes divididos
+  trackingNumber?: string; // Código de rastreio Correios/Transportadora
+  estimatedDeliveryDate?: string; // Data estimada de entrega
+  deliveryDays?: string; // Prazo prometido ao cliente (ex: 5 dias úteis)
 }
 
 export interface IncomingEmail {

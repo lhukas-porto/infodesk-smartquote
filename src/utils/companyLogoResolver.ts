@@ -235,3 +235,4 @@ export const resolveCompanyCandidates = (comp: Partial<ClientCompany> & { name?:
 
   return Array.from(new Set(candidates));
 };
+
