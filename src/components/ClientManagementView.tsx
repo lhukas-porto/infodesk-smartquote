@@ -176,7 +176,7 @@ const getCandidateLogosForDomain = (domain: string): string[] => {
 
   const list: string[] = [];
 
-  // Se tem URL direta mapeada
+  // 0. Mapeamentos diretos conhecidos (alta resolução personalizada)
   if (KNOWN_COMPANY_DIRECT_LOGOS[clean]) {
     list.push(KNOWN_COMPANY_DIRECT_LOGOS[clean]);
   }
@@ -184,41 +184,29 @@ const getCandidateLogosForDomain = (domain: string): string[] => {
     list.push(KNOWN_COMPANY_DIRECT_LOGOS[`www.${clean}`]);
   }
 
-  // Detecta se é domínio governamental ou institucional (.org.br, .gov.br, etc.) que normalmente exige www.
-  const isInstitutional = /\.(org|gov|leg|jus|edu|coop)\.br$/i.test(clean) || clean.startsWith('geap');
+  // 1. Google Favicon v2 com 'clean' e 'www.clean' (é o motor principal de maior cobertura do sistema)
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${clean}&size=128`);
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.${clean}&size=128`);
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${clean}&size=128`);
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${clean}&size=128`);
 
-  // Variantes de host: prioriza www. para institucionais (.org.br / .gov.br) e direto para os demais
-  const hostVariants = isInstitutional
-    ? [`www.${clean}`, clean]
-    : [clean, `www.${clean}`];
+  // 2. Unavatar Aggregator (Clearbit + Google + redes)
+  list.push(`https://unavatar.io/${clean}`);
+  list.push(`https://unavatar.io/www.${clean}`);
 
-  // 1. DuckDuckGo Favicon Service (altamente confiável e com cache global rápido)
-  for (const host of hostVariants) {
-    list.push(`https://icons.duckduckgo.com/ip2/${host}.ico`);
-  }
+  // 3. Google Favicon v1 (fallback clássico universal)
+  list.push(`https://www.google.com/s2/favicons?domain=${clean}&sz=128`);
+  list.push(`https://www.google.com/s2/favicons?domain=www.${clean}&sz=128`);
 
-  // 2. Google Favicon v2 (inspeciona HTML com suporte a HTTPS e fallback robusto)
-  for (const host of hostVariants) {
-    list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${host}&size=128`);
-    list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${host}&size=128`);
-  }
+  // 4. DuckDuckGo Favicon Service
+  list.push(`https://icons.duckduckgo.com/ip2/${clean}.ico`);
+  list.push(`https://icons.duckduckgo.com/ip2/www.${clean}.ico`);
 
-  // 3. Unavatar Aggregator
-  for (const host of hostVariants) {
-    list.push(`https://unavatar.io/${host}`);
-  }
-
-  // 4. Ícones nativos da raiz da página (HTTPS)
-  for (const host of hostVariants) {
-    list.push(`https://${host}/favicon.ico`);
-    list.push(`https://${host}/apple-touch-icon.png`);
-    list.push(`https://${host}/favicon-32x32.png`);
-  }
-
-  // 5. Google Favicon v1 (fallback clássico)
-  for (const host of hostVariants) {
-    list.push(`https://www.google.com/s2/favicons?domain=${host}&sz=128`);
-  }
+  // 5. Ícones nativos da raiz da página (HTTPS)
+  list.push(`https://www.${clean}/apple-touch-icon.png`);
+  list.push(`https://${clean}/apple-touch-icon.png`);
+  list.push(`https://www.${clean}/favicon.ico`);
+  list.push(`https://${clean}/favicon.ico`);
 
   return Array.from(new Set(list));
 };
