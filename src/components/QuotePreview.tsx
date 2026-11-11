@@ -17,6 +17,7 @@ import {
   formatProposalValidityText,
   shouldDisplayShippingInProposal 
 } from '../utils/aiEmailParser';
+import { resolveCompanyCandidates } from '../utils/companyLogoResolver';
 
 interface QuotePreviewProps {
   quote: Quote;
@@ -66,6 +67,22 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
   const handlePrint = () => {
     window.print();
   };
+
+  // Resolução da Logo do Cliente para exibição elegante no bloco de destinatário (Opção 2)
+  const clientLogoCandidates = React.useMemo(() => {
+    return resolveCompanyCandidates({
+      name: quote.clientCompany,
+      contacts: quote.clientEmail ? [{ id: 'quote-ct', name: quote.contactPerson || '', email: quote.clientEmail, phone: quote.clientPhone || '' }] : []
+    });
+  }, [quote.clientCompany, quote.clientEmail, quote.clientPhone, quote.contactPerson]);
+
+  const [clientLogoIndex, setClientLogoIndex] = useState(0);
+
+  useEffect(() => {
+    setClientLogoIndex(0);
+  }, [quote.clientCompany, quote.clientEmail]);
+
+  const currentClientLogo = clientLogoCandidates[clientLogoIndex];
 
   const handleDownloadDoc = async () => {
     try {
@@ -221,35 +238,57 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 
             {/* Client Destination Info */}
             <div 
-              className="text-black mb-5"
+              className="text-black mb-5 flex items-center gap-4"
               style={{ fontFamily: 'Verdana, Geneva, sans-serif' }}
             >
-              <p 
-                className="font-bold text-black tracking-normal"
-                style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '12pt', lineHeight: '1.5', fontWeight: 'bold' }}
-              >
-                {formatCompanyPrefix(quote.clientCompany)}
-              </p>
-              <p 
-                className="font-bold text-black tracking-normal"
-                style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '12pt', lineHeight: '1.5', fontWeight: 'bold' }}
-              >
-                {formatContactPerson(quote.contactPerson)}
-              </p>
-              <p 
-                className="text-black font-bold"
-                style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '8pt', lineHeight: '1.35', fontWeight: 'bold', marginTop: '4px' }}
-              >
-                E-mail: <a href={`mailto:${(quote.clientEmail || '').toLowerCase()}`} className="text-[#0000ff] underline font-bold" style={{ fontSize: '8pt', fontWeight: 'bold' }}>{(quote.clientEmail || '').toLowerCase()}</a>
-              </p>
-              {quote.clientPhone && (
+              {currentClientLogo && clientLogoIndex < clientLogoCandidates.length && (
+                <div 
+                  className="w-14 h-14 rounded-full border border-slate-200 bg-white p-1.5 shadow-2xs overflow-hidden flex items-center justify-center shrink-0 print:border-slate-300"
+                  style={{ width: '1.45cm', height: '1.45cm' }}
+                >
+                  <img
+                    key={currentClientLogo}
+                    src={currentClientLogo}
+                    alt={quote.clientCompany || 'Cliente'}
+                    className="w-full h-full object-contain"
+                    onLoad={(e) => {
+                      const img = e.currentTarget;
+                      if (img.naturalWidth <= 3 || img.naturalHeight <= 3) {
+                        setClientLogoIndex(prev => prev + 1);
+                      }
+                    }}
+                    onError={() => setClientLogoIndex(prev => prev + 1)}
+                  />
+                </div>
+              )}
+              <div className="flex-1">
+                <p 
+                  className="font-bold text-black tracking-normal"
+                  style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '12pt', lineHeight: '1.5', fontWeight: 'bold' }}
+                >
+                  {formatCompanyPrefix(quote.clientCompany)}
+                </p>
+                <p 
+                  className="font-bold text-black tracking-normal"
+                  style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '12pt', lineHeight: '1.5', fontWeight: 'bold' }}
+                >
+                  {formatContactPerson(quote.contactPerson)}
+                </p>
                 <p 
                   className="text-black font-bold"
-                  style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '8pt', lineHeight: '1.35', fontWeight: 'bold', marginTop: '2px' }}
+                  style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '8pt', lineHeight: '1.35', fontWeight: 'bold', marginTop: '4px' }}
                 >
-                  Telefone: <span className="font-bold" style={{ fontSize: '8pt', fontWeight: 'bold' }}>{quote.clientPhone}</span>
+                  E-mail: <a href={`mailto:${(quote.clientEmail || '').toLowerCase()}`} className="text-[#0000ff] underline font-bold" style={{ fontSize: '8pt', fontWeight: 'bold' }}>{(quote.clientEmail || '').toLowerCase()}</a>
                 </p>
-              )}
+                {quote.clientPhone && (
+                  <p 
+                    className="text-black font-bold"
+                    style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '8pt', lineHeight: '1.35', fontWeight: 'bold', marginTop: '2px' }}
+                  >
+                    Telefone: <span className="font-bold" style={{ fontSize: '8pt', fontWeight: 'bold' }}>{quote.clientPhone}</span>
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Opening Paragraph */}
