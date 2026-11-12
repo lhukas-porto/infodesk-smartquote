@@ -883,17 +883,25 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                             const ageInDays = Math.floor((Date.now() - quoteMs) / (1000 * 60 * 60 * 24));
                             if (currentStage !== 'approved' && currentStage !== 'lost' && ageInDays >= 5) {
                               return (
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border shadow-2xs ${
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onEditQuote) {
+                                      onEditQuote(q);
+                                    }
+                                  }}
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border shadow-2xs cursor-pointer active:scale-95 transition ${
                                     ageInDays >= 10 
-                                      ? 'bg-rose-50 text-rose-800 border-rose-300' 
-                                      : 'bg-amber-50 text-amber-800 border-amber-300'
+                                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300' 
+                                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
                                   }`}
-                                  title={`Custos cotados há ${ageInDays} dias. Recomenda-se rechecar preços dos fornecedores antes de fechar.`}
+                                  title={`Custos cotados há ${ageInDays} dias. Clique para abrir e revalidar os preços dos fornecedores agora.`}
                                 >
                                   <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
                                   <span>Custos de {ageInDays}d atrás</span>
-                                </span>
+                                  <span className="text-[9px] underline font-semibold ml-0.5">Rechecar</span>
+                                </button>
                               );
                             }
                             return null;

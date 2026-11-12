@@ -3570,6 +3570,31 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
 
 
+              {/* [A] Alerta Visual de Custos Antigos / Expirados (> 5 dias) */}
+              {(() => {
+                const quoteMs = parseQuoteTimestamp(currentQuote);
+                const ageInDays = Math.floor((Date.now() - quoteMs) / (1000 * 60 * 60 * 24));
+                if (ageInDays >= 5 && currentQuote.items && currentQuote.items.length > 0) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setIsBatchPriceScanOpen(true)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 border shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap animate-pulse ${
+                        ageInDays >= 10
+                          ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                          : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                      }`}
+                      title={`Custos cotados há ${ageInDays} dias. Clique para revalidar nos links salvos e na web agora!`}
+                    >
+                      <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${ageInDays >= 10 ? 'text-rose-600' : 'text-amber-600'}`} />
+                      <span>Custos de {ageInDays}d atrás</span>
+                      <span className="bg-white/80 px-1 py-0.2 rounded text-[9px] font-mono border border-amber-300/60">Revalidar</span>
+                    </button>
+                  );
+                }
+                return null;
+              })()}
+
               {/* Botão de Varredura em Lote (MEL-03) */}
               {currentQuote.items && currentQuote.items.length > 0 && (
                 <button

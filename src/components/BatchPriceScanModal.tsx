@@ -102,7 +102,9 @@ export const BatchPriceScanModal: React.FC<BatchPriceScanModalProps> = ({
       partNumber: it.partNumber || (it as any).sku,
       quantity: it.quantity,
       currentCost: it.costPrice,
-      imageUrl: it.imageUrl
+      imageUrl: it.imageUrl,
+      sourceUrl: it.sourceUrl,
+      supplier: it.supplier
     }));
 
     try {
@@ -353,10 +355,32 @@ export const BatchPriceScanModal: React.FC<BatchPriceScanModalProps> = ({
                   )}
 
                   {currentStatus === 'found' && (
-                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>R$ {status?.costPrice?.toFixed(2)}</span>
-                    </span>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>R$ {status?.costPrice?.toFixed(2)}</span>
+                      </span>
+                      {(() => {
+                        const original = Number(item.costPrice || 0);
+                        const novo = Number(status?.costPrice || 0);
+                        if (original > 0 && novo > 0 && Math.abs(novo - original) >= 0.01) {
+                          const diff = novo - original;
+                          const isAumento = diff > 0;
+                          return (
+                            <span className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${
+                              isAumento ? 'text-rose-600' : 'text-emerald-600'
+                            }`}>
+                              <span>{isAumento ? '▲ +' : '▼ -'}R$ {Math.abs(diff).toFixed(2)}</span>
+                              <span className="text-slate-400 font-normal">({((diff / original) * 100).toFixed(1)}%)</span>
+                            </span>
+                          );
+                        }
+                        if (original > 0 && novo > 0) {
+                          return <span className="text-[10px] font-mono text-slate-400">Preço estável</span>;
+                        }
+                        return null;
+                      })()}
+                    </div>
                   )}
 
                   {currentStatus === 'not_found' && (

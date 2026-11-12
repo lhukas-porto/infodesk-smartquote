@@ -6,6 +6,8 @@
 
 import { scanSingleProductPrice, ScannedPriceResult } from './priceScannerService';
 import { findRecentPriceByPartNumber, savePriceToCache } from './priceCacheService';
+import { scrapeDirectUrlPrice } from './directUrlScraperService';
+import { isExactProductUrl } from '../utils/aiEmailParser';
 import { QuoteItem } from '../types';
 
 export interface BatchItemTarget {
@@ -16,6 +18,8 @@ export interface BatchItemTarget {
   quantity: number;
   currentCost?: number;
   imageUrl?: string;
+  sourceUrl?: string;
+  supplier?: string;
 }
 
 export type BatchItemStatus = 'pending' | 'searching' | 'cached' | 'found' | 'not_found' | 'error';
@@ -126,6 +130,55 @@ export async function executeConcurrentBatchScan(
       onItemProgress?.(currentProgress);
 
       try {
+        // 1.5. CAMADA PRIORITÁRIA DE LINK SALVO (ITEM A - RECHECAGEM DIRETA NA URL)
+        // Se o item já possui um link direto de compra gravado (ex: Mercado Livre, KaBuM!, Amazon),
+        // inspeciona diretamente a URL específica antes de qualquer busca aberta na internet!
+        if (item.sourceUrl && isExactProductUrl(item.sourceUrl)) {
+          const directProgress: BatchItemProgress = {
+            id: item.id,
+            itemNumber: item.itemNumber,
+            name: item.name,
+            status: 'searching',
+            buyUrl: item.sourceUrl,
+            supplier: item.supplier,
+            message: `Consultando link salvo (${item.supplier || 'Loja original'})...`
+          };
+          results[targetIdx] = directProgress;
+          onItemProgress?.(directProgress);
+
+          const directScrape = await scrapeDirectUrlPrice(item.sourceUrl);
+          if (directScrape.success && directScrape.price && directScrape.price > 0) {
+            foundCount++;
+            completedCount++;
+
+            // Salva no cache com a URL exata
+            const pn = item.partNumber || item.name;
+            savePriceToCache({
+              partNumber: pn,
+              name: item.name,
+              supplier: directScrape.store || item.supplier || 'Link Salvo',
+              costPrice: directScrape.price,
+              sourceUrl: item.sourceUrl
+            });
+
+            const updated: BatchItemProgress = {
+              id: item.id,
+              itemNumber: item.itemNumber,
+              name: item.name,
+              status: 'found',
+              costPrice: directScrape.price,
+              supplier: directScrape.store || item.supplier || 'Link Salvo',
+              buyUrl: item.sourceUrl,
+              imageUrl: item.imageUrl,
+              message: `Atualizado no link salvo: R$ ${directScrape.price.toFixed(2)} (${directScrape.store || 'Link Salvo'})`
+            };
+            results[targetIdx] = updated;
+            onItemProgress?.(updated);
+            notifyOverall(completedCount >= total);
+            continue;
+          }
+        }
+
         // 2. Camada 1: Checa cache e histórico por Part Number (0-5ms)
         const pnToSearch = (item.partNumber || item.name || '').trim();
         let cached = await findRecentPriceByPartNumber(pnToSearch);
