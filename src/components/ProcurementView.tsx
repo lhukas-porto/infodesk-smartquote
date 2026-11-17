@@ -3713,63 +3713,63 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* SEÇÃO 4: RESUMO FINANCEIRO EM TEMPO REAL */}
-              {(() => {
-                const venda = activeItemForPurchase.isDirectPurchase && purchaseForm.sellingUnitPrice > 0
-                  ? (purchaseForm.sellingUnitPrice * activeItemForPurchase.quantity)
-                  : activeItemForPurchase.quotedTotalPrice;
-                const custo = purchaseForm.actualCost;
-                const frete = purchaseForm.actualShipping;
-                const imposto = venda * (purchaseForm.taxPercent / 100);
-                const lucro = venda - custo - frete - imposto;
-                const roi = (custo + frete + imposto) > 0 ? (lucro / (custo + frete + imposto)) * 100 : 0;
+            {/* SEÇÃO 4: RESUMO FINANCEIRO EM TEMPO REAL (FIXO NO FINAL DA JANELA) */}
+            {(() => {
+              const venda = activeItemForPurchase.isDirectPurchase && purchaseForm.sellingUnitPrice > 0
+                ? (purchaseForm.sellingUnitPrice * activeItemForPurchase.quantity)
+                : activeItemForPurchase.quotedTotalPrice;
+              const custo = purchaseForm.actualCost;
+              const frete = purchaseForm.actualShipping;
+              const imposto = venda * (purchaseForm.taxPercent / 100);
+              const lucro = venda - custo - frete - imposto;
+              const roi = (custo + frete + imposto) > 0 ? (lucro / (custo + frete + imposto)) * 100 : 0;
 
-                return (
-                  <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-sm border border-slate-700">
-                    <div className="flex items-center justify-between mb-3 border-b border-slate-700/80 pb-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                        <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Resumo Financeiro da Operação</span>
-                      </span>
-                      <span className="text-xs font-mono font-bold text-slate-300">
-                        Venda: R$ {venda.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              return (
+                <div className="shrink-0 bg-slate-900 border-t border-slate-800 text-white px-4 sm:px-6 py-3.5 shadow-lg">
+                  <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-800">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Resumo Financeiro da Operação</span>
+                    </span>
+                    <span className="text-xs font-mono font-bold text-slate-300">
+                      Venda: <strong className="text-white">R$ {venda.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                    <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700/70">
+                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Custo + Frete</span>
+                      <span className="text-xs sm:text-sm font-mono font-bold text-slate-100 block mt-0.5">
+                        R$ {(custo + frete).toFixed(2)}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                      <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                        <span className="text-[10px] font-semibold text-slate-400 block uppercase">Custo + Frete</span>
-                        <span className="text-xs sm:text-sm font-mono font-bold text-slate-200 block mt-0.5">
-                          R$ {(custo + frete).toFixed(2)}
-                        </span>
-                      </div>
+                    <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700/70">
+                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Imposto ({purchaseForm.taxPercent}%)</span>
+                      <span className="text-xs sm:text-sm font-mono font-bold text-amber-300 block mt-0.5">
+                        R$ {imposto.toFixed(2)}
+                      </span>
+                    </div>
 
-                      <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                        <span className="text-[10px] font-semibold text-slate-400 block uppercase">Imposto ({purchaseForm.taxPercent}%)</span>
-                        <span className="text-xs sm:text-sm font-mono font-bold text-amber-300 block mt-0.5">
-                          R$ {imposto.toFixed(2)}
-                        </span>
-                      </div>
+                    <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700/70">
+                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Lucro Líquido</span>
+                      <span className={`text-xs sm:text-sm font-mono font-bold block mt-0.5 ${lucro >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        R$ {lucro.toFixed(2)}
+                      </span>
+                    </div>
 
-                      <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                        <span className="text-[10px] font-semibold text-slate-400 block uppercase">Lucro Líquido</span>
-                        <span className={`text-xs sm:text-sm font-mono font-bold block mt-0.5 ${lucro >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          R$ {lucro.toFixed(2)}
-                        </span>
-                      </div>
-
-                      <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                        <span className="text-[10px] font-semibold text-slate-400 block uppercase">Retorno (ROI)</span>
-                        <span className={`text-xs sm:text-sm font-mono font-bold block mt-0.5 ${roi >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
-                          {roi.toFixed(1)}%
-                        </span>
-                      </div>
+                    <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700/70">
+                      <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Retorno (ROI)</span>
+                      <span className={`text-xs sm:text-sm font-mono font-bold block mt-0.5 ${roi >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
+                        {roi.toFixed(1)}%
+                      </span>
                     </div>
                   </div>
-                );
-              })()}
-            </div>
+                </div>
+              );
+            })()}
 
             {/* Footer do Modal */}
             <div className="p-4 sm:p-5 border-t border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
