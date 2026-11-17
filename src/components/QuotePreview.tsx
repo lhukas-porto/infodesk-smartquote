@@ -1,5 +1,5 @@
 import { reportError } from '../services/errorReporter';
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { 
   Printer, 
   Send, 
@@ -15,7 +15,8 @@ import {
   formatContactPerson, 
   extractDeliveryExceptionDetails, 
   formatProposalValidityText,
-  shouldDisplayShippingInProposal 
+  shouldDisplayShippingInProposal,
+  calculateA4ProposalSpacers
 } from '../utils/aiEmailParser';
 import { resolveCompanyCandidates } from '../utils/companyLogoResolver';
 
@@ -38,6 +39,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 }) => {
   const documentRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const a4Spacers = useMemo(() => calculateA4ProposalSpacers(quote, settings), [quote, settings]);
   const [downloadingDoc, setDownloadingDoc] = useState(false);
 
   useEffect(() => {
@@ -461,14 +463,25 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 
             {/* Date & Signature */}
             <div 
-              className="flex flex-col items-end text-right ml-auto space-y-7 mb-8 text-black sq-avoid-break"
-              style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt' }}
+              className="flex flex-col items-end text-right ml-auto text-black sq-avoid-break"
+              style={{ 
+                fontFamily: 'Verdana, Geneva, sans-serif', 
+                fontSize: '10pt',
+                marginTop: `${a4Spacers.spacerAfterConditions}px`,
+                marginBottom: `${a4Spacers.spacerBeforeFooter}px`
+              }}
             >
               <div>
                 <p style={{ fontSize: '10pt' }}>{quote.city || (settings.cityState ? settings.cityState.split('-')[0].trim() : 'Brasília')}, {quote.date}.</p>
               </div>
 
-              <div className="space-y-0.5 text-right" style={{ fontSize: '10pt' }}>
+              <div 
+                className="space-y-0.5 text-right" 
+                style={{ 
+                  fontSize: '10pt',
+                  marginTop: `${a4Spacers.spacerAfterDate}px`
+                }}
+              >
                 <p className="text-black font-normal" style={{ fontSize: '10pt' }}>{settings.representativeName || 'Lucas Porto'}</p>
                 <div className="flex items-center justify-end gap-1.5 text-black" style={{ fontSize: '10pt' }}>
                   <img src="/phone-icon.png" alt="Telefone" className="w-3.5 h-3.5 object-contain inline-block" />

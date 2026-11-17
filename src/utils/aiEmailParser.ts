@@ -3400,6 +3400,125 @@ export function maskPhone(value: string): string {
 }
 
 /**
+ * Interface com os espaçamentos dinâmicos calculados para harmonização exata em folha A4.
+ */
+export interface A4ProposalSpacers {
+  spacerAfterConditions: number; // Distância entre Condições Gerais e Data
+  spacerAfterDate: number;       // Distância entre Data e Nome do Responsável
+  spacerBeforeFooter: number;    // Distância entre Telefones e Linha do Rodapé Fiscal
+  estimatedPageCount: number;
+}
+
+/**
+ * Calcula de forma inteligente e individualizada para cada orçamento a distribuição dos espaços em branco
+ * a partir da data até o rodapé fiscal, garantindo que o documento ocupe perfeitamente a folha A4 com
+ * total harmonia visual, sem aglomeração de textos ("tudo juntinho") nem quebras de página indesejadas.
+ */
+export function calculateA4ProposalSpacers(quote: any, settings?: any): A4ProposalSpacers {
+  // Altura útil padrão de 1 folha A4 em pixels web (96 DPI: 29.7cm ≈ 1122px, menos margens de ~40px = 1082px)
+  const A4_PAGE_HEIGHT_PX = 1082;
+  
+  // 1. Cabeçalho com Logomarca Infodesk (8.56cm x 2.08cm + margem inferior)
+  const headerHeight = 100;
+
+  // 2. Bloco do Destinatário (Nome da Empresa, Contato, E-mail, Telefone e Logo se houver)
+  const clientHeight = 105;
+
+  // 3. Parágrafo de abertura ("Em atenção...")
+  const introHeight = 55;
+
+  // 4. Tabela Oficial de Produtos
+  const tableHeaderHeight = 38;
+  const items = quote?.items || [];
+  let itemsHeight = 0;
+  
+  items.forEach((item: any) => {
+    const hasImage = Boolean(item.showImage && item.imageUrl);
+    const nameLength = (item.name || '').length;
+    // Se o item tem imagem ativa, ocupa ~125px (miniatura de 95px + paddings/bordas)
+    if (hasImage) {
+      itemsHeight += 125;
+    } else {
+      // Sem imagem: se o nome passar de 40 caracteres ocupa 2 linhas (~52px), senão ~38px
+      itemsHeight += nameLength > 40 ? 52 : 38;
+    }
+  });
+
+  const tableTotalHeight = tableHeaderHeight + itemsHeight + 20;
+
+  // 5. Bloco de Condições Gerais
+  let conditionsHeight = 26; // Título "Condições gerais:"
+  conditionsHeight += 4 * 24; // 4 linhas obrigatórias (Validade, Pagamento, Prazo, Garantia)
+  
+  if (shouldDisplayShippingInProposal(quote) && quote?.shippingTerms) {
+    conditionsHeight += 24; // Linha de frete
+  }
+
+  const obs = (quote?.observations || quote?.notes || '').trim();
+  if (obs) {
+    const obsLines = obs.split(/\r?\n/).length;
+    conditionsHeight += Math.max(1, obsLines) * 22 + 8;
+  }
+
+  // 6. Bloco de Data e Assinatura (textos fixos)
+  const dateTextHeight = 22;
+  const signatureTextHeight = 65; // Nome do responsável + Telefones
+
+  // 7. Rodapé Fiscal Fixo na base
+  const footerHeight = 75; // Linha divisória preta + 3 linhas de dados fiscais
+
+  // Altura total consumida pelo conteúdo sem os espaçadores inteligentes
+  const baseContentHeight = headerHeight + clientHeight + introHeight + tableTotalHeight + 
+                            conditionsHeight + dateTextHeight + signatureTextHeight + footerHeight;
+
+  // Se cabe confortavelmente em 1 folha A4 (caso mais comum de orçamentos de 1 a 4 itens):
+  if (baseContentHeight <= A4_PAGE_HEIGHT_PX) {
+    const availableSpace = Math.max(0, A4_PAGE_HEIGHT_PX - baseContentHeight);
+
+    // Distribuição harmônica proporcional ao espaço disponível:
+    // - 38% entre Condições e Data (cria um respiro elegante a partir da data)
+    // - 22% entre Data e Nome do Responsável (distância formal de documento impresso)
+    // - 40% entre Telefones e Rodapé Fiscal (crava o rodapé exatamente na base da folha A4)
+    const spacerAfterConditions = Math.max(28, Math.round(availableSpace * 0.38));
+    const spacerAfterDate = Math.max(20, Math.round(availableSpace * 0.22));
+    const spacerBeforeFooter = Math.max(32, Math.round(availableSpace * 0.40));
+
+    return {
+      spacerAfterConditions,
+      spacerAfterDate,
+      spacerBeforeFooter,
+      estimatedPageCount: 1
+    };
+  }
+
+  // Se ultrapassar 1 página A4 (orçamentos longos de 6+ itens com fotos):
+  const pagesCount = Math.ceil(baseContentHeight / A4_PAGE_HEIGHT_PX);
+  const remainderInLastPage = baseContentHeight % A4_PAGE_HEIGHT_PX;
+  const availableInLastPage = A4_PAGE_HEIGHT_PX - remainderInLastPage;
+
+  if (availableInLastPage >= 120 && availableInLastPage <= 480) {
+    const spacerAfterConditions = Math.max(28, Math.min(160, Math.round(availableInLastPage * 0.35)));
+    const spacerAfterDate = Math.max(20, Math.min(80, Math.round(availableInLastPage * 0.22)));
+    const spacerBeforeFooter = Math.max(32, Math.min(180, Math.round(availableInLastPage * 0.43)));
+
+    return {
+      spacerAfterConditions,
+      spacerAfterDate,
+      spacerBeforeFooter,
+      estimatedPageCount: pagesCount
+    };
+  }
+
+  // Fallback padrão elegante para páginas quase preenchidas
+  return {
+    spacerAfterConditions: 32,
+    spacerAfterDate: 22,
+    spacerBeforeFooter: 36,
+    estimatedPageCount: pagesCount
+  };
+}
+
+/**
  * Gera o documento HTML oficial de Proposta Comercial da Infodesk para envio por e-mail ou visualização.
  * Mantém 100% de paridade e conformidade de layout com a tabela do Word/Excel,
  * estrutura tabular, cabeçalho e rodapé oficial da pré-visualização da proposta.
@@ -3415,6 +3534,9 @@ export function generateProposalEmailHtml(
 
   const cleanPhone = escapeHtml((settings.phone || '61 3033-5373').replace(/[()]/g, '').trim());
   const cleanWhatsapp = escapeHtml((settings.whatsapp || '61 9 9627-2630').replace(/[()]/g, '').trim());
+
+  // Calcula os espaçadores harmônicos A4 de forma inteligente e individualizada por orçamento
+  const a4Spacers = calculateA4ProposalSpacers(quote, settings);
 
   // Para envio oficial por e-mail pelo Gmail, usamos Content-ID (CID) inline MIME: cid:infodesk-logo
   // Para visualização no modal interno do navegador, usamos a logomarca oficial: /infodesk-logo.png
@@ -3535,7 +3657,7 @@ export function generateProposalEmailHtml(
     </table>
 
     <!-- Condições Gerais -->
-    <div style="margin-bottom: 24px; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.5; color: #000000;">
+    <div style="margin-bottom: 0px; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.5; color: #000000;">
       <p style="margin: 0 0 6px 0; font-size: 12pt; font-weight: bold; text-decoration: underline; font-family: Verdana, Geneva, sans-serif; color: #000000;">Condições gerais:</p>
       <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Validade da proposta: ${escapeHtml(formatProposalValidityText(quote.validityDays))}</p>
       <p style="margin: 0 0 4px 0; font-size: 10pt; line-height: 1.5; color: #000000;">➤&nbsp; Condições de pagamento: ${quote.paymentTerms}</p>
@@ -3550,27 +3672,52 @@ export function generateProposalEmailHtml(
       })()}
     </div>
 
+    <!-- Espaçador Harmônico A4: Condições Gerais -> Data (Individualizado de acordo com o total de itens) -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="width: 100%; border-collapse: collapse; margin: 0; padding: 0;">
+      <tr>
+        <td height="${a4Spacers.spacerAfterConditions}" style="height: ${a4Spacers.spacerAfterConditions}px; line-height: ${a4Spacers.spacerAfterConditions}px; font-size: 1px; mso-line-height-rule: exactly;">&nbsp;</td>
+      </tr>
+    </table>
+
     <!-- Data e Assinatura Alinhadas à Direita -->
-    <div style="text-align: right; margin-top: 24px; margin-bottom: 32px; line-height: 1.4; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; color: #000000;">
-      <p style="margin: 0 0 20px 0; font-size: 10pt; color: #000000;">${quote.city || (settings.cityState ? settings.cityState.split('-')[0].trim() : 'Brasília')}, ${quote.date}.</p>
-      <p style="margin: 0; font-weight: normal; font-size: 10pt; color: #000000;">${settings.representativeName || 'Lucas Porto'}</p>
-      
-      <!-- Linha do Telefone (com ícone oficial idêntico à visualização) -->
-      <table align="right" border="0" cellpadding="0" cellspacing="0" style="margin-left: auto; border-collapse: collapse; text-align: right; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; margin-top: 2px;">
-        <tr>
-          <td style="padding: 0; vertical-align: middle; text-align: right; color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
-            <img src="${options.forEmailSend ? 'cid:phone-icon' : '/phone-icon.png'}" alt="Telefone" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; border: 0; display: inline-block;" />
-            <span style="color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; vertical-align: middle;">${cleanPhone}</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding: 2px 0 0 0; vertical-align: middle; text-align: right; color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
-            <img src="${options.forEmailSend ? 'cid:whatsapp-icon' : '/whatsapp-icon.png'}" alt="WhatsApp" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; border: 0; display: inline-block;" /><a href="https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}" target="_blank" rel="noreferrer" style="color: #0000ee; text-decoration: underline; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; vertical-align: middle; display: inline-block; white-space: nowrap;">${cleanWhatsapp.replace(/\s+/g, '&nbsp;')}</a>
-          </td>
-        </tr>
-      </table>
-      <div style="clear: both;"></div>
-    </div>
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="width: 100%; border-collapse: collapse; text-align: right; margin: 0; padding: 0;">
+      <tr>
+        <td align="right" style="text-align: right; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; color: #000000; line-height: 1.4; padding: 0;">
+          <p style="margin: 0; font-size: 10pt; color: #000000;">${quote.city || (settings.cityState ? settings.cityState.split('-')[0].trim() : 'Brasília')}, ${quote.date}.</p>
+        </td>
+      </tr>
+      <!-- Espaçador Harmônico A4: Data -> Nome da Assinatura -->
+      <tr>
+        <td height="${a4Spacers.spacerAfterDate}" style="height: ${a4Spacers.spacerAfterDate}px; line-height: ${a4Spacers.spacerAfterDate}px; font-size: 1px; mso-line-height-rule: exactly;">&nbsp;</td>
+      </tr>
+      <tr>
+        <td align="right" style="text-align: right; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; color: #000000; line-height: 1.4; padding: 0;">
+          <p style="margin: 0 0 2px 0; font-weight: normal; font-size: 10pt; color: #000000;">${settings.representativeName || 'Lucas Porto'}</p>
+          
+          <!-- Linha dos Telefones (com ícones oficiais) -->
+          <table align="right" border="0" cellpadding="0" cellspacing="0" style="margin-left: auto; border-collapse: collapse; text-align: right; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; margin-top: 2px;">
+            <tr>
+              <td style="padding: 0; vertical-align: middle; text-align: right; color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+                <img src="${options.forEmailSend ? 'cid:phone-icon' : '/phone-icon.png'}" alt="Telefone" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; border: 0; display: inline-block;" />
+                <span style="color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; vertical-align: middle;">${cleanPhone}</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 2px 0 0 0; vertical-align: middle; text-align: right; color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
+                <img src="${options.forEmailSend ? 'cid:whatsapp-icon' : '/whatsapp-icon.png'}" alt="WhatsApp" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; border: 0; display: inline-block;" /><a href="https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}" target="_blank" rel="noreferrer" style="color: #0000ee; text-decoration: underline; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; vertical-align: middle; display: inline-block; white-space: nowrap;">${cleanWhatsapp.replace(/\s+/g, '&nbsp;')}</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Espaçador Harmônico A4: Assinatura -> Linha do Rodapé Fiscal -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="width: 100%; border-collapse: collapse; margin: 0; padding: 0;">
+      <tr>
+        <td height="${a4Spacers.spacerBeforeFooter}" style="height: ${a4Spacers.spacerBeforeFooter}px; line-height: ${a4Spacers.spacerBeforeFooter}px; font-size: 1px; mso-line-height-rule: exactly;">&nbsp;</td>
+      </tr>
+    </table>
 
     <!-- Rodapé Oficial com Dados Fiscais da Infodesk -->
     <div style="border-top: 0.5pt solid #000000; padding-top: 8px; text-align: center; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; font-weight: bold; line-height: 1.35; color: #000000;">
