@@ -245,7 +245,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
             >
               {currentClientLogo && clientLogoIndex < clientLogoCandidates.length && (
                 <div 
-                  className="w-14 h-14 rounded-full border border-slate-200 bg-white p-1.5 shadow-2xs overflow-hidden flex items-center justify-center shrink-0 print:border-slate-300"
+                  className="w-14 h-14 flex items-center justify-center shrink-0"
                   style={{ width: '1.45cm', height: '1.45cm' }}
                 >
                   <img

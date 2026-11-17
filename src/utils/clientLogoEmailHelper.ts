@@ -40,14 +40,11 @@ export function generateInitialsAvatarPngDataUrl(name: string): string | null {
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    // Fundo circular azul suave
+    // Fundo circular suave sem bordas
     ctx.beginPath();
     ctx.arc(48, 48, 46, 0, Math.PI * 2);
     ctx.fillStyle = '#f0f9ff';
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#bae6fd';
-    ctx.stroke();
 
     // Iniciais da empresa
     const initials = getCompanyInitials(name || 'Cliente');

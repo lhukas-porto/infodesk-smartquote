@@ -3608,14 +3608,8 @@ export function generateProposalEmailHtml(
     <table border="0" cellpadding="0" cellspacing="0" width="100%" style="width: 100%; margin-bottom: 18px; border-collapse: collapse; font-family: Verdana, Geneva, sans-serif;">
       <tr>
         ${options.clientLogoUrl ? `
-          <td width="65" valign="middle" align="center" style="width: 65px; padding-right: 14px; vertical-align: middle;">
-            <table border="0" cellpadding="0" cellspacing="0" width="54" height="54" style="width: 54px; height: 54px; border: 1px solid #e2e8f0; border-radius: 50%; background-color: #ffffff; border-collapse: collapse;">
-              <tr>
-                <td width="54" height="54" align="center" valign="middle" style="width: 54px; height: 54px; text-align: center; vertical-align: middle; padding: 4px;">
-                  <img src="${options.clientLogoUrl}" alt="${clientCompanyFormatted}" width="46" height="46" border="0" style="width: 46px; height: 46px; max-width: 46px; max-height: 46px; object-fit: contain; display: block; margin: 0 auto; border: 0; outline: none;" />
-                </td>
-              </tr>
-            </table>
+          <td width="56" valign="middle" align="center" style="width: 56px; padding-right: 14px; vertical-align: middle; border: 0;">
+            <img src="${options.clientLogoUrl}" alt="${clientCompanyFormatted}" width="50" height="50" border="0" style="width: 50px; height: 50px; max-width: 50px; max-height: 50px; object-fit: contain; display: block; margin: 0 auto; border: 0; outline: none; background: transparent;" />
           </td>
         ` : ''}
         <td valign="middle" style="vertical-align: middle; line-height: 1.5; font-family: Verdana, Geneva, sans-serif;">
