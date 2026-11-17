@@ -188,6 +188,8 @@ import {
   recalculateQuoteTotals,
   getScannerTieredMarkup
 } from './services/pricingEngine';
+import { resolveFreshestProductData } from './utils/freshestProductResolver';
+import { findRecentPriceByPartNumber } from './services/priceCacheService';
 import { reportError } from './services/errorReporter';
 
 export type TabType = 'inbox' | 'builder' | 'preview' | 'catalog' | 'history' | 'websearch' | 'analyses' | 'clients' | 'dashboard' | 'purchases';
@@ -1991,7 +1993,7 @@ export const App: React.FC = () => {
     alert(`✅ Salvo como nova cotação com sucesso!\n\n📋 Novo Código: ${newQuote.code}\n📁 A cotação anterior permanece intacta no seu histórico.`);
   };
 
-  const handleDuplicateQuoteFromHistory = async (q: Quote, updateCostsFromCatalog: boolean = false) => {
+  const handleDuplicateQuoteFromHistory = async (q: Quote, updateCosts: boolean = true) => {
     const itemsToUse = await resolveQuoteItems(q, quotes);
     const newCode = getNextUniqueQuoteCode(
       q.clientCompany,
@@ -2000,31 +2002,58 @@ export const App: React.FC = () => {
     );
     const newQuoteId = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     
-    // Se selecionou atualizar custos com base no catálogo atual
-    const catalogProducts = updateCostsFromCatalog ? getProducts() : [];
+    // Se selecionou atualizar custos e links com base nos dados mais recentes (compras, catálogo, histórico)
+    const catalogProducts = updateCosts ? getProducts() : [];
+    const procurementRecords = updateCosts ? getPurchasedProcurementRecords() : {};
 
-    let updatedCount = 0;
-    const clonedItems = itemsToUse.map((it, idx) => {
+    let updatedCostCount = 0;
+    let updatedLinkCount = 0;
+
+    const clonedItems = await Promise.all(itemsToUse.map(async (it, idx) => {
       // Higieniza rigorosamente cada item para que nasça como item comercial limpo (sem OC, dados de compra ou aprovação)
       const cleanItem = sanitizeQuoteItemForDuplication(it, idx);
 
       let currentCost = cleanItem.costPrice;
       let currentUnitPrice = cleanItem.unitPrice;
+      let currentSourceUrl = cleanItem.sourceUrl;
+      let currentSupplier = cleanItem.supplier;
       const currentShipping = cleanItem.shippingCost ?? 0;
       const currentMarkup = cleanItem.markupPercent ?? 23.5;
       const currentTax = cleanItem.taxPercent ?? settings.defaultTaxPercent ?? 9.1;
 
-      if (updateCostsFromCatalog && catalogProducts.length > 0) {
-        // Tenta achar pelo Part Number exato primeiro
-        const matchPn = cleanItem.partNumber ? catalogProducts.find(p => p.partNumber && p.partNumber.trim().toLowerCase() === cleanItem.partNumber?.trim().toLowerCase()) : null;
-        // Senão pelo nome normalizado
-        const matchName = !matchPn ? catalogProducts.find(p => normalizeSearchText(p.name) === normalizeSearchText(cleanItem.name)) : null;
-        const matched = matchPn || matchName;
+      if (updateCosts) {
+        // Busca no cache de preços recente caso tenha Part Number
+        let cachedPrice = null;
+        if (cleanItem.partNumber) {
+          try {
+            cachedPrice = await findRecentPriceByPartNumber(cleanItem.partNumber);
+          } catch {
+            // cache fallback silencioso
+          }
+        }
 
-        if (matched && matched.costPrice > 0) {
-          currentCost = matched.costPrice;
+        const resolved = resolveFreshestProductData({
+          item: it,
+          originalQuoteDate: q.createdAt || q.date,
+          catalogProducts,
+          procurementRecords,
+          allQuotes: quotes,
+          cachedPrice
+        });
+
+        if (resolved.costUpdated && resolved.costPrice > 0) {
+          currentCost = resolved.costPrice;
           currentUnitPrice = calculateCommercialUnitPrice(currentCost, currentShipping, currentMarkup, currentTax);
-          updatedCount++;
+          updatedCostCount++;
+        }
+
+        if (resolved.linkUpdated && resolved.sourceUrl) {
+          currentSourceUrl = resolved.sourceUrl;
+          updatedLinkCount++;
+        }
+
+        if (resolved.supplier) {
+          currentSupplier = resolved.supplier;
         }
       }
 
@@ -2036,10 +2065,12 @@ export const App: React.FC = () => {
         ...cleanItem,
         costPrice: currentCost,
         unitPrice: currentUnitPrice,
+        sourceUrl: currentSourceUrl,
+        supplier: currentSupplier,
         totalPrice,
         profit
       };
-    });
+    }));
 
     const todayFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     
@@ -2083,6 +2114,22 @@ export const App: React.FC = () => {
       console.warn('Aviso de sincronização remota ao duplicar cotação:', err);
     }
     setActiveTab('builder');
+
+    if (updateCosts) {
+      if (updatedCostCount > 0 || updatedLinkCount > 0) {
+        notifySync(
+          `✅ Cotação duplicada como ${newCode}! Atualizados: ${updatedCostCount} custo(s) e ${updatedLinkCount} link(s) mais recentes.`,
+          'success'
+        );
+      } else {
+        notifySync(
+          `✅ Cotação duplicada como ${newCode}! Custos e links verificados e conferidos.`,
+          'success'
+        );
+      }
+    } else {
+      notifySync(`✅ Cotação duplicada como ${newCode} com valores e links originais preservados.`, 'success');
+    }
   };
 
   const handleDeleteQuote = async (quoteToDelete: Quote) => {

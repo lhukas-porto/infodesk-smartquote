@@ -1045,7 +1045,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                           setQuoteForDuplicate(q);
                         }}
                         className="px-3 py-1.5 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                        title="Duplicar proposta como uma nova cotação com código único e itens preservados"
+                        title="Duplicar proposta trazendo custos e links mais recentes"
                       >
                         <Copy className="w-3.5 h-3.5 text-sky-600" />
                         <span>Duplicar</span>
@@ -1246,7 +1246,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                 Selecione o modo de cálculo para a nova proposta:
               </label>
 
-              {/* Opção 1: Atualizar custos com base no catálogo atual */}
+              {/* Opção 1: Atualizar custos e links com base nos dados mais recentes */}
               <div
                 onClick={() => setUpdateCostsOption(true)}
                 className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex items-start gap-3 ${
@@ -1262,11 +1262,11 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-slate-900">Atualizar custos pelo Catálogo Atual</span>
+                    <span className="text-xs font-bold text-slate-900">Atualizar custos e links mais recentes</span>
                     <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.2 rounded">Recomendado</span>
                   </div>
                   <p className="text-[11px] text-slate-600 mt-0.5">
-                    Recalcula os custos unitários e preços de venda com base nos preços mais recentes dos produtos cadastrados no seu catálogo.
+                    Recalcula os custos unitários e preços de venda trazendo automaticamente os valores e os links de compra mais recentes do catálogo, compras reais e propostas recentes.
                   </p>
                 </div>
               </div>
@@ -1286,9 +1286,9 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                   {!updateCostsOption && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                 </div>
                 <div>
-                  <span className="text-xs font-bold text-slate-900">Manter custos e preços originais</span>
+                  <span className="text-xs font-bold text-slate-900">Manter custos, preços e links originais</span>
                   <p className="text-[11px] text-slate-600 mt-0.5">
-                    Preserva exatamente os mesmos valores unitários e totais de quando a cotação foi feita originalmente.
+                    Preserva exatamente os mesmos valores unitários, totais e links de quando a cotação foi feita originalmente.
                   </p>
                 </div>
               </div>
