@@ -167,12 +167,17 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
         ? state.approvedQuantity
         : (item.quantity > 0 ? item.quantity : 1);
 
+      const itemUnitShipping = item.shippingCost !== undefined ? item.shippingCost : (quote.globalShipping ?? 0);
+      const itemTotalShipping = Number((itemUnitShipping * validQty).toFixed(2));
+
       return {
         ...item,
         id: item.id || key,
         approved: isApproved,
         approvedQuantity: isApproved ? validQty : 0,
         clientOrderNumber: oc || item.clientOrderNumber,
+        shippingCost: itemUnitShipping,
+        actualShippingCost: item.actualShippingCost !== undefined ? item.actualShippingCost : itemTotalShipping,
         // Itens aprovados entram com status de compra 'pending' caso ainda não tenham sido comprados
         purchaseStatus: isApproved 
           ? (item.purchaseStatus || 'pending') 

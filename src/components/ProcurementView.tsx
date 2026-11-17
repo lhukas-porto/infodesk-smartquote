@@ -614,6 +614,16 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
               const effectiveImageUrl = item.imageUrl || subPurchaseRecord?.imageUrl || matchedStockProduct?.imageUrl || cachedSubImg;
               const effectiveClientOrderNumber = quote.clientOrderNumber || item.clientOrderNumber || subPurchaseRecord?.clientOrderNumber;
 
+              const subUnitShipping = item.shippingCost !== undefined
+                ? item.shippingCost
+                : (quote.globalShipping !== undefined ? quote.globalShipping : 0);
+              const subQuotedShipping = Number((subUnitShipping * subQty).toFixed(2));
+              const subActualShipping = subPurchaseRecord?.actualShippingCost !== undefined
+                ? subPurchaseRecord.actualShippingCost
+                : (item.actualShippingCost !== undefined
+                    ? (origTotalQty > 0 ? Number(((item.actualShippingCost / origTotalQty) * subQty).toFixed(2)) : item.actualShippingCost)
+                    : subQuotedShipping);
+
               list.push({
                 id: subId,
                 quoteId: quote.id,
@@ -634,6 +644,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 quotedCostPrice: subQuotedCostPrice,
                 quotedUnitPrice: subQuotedUnitPrice,
                 quotedTotalPrice: subQuotedTotalPrice,
+                shippingCost: subUnitShipping,
+                quotedShippingCost: subQuotedShipping,
+                quotedUnitShippingCost: subUnitShipping,
                 supplier: subSupplier,
                 quotedSupplier: item.supplier,
                 sourceUrl: item.sourceUrl,
@@ -642,7 +655,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 actualUnitCostPrice: subActualUnit,
                 actualPurchaseUrl: subActualUrl,
                 actualSupplier: subActualSupplier,
-                actualShippingCost: subPurchaseRecord?.actualShippingCost,
+                actualShippingCost: subActualShipping,
                 shippingPending: subPurchaseRecord?.shippingPending ?? false,
                 paymentMethod: subPurchaseRecord?.paymentMethod,
                 purchasedAt: subPurchaseRecord?.purchasedAt,
@@ -687,6 +700,16 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
             const effectiveImageUrl = item.imageUrl || purchaseRecord?.imageUrl || matchedStockProduct?.imageUrl || cachedItemImg;
             const effectiveClientOrderNumber = quote.clientOrderNumber || item.clientOrderNumber || purchaseRecord?.clientOrderNumber;
 
+            const itemUnitShipping = item.shippingCost !== undefined
+              ? item.shippingCost
+              : (quote.globalShipping !== undefined ? quote.globalShipping : 0);
+            const itemQuotedShipping = Number((itemUnitShipping * qty).toFixed(2));
+            const effectiveActualShipping = item.actualShippingCost !== undefined
+              ? item.actualShippingCost
+              : (purchaseRecord?.actualShippingCost !== undefined
+                  ? purchaseRecord.actualShippingCost
+                  : itemQuotedShipping);
+
             list.push({
               id: baseId,
               quoteId: quote.id,
@@ -707,6 +730,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
               quotedCostPrice: item.costPrice,
               quotedUnitPrice,
               quotedTotalPrice,
+              shippingCost: itemUnitShipping,
+              quotedShippingCost: itemQuotedShipping,
+              quotedUnitShippingCost: itemUnitShipping,
               supplier: effectiveSupplier,
               quotedSupplier: effectiveQuotedSupplier,
               sourceUrl: item.sourceUrl,
@@ -715,7 +741,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
               actualUnitCostPrice: effectiveActualUnit,
               actualPurchaseUrl: effectiveActualPurchaseUrl,
               actualSupplier: effectiveActualSupplier,
-              actualShippingCost: item.actualShippingCost !== undefined ? item.actualShippingCost : purchaseRecord?.actualShippingCost,
+              actualShippingCost: effectiveActualShipping,
               shippingPending: item.shippingPending ?? purchaseRecord?.shippingPending ?? false,
               paymentMethod: item.paymentMethod || purchaseRecord?.paymentMethod,
               purchasedAt: item.purchasedAt || purchaseRecord?.purchasedAt,
@@ -1342,9 +1368,10 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       if (item.purchaseStatus === 'purchased') {
         g.purchasedCount++;
       }
+      const shipCost = item.actualShippingCost !== undefined ? item.actualShippingCost : (item.quotedShippingCost || 0);
       g.totalQuotedRevenue += item.quotedTotalPrice;
-      g.totalQuotedCost += item.quotedCostPrice * item.quantity;
-      g.totalActualCost += item.actualCostPrice !== undefined ? item.actualCostPrice : (item.quotedCostPrice * item.quantity);
+      g.totalQuotedCost += (item.quotedCostPrice * item.quantity) + (item.quotedShippingCost || shipCost);
+      g.totalActualCost += (item.actualCostPrice !== undefined ? item.actualCostPrice : (item.quotedCostPrice * item.quantity)) + shipCost;
     });
 
     groups.forEach(g => {
@@ -1382,10 +1409,11 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         };
         map.set(supp, g);
       }
+      const ship = item.actualShippingCost !== undefined ? item.actualShippingCost : (item.quotedShippingCost || 0);
       g.items.push(item);
       g.totalQuantity += item.quantity;
-      g.totalEstimatedCost += item.quotedCostPrice * item.quantity;
-      g.totalActualCost += item.actualCostPrice !== undefined ? item.actualCostPrice : (item.quotedCostPrice * item.quantity);
+      g.totalEstimatedCost += (item.quotedCostPrice * item.quantity) + (item.quotedShippingCost || ship);
+      g.totalActualCost += (item.actualCostPrice !== undefined ? item.actualCostPrice : (item.quotedCostPrice * item.quantity)) + ship;
       if (item.purchaseStatus === 'pending') g.pendingCount++;
       if (item.purchaseStatus === 'purchased') g.purchasedCount++;
     });
@@ -1402,7 +1430,8 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     const pendingCount = pendingItems.length;
     let pendingCost = 0;
     pendingItems.forEach(item => {
-      pendingCost += item.quotedCostPrice * item.quantity;
+      const itemShip = item.actualShippingCost !== undefined ? item.actualShippingCost : (item.quotedShippingCost || 0);
+      pendingCost += (item.quotedCostPrice * item.quantity) + itemShip;
     });
 
     const purchasedCount = purchasedItems.length;
@@ -1475,7 +1504,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     setPurchaseForm({
       actualUnitCost: defaultUnitCost,
       actualCost: defaultTotalCost,
-      actualShipping: item.actualShippingCost || 0,
+      actualShipping: item.actualShippingCost !== undefined 
+        ? item.actualShippingCost 
+        : (item.quotedShippingCost || 0),
       shippingPending: Boolean(item.shippingPending),
       actualPurchaseUrl: effectiveUrl,
       actualSupplier: initialSupplier,
@@ -3644,7 +3675,11 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       }`}
                     />
                     <span className="text-[10px] text-slate-400 mt-1 block">
-                      {purchaseForm.shippingPending ? '⚠️ Frete a definir' : 'Frete pago da remessa'}
+                      {purchaseForm.shippingPending 
+                        ? '⚠️ Frete a definir' 
+                        : (activeItemForPurchase?.quotedShippingCost !== undefined && activeItemForPurchase.quotedShippingCost > 0)
+                          ? `Orçado na proposta: R$ ${activeItemForPurchase.quotedShippingCost.toFixed(2)}`
+                          : 'Frete pago da remessa'}
                     </span>
                   </div>
                 </div>
@@ -4837,6 +4872,12 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
             <div className="text-xs text-slate-400 flex items-center gap-1.5 flex-wrap">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Cotado a <strong>R$ {item.quotedCostPrice.toFixed(2)}/un</strong> • Aguardando aquisição</span>
+              {fretePaid > 0 && (
+                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded-lg border border-amber-200 font-bold font-mono text-[11px]" title="Frete orçado na proposta comercial">
+                  <Truck className="w-3 h-3 text-amber-600" />
+                  Frete orçado: R$ {fretePaid.toFixed(2)}
+                </span>
+              )}
               {(item.approvedAt || (item as any).createdAt) && (
                 <span className="text-slate-400 text-[11px] font-normal">
                   • Data: {formatDatePtBr(item.approvedAt || (item as any).createdAt)}

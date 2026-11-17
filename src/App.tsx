@@ -2772,13 +2772,20 @@ export const App: React.FC = () => {
           }
 
           const updatedItems = newStatus === 'approved'
-            ? (q.items || []).map((it, idx) => ({
-                ...it,
-                id: it.id || `item_${q.id || q.code}_${it.itemNumber || idx}`,
-                approved: true,
-                approvedQuantity: (it.approvedQuantity !== undefined && it.approvedQuantity > 0) ? it.approvedQuantity : (it.quantity > 0 ? it.quantity : 1),
-                purchaseStatus: it.purchaseStatus || 'pending'
-              }))
+            ? (q.items || []).map((it, idx) => {
+                const qty = (it.approvedQuantity !== undefined && it.approvedQuantity > 0) ? it.approvedQuantity : (it.quantity > 0 ? it.quantity : 1);
+                const itemUnitShipping = it.shippingCost !== undefined ? it.shippingCost : (q.globalShipping ?? 0);
+                const itemTotalShipping = Number((itemUnitShipping * qty).toFixed(2));
+                return {
+                  ...it,
+                  id: it.id || `item_${q.id || q.code}_${it.itemNumber || idx}`,
+                  approved: true,
+                  approvedQuantity: qty,
+                  shippingCost: itemUnitShipping,
+                  actualShippingCost: it.actualShippingCost !== undefined ? it.actualShippingCost : itemTotalShipping,
+                  purchaseStatus: it.purchaseStatus || 'pending'
+                };
+              })
             : q.items;
 
           const updated: Quote = {
@@ -2821,13 +2828,20 @@ export const App: React.FC = () => {
     const isMovingFromDraft = (currentQuote.status || 'draft') === 'draft';
 
     const updatedItems = newStatus === 'approved'
-      ? (currentQuote.items || []).map((it, idx) => ({
-          ...it,
-          id: it.id || `item_${currentQuote.id || currentQuote.code}_${it.itemNumber || idx}`,
-          approved: true,
-          approvedQuantity: (it.approvedQuantity !== undefined && it.approvedQuantity > 0) ? it.approvedQuantity : (it.quantity > 0 ? it.quantity : 1),
-          purchaseStatus: it.purchaseStatus || 'pending'
-        }))
+      ? (currentQuote.items || []).map((it, idx) => {
+          const qty = (it.approvedQuantity !== undefined && it.approvedQuantity > 0) ? it.approvedQuantity : (it.quantity > 0 ? it.quantity : 1);
+          const itemUnitShipping = it.shippingCost !== undefined ? it.shippingCost : (currentQuote.globalShipping ?? 0);
+          const itemTotalShipping = Number((itemUnitShipping * qty).toFixed(2));
+          return {
+            ...it,
+            id: it.id || `item_${currentQuote.id || currentQuote.code}_${it.itemNumber || idx}`,
+            approved: true,
+            approvedQuantity: qty,
+            shippingCost: itemUnitShipping,
+            actualShippingCost: it.actualShippingCost !== undefined ? it.actualShippingCost : itemTotalShipping,
+            purchaseStatus: it.purchaseStatus || 'pending'
+          };
+        })
       : currentQuote.items;
 
     const updated: Quote = {

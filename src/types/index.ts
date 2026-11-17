@@ -142,6 +142,9 @@ export interface ProcurementItem {
   quotedCostPrice: number;
   quotedUnitPrice: number;
   quotedTotalPrice: number;
+  quotedShippingCost?: number;
+  quotedUnitShippingCost?: number;
+  shippingCost?: number;
   supplier?: string;
   quotedSupplier?: string;
   sourceUrl?: string;
