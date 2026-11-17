@@ -248,7 +248,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
             boxSizing: 'border-box',
             paddingTop: '0.75cm',
             paddingRight: '1.32cm',
-            paddingBottom: '0.25cm',
+            paddingBottom: '0.45cm',
             paddingLeft: '2.0cm'
           }}
         >
@@ -493,8 +493,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
               style={{ 
                 fontFamily: 'Verdana, Geneva, sans-serif', 
                 fontSize: '10pt',
-                marginTop: `${a4Spacers.spacerAfterConditions}px`,
-                marginBottom: `${Math.min(a4Spacers.spacerBeforeFooter, 120)}px`
+                marginTop: `${a4Spacers.spacerAfterConditions}px`
               }}
             >
               <div>
@@ -531,14 +530,14 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 
           {/* Bottom Divider & Company Details */}
           <div 
-            className="mt-auto pt-2 text-black space-y-0.5 text-center font-bold sq-avoid-break"
-            style={{ borderTop: '0.5pt solid #000000', fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt', fontWeight: 'bold' }}
+            className="mt-auto pt-2 pb-1 text-black space-y-0.5 text-center font-bold sq-avoid-break shrink-0"
+            style={{ borderTop: '0.5pt solid #000000', fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '9.5pt', fontWeight: 'bold' }}
           >
-            <p className="font-bold" style={{ fontSize: '10pt', fontWeight: 'bold' }}>{settings.companyName || 'Lucas Porto da Fonseca-ME'}</p>
-            <p className="font-bold" style={{ fontSize: '10pt', fontWeight: 'bold' }}>{settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste'} – {settings.cityState || 'Brasília - DF'}</p>
-            <p className="flex items-center justify-center gap-12 font-bold" style={{ fontSize: '10pt', fontWeight: 'bold' }}>
-              <span style={{ fontSize: '10pt', fontWeight: 'bold' }}>CNPJ: {settings.cnpj || '15.266.716/0001-02'}</span>
-              <span style={{ fontSize: '10pt', fontWeight: 'bold' }}>I.E.: {settings.stateRegistration || '07.602.330/001-92'}</span>
+            <p className="font-bold" style={{ fontSize: '9.5pt', fontWeight: 'bold' }}>{settings.companyName || 'Lucas Porto da Fonseca-ME'}</p>
+            <p className="font-bold" style={{ fontSize: '9.5pt', fontWeight: 'bold' }}>{settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste'} – {settings.cityState || 'Brasília - DF'}</p>
+            <p className="flex items-center justify-center gap-12 font-bold" style={{ fontSize: '9.5pt', fontWeight: 'bold' }}>
+              <span style={{ fontSize: '9.5pt', fontWeight: 'bold' }}>CNPJ: {settings.cnpj || '15.266.716/0001-02'}</span>
+              <span style={{ fontSize: '9.5pt', fontWeight: 'bold' }}>I.E.: {settings.stateRegistration || '07.602.330/001-92'}</span>
             </p>
           </div>
         </div>

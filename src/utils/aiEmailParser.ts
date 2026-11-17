@@ -3430,17 +3430,18 @@ export interface A4ProposalSpacers {
  * total harmonia visual, sem aglomeração de textos ("tudo juntinho") nem quebras de página indesejadas.
  */
 export function calculateA4ProposalSpacers(quote: any, settings?: any): A4ProposalSpacers {
-  // Altura útil padrão de 1 folha A4 em pixels web (96 DPI: 29.7cm ≈ 1122px, menos margens de ~40px = 1082px)
-  const A4_PAGE_HEIGHT_PX = 1082;
+  // Altura útil padrão de 1 folha A4 em pixels web (96 DPI: 29.7cm ≈ 1122px, menos margens de ~45px = 1077px)
+  // Usamos 1000px como teto seguro para absorver variações de renderização de fontes e quebras de linha
+  const A4_PAGE_HEIGHT_PX = 1000;
   
   // 1. Cabeçalho com Logomarca Infodesk (8.56cm x 2.08cm + margem inferior)
-  const headerHeight = 100;
+  const headerHeight = 105;
 
   // 2. Bloco do Destinatário (Nome da Empresa, Contato, E-mail, Telefone e Logo se houver)
-  const clientHeight = 105;
+  const clientHeight = 115;
 
   // 3. Parágrafo de abertura ("Em atenção...")
-  const introHeight = 55;
+  const introHeight = 65;
 
   // 4. Tabela Oficial de Produtos
   const tableHeaderHeight = 38;
@@ -3451,9 +3452,9 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
   items.forEach((item: any) => {
     const hasImage = Boolean(item.showImage && item.imageUrl);
     const nameLength = (item.name || '').length;
-    // Se o item tem imagem ativa, ocupa ~135px (miniatura de até 2.71cm + paddings/bordas + nome)
+    // Se o item tem imagem ativa, ocupa ~150-170px (miniatura de até 2.71cm + paddings/bordas + nome em até 2 linhas)
     if (hasImage) {
-      itemsHeight += 135;
+      itemsHeight += nameLength > 40 ? 170 : 150;
     } else {
       // Sem imagem: se o nome passar de 40 caracteres ocupa 2 linhas (~52px), senão ~38px
       itemsHeight += nameLength > 40 ? 52 : 38;
@@ -3475,11 +3476,11 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
   const tableTotalHeight = tableHeaderHeight + itemsHeight + optionalHeight + 20;
 
   // 5. Bloco de Condições Gerais
-  let conditionsHeight = 26; // Título "Condições gerais:"
-  conditionsHeight += 4 * 24; // 4 linhas obrigatórias (Validade, Pagamento, Prazo, Garantia)
+  let conditionsHeight = 28; // Título "Condições gerais:"
+  conditionsHeight += 4 * 22; // 4 linhas obrigatórias (Validade, Pagamento, Prazo, Garantia)
   
   if (shouldDisplayShippingInProposal(quote) && quote?.shippingTerms) {
-    conditionsHeight += 24; // Linha de frete
+    conditionsHeight += 22; // Linha de frete
   }
 
   const obs = (quote?.observations || quote?.notes || '').trim();
@@ -3489,11 +3490,11 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
   }
 
   // 6. Bloco de Data e Assinatura (textos fixos)
-  const dateTextHeight = 22;
-  const signatureTextHeight = 65; // Nome do responsável + Telefones
+  const dateTextHeight = 24;
+  const signatureTextHeight = 68; // Nome do responsável + Telefones
 
   // 7. Rodapé Fiscal Fixo na base
-  const footerHeight = 75; // Linha divisória preta + 3 linhas de dados fiscais
+  const footerHeight = 72; // Linha divisória preta + 3 linhas de dados fiscais
 
   // Altura total consumida pelo conteúdo sem os espaçadores inteligentes
   const baseContentHeight = headerHeight + clientHeight + introHeight + tableTotalHeight + 
@@ -3503,13 +3504,13 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
   if (baseContentHeight <= A4_PAGE_HEIGHT_PX) {
     const availableSpace = Math.max(0, A4_PAGE_HEIGHT_PX - baseContentHeight);
 
-    // Distribuição harmônica proporcional ao espaço disponível:
-    // - 38% entre Condições e Data (cria um respiro elegante a partir da data)
-    // - 22% entre Data e Nome do Responsável (distância formal de documento impresso)
-    // - 40% entre Telefones e Rodapé Fiscal (crava o rodapé exatamente na base da folha A4)
-    const spacerAfterConditions = Math.max(28, Math.round(availableSpace * 0.38));
-    const spacerAfterDate = Math.max(20, Math.round(availableSpace * 0.22));
-    const spacerBeforeFooter = Math.max(32, Math.round(availableSpace * 0.40));
+    // Distribuição harmônica proporcional e segura ao espaço disponível:
+    // - Condições -> Data: entre 20px e 65px
+    // - Data -> Assinatura: entre 16px e 36px
+    // - Assinatura -> Rodapé Fiscal: entre 24px e 90px (no print web, mt-auto cuida da absorção fluida)
+    const spacerAfterConditions = Math.max(20, Math.min(65, Math.round(availableSpace * 0.40)));
+    const spacerAfterDate = Math.max(16, Math.min(36, Math.round(availableSpace * 0.25)));
+    const spacerBeforeFooter = Math.max(24, Math.min(90, Math.round(availableSpace * 0.35)));
 
     return {
       spacerAfterConditions,
@@ -3525,9 +3526,9 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
   const availableInLastPage = A4_PAGE_HEIGHT_PX - remainderInLastPage;
 
   if (availableInLastPage >= 120 && availableInLastPage <= 480) {
-    const spacerAfterConditions = Math.max(28, Math.min(160, Math.round(availableInLastPage * 0.35)));
-    const spacerAfterDate = Math.max(20, Math.min(80, Math.round(availableInLastPage * 0.22)));
-    const spacerBeforeFooter = Math.max(32, Math.min(180, Math.round(availableInLastPage * 0.43)));
+    const spacerAfterConditions = Math.max(20, Math.min(60, Math.round(availableInLastPage * 0.35)));
+    const spacerAfterDate = Math.max(16, Math.min(35, Math.round(availableInLastPage * 0.22)));
+    const spacerBeforeFooter = Math.max(24, Math.min(80, Math.round(availableInLastPage * 0.43)));
 
     return {
       spacerAfterConditions,
@@ -3539,9 +3540,9 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
 
   // Fallback padrão elegante para páginas quase preenchidas
   return {
-    spacerAfterConditions: 32,
-    spacerAfterDate: 22,
-    spacerBeforeFooter: 36,
+    spacerAfterConditions: 24,
+    spacerAfterDate: 18,
+    spacerBeforeFooter: 28,
     estimatedPageCount: pagesCount
   };
 }

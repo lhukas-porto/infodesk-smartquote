@@ -154,7 +154,7 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 0.75cm 1.32cm 0.25cm 2.0cm;
+    margin: 0.75cm 1.32cm 0.45cm 2.0cm;
   }
 
   *, *::before, *::after {
@@ -200,9 +200,9 @@
 
   /* Ajuste Harmônico A4: Orçamento de 1 página cravado exatamente em 1 folha sem transbordar para folha 2 */
   .print-page.is-single-page {
-    height: 28.65cm !important;
-    min-height: 28.65cm !important;
-    max-height: 28.65cm !important;
+    height: 28.45cm !important;
+    min-height: 28.45cm !important;
+    max-height: 28.45cm !important;
     overflow: hidden !important;
     display: flex !important;
     flex-direction: column !important;
@@ -216,7 +216,7 @@
   /* Orçamento multi-páginas (6+ itens): quebra fluida mantendo integridade das tabelas */
   .print-page.is-multi-page {
     height: auto !important;
-    min-height: 28.65cm !important;
+    min-height: 28.45cm !important;
     max-height: none !important;
     overflow: visible !important;
     display: flex !important;
