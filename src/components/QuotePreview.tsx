@@ -480,10 +480,10 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                     href={`https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}`} 
                     target="_blank" 
                     rel="noreferrer" 
-                    className="text-[#0000ff] underline"
+                    className="text-[#0000ff] underline whitespace-nowrap"
                     style={{ fontSize: '10pt' }}
                   >
-                    {cleanWhatsapp}
+                    {cleanWhatsapp.replace(/\s+/g, '\u00A0')}
                   </a>
                 </div>
               </div>

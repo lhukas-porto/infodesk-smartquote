@@ -3565,10 +3565,7 @@ export function generateProposalEmailHtml(
         </tr>
         <tr>
           <td style="padding: 2px 0 0 0; vertical-align: middle; text-align: right; color: #000000; font-size: 10pt; font-family: Verdana, Geneva, sans-serif;">
-            <a href="https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}" target="_blank" rel="noreferrer" style="color: #0000ee; text-decoration: underline; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; display: inline-block;">
-              <img src="${options.forEmailSend ? 'cid:whatsapp-icon' : '/whatsapp-icon.png'}" alt="WhatsApp" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; border: 0; display: inline-block;" />
-              <span style="vertical-align: middle; color: #0000ee; text-decoration: underline;">${cleanWhatsapp}</span>
-            </a>
+            <img src="${options.forEmailSend ? 'cid:whatsapp-icon' : '/whatsapp-icon.png'}" alt="WhatsApp" width="14" height="14" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; border: 0; display: inline-block;" /><a href="https://api.whatsapp.com/send?phone=55${cleanWhatsapp.replace(/\D/g, '')}" target="_blank" rel="noreferrer" style="color: #0000ee; text-decoration: underline; font-size: 10pt; font-family: Verdana, Geneva, sans-serif; vertical-align: middle; display: inline-block; white-space: nowrap;">${cleanWhatsapp.replace(/\s+/g, '&nbsp;')}</a>
           </td>
         </tr>
       </table>
