@@ -99,37 +99,52 @@ export async function isImageLoadable(url: string, timeoutMs: number = 2000): Pr
 }
 
 /**
- * Tenta carregar uma URL de imagem no navegador e converter para Data URL Base64
+ * Tenta carregar uma URL de imagem no navegador e converter para Data URL Base64.
+ * Utiliza fetch direto e proxies CORS públicos caso o servidor de origem restrinja a leitura de bytes pelo navegador.
  */
-async function fetchImageToDataUrl(url: string, timeoutMs: number = 2000): Promise<string | null> {
+async function fetchImageToDataUrl(url: string, timeoutMs: number = 2500): Promise<string | null> {
   if (!url || !url.startsWith('http')) return null;
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const endpoints = [
+    url,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+  ];
 
-    const resp = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'Accept': 'image/*,*/*' }
-    });
-    clearTimeout(timer);
+  for (const targetUrl of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!resp.ok) return null;
-    const blob = await resp.blob();
-    if (!blob || blob.size < 40 || !blob.type.startsWith('image/')) return null;
+      const resp = await fetch(targetUrl, {
+        signal: controller.signal,
+        headers: { 'Accept': 'image/*,*/*' }
+      });
+      clearTimeout(timer);
 
-    return await new Promise<string | null>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const res = reader.result as string;
-        resolve(res || null);
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
+      if (!resp.ok) continue;
+      const blob = await resp.blob();
+      if (!blob || blob.size < 40) continue;
+
+      const dataUrl = await new Promise<string | null>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = reader.result as string;
+          resolve(res || null);
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+
+      if (dataUrl && dataUrl.startsWith('data:image/')) {
+        return dataUrl;
+      }
+    } catch {
+      continue;
+    }
   }
+
+  return null;
 }
 
 /**
@@ -259,15 +274,15 @@ export async function resolveClientLogoBase64(comp: {
   let firstValidHttpsUrl: string | null = null;
 
   for (const url of targets) {
-    // 1. Tenta converter para Base64 (se o servidor da imagem suportar CORS)
+    // 1. Tenta converter para Base64 diretamente ou via proxies CORS
+    const fetchRes = await fetchImageToDataUrl(url, 2000);
+    if (fetchRes && fetchRes.startsWith('data:image/')) {
+      return fetchRes;
+    }
+
     const canvasRes = await loadImgElementToDataUrl(url, 1500);
     if (canvasRes && canvasRes.startsWith('data:image/')) {
       return canvasRes;
-    }
-
-    const fetchRes = await fetchImageToDataUrl(url, 1500);
-    if (fetchRes && fetchRes.startsWith('data:image/')) {
-      return fetchRes;
     }
 
     // 2. Se não conseguiu converter para Base64 por CORS, testa se o <img> consegue carregar normalmente
