@@ -5398,76 +5398,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         </div>
       )}
 
-      {/* [E] Barra Inferior Flutuante Fixa de Lucro e Totais (Sticky Floating Summary) */}
-      {currentQuote.items.length > 0 && (
-        <div className="sticky bottom-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-4 py-3 -mx-4 sm:-mx-6 transition-all duration-200">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-            {/* Lado Esquerdo: Métricas Principais de Lucro */}
-            <div className="flex items-center gap-4 flex-wrap justify-center sm:justify-start">
-              <div className="flex items-center gap-2">
-                <span className="w-7 h-7 rounded-lg bg-sky-50 text-sky-700 border border-sky-200/80 flex items-center justify-center font-bold text-xs">
-                  {currentQuote.items.length}
-                </span>
-                <span className="text-xs font-semibold text-slate-600">
-                  {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'}
-                </span>
-              </div>
-
-              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
-
-              <div className="text-xs">
-                <span className="text-slate-400 font-medium">Custo: </span>
-                <span className="font-mono font-bold text-slate-700">
-                  R$ {(currentQuote.totalCost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              <div className="text-xs">
-                <span className="text-slate-400 font-medium">Venda: </span>
-                <span className="font-mono font-bold text-slate-900 text-sm">
-                  R$ {(currentQuote.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
-
-              <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-2.5 py-1 rounded-xl text-xs font-mono font-bold shadow-2xs">
-                <span className="text-[10px] text-emerald-600 uppercase tracking-wider font-sans font-bold">Lucro:</span>
-                <span>
-                  +R$ {(currentQuote.totalProfit || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-                <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.2 rounded-md font-sans">
-                  {(currentQuote.averageMargin || 0).toFixed(1)}%
-                </span>
-              </div>
-            </div>
-
-            {/* Lado Direito: Ações Rápidas */}
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-                title="Voltar ao topo da lista"
-              >
-                <ArrowUp className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleAuditBeforeProceed(() => persistAndProceed(onPreview, true))}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
-                title="Visualizar Proposta Comercial Oficial"
-              >
-                <Eye className="w-3.5 h-3.5 text-sky-400" />
-                <span>Ver Proposta</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
 
 
@@ -6003,46 +5933,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
               <button
                 type="button"
-                onClick={() => {
-                  if (!currentQuote.items || currentQuote.items.length === 0) {
-                    alert('Adicione ao menos um produto na cotação para enviar via WhatsApp.');
-                    return;
-                  }
-                  setWhatsAppInitialMode('items_only');
-                  setIsWhatsAppModalOpen(true);
-                }}
-                className="h-9 px-3.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
-                title="Copiar texto de itens e quantidades ou proposta comercial para o WhatsApp"
-              >
-                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                <span>WhatsApp</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsKitsModalOpen(true)}
-                className="h-9 px-3.5 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
-                title="Inserir kit pronto ou salvar proposta atual como um kit reutilizável"
-              >
-                <Boxes className="w-3.5 h-3.5 text-purple-600" />
-                <span>Kits</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAuditProceedCallback(null);
-                  setIsAuditModalOpen(true);
-                }}
-                className="h-9 px-3.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer active:scale-95"
-                title="Auditar proposta comercial e checar NCM, custos e pendências"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-                <span>Auditor</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => handleAuditBeforeProceed(() => persistAndProceed(onPreview, true))}
                 className="h-9 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs whitespace-nowrap cursor-pointer active:scale-95"
                 title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
@@ -6099,31 +5989,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       type="button"
                       onClick={() => {
                         setIsMobileMoreActionsOpen(false);
-                        setIsKitsModalOpen(true);
-                      }}
-                      className="w-full px-3 py-2 text-left text-xs font-semibold text-purple-800 hover:bg-purple-50 flex items-center gap-2 transition"
-                    >
-                      <Boxes className="w-4 h-4 text-purple-600" />
-                      <span>Kits Comerciais</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileMoreActionsOpen(false);
-                        setAuditProceedCallback(null);
-                        setIsAuditModalOpen(true);
-                      }}
-                      className="w-full px-3 py-2 text-left text-xs font-semibold text-amber-800 hover:bg-amber-50 flex items-center gap-2 transition"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-amber-600" />
-                      <span>Auditor de Proposta</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileMoreActionsOpen(false);
                         if (!currentQuote.items || currentQuote.items.length === 0) {
                           alert('Adicione ao menos um produto na cotação para exportar a planilha Excel.');
                           return;
@@ -6134,22 +5999,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     >
                       <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                       <span>Salvar Excel (.xlsx)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileMoreActionsOpen(false);
-                        if (!currentQuote.items || currentQuote.items.length === 0) {
-                          alert('Adicione ao menos um produto na cotação para enviar via WhatsApp.');
-                          return;
-                        }
-                        setIsWhatsAppModalOpen(true);
-                      }}
-                      className="w-full px-3 py-2 text-left text-xs font-semibold text-emerald-800 hover:bg-emerald-50 flex items-center gap-2 transition"
-                    >
-                      <MessageSquare className="w-4 h-4 text-emerald-600" />
-                      <span>Enviar no WhatsApp</span>
                     </button>
 
                     {onSaveAsNewQuote && (
