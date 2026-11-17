@@ -102,7 +102,10 @@ export async function isImageLoadable(url: string, timeoutMs: number = 2000): Pr
 async function fetchImageToDataUrl(url: string, timeoutMs: number = 2500): Promise<string | null> {
   if (!url || !url.startsWith('http')) return null;
 
+  const cleanUrlNoProto = url.replace(/^https?:\/\//i, '');
   const endpoints = [
+    `https://images.weserv.nl/?url=${encodeURIComponent(cleanUrlNoProto)}&output=png&w=128`,
+    `https://wsrv.nl/?url=${encodeURIComponent(cleanUrlNoProto)}&output=png&w=128`,
     url,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
     `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
@@ -268,11 +271,9 @@ export async function resolveClientLogoBase64(comp: {
   // Testa os primeiros 5 candidatos mais promissores
   const targets = candidates.slice(0, 5);
 
-  let firstValidHttpsUrl: string | null = null;
-
   for (const url of targets) {
-    // 1. Tenta converter para Base64 diretamente ou via proxies CORS
-    const fetchRes = await fetchImageToDataUrl(url, 2000);
+    // 1. Tenta converter para Base64 diretamente ou via proxies CDN (weserv.nl / wsrv.nl)
+    const fetchRes = await fetchImageToDataUrl(url, 2200);
     if (fetchRes && fetchRes.startsWith('data:image/')) {
       return fetchRes;
     }
@@ -281,27 +282,13 @@ export async function resolveClientLogoBase64(comp: {
     if (canvasRes && canvasRes.startsWith('data:image/')) {
       return canvasRes;
     }
-
-    // 2. Se não conseguiu converter para Base64 por CORS, testa se o <img> consegue carregar normalmente
-    if (!firstValidHttpsUrl) {
-      const loadable = await isImageLoadable(url, 1500);
-      if (loadable) {
-        firstValidHttpsUrl = url;
-      }
-    }
   }
 
-  // Se encontrou uma URL HTTPS válida e acessível pelo navegador/Gmail
-  if (firstValidHttpsUrl) {
-    return firstValidHttpsUrl;
-  }
-
-  // Fallback: Se temos candidatos (ex: favicon do Google), retorna o primeiro candidato
-  if (targets.length > 0 && targets[0]) {
-    return targets[0];
-  }
-
-  // Fallback definitivo: Avatar PNG elegante com iniciais
+  // ⚠️ REGRA ANTI-BLOQUEIO DO OUTLOOK:
+  // Nunca retorne uma URL http/https externa como fallback para o e-mail oficial,
+  // pois o Microsoft Outlook bloqueia imagens externas com uma caixa cinza e [X].
+  // Retornamos SEMPRE o avatar oficial gerado no Canvas em Base64 nativo (CID),
+  // garantindo exibição instantânea sem avisos de segurança no Outlook.
   return comp.name ? generateInitialsAvatarPngDataUrl(comp.name) : null;
 }
 

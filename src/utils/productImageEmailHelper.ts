@@ -39,9 +39,12 @@ export async function optimizeProductImageToBase64(
 
     let sourceDataUrl = url;
 
-    // Se for URL externa HTTP, busca via fetch ou proxies CORS para contornar restrições de mesma origem
+    // Se for URL externa HTTP, busca via CDN Cloudflare weserv.nl ou proxies CORS para contornar restrições e obter JPEG leve
     if (url.startsWith('http')) {
+      const cleanUrlNoProto = url.replace(/^https?:\/\//i, '');
       const endpoints = [
+        `https://images.weserv.nl/?url=${encodeURIComponent(cleanUrlNoProto)}&output=jpg&q=82&w=${maxWidth}`,
+        `https://wsrv.nl/?url=${encodeURIComponent(cleanUrlNoProto)}&output=jpg&q=82&w=${maxWidth}`,
         url,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
         `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
@@ -51,7 +54,7 @@ export async function optimizeProductImageToBase64(
       for (const endpoint of endpoints) {
         try {
           const controller = new AbortController();
-          const subTimer = setTimeout(() => controller.abort(), 1800);
+          const subTimer = setTimeout(() => controller.abort(), 2400);
           const resp = await fetch(endpoint, {
             signal: controller.signal,
             headers: { 'Accept': 'image/*,*/*' }
@@ -71,12 +74,17 @@ export async function optimizeProductImageToBase64(
 
       if (loadedBlob) {
         try {
-          sourceDataUrl = await new Promise<string>((r) => {
+          const dataUrl = await new Promise<string>((r) => {
             const reader = new FileReader();
-            reader.onloadend = () => r((reader.result as string) || url);
-            reader.onerror = () => r(url);
+            reader.onloadend = () => r((reader.result as string) || '');
+            reader.onerror = () => r('');
             reader.readAsDataURL(loadedBlob!);
           });
+          if (dataUrl && dataUrl.startsWith('data:image/')) {
+            // Imagem já obtida e comprimida em Base64 pelo weserv.nl - retorna imediatamente
+            finish(dataUrl);
+            return;
+          }
         } catch {
           sourceDataUrl = url;
         }
@@ -146,9 +154,14 @@ export async function embedProductImagesForEmail(items: QuoteItem[]): Promise<Qu
         return item;
       }
 
+      // Se já for Base64 (data:image/...)
+      if (item.imageUrl.startsWith('data:image/')) {
+        return item;
+      }
+
       try {
         const optimized = await optimizeProductImageToBase64(item.imageUrl);
-        if (optimized) {
+        if (optimized && optimized.startsWith('data:image/')) {
           return {
             ...item,
             imageUrl: optimized
@@ -158,7 +171,13 @@ export async function embedProductImagesForEmail(items: QuoteItem[]): Promise<Qu
         console.warn(`[ProductImageEmbed] Falha ao otimizar imagem do item #${item.itemNumber}:`, err);
       }
 
-      return item;
+      // ⚠️ REGRA ANTI-BLOQUEIO DO OUTLOOK:
+      // Se a imagem não puder ser embutida como anexo interno Base64/CID,
+      // desativamos showImage para o e-mail oficial para que o cliente não veja uma caixa cinza de [X]
+      return {
+        ...item,
+        showImage: false
+      };
     })
   );
 }

@@ -3544,9 +3544,14 @@ export function generateProposalEmailHtml(
 
   const itemsRows = (quote.items || []).map((item: any) => {
     const isException = excDetails.hasException && excDetails.itemNumbers.includes(item.itemNumber);
-    const hasImage = item.showImage && item.imageUrl;
+    // Para envio oficial de e-mail (options.forEmailSend === true), apenas imagens embutidas (Base64 data: ou cid:) são exibidas.
+    // Isso blinda a proposta contra caixas cinzas de [X] no Microsoft Outlook caso uma URL externa falhe.
+    const isEmbeddedImage = Boolean(item.imageUrl && (item.imageUrl.startsWith('data:') || item.imageUrl.startsWith('cid:')));
+    const hasImage = item.showImage && item.imageUrl && (!options.forEmailSend || isEmbeddedImage);
     const safeItemName = escapeHtml(item.name);
-    const safeImageUrl = encodeURI(item.imageUrl || '');
+    const safeImageUrl = (item.imageUrl || '').startsWith('data:')
+      ? item.imageUrl
+      : encodeURI(item.imageUrl || '');
 
     return `
       <tr style="page-break-inside: avoid;">
@@ -3607,7 +3612,7 @@ export function generateProposalEmailHtml(
     <!-- Dados do Cliente / Solicitante (Com Logo do Cliente no Destinatário - Padrão Opção 2) -->
     <table border="0" cellpadding="0" cellspacing="0" width="100%" style="width: 100%; margin-bottom: 18px; border-collapse: collapse; font-family: Verdana, Geneva, sans-serif;">
       <tr>
-        ${options.clientLogoUrl ? `
+        ${(options.clientLogoUrl && (!options.forEmailSend || options.clientLogoUrl.startsWith('data:') || options.clientLogoUrl.startsWith('cid:'))) ? `
           <td width="56" valign="middle" align="center" style="width: 56px; padding-right: 14px; vertical-align: middle; border: 0;">
             <img src="${options.clientLogoUrl}" alt="${clientCompanyFormatted}" width="50" height="50" border="0" style="width: 50px; height: 50px; max-width: 50px; max-height: 50px; object-fit: contain; display: block; margin: 0 auto; border: 0; outline: none; background: transparent;" />
           </td>

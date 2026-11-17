@@ -138,7 +138,7 @@ import {
   learnSuppliersFromProducts,
   learnSuppliersFromQuotes
 } from './services/supplierLearningService';
-import { resolveClientLogoBase64 } from './utils/clientLogoEmailHelper';
+import { resolveClientLogoBase64, generateInitialsAvatarPngDataUrl } from './utils/clientLogoEmailHelper';
 import { embedProductImagesForEmail } from './utils/productImageEmailHelper';
 import {
   learnDollarSurchargesFromProducts,
@@ -2201,19 +2201,25 @@ export const App: React.FC = () => {
 
     // Com o token ativo, realiza o disparo oficial via API do Gmail
     try {
-      // Resolve a logomarca do cliente (Base64 ou HTTPS) para embutir na proposta oficial enviada por e-mail (Opção 2)
+      // Resolve a logomarca do cliente (garantindo formato Base64 para embutir via CID inline no Outlook)
       let clientLogoDataUrl: string | undefined = sentQuote.clientLogoUrl;
-      if (!clientLogoDataUrl) {
+      if (!clientLogoDataUrl || !clientLogoDataUrl.startsWith('data:')) {
         try {
           const resolvedLogo = await resolveClientLogoBase64({
             name: sentQuote.clientCompany,
+            logoUrl: sentQuote.clientLogoUrl,
             contacts: sentQuote.clientEmail ? [{ email: sentQuote.clientEmail }] : []
           });
-          if (resolvedLogo) {
+          if (resolvedLogo && resolvedLogo.startsWith('data:')) {
             clientLogoDataUrl = resolvedLogo;
+          } else if (sentQuote.clientCompany) {
+            clientLogoDataUrl = generateInitialsAvatarPngDataUrl(sentQuote.clientCompany) || undefined;
           }
         } catch (logoErr) {
           console.warn('Aviso: falha ao resolver logo do cliente para e-mail:', logoErr);
+          if (sentQuote.clientCompany) {
+            clientLogoDataUrl = generateInitialsAvatarPngDataUrl(sentQuote.clientCompany) || undefined;
+          }
         }
       }
 

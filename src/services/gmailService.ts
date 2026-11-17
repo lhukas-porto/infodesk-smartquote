@@ -478,9 +478,9 @@ export const sendRealGmailMessage = async (
       /src=["'](data:(image\/[a-zA-Z0-9.+_-]+);base64,([A-Za-z0-9+/=\s]+))["']/gi,
       (_match, _fullUri, mime, rawBase64) => {
         const cleanBase64 = rawBase64.replace(/\s+/g, '');
-        const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
-        const cid = `product-item-img-${imgCounter++}`;
-        const filename = `item-preview-${imgCounter}.${ext}`;
+        const ext = mime.split('/')[1]?.replace('jpeg', 'jpg').replace('svg+xml', 'svg') || 'png';
+        const cid = `embedded-asset-${imgCounter++}`;
+        const filename = `asset-preview-${imgCounter}.${ext}`;
         dynamicInlineImages.push({
           cid,
           mime,

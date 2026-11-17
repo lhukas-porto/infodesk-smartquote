@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
 import { generateProposalEmailHtml } from '../utils/aiEmailParser';
-import { resolveClientLogoBase64, getSynchronousClientLogoPreview } from '../utils/clientLogoEmailHelper';
+import { resolveClientLogoBase64, getSynchronousClientLogoPreview, generateInitialsAvatarPngDataUrl } from '../utils/clientLogoEmailHelper';
 import DOMPurify from 'dompurify';
 
 function extractEmailString(val: any): string {
@@ -63,8 +63,11 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
         logoUrl: quote.clientLogoUrl,
         contacts: quote.clientEmail ? [{ email: quote.clientEmail }] : []
       }).then(dataUrl => {
-        if (isMounted && dataUrl) {
+        if (isMounted && dataUrl && dataUrl.startsWith('data:')) {
           setClientLogoDataUrl(dataUrl);
+        } else if (isMounted && quote.clientCompany) {
+          const avatar = generateInitialsAvatarPngDataUrl(quote.clientCompany);
+          if (avatar) setClientLogoDataUrl(avatar);
         }
       }).catch(() => {});
     }
