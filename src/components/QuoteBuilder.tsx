@@ -130,7 +130,7 @@ import { DiscountSimulatorModal } from './DiscountSimulatorModal';
 import { TargetPriceModal } from './TargetPriceModal';
 import { KitsModal } from './KitsModal';
 import { QuoteAuditModal, auditQuote } from './QuoteAuditModal';
-import { buildSingleItemWhatsAppText } from '../utils/whatsappFormatter';
+import { buildSingleItemWhatsAppText, buildWhatsAppDistributorQuoteMessage } from '../utils/whatsappFormatter';
 import { parseQuoteTimestamp } from '../utils/dateUtils';
 import { learnSupplier, learnSuppliersFromProducts } from '../services/supplierLearningService';
 
@@ -408,7 +408,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const [isSupplierMatrixOpen, setIsSupplierMatrixOpen] = useState(false);
   const [itemForSupplierScan, setItemForSupplierScan] = useState<{ index: number; item: QuoteItem } | null>(null);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
-  const [whatsAppInitialMode, setWhatsAppInitialMode] = useState<'items_only' | 'full' | 'followup'>('items_only');
+  const [whatsAppInitialMode, setWhatsAppInitialMode] = useState<'items_only' | 'full' | 'followup' | 'distributor_quote'>('items_only');
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [copiedItemRowId, setCopiedItemRowId] = useState<string | null>(null);
 
@@ -1800,6 +1800,25 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     } catch (err) {
       reportError('Falha ao Exportar Planilha Excel', err, 'QuoteBuilder - Exportação de Planilha de Custos');
     }
+  };
+
+  const handleDistributorWhatsAppQuote = () => {
+    if (!currentQuote.items || currentQuote.items.length === 0) {
+      alert('Adicione ao menos um produto na cotação para solicitar cotação ao distribuidor.');
+      return;
+    }
+
+    // Se houver itens marcados com checkbox, usa os marcados; senão, usa todos os itens
+    const targetItemIds = selectedItemIds.length > 0 ? selectedItemIds : undefined;
+    const message = buildWhatsAppDistributorQuoteMessage(currentQuote, targetItemIds);
+
+    // Copia o texto instantaneamente para a área de transferência para agilidade máxima (Ctrl+V pronto)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(message).catch(() => {});
+    }
+
+    setWhatsAppInitialMode('distributor_quote');
+    setIsWhatsAppModalOpen(true);
   };
 
   const handleImportUniversalItems = (importedItems: Partial<QuoteItem>[]) => {
@@ -5869,6 +5888,16 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
               <button
                 type="button"
+                onClick={handleDistributorWhatsAppQuote}
+                className="h-9 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs whitespace-nowrap cursor-pointer active:scale-95"
+                title="Pedir cotação dos itens marcados com as quantidades para o distribuidor via WhatsApp"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-white" />
+                <span>WhatsApp{selectedItemIds.length > 0 ? ` (${selectedItemIds.length})` : ''}</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleAuditBeforeProceed(() => persistAndProceed(onPreview, true))}
                 className="h-9 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs whitespace-nowrap cursor-pointer active:scale-95"
                 title="Visualizar documento comercial oficial para conferência, impressão em PDF ou disparo por e-mail"
@@ -5935,6 +5964,18 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     >
                       <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                       <span>Salvar Excel (.xlsx)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMoreActionsOpen(false);
+                        handleDistributorWhatsAppQuote();
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs font-semibold text-emerald-800 hover:bg-emerald-50 flex items-center gap-2 transition"
+                    >
+                      <MessageSquare className="w-4 h-4 text-emerald-600" />
+                      <span>Cotar no WhatsApp {selectedItemIds.length > 0 ? `(${selectedItemIds.length})` : ''}</span>
                     </button>
 
                     {onSaveAsNewQuote && (

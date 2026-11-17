@@ -91,6 +91,40 @@ export function buildWhatsAppQuoteMessage(
 }
 
 /**
+ * Constrói texto formal e direto para solicitar cotação de itens marcados com distribuidor/fornecedor
+ */
+export function buildWhatsAppDistributorQuoteMessage(
+  quote: Quote, 
+  itemIdsToInclude?: string[]
+): string {
+  const allItems = quote.items || [];
+  const items = itemIdsToInclude && itemIdsToInclude.length > 0
+    ? allItems.filter(it => itemIdsToInclude.includes(it.id))
+    : allItems;
+
+  const header = `Olá! Tudo bem?
+
+Poderia, por gentileza, me enviar uma cotação desses itens, considerando as respectivas quantidades informadas?
+Peço que inclua os valores unitários, disponibilidade em estoque e prazo de entrega.
+
+Obrigado!`;
+
+  if (items.length === 0) {
+    return `${header}\n\n(Nenhum item selecionado na cotação)`;
+  }
+
+  const itemsLines = items.map((item, index) => {
+    const qty = item.quantity || 1;
+    const unit = item.unit || 'Un.';
+    const partNumberInfo = item.partNumber ? ` (PN: ${item.partNumber.trim()})` : '';
+
+    return `*${index + 1}.* ${item.name}${partNumberInfo} - *Qtd:* ${qty} ${unit}`;
+  });
+
+  return `${header}\n\n${itemsLines.join('\n')}`;
+}
+
+/**
  * Constrói texto limpo para WhatsApp contendo apenas Itens e Quantidades (sem valores),
  * ideal para cotação rápida com fornecedores, logística ou conferência de lista de compras.
  */
