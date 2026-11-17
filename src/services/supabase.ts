@@ -1739,15 +1739,14 @@ export async function signInCorporateUser(email: string, password: string) {
   return data;
 }
 
-export async function signUpCorporateUser(email: string, password: string) {
+export async function signUpCorporateUser(email: string, password: string, name?: string) {
   if (!supabase) throw new Error('Supabase não configurado.');
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
     options: {
       data: {
-        name: 'Lucas Porto',
-        role: 'admin'
+        name: name?.trim() || email.split('@')[0]
       }
     }
   });

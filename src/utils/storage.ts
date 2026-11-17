@@ -148,6 +148,7 @@ export const isQuoteDeleted = (q: { id?: string; code?: string; clientCompany?: 
  * Remove chaves de backup redundantes e caches antigos sem perder dados do usuário.
  */
 export const pruneLocalStorage = (): void => {
+  if (typeof localStorage === 'undefined') return;
   try {
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -273,6 +274,7 @@ export const doesQuoteNeedDraftSanitization = (q: Quote): boolean => {
 };
 
 export const getCurrentDraftQuote = (): Quote | null => {
+  if (typeof localStorage === 'undefined') return null;
   try {
     const saved = localStorage.getItem(CURRENT_DRAFT_QUOTE_KEY) || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(CURRENT_DRAFT_QUOTE_KEY) : null);
     if (saved) {
@@ -335,6 +337,7 @@ export const syncDraftQuoteDebounced = (_quote: Quote): void => {
 };
 
 export const saveCurrentDraftQuote = (quote: Quote | null): void => {
+  if (typeof localStorage === 'undefined') return;
   if (!quote || isBlockedOrTestQuote(quote) || getDeletedQuoteCodes().has((quote.code || '').trim().toUpperCase())) {
     try {
       localStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
@@ -405,6 +408,7 @@ export const saveCurrentDraftQuote = (quote: Quote | null): void => {
 
 export const saveQuoteItemsBackup = (key: string, items: QuoteItem[]): void => {
   if (!key || !Array.isArray(items) || items.length === 0) return;
+  if (typeof localStorage === 'undefined') return;
   try {
     const cleanKey = key.trim().replace(/\s+/g, '_').toUpperCase();
     const cleanItems = items.map(it => {
@@ -424,6 +428,7 @@ export const saveQuoteItemsBackup = (key: string, items: QuoteItem[]): void => {
 
 export const getQuoteItemsBackup = (key: string): QuoteItem[] | null => {
   if (!key) return null;
+  if (typeof localStorage === 'undefined') return null;
   try {
     const cleanKey = key.trim().replace(/\s+/g, '_').toUpperCase();
     const saved = localStorage.getItem(`infodesk_backup_items_${cleanKey}`);
@@ -501,7 +506,7 @@ export const saveManualAnalyses = (analyses: IncomingEmail[]): void => {
 };
 
 export const getSettings = (): CompanySettings => {
-  const saved = localStorage.getItem(SETTINGS_KEY);
+  const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(SETTINGS_KEY) : null;
   if (saved) {
     try { 
       const parsed = { ...defaultCompanySettings, ...JSON.parse(saved) };
@@ -1082,6 +1087,7 @@ export const saveEmails = (emails: IncomingEmail[], syncToCloud: boolean = true)
 };
 
 export const getQuotes = (): Quote[] => {
+  if (typeof localStorage === 'undefined') return [];
   try {
     const saved = localStorage.getItem(QUOTES_KEY);
     if (saved) {
@@ -1138,6 +1144,7 @@ function safeEmailString(val: any): string | undefined {
 }
 
 export const saveQuotes = (quotes: Quote[]): void => {
+  if (typeof localStorage === 'undefined') return;
   try {
     const normalized = quotes
       .filter(q => !isQuoteDeleted(q))
@@ -1153,8 +1160,8 @@ export const saveQuotes = (quotes: Quote[]): void => {
           }
           return {
             ...it,
-            // Mantém imagens HTTP/HTTPS e imagens base64 compactas (< 35KB)
-            imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:') && it.imageUrl.length > 35000) ? '' : it.imageUrl
+            // Mantém imagens HTTP/HTTPS e imagens base64 compactas (< 85KB)
+            imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:') && it.imageUrl.length > 85000) ? '' : it.imageUrl
           };
         })
       }));
@@ -2507,8 +2514,8 @@ export const saveProductImageToCache = (
 ): void => {
   if (!imageUrl || (!identifier.name && !identifier.partNumber && !identifier.sku)) return;
   const cleanUrl = imageUrl.trim();
-  // Aceita URLs de imagem e Data URLs de até 90KB
-  if (!cleanUrl || (cleanUrl.startsWith('data:image/') && cleanUrl.length > 90000)) return;
+  // Aceita URLs de imagem e Data URLs de até 150KB
+  if (!cleanUrl || (cleanUrl.startsWith('data:image/') && cleanUrl.length > 150000)) return;
 
   try {
     const cache = getProductImageCache();
@@ -2700,6 +2707,7 @@ export const getQuoteKits = (): QuoteKit[] => {
 
 export const saveQuoteKit = (kit: QuoteKit): void => {
   if (!kit || !kit.name) return;
+  if (typeof localStorage === 'undefined') return;
   try {
     const kits = getQuoteKits();
     const idx = kits.findIndex(k => k.id === kit.id);
@@ -2721,6 +2729,7 @@ export const saveQuoteKit = (kit: QuoteKit): void => {
 
 export const deleteQuoteKit = (kitId: string): void => {
   if (!kitId) return;
+  if (typeof localStorage === 'undefined') return;
   try {
     const kits = getQuoteKits().filter(k => k.id !== kitId);
     localStorage.setItem(KITS_KEY, JSON.stringify(kits));

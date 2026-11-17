@@ -1,4 +1,17 @@
 import assert from 'assert';
+
+if (typeof globalThis.localStorage === 'undefined') {
+  const store = new Map<string, string>();
+  globalThis.localStorage = {
+    getItem: (key: string) => store.get(key) || null,
+    setItem: (key: string, val: string) => store.set(key, String(val)),
+    removeItem: (key: string) => store.delete(key),
+    clear: () => store.clear(),
+    key: (idx: number) => Array.from(store.keys())[idx] || null,
+    get length() { return store.size; }
+  } as any;
+}
+
 import { calculateCommercialUnitPrice } from '../utils/aiEmailParser';
 import { getSettings, saveSettings } from '../utils/storage';
 

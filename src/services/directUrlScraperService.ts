@@ -144,14 +144,42 @@ function extractPriceFromHtml(html: string): number | null {
 }
 
 /**
+ * Validação de segurança contra SSRF (Server-Side Request Forgery) e requisições para redes locais
+ */
+function isSafeExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    const host = parsed.hostname.toLowerCase();
+    // Bloqueia qualquer tentativa de SSRF para loopback ou redes internas
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host.endsWith('.local') ||
+      host.endsWith('.internal') ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
+      /^169\.254\./.test(host)
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Busca e inspeciona o preço ao vivo diretamente na URL salva
  */
 export async function scrapeDirectUrlPrice(
   url: string,
   timeoutMs: number = 7000
 ): Promise<ScrapedDirectUrlPrice> {
-  if (!url || typeof url !== 'string' || !url.startsWith('http')) {
-    return { success: false, error: 'URL inválida ou ausente' };
+  if (!url || typeof url !== 'string' || !url.startsWith('http') || !isSafeExternalUrl(url)) {
+    return { success: false, error: 'URL inválida, insegura ou ausente' };
   }
 
   const store = identifyStoreFromUrl(url);

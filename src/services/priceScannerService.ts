@@ -1004,14 +1004,28 @@ export function parsePastedProductListWithQty(rawText: string): ParsedBatchQuery
   const isSpecOrAttributeLine = (l: string): boolean => {
     const trimmed = l.trim();
     if (!trimmed) return false;
-    // Prefixos conhecidos de especificações técnicas de produtos
-    if (/^(?:resolu[cç][aã]o|conex[aã]o|conector|cor|tamanho|painel|taxa\s+de\s+atualiza[cç][aã]o|brilho|contraste|voltagem|tens[aã]o|modelo|marca|pn|part\s*number|sku|garantia|peso|dimens[oõ]es?|mem[oó]ria|armazenamento|processador|pot[eê]ncia|interface|entradas?|sa[ií]das?|frequ[eê]ncia|velocidade|capacidade|material|acabamento|tipo|uso)[:\s-]/i.test(trimmed)) {
-      return true;
+
+    // Se a linha tem estrutura de quantidade explícita ou referência comercial, NUNCA é especificação secundária
+    if (/\|\s*qtd\s*:/i.test(trimmed) || /\[\s*(?:ref|pn|sku|c[oó]d)\s*:/i.test(trimmed)) {
+      return false;
     }
+    if (/\b(?:qtd|quantidade)\s*[:=]\s*\d+/i.test(trimmed)) {
+      return false;
+    }
+
+    // Prefixos conhecidos de especificações técnicas de produtos - DEVEM ser seguidos por ':' ou '-' com valor
+    // Ex: "Resolução: 1920x1080", "Conector: RJ45", "Cor: Preto"
+    if (/^(?:resolu[cç][aã]o|conex[aã]o|conector|cor|tamanho|painel|taxa\s+de\s+atualiza[cç][aã]o|brilho|contraste|voltagem|tens[aã]o|modelo|marca|pn|part\s*number|sku|garantia|peso|dimens[oõ]es?|mem[oó]ria|armazenamento|processador|pot[eê]ncia|interface|entradas?|sa[ií]das?|frequ[eê]ncia|velocidade|capacidade|material|acabamento|tipo|uso)\s*[:\-]\s*(.+)$/i.test(trimmed)) {
+      return trimmed.length < 80;
+    }
+
     // Linha genérica chave: valor curta sem quantidade
     const colonMatch = trimmed.match(/^([a-zA-ZÀ-ÿ\s]{2,20}):\s*(.+)$/i);
-    if (colonMatch && !/^\d+/.test(colonMatch[2].trim())) {
-      return true;
+    if (colonMatch && colonMatch[1] && colonMatch[2] && trimmed.length < 60) {
+      const key = colonMatch[1].trim().toLowerCase();
+      if (!['produto', 'item', 'descrição', 'descricao', 'nome'].includes(key) && !/^\d+/.test(colonMatch[2].trim())) {
+        return true;
+      }
     }
     return false;
   };
