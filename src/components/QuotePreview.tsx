@@ -213,7 +213,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       <div className="flex justify-start sm:justify-center overflow-x-auto max-w-full pb-8 print:block print:w-full print:m-0 print:p-0">
         <div 
           ref={documentRef}
-          className="print-page bg-white text-black w-full shadow-2xl rounded-sm border border-slate-200 flex flex-col justify-between"
+          className={`print-page ${a4Spacers.estimatedPageCount <= 1 ? 'is-single-page' : 'is-multi-page'} bg-white text-black w-full shadow-2xl rounded-sm border border-slate-200 flex flex-col justify-between`}
           style={{ 
             fontFamily: 'Verdana, Geneva, sans-serif',
             width: '21cm',
@@ -437,8 +437,8 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 
             {/* General Conditions */}
             <div 
-              className="mb-8 text-black sq-avoid-break"
-              style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt', lineHeight: '1.5' }}
+              className="text-black sq-avoid-break"
+              style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '10pt', lineHeight: '1.5', marginBottom: 0 }}
             >
               <p className="font-bold underline mb-2" style={{ fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '12pt', fontWeight: 'bold', textDecoration: 'underline' }}>Condições gerais:</p>
               <p style={{ fontSize: '10pt', lineHeight: '1.5' }}>➤&nbsp; Validade da proposta: {formatProposalValidityText(quote.validityDays)}</p>
@@ -468,7 +468,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                 fontFamily: 'Verdana, Geneva, sans-serif', 
                 fontSize: '10pt',
                 marginTop: `${a4Spacers.spacerAfterConditions}px`,
-                marginBottom: `${a4Spacers.spacerBeforeFooter}px`
+                marginBottom: `${Math.min(a4Spacers.spacerBeforeFooter, 120)}px`
               }}
             >
               <div>

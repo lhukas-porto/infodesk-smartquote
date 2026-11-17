@@ -3444,22 +3444,35 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
 
   // 4. Tabela Oficial de Produtos
   const tableHeaderHeight = 38;
-  const items = quote?.items || [];
+  const items = (quote?.items || []).filter((it: any) => !it.isOptional);
+  const optionalItems = (quote?.items || []).filter((it: any) => it.isOptional);
   let itemsHeight = 0;
   
   items.forEach((item: any) => {
     const hasImage = Boolean(item.showImage && item.imageUrl);
     const nameLength = (item.name || '').length;
-    // Se o item tem imagem ativa, ocupa ~125px (miniatura de 95px + paddings/bordas)
+    // Se o item tem imagem ativa, ocupa ~135px (miniatura de até 2.71cm + paddings/bordas + nome)
     if (hasImage) {
-      itemsHeight += 125;
+      itemsHeight += 135;
     } else {
       // Sem imagem: se o nome passar de 40 caracteres ocupa 2 linhas (~52px), senão ~38px
       itemsHeight += nameLength > 40 ? 52 : 38;
     }
   });
 
-  const tableTotalHeight = tableHeaderHeight + itemsHeight + 20;
+  // Itens Opcionais / Upgrades Sugeridos
+  let optionalHeight = 0;
+  if (optionalItems.length > 0) {
+    optionalHeight += 28; // Título / header
+    optionalHeight += 28; // thead
+    optionalItems.forEach(() => {
+      optionalHeight += 28;
+    });
+    optionalHeight += 28; // Subtotal
+    optionalHeight += 20; // margem
+  }
+
+  const tableTotalHeight = tableHeaderHeight + itemsHeight + optionalHeight + 20;
 
   // 5. Bloco de Condições Gerais
   let conditionsHeight = 26; // Título "Condições gerais:"
