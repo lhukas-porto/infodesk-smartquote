@@ -1377,9 +1377,24 @@ export function normalizeToOfficialCategory(rawCategory?: string): string {
   if (!rawCategory || !rawCategory.trim()) return 'Diversos & Sazonais';
   const clean = rawCategory.trim();
   
-  // Se já for uma categoria oficial exata, retorna diretamente
-  if (OFFICIAL_CATEGORIES.includes(clean as any)) {
-    return clean;
+  // 1. Se já for uma categoria oficial exata (ou com caixa diferente), retorna a oficial formatada
+  const officialMatch = OFFICIAL_CATEGORIES.find(c => c.toLowerCase() === clean.toLowerCase());
+  if (officialMatch) {
+    return officialMatch;
+  }
+
+  // 2. Se for uma categoria cadastrada pelo usuário no sistema (localStorage), preserva fielmente
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('infodesk_registered_categories');
+      if (saved) {
+        const customCategories: string[] = JSON.parse(saved);
+        if (Array.isArray(customCategories)) {
+          const match = customCategories.find(c => c.toLowerCase() === clean.toLowerCase());
+          if (match) return match;
+        }
+      }
+    } catch { /* noop */ }
   }
 
   const norm = clean.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');

@@ -168,14 +168,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   const effectiveDollarRate = Number(dailyDollarRate) > 0 ? Number(dailyDollarRate) : (getSettings().dailyDollarRate || 5.60);
 
-  // Garante que todas as 15 categorias oficiais do Infodesk SmartQuote estejam sempre disponíveis
+  const [localCategories, setLocalCategories] = useState<string[]>([]);
+
+  // Garante que todas as 15 categorias oficiais do Infodesk SmartQuote e categorias cadastradas estejam sempre disponíveis
   const allCategoryOptions = React.useMemo(() => {
     const list = Array.from(new Set([
       ...OFFICIAL_CATEGORIES,
-      ...(availableCategories || [])
+      ...(availableCategories || []),
+      ...localCategories
     ])).filter(Boolean);
     return list.sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [availableCategories]);
+  }, [availableCategories, localCategories]);
 
   const wasOpenRef = useRef<boolean>(false);
   const lastOpenedProductIdRef = useRef<string | null>(null);
@@ -195,7 +198,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       wasOpenRef.current = true;
       lastOpenedProductIdRef.current = currentProdId;
 
-      const initialCat = product?.category ? normalizeToOfficialCategory(product.category) : 'Diversos & Sazonais';
+      const rawProductCategory = (product?.category || '').trim();
+      const initialCat = rawProductCategory
+        ? (allCategoryOptions.find(c => c.toLowerCase() === rawProductCategory.toLowerCase()) || normalizeToOfficialCategory(rawProductCategory))
+        : 'Diversos & Sazonais';
+
       const resolvedImg = (product?.imageUrl && product.imageUrl.trim()) ||
         findProductImageInCache(product?.name, product?.partNumber, product?.sku) ||
         '';
@@ -391,6 +398,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       detectedStoreFromUrl ||
       '';
 
+    const rawCategory = (draft.category || '').trim();
+    const finalCategory = rawCategory
+      ? (allCategoryOptions.find(c => c.toLowerCase() === rawCategory.toLowerCase()) || normalizeToOfficialCategory(rawCategory))
+      : 'Diversos & Sazonais';
+
+    if (finalCategory && onAddCategory) {
+      onAddCategory(finalCategory);
+    }
+
     const finalProd: Product = {
       id: draft.id || `prod-${Date.now()}`,
       sku: unifiedCode || draft.sku || '',
@@ -398,7 +414,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       ncm: (draft.ncm || '').trim(),
       name: draft.name.trim(),
       description: draft.description || '',
-      category: normalizeToOfficialCategory(draft.category || 'Diversos & Sazonais'),
+      category: finalCategory,
       costPrice: parsedCost,
       dollarPrice: parsedDollar > 0 ? parsedDollar : undefined,
       dollarSurchargePercent: parsedSurcharge > 0 ? parsedSurcharge : undefined,
@@ -783,9 +799,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     }}
                     options={allCategoryOptions}
                     onAddOption={(newCat) => {
-                      const finalCat = normalizeToOfficialCategory(newCat);
-                      setDraft(prev => ({ ...prev, category: finalCat }));
-                      if (onAddCategory) onAddCategory(finalCat);
+                      const clean = newCat.trim();
+                      if (!clean) return;
+                      setDraft(prev => ({ ...prev, category: clean }));
+                      setLocalCategories(prev => prev.includes(clean) ? prev : [...prev, clean]);
+                      if (onAddCategory) onAddCategory(clean);
                     }}
                     defaultValue="Diversos & Sazonais"
                     textAlign="left"

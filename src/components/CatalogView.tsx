@@ -521,6 +521,12 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       unifiedCode = resolved.partNumber || resolved.sku;
     }
 
+    const cleanCat = (newProd.category || '').trim();
+    if (cleanCat) {
+      saveRegisteredCategory(cleanCat);
+      setRegisteredCategories(getRegisteredCategories());
+    }
+
     const created: Product = {
       ...newProd,
       id: `prod-${Date.now()}`,
@@ -528,7 +534,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       partNumber: unifiedCode,
       name: cleanName,
       description: newProd.description?.trim() || '',
-      category: normalizeToOfficialCategory(newProd.category || 'Diversos & Sazonais'),
+      category: cleanCat ? normalizeToOfficialCategory(cleanCat) : 'Diversos & Sazonais',
       costPrice: Number(newProd.costPrice) || 0,
       shippingCost: shippingCost || 0,
       unit: newProd.unit || 'Un.',
@@ -538,10 +544,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     if (created.unit) {
       saveRegisteredUnit(created.unit);
       setRegisteredUnits(getRegisteredUnits());
-    }
-    if (created.category) {
-      saveRegisteredCategory(created.category);
-      setRegisteredCategories(getRegisteredCategories());
     }
 
     let finalCreated = created;
@@ -601,13 +603,19 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       });
       unifiedCode = resolved.partNumber || resolved.sku;
     }
+    const cleanCat = (updated.category || '').trim();
+    if (cleanCat) {
+      saveRegisteredCategory(cleanCat);
+      setRegisteredCategories(getRegisteredCategories());
+    }
+
     const finalProd: Product = {
       ...updated,
       sku: unifiedCode || updated.sku || `SKU-${Date.now().toString().slice(-4)}`,
       partNumber: unifiedCode,
       name: updated.name.trim(),
       description: updated.description?.trim() || '',
-      category: normalizeToOfficialCategory(updated.category || 'Diversos & Sazonais'),
+      category: cleanCat ? normalizeToOfficialCategory(cleanCat) : 'Diversos & Sazonais',
       costPrice: Number(updated.costPrice) || 0,
       shippingCost: shippingCost || 0,
       lastUpdated: new Date().toISOString()
@@ -616,10 +624,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     if (finalProd.unit) {
       saveRegisteredUnit(finalProd.unit);
       setRegisteredUnits(getRegisteredUnits());
-    }
-    if (finalProd.category) {
-      saveRegisteredCategory(finalProd.category);
-      setRegisteredCategories(getRegisteredCategories());
     }
 
     setProducts(prev => {
