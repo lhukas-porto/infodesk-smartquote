@@ -120,15 +120,8 @@ DIRETRIZES DE ENRIQUECIMENTO (MÁXIMA RIQUEZA E PROFUNDIDADE):
 7. "ncm": NCM oficial do Brasil formatado com 8 dígitos (ex: 8471.70.40, 8528.52.00, 8517.62.54).
 8. "weight": Peso oficial da embalagem para frete em kg conforme documentação técnica ou datasheet oficial. Se não houver dado oficial confirmado, retorne string vazia "" (NUNCA invente ou estime valores aproximados).
 9. "dimensions": Dimensões oficiais da embalagem no formato "CxLxA cm" conforme documentação técnica do fabricante. Se não houver dado oficial confirmado, retorne string vazia "" (NUNCA invente ou estime valores aproximados).
-10. "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, em português gramaticalmente perfeito com acentuação e cedilhas preservadas, destacando utilidades, materiais, durabilidade, estrutura, ergonomia, resistência e diferenciais de qualidade. NUNCA use vírgulas para separar atributos.
-11. "specifications": Array rico de 6 a 12 especificações técnicas detalhadas no formato [{"label": "Nome da Característica", "value": "Valor"}], cobrindo minuciosamente:
-    - Capacidade / Potência / Resolução / Velocidade / Desempenho
-    - Conectividade / Interfaces / Entradas e Saídas / Padrão de Comunicação
-    - Alimentação / Voltagem / Consumo Energético (se aplicável)
-    - Estrutura / Material de Construção / Acabamento / Cor
-    - Normas / Certificações / Homologações (ex: Anatel, Inmetro, ISO)
-    - Compatibilidade de Ambientes ou Sistemas Operacionais
-    - Conteúdo da Embalagem / Acessórios Inclusos
+10. "description": Mantenha SEMPRE string vazia "". É terminantemente proibido gerar parágrafos ou redações comerciais longas para garantir resposta ultrarrápida da IA.
+11. "specifications": Array opcional de especificações técnicas essenciais no formato [{"label": "Nome da Característica", "value": "Valor"}].
 12. "sourceReference": Nome do site/fonte onde a ficha foi obtida (ex: "Site Oficial Dell", "Site Oficial Furukawa", "Magazine Luiza", "Carrefour", "Amazon Brasil").
 
 Retorne ESTRITAMENTE um JSON no seguinte formato:
@@ -143,7 +136,7 @@ Retorne ESTRITAMENTE um JSON no seguinte formato:
   "weight": "0.450 kg",
   "dimensions": "20cm x 15cm x 4cm",
   "sourceReference": "Site Oficial do Fabricante ou E-commerce",
-  "description": "Texto técnico e comercial persuasivo em 2 a 3 parágrafos fluídos...",
+  "description": "",
   "specifications": [
     { "label": "Capacidade", "value": "..." },
     { "label": "Conectividade", "value": "..." },
