@@ -29,8 +29,7 @@ import {
   TrendingUp,
   Box,
   Tag,
-  ShieldCheck,
-  Flame
+  ShieldCheck
 } from 'lucide-react';
 import { extractDataFromQuotationImage } from '../services/imageQuoteParser';
 import { Product, QuoteItem, Quote } from '../types';
@@ -616,114 +615,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       return new Set<string>();
     }
   }, [products, quotes, isVisible]);
-
-  // SUGESTÕES DINÂMICAS: Os 7 itens mais cotados no histórico de todas as cotações
-  const topQuotedSuggestions = useMemo(() => {
-    if (!isVisible) return [];
-    let sourceQuotes: Quote[] = [];
-    try {
-      sourceQuotes = (quotes && quotes.length > 0) ? quotes : getQuotes();
-    } catch {
-      sourceQuotes = quotes || [];
-    }
-
-    const frequencyMap = new Map<string, {
-      cleanName: string;
-      partNumber?: string;
-      category?: string;
-      count: number;
-      totalQty: number;
-      unit?: string;
-    }>();
-
-    for (const q of sourceQuotes) {
-      if (!q.items || !Array.isArray(q.items)) continue;
-      for (const it of q.items) {
-        const rawName = (it.name || it.description || '').trim();
-        if (!rawName || rawName.length < 3) continue;
-
-        // Ignora termos genéricos de serviço ou frete que não são produtos
-        if (/^(fornecimento|servi[çc]o|m[ãa]o\s+de\s+obra|frete|diversos|taxa|instala[çc][ãa]o)/i.test(rawName)) continue;
-
-        // Normalização cirúrgica para agrupar variações de maiúsculas/minúsculas e pontuação
-        const normalizedKey = rawName.toLowerCase()
-          .replace(/[^\w\sáéíóúâêîôûãõç]/gi, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        if (!normalizedKey) continue;
-
-        const existing = frequencyMap.get(normalizedKey);
-        const qty = it.quantity && it.quantity > 0 ? it.quantity : 1;
-
-        if (existing) {
-          existing.count += 1;
-          existing.totalQty += qty;
-          if (it.partNumber && !existing.partNumber) {
-            existing.partNumber = it.partNumber.trim();
-          }
-          if (it.category && !existing.category) {
-            existing.category = it.category;
-          }
-        } else {
-          frequencyMap.set(normalizedKey, {
-            cleanName: rawName,
-            partNumber: it.partNumber ? it.partNumber.trim() : undefined,
-            category: it.category,
-            count: 1,
-            totalQty: qty,
-            unit: it.unit || 'Un.'
-          });
-        }
-      }
-    }
-
-    // Ordena os itens pela recorrência nas cotações (mais cotados primeiro)
-    const sorted = Array.from(frequencyMap.values()).sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return b.totalQty - a.totalQty;
-    });
-
-    // Gera as pílulas dinâmicas dos TOP 5 mais cotados (compactas para caber em uma única linha)
-    const dynamicPills = sorted.slice(0, 5).map(item => {
-      const icon = getCategoryIcon(item.category);
-      // Mantém tamanho compacto para garantir exibição em linha única
-      let labelText = item.cleanName;
-      if (labelText.length > 15) {
-        labelText = labelText.slice(0, 14).trim() + '…';
-      }
-      const label = `+ ${icon} ${labelText}`;
-
-      // Monta o texto de busca preservando quantidade média e Part Number
-      const avgQty = Math.max(1, Math.round(item.totalQty / item.count));
-      const qtyPrefix = avgQty > 1 ? `${String(avgQty).padStart(2, '0')} ` : '01 ';
-      const pnSuffix = item.partNumber ? ` [Ref: ${item.partNumber}]` : '';
-      const text = `${qtyPrefix}${item.cleanName}${pnSuffix}`.trim();
-
-      return {
-        label,
-        text,
-        count: item.count,
-        category: item.category
-      };
-    });
-
-    // Se o histórico de cotações tiver menos de 5 produtos cadastrados, completa com a base de fallback
-    const curatedFallbacks = [
-      { label: '+ 📱 Smartphone Samsung', text: '01 Smartphone 256GB 8GB RAM 5G', count: 1 },
-      { label: '+ 🖱️ Mouse Sem Fio', text: '05 mouses opticos usb sem fio logitech', count: 1 },
-      { label: '+ ⚡ Disjuntor 32A', text: '05 disjuntores bipolares schneider 32a din', count: 1 },
-      { label: '+ 📄 Papel Sulfite A4', text: '10 resmas papel chamex a4 75g', count: 1 },
-      { label: '+ 🔩 Parafusadeira 12V', text: '02 parafusadeiras bateria 12v bosch', count: 1 },
-    ];
-
-    if (dynamicPills.length < 5) {
-      const needed = 5 - dynamicPills.length;
-      return [...dynamicPills, ...curatedFallbacks.slice(0, needed)];
-    }
-
-    return dynamicPills;
-  }, [quotes, isVisible]);
 
   // Fase 1: Dedução Técnica 360° (Padrão Infodesk Store)
   const [discoveredProducts, setDiscoveredProducts] = useState<DiscoveredProduct[]>([]);
@@ -1792,39 +1683,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               <ListChecks className="w-4 h-4 text-sky-600" />
               <span>Cole aqui seus itens (texto, especificações ou um print):</span>
             </h2>
-          </div>
-
-          {/* Pílulas Dinâmicas: TOP 5 Itens Mais Cotados no Sistema (Linha Única Compacta) */}
-          <div className="flex flex-nowrap items-center gap-1 sm:gap-1.5 pt-0.5 overflow-x-auto scrollbar-none py-0.5 select-none">
-            <span 
-              className="text-[10px] sm:text-[11px] font-extrabold text-sky-800 uppercase tracking-wider shrink-0 flex items-center gap-1 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200/90 shadow-2xs"
-              title="Sugestão dinâmica dos 5 itens mais frequentes em todas as suas cotações"
-            >
-              <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
-              <span className="whitespace-nowrap">Mais Cotados:</span>
-            </span>
-            {topQuotedSuggestions.map((pill, pIdx) => (
-              <button
-                key={pIdx}
-                type="button"
-                onClick={() => {
-                  setBatchRawInput(prev => {
-                    const trimmed = (prev || '').trim();
-                    return trimmed ? `${trimmed}\n${pill.text}` : pill.text;
-                  });
-                  showToast(`Item "${pill.label}" adicionado à lista!`);
-                }}
-                className="px-2 py-0.5 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 border border-slate-200 hover:border-sky-300 rounded-lg text-[11px] font-semibold whitespace-nowrap transition cursor-pointer active:scale-95 shadow-2xs flex items-center gap-1 shrink-0"
-                title={`Item mais cotado. Clique para inserir: ${pill.text}`}
-              >
-                <span>{pill.label}</span>
-                {pill.count && pill.count > 1 ? (
-                  <span className="text-[9px] font-bold text-sky-700 font-mono bg-sky-100/90 px-1 py-0 rounded">
-                    {pill.count}x
-                  </span>
-                ) : null}
-              </button>
-            ))}
           </div>
         </div>
 
