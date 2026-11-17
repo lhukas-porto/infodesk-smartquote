@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
 import { generateProposalEmailHtml } from '../utils/aiEmailParser';
-import { resolveClientLogoBase64 } from '../utils/clientLogoEmailHelper';
+import { resolveClientLogoBase64, getSynchronousClientLogoPreview } from '../utils/clientLogoEmailHelper';
 import DOMPurify from 'dompurify';
 
 function extractEmailString(val: any): string {
@@ -46,13 +46,21 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   const [sendError, setSendError] = useState<string | null>(null);
   const toInputRef = useRef<HTMLInputElement>(null);
 
-  const [clientLogoDataUrl, setClientLogoDataUrl] = useState<string | null>(null);
+  const [clientLogoDataUrl, setClientLogoDataUrl] = useState<string | null>(() => {
+    return quote.clientLogoUrl || getSynchronousClientLogoPreview(quote.clientCompany, quote.clientEmail);
+  });
 
   React.useEffect(() => {
     let isMounted = true;
     if (isOpen && quote.clientCompany) {
+      const immediate = quote.clientLogoUrl || getSynchronousClientLogoPreview(quote.clientCompany, quote.clientEmail);
+      if (immediate) {
+        setClientLogoDataUrl(immediate);
+      }
+
       resolveClientLogoBase64({
         name: quote.clientCompany,
+        logoUrl: quote.clientLogoUrl,
         contacts: quote.clientEmail ? [{ email: quote.clientEmail }] : []
       }).then(dataUrl => {
         if (isMounted && dataUrl) {
@@ -61,7 +69,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
       }).catch(() => {});
     }
     return () => { isMounted = false; };
-  }, [isOpen, quote.clientCompany, quote.clientEmail]);
+  }, [isOpen, quote.clientCompany, quote.clientEmail, quote.clientLogoUrl]);
 
   const proposalHtml = useMemo(() => {
     return generateProposalEmailHtml(quote, settings, { clientLogoUrl: clientLogoDataUrl || undefined });
@@ -142,6 +150,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
 
       await onConfirmSend({
         ...quote,
+        clientLogoUrl: clientLogoDataUrl || quote.clientLogoUrl || undefined,
         clientEmail: cleanTo.split(/[,;]/)[0]?.trim() || extractEmailString(quote.clientEmail),
         recipientEmails: cleanTo,
         ccEmails: cleanCc,
@@ -340,7 +349,13 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 <div className="p-4 max-h-72 overflow-y-auto bg-white">
                   <div 
                     className="prose prose-xs max-w-none text-slate-900 pointer-events-none select-none text-[11px]"
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(proposalHtml) }}
+                    dangerouslySetInnerHTML={{ 
+                      __html: DOMPurify.sanitize(proposalHtml, {
+                        ADD_TAGS: ['img', 'table', 'tbody', 'tr', 'td', 'th', 'thead'],
+                        ADD_ATTR: ['src', 'alt', 'width', 'height', 'border', 'style', 'cellpadding', 'cellspacing', 'align', 'valign'],
+                        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+                      }) 
+                    }}
                   />
                 </div>
               </div>

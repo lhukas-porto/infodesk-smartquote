@@ -3030,6 +3030,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                     ...prev,
                                     id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
                                     clientCompany: formatted,
+                                    clientLogoUrl: c.logoUrl || undefined,
                                     contactPerson: '',
                                     clientEmail: '',
                                     clientPhone: '',

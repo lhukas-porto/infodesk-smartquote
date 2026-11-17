@@ -80,6 +80,7 @@ export interface Quote {
   code: string;
   clientOrderNumber?: string; // Número da Ordem de Compra / Pedido do Cliente / AF
   clientCompany: string;
+  clientLogoUrl?: string; // URL ou Data URL da Logo do Cliente
   contactPerson: string;
   clientEmail: string;
   recipientEmails?: string;

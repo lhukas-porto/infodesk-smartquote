@@ -2200,18 +2200,20 @@ export const App: React.FC = () => {
 
     // Com o token ativo, realiza o disparo oficial via API do Gmail
     try {
-      // Resolve a logomarca do cliente (Base64) para embutir na proposta oficial enviada por e-mail (Opção 2)
-      let clientLogoDataUrl: string | undefined = undefined;
-      try {
-        const resolvedLogo = await resolveClientLogoBase64({
-          name: sentQuote.clientCompany,
-          contacts: sentQuote.clientEmail ? [{ email: sentQuote.clientEmail }] : []
-        });
-        if (resolvedLogo) {
-          clientLogoDataUrl = resolvedLogo;
+      // Resolve a logomarca do cliente (Base64 ou HTTPS) para embutir na proposta oficial enviada por e-mail (Opção 2)
+      let clientLogoDataUrl: string | undefined = sentQuote.clientLogoUrl;
+      if (!clientLogoDataUrl) {
+        try {
+          const resolvedLogo = await resolveClientLogoBase64({
+            name: sentQuote.clientCompany,
+            contacts: sentQuote.clientEmail ? [{ email: sentQuote.clientEmail }] : []
+          });
+          if (resolvedLogo) {
+            clientLogoDataUrl = resolvedLogo;
+          }
+        } catch (logoErr) {
+          console.warn('Aviso: falha ao resolver logo do cliente para e-mail:', logoErr);
         }
-      } catch (logoErr) {
-        console.warn('Aviso: falha ao resolver logo do cliente para e-mail:', logoErr);
       }
 
       // Para envio oficial por e-mail pelo Gmail, usamos a logo embutida com CID inline: cid:infodesk-logo

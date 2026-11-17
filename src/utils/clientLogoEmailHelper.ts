@@ -1,9 +1,107 @@
-import { resolveCompanyCandidates } from './companyLogoResolver';
+import { ClientCompany } from '../types';
+import { getClientCompanies } from './storage';
+import { getCompanyInitials, resolveCompanyCandidates } from './companyLogoResolver';
+
+/**
+ * Procura a empresa correspondente no cadastro local de clientes
+ */
+export function findMatchingClientCompany(clientCompanyName?: string): ClientCompany | undefined {
+  if (!clientCompanyName || !clientCompanyName.trim()) return undefined;
+  try {
+    const companies = getClientCompanies();
+    const rawTarget = clientCompanyName.toLowerCase().trim();
+    const cleanTarget = rawTarget.replace(/^(ao|à|a|para)\s+/i, '').trim();
+
+    return companies.find(c => {
+      const rawC = c.name.toLowerCase().trim();
+      const cleanC = rawC.replace(/^(ao|à|a|para)\s+/i, '').trim();
+      return (
+        cleanC === cleanTarget ||
+        cleanC.includes(cleanTarget) ||
+        cleanTarget.includes(cleanC) ||
+        rawC === rawTarget
+      );
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Gera um avatar PNG Data URL limpo (96x96 circular com iniciais)
+ * Compatível 100% com clientes de e-mail (incluindo conversão para CID no Gmail)
+ */
+export function generateInitialsAvatarPngDataUrl(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 96;
+    canvas.height = 96;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Fundo circular azul suave
+    ctx.beginPath();
+    ctx.arc(48, 48, 46, 0, Math.PI * 2);
+    ctx.fillStyle = '#f0f9ff';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#bae6fd';
+    ctx.stroke();
+
+    // Iniciais da empresa
+    const initials = getCompanyInitials(name || 'Cliente');
+    ctx.font = 'bold 32px Verdana, Geneva, sans-serif';
+    ctx.fillStyle = '#0369a1';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initials, 48, 50);
+
+    return canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Testa se uma imagem remota é alcançável e carrega com dimensões reais (sem bloqueio de CORS)
+ */
+export async function isImageLoadable(url: string, timeoutMs: number = 2000): Promise<boolean> {
+  if (!url || typeof window === 'undefined') return false;
+  return new Promise<boolean>((resolve) => {
+    const img = new Image();
+    let resolved = false;
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+    }, timeoutMs);
+
+    img.onload = () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        resolve(img.naturalWidth > 3 && img.naturalHeight > 3);
+      }
+    };
+
+    img.onerror = () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        resolve(false);
+      }
+    };
+
+    img.src = url;
+  });
+}
 
 /**
  * Tenta carregar uma URL de imagem no navegador e converter para Data URL Base64
  */
-async function fetchImageToDataUrl(url: string, timeoutMs: number = 3000): Promise<string | null> {
+async function fetchImageToDataUrl(url: string, timeoutMs: number = 2000): Promise<string | null> {
   if (!url || !url.startsWith('http')) return null;
 
   try {
@@ -37,7 +135,7 @@ async function fetchImageToDataUrl(url: string, timeoutMs: number = 3000): Promi
 /**
  * Tenta carregar via elemento <img> do DOM com Canvas (contorna certas restrições de CORS simples)
  */
-async function loadImgElementToDataUrl(url: string, timeoutMs: number = 3000): Promise<string | null> {
+async function loadImgElementToDataUrl(url: string, timeoutMs: number = 2000): Promise<string | null> {
   if (typeof window === 'undefined' || !url) return null;
 
   return new Promise<string | null>((resolve) => {
@@ -90,7 +188,35 @@ async function loadImgElementToDataUrl(url: string, timeoutMs: number = 3000): P
 }
 
 /**
- * Resolve e carrega a melhor logo do cliente disponível em Base64 para incorporação oficial inline no e-mail
+ * Retorna de forma síncrona imediata o melhor candidato a logo para evitar "flashing" vazio
+ */
+export function getSynchronousClientLogoPreview(compName?: string, clientEmail?: string): string | null {
+  if (!compName || !compName.trim()) return null;
+  const registered = findMatchingClientCompany(compName);
+  if (registered?.logoUrl) return registered.logoUrl;
+
+  const candidates = resolveCompanyCandidates({
+    name: compName,
+    website: registered?.website,
+    logoUrl: registered?.logoUrl,
+    contacts: (registered?.contacts && registered.contacts.length > 0)
+      ? registered.contacts
+      : (clientEmail ? [{ id: 'ct-0', name: '', email: clientEmail }] : [])
+  });
+
+  if (candidates && candidates.length > 0) {
+    return candidates[0];
+  }
+
+  return generateInitialsAvatarPngDataUrl(compName);
+}
+
+/**
+ * Resolve a melhor logo do cliente disponível:
+ * 1. Procura no cadastro oficial (website, logoUrl, contatos)
+ * 2. Tenta converter os candidatos para Base64 (para suporte total a anexos MIME)
+ * 3. Se CORS bloquear Base64, usa o URL HTTPS direto validado
+ * 4. Se nenhum carregar, gera avatar PNG oficial com iniciais
  */
 export async function resolveClientLogoBase64(comp: {
   name?: string;
@@ -103,9 +229,19 @@ export async function resolveClientLogoBase64(comp: {
     return comp.logoUrl;
   }
 
+  // Tenta enriquecer com dados do cadastro se website/logoUrl estiverem ausentes
+  const registered = comp.name ? findMatchingClientCompany(comp.name) : undefined;
+  const effectiveWebsite = comp.website || registered?.website;
+  const effectiveLogoUrl = comp.logoUrl || registered?.logoUrl;
+  const effectiveContacts = (comp.contacts && comp.contacts.length > 0)
+    ? comp.contacts
+    : (registered?.contacts || []);
+
   const normalizedComp = {
-    ...comp,
-    contacts: (comp.contacts || []).map((ct, idx) => ({
+    name: comp.name,
+    website: effectiveWebsite,
+    logoUrl: effectiveLogoUrl,
+    contacts: effectiveContacts.map((ct, idx) => ({
       id: `ct-${idx}`,
       name: '',
       email: ct.email || ''
@@ -113,24 +249,48 @@ export async function resolveClientLogoBase64(comp: {
   };
 
   const candidates = resolveCompanyCandidates(normalizedComp);
-  if (!candidates || candidates.length === 0) return null;
+  if (!candidates || candidates.length === 0) {
+    return comp.name ? generateInitialsAvatarPngDataUrl(comp.name) : null;
+  }
 
-  // Testa os primeiros 4 candidatos mais promissores
-  const targets = candidates.slice(0, 4);
+  // Testa os primeiros 5 candidatos mais promissores
+  const targets = candidates.slice(0, 5);
+
+  let firstValidHttpsUrl: string | null = null;
 
   for (const url of targets) {
-    // 1. Tenta via canvas / element
-    const canvasRes = await loadImgElementToDataUrl(url, 2500);
+    // 1. Tenta converter para Base64 (se o servidor da imagem suportar CORS)
+    const canvasRes = await loadImgElementToDataUrl(url, 1500);
     if (canvasRes && canvasRes.startsWith('data:image/')) {
       return canvasRes;
     }
 
-    // 2. Tenta via fetch direto
-    const fetchRes = await fetchImageToDataUrl(url, 2500);
+    const fetchRes = await fetchImageToDataUrl(url, 1500);
     if (fetchRes && fetchRes.startsWith('data:image/')) {
       return fetchRes;
     }
+
+    // 2. Se não conseguiu converter para Base64 por CORS, testa se o <img> consegue carregar normalmente
+    if (!firstValidHttpsUrl) {
+      const loadable = await isImageLoadable(url, 1500);
+      if (loadable) {
+        firstValidHttpsUrl = url;
+      }
+    }
   }
 
-  return null;
+  // Se encontrou uma URL HTTPS válida e acessível pelo navegador/Gmail
+  if (firstValidHttpsUrl) {
+    return firstValidHttpsUrl;
+  }
+
+  // Fallback: Se temos candidatos (ex: favicon do Google), retorna o primeiro candidato
+  if (targets.length > 0 && targets[0]) {
+    return targets[0];
+  }
+
+  // Fallback definitivo: Avatar PNG elegante com iniciais
+  return comp.name ? generateInitialsAvatarPngDataUrl(comp.name) : null;
 }
+
+export const resolveClientLogo = resolveClientLogoBase64;
