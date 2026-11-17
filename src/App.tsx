@@ -139,6 +139,7 @@ import {
   learnSuppliersFromQuotes
 } from './services/supplierLearningService';
 import { resolveClientLogoBase64 } from './utils/clientLogoEmailHelper';
+import { embedProductImagesForEmail } from './utils/productImageEmailHelper';
 import {
   learnDollarSurchargesFromProducts,
   learnDollarSurchargesFromQuotes
@@ -2216,8 +2217,20 @@ export const App: React.FC = () => {
         }
       }
 
-      // Para envio oficial por e-mail pelo Gmail, usamos a logo embutida com CID inline: cid:infodesk-logo
-      const proposalHtml = generateProposalEmailHtml(sentQuote, settings, { 
+      // Otimiza e incrusta as fotos dos produtos ativos em Base64 leve (MIME CID) para o Outlook
+      let quoteWithEmbeddedAssets = sentQuote;
+      try {
+        const embeddedItems = await embedProductImagesForEmail(sentQuote.items);
+        quoteWithEmbeddedAssets = {
+          ...sentQuote,
+          items: embeddedItems
+        };
+      } catch (embedErr) {
+        console.warn('Aviso: falha ao incrustar fotos dos produtos para e-mail:', embedErr);
+      }
+
+      // Para envio oficial por e-mail pelo Gmail, usamos as fotos e a logo embutidas com CID inline (à prova de Outlook)
+      const proposalHtml = generateProposalEmailHtml(quoteWithEmbeddedAssets, settings, { 
         forEmailSend: true,
         clientLogoUrl: clientLogoDataUrl
       });
