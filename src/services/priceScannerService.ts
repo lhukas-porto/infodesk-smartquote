@@ -3365,11 +3365,8 @@ DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
 - "suggestedPrice": Preço sugerido de mercado em Reais (número decimal, ex: 349.90).
 - "costPrice": Preço de custo estimado de atacado/distribuidor em Reais (número decimal, ex: 220.00).
 - "confidence": "Alta"
-- "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, em português gramaticalmente perfeito com acentuação e cedilhas preservadas, destacando materiais, estrutura, resistência e diferenciais. NUNCA use vírgulas para separar atributos.
-  REGRAS CRÍTICAS DA DESCRIÇÃO:
-  1. É EXPRESSAMENTE PROIBIDO cuspir texto bruto de OCR com pontuações quebradas, marcadores de lista desformatados (".º", "1 .º", "* —") ou frases incompletas ("pacote com", "kit com").
-  2. Reescreva todas as informações em parágrafos fluídos de redação técnica e comercial elegante.
-- "specifications": Array de 4 a 8 especificações técnicas detalhadas no formato [{"label": "Nome da Característica", "value": "Valor"}].
+- "description": Mantenha SEMPRE string vazia "". É expressamente PROIBIDO gerar parágrafos ou redações comerciais longas para garantir resposta ultrarrápida da IA.
+- "specifications": Array opcional de 2 a 4 especificações técnicas essenciais no formato [{"label": "Nome", "value": "Valor"}].
 - "supplier": Nome do fornecedor ou marketplace de referência no Brasil (ex: "Mercado Livre", "Amazon Brasil", "Kalunga", "Leroy Merlin", "Fabricante").
 - "buyUrl": URL direta ou de busca no marketplace brasileiro para compra do item.
 - "images": Array com URLs adicionais se conhecidas.
@@ -3407,7 +3404,7 @@ Retorne ESTRITAMENTE um JSON no formato:
       "confidence": "Alta - Identificado com Fotos e Descrição",
       "supplier": "Mercado Livre",
       "buyUrl": "",
-      "description": "Texto técnico e comercial rico em 2 a 3 parágrafos...",
+      "description": "",
       "specifications": [
         { "label": "Característica", "value": "Valor" }
       ],
@@ -3828,8 +3825,8 @@ DIRETRIZES DE ENGENHARIA REVERSA E CATALOGAÇÃO 360° (FASE 1):
 2. DEDUÇÃO DO MODELO EXATO: Conecte todas as pistas e deduza o produto canônico exato (ex: "Cabo HDMI 2.0 4K 2 metros preto com filtro", "Circuito Integrado NXP LPC2378FBD144 LQFP144").
 3. NOME PADRONIZADO: Formate o nome comercial no padrão de mercado brasileiro: [Tipo do Produto] [Marca/Fabricante] [Modelo/Part Number] [Especificação Chave]. NUNCA use vírgulas (,) no nome (substitua por espaços ou traços).
 4. ENRIQUECIMENTO TÉCNICO COMPLETO:
-   - "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, ideal para a proposta comercial do cliente, destacando diferenciais técnicos, durabilidade, tecnologia empregada e cenários de uso recomendados. NUNCA use vírgulas para separar atributos (use pontos, traços ou quebras de linha).
-   - "specifications": Array ou objeto com 4 a 8 especificações técnicas reais do produto no formato [{"label": "...", "value": "..."}].
+   - "description": Mantenha string vazia "". NÃO gere parágrafos, redações ou textos descritivos longos para garantir resposta ultrarrápida da IA.
+   - "specifications": Array ou objeto opcional com 2 a 4 especificações técnicas essenciais no formato [{"label": "...", "value": "..."}].
    - "ncm": Código NCM oficial de 8 dígitos para classificação fiscal brasileira (ex: 8544.42.00, 8471.70.40).
    - "ean": Código de barras EAN/GTIN se conhecido, senão string vazia "".
    - "weight": Peso aproximado da embalagem para frete em kg (ex: "0.150 kg", "1.800 kg").
@@ -3851,7 +3848,7 @@ Retorne ESTRITAMENTE um JSON válido no formato:
   "dimensions": "20cm x 15cm x 3cm",
   "suggestedPrice": 39.90,
   "costPrice": 18.50,
-  "description": "Texto técnico e comercial rico em 2 a 3 parágrafos...",
+  "description": "",
   "specifications": [
     { "label": "Característica", "value": "Valor" }
   ],
@@ -3978,7 +3975,7 @@ ${visualPromptSection}
 SUA MISSÃO NA FASE 2:
 1. ENRIQUECIMENTO TÉCNICO E COMERCIAL COMPLETO (METODOLOGIA INFODESK STORE):
    - "standardizedName": Nome comercial em português do Brasil, PRESERVANDO estritamente a acentuação correta e cedilhas (ex: "Lápis", "Memória", "Válvula", "Elétrica", "Proteção"). NUNCA desacentue termos em português!
-   - "description": Crie uma descrição técnica e comercial rica, completa e persuasiva em 2 a 3 parágrafos curtos, ideal para a proposta comercial do cliente, em português do Brasil com acentuação e cedilhas impecáveis, destacando diferenciais técnicos, durabilidade, tecnologia empregada e cenários de uso recomendados. NUNCA use vírgulas para separar atributos (use pontos, traços ou quebras de linha).
+   - "description": Mantenha string vazia "". É expressamente PROIBIDO gerar parágrafos ou redações comerciais longas para garantir resposta ultrarrápida da IA.
    - "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA - REGRA INFODESK):
      1. Extraia prioritariamente o MODELO que já consta na descrição ou título do produto (ex: 'Lark M2S', 'P2723D', 'PowerLite E20', 'MX Keys Mini', 'C9200L').
      2. Se não constar no título, extraia das ofertas e páginas encontradas no mercado brasileiro.
@@ -4030,7 +4027,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
   "imageUrl": "",
   "weight": "${(discovered as any).weight || '0.200 kg'}",
   "dimensions": "${(discovered as any).dimensions || '15cm x 10cm x 5cm'}",
-  "description": "Texto técnico e comercial em 2 a 3 parágrafos...",
+  "description": "",
   "specifications": [
     { "label": "Característica", "value": "Valor" }
   ]

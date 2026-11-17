@@ -2322,12 +2322,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           </div>
                         )}
 
-                        {/* Description */}
-                        {prod.description && (
-                          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-3.5 whitespace-pre-line text-justify sm:text-left">
-                            {prod.description}
-                          </p>
-                        )}
+
 
                         {/* Technical Specifications Chips */}
                         {prod.specifications && prod.specifications.length > 0 && (
