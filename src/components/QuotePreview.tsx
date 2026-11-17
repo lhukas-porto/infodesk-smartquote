@@ -19,6 +19,7 @@ import {
   calculateA4ProposalSpacers
 } from '../utils/aiEmailParser';
 import { resolveCompanyCandidates } from '../utils/companyLogoResolver';
+import { findMatchingClientCompany } from '../utils/clientLogoEmailHelper';
 
 interface QuotePreviewProps {
   quote: Quote;
@@ -72,17 +73,42 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 
   // Resolução da Logo do Cliente para exibição elegante no bloco de destinatário (Opção 2)
   const clientLogoCandidates = React.useMemo(() => {
-    return resolveCompanyCandidates({
+    const list: string[] = [];
+
+    // 1. Se a proposta já possui uma logoUrl definida explicitamente
+    if (quote.clientLogoUrl && quote.clientLogoUrl.trim()) {
+      list.push(quote.clientLogoUrl.trim());
+    }
+
+    // 2. Busca cadastro da empresa vinculada no banco de clientes
+    const registered = findMatchingClientCompany(quote.clientCompany);
+    if (registered?.logoUrl && registered.logoUrl.trim()) {
+      list.push(registered.logoUrl.trim());
+    }
+
+    const effectiveWebsite = registered?.website;
+    const effectiveLogoUrl = quote.clientLogoUrl || registered?.logoUrl;
+    const effectiveContacts = (registered?.contacts && registered.contacts.length > 0)
+      ? registered.contacts
+      : (quote.clientEmail ? [{ id: 'quote-ct', name: quote.contactPerson || '', email: quote.clientEmail, phone: quote.clientPhone || '' }] : []);
+
+    const resolved = resolveCompanyCandidates({
       name: quote.clientCompany,
-      contacts: quote.clientEmail ? [{ id: 'quote-ct', name: quote.contactPerson || '', email: quote.clientEmail, phone: quote.clientPhone || '' }] : []
+      website: effectiveWebsite,
+      logoUrl: effectiveLogoUrl,
+      contacts: effectiveContacts
     });
-  }, [quote.clientCompany, quote.clientEmail, quote.clientPhone, quote.contactPerson]);
+
+    list.push(...resolved);
+
+    return Array.from(new Set(list.filter(Boolean)));
+  }, [quote.clientCompany, quote.clientEmail, quote.clientPhone, quote.contactPerson, quote.clientLogoUrl]);
 
   const [clientLogoIndex, setClientLogoIndex] = useState(0);
 
   useEffect(() => {
     setClientLogoIndex(0);
-  }, [quote.clientCompany, quote.clientEmail]);
+  }, [quote.clientCompany, quote.clientEmail, quote.clientLogoUrl]);
 
   const currentClientLogo = clientLogoCandidates[clientLogoIndex];
 

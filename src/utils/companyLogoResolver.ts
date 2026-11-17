@@ -109,7 +109,15 @@ export const KNOWN_COMPANY_DOMAINS: Record<string, string> = {
   'geap autogestao em saude': 'www.geap.org.br',
   'geap autogestão em saúde': 'www.geap.org.br',
   'geap.org.br': 'www.geap.org.br',
-  'geap.com.br': 'www.geap.org.br'
+  'geap.com.br': 'www.geap.org.br',
+  'paulo octavio': 'paulooctavio.com.br',
+  'paulo octávio': 'paulooctavio.com.br',
+  'grupo paulo octavio': 'paulooctavio.com.br',
+  'grupo paulo octávio': 'paulooctavio.com.br',
+  paulooctavio: 'paulooctavio.com.br',
+  'paulooctavio.com.br': 'paulooctavio.com.br',
+  'grupo paulo octavio investimentos imobiliarios': 'paulooctavio.com.br',
+  'grupo paulo octávio investimentos imobiliários': 'paulooctavio.com.br'
 };
 
 export const KNOWN_COMPANY_DIRECT_LOGOS: Record<string, string> = {
@@ -126,7 +134,13 @@ export const KNOWN_COMPANY_DIRECT_LOGOS: Record<string, string> = {
   'geap.org.br': 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
   'www.geap.org.br': 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
   'geap.com.br': 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
-  geap: 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico'
+  geap: 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
+  'paulooctavio.com.br': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
+  paulooctavio: 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
+  'paulo octavio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
+  'paulo octávio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
+  'grupo paulo octavio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
+  'grupo paulo octávio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128'
 };
 
 export const getCandidateLogosForDomain = (domain: string): string[] => {
@@ -231,6 +245,17 @@ export const resolveCompanyCandidates = (comp: Partial<ClientCompany> & { name?:
   if (words.length === 1 && words[0].length >= 3) {
     const slug = words[0].replace(/[^a-z0-9]/gi, '');
     candidates.push(...getCandidateLogosForDomain(`${slug}.com.br`));
+  }
+
+  // 6. Fallback inteligente para nomes corporativos compostos (ex: "Grupo Paulo Octávio" -> "paulooctavio.com.br")
+  const corporateStopWords = new Set(['grupo', 'holding', 'cia', 'empresa', 'instituto', 'fundacao', 'fundação', 'associacao', 'associação', 'brasil', 'do', 'da', 'de', 'e']);
+  const meaningfulWords = words.filter(w => !corporateStopWords.has(w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
+  if (meaningfulWords.length >= 1 && meaningfulWords.length <= 3) {
+    const combinedSlug = meaningfulWords.map(w => w.replace(/[^a-z0-9]/gi, '')).join('');
+    if (combinedSlug.length >= 4) {
+      candidates.push(...getCandidateLogosForDomain(`${combinedSlug}.com.br`));
+      candidates.push(...getCandidateLogosForDomain(`${combinedSlug}.com`));
+    }
   }
 
   return Array.from(new Set(candidates));

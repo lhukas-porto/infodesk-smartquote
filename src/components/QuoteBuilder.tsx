@@ -133,6 +133,8 @@ import { QuoteAuditModal, auditQuote } from './QuoteAuditModal';
 import { buildSingleItemWhatsAppText, buildWhatsAppDistributorQuoteMessage } from '../utils/whatsappFormatter';
 import { parseQuoteTimestamp } from '../utils/dateUtils';
 import { learnSupplier, learnSuppliersFromProducts } from '../services/supplierLearningService';
+import { resolveCompanyCandidates } from '../utils/companyLogoResolver';
+import { findMatchingClientCompany } from '../utils/clientLogoEmailHelper';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -986,9 +988,28 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const persistAndProceed = async (action: (customQuote?: Quote) => void, requiresValidation: boolean = false) => {
     persistClientDetails();
 
+    let quoteToProceed = currentQuote;
+    if (!quoteToProceed.clientLogoUrl && quoteToProceed.clientCompany) {
+      const reg = matchedCompany || findMatchingClientCompany(quoteToProceed.clientCompany);
+      if (reg) {
+        const cands = resolveCompanyCandidates(reg);
+        const resolvedLogo = reg.logoUrl || (cands && cands.length > 0 ? cands[0] : undefined);
+        if (resolvedLogo) {
+          quoteToProceed = { ...quoteToProceed, clientLogoUrl: resolvedLogo };
+          setCurrentQuote(prev => ({ ...prev, clientLogoUrl: resolvedLogo }));
+        }
+      } else {
+        const cands = resolveCompanyCandidates({ name: quoteToProceed.clientCompany });
+        if (cands && cands.length > 0) {
+          quoteToProceed = { ...quoteToProceed, clientLogoUrl: cands[0] };
+          setCurrentQuote(prev => ({ ...prev, clientLogoUrl: cands[0] }));
+        }
+      }
+    }
+
     // APRENDIZADO CONTÍNUO (Diretriz do Lucas): Memoriza os fornecedores de todos os itens da cotação
-    if (currentQuote.items && currentQuote.items.length > 0) {
-      learnSuppliersFromProducts(currentQuote.items);
+    if (quoteToProceed.items && quoteToProceed.items.length > 0) {
+      learnSuppliersFromProducts(quoteToProceed.items);
     }
     if (requiresValidation) {
       const issues = runPreFlightCheck();
@@ -1002,7 +1023,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       }
     }
 
-    action(currentQuote);
+    action(quoteToProceed);
   };
 
   const cleanCompName = (currentQuote.clientCompany || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
@@ -1013,6 +1034,19 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       cleanCompName.includes(c.name.toLowerCase())
     )
   );
+
+  const effectiveClientLogo = useMemo(() => {
+    if (currentQuote.clientLogoUrl) return currentQuote.clientLogoUrl;
+    if (matchedCompany) {
+      const cands = resolveCompanyCandidates(matchedCompany);
+      return matchedCompany.logoUrl || (cands && cands.length > 0 ? cands[0] : null);
+    }
+    if (currentQuote.clientCompany) {
+      const cands = resolveCompanyCandidates({ name: currentQuote.clientCompany });
+      return cands && cands.length > 0 ? cands[0] : null;
+    }
+    return null;
+  }, [currentQuote.clientLogoUrl, currentQuote.clientCompany, matchedCompany]);
 
 
   const cleanContactName = (currentQuote.contactPerson || '')
@@ -2859,6 +2893,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   onChange={(e) => {
                     const val = e.target.value;
                     const newCode = generateQuoteCode(val, new Date(), propsQuotes);
+                    const matchedC = clientCompanies.find(c => {
+                      const cClean = c.name.toLowerCase().trim();
+                      const vClean = val.replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+                      return cClean === vClean || cClean.includes(vClean) || vClean.includes(cClean);
+                    });
+                    const cands = matchedC ? resolveCompanyCandidates(matchedC) : (val.trim().length >= 3 ? resolveCompanyCandidates({ name: val }) : []);
+                    const bestLogo = matchedC?.logoUrl || (cands && cands.length > 0 ? cands[0] : undefined);
+
                     setCurrentQuote(prev => {
                       const isSavedForAnother = (propsQuotes || []).some(q => 
                         q.id === prev.id && 
@@ -2869,6 +2911,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         ...prev, 
                         id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
                         clientCompany: val,
+                        clientLogoUrl: bestLogo || prev.clientLogoUrl,
                         code: val.trim().length >= 2 ? newCode : prev.code
                       };
                     });
@@ -2879,8 +2922,17 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   onFocus={() => setIsCompanySearchOpen(true)}
                   className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-14 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
                 />
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <Building className="w-4 h-4 text-slate-400" />
+                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none w-5 h-5 flex items-center justify-center">
+                  {effectiveClientLogo ? (
+                    <img 
+                      src={effectiveClientLogo} 
+                      alt="" 
+                      className="w-4 h-4 object-contain" 
+                      onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }} 
+                    />
+                  ) : (
+                    <Building className="w-4 h-4 text-slate-400" />
+                  )}
                 </div>
 
                 <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -2968,64 +3020,77 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                               </button>
                             )}
                           </div>
-                          {filtered.map(c => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => {
-                                const formatted = formatCompanyPrefix(c.name, c.prefix);
-                                const newCode = generateQuoteCode(c.name, new Date(), propsQuotes);
-                                setCurrentQuote(prev => {
-                                  const isSavedForAnother = (propsQuotes || []).some(q => 
-                                    q.id === prev.id && 
-                                    q.clientCompany && 
-                                    q.clientCompany.trim().toLowerCase() !== formatted.trim().toLowerCase()
-                                  );
-                                  const defLoc = c.defaultDeliveryLocation || prev.deliveryLocation;
-                                  const isBsb = isBrasiliaDelivery(defLoc);
-                                  return {
-                                    ...prev,
-                                    id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
-                                    clientCompany: formatted,
-                                    clientLogoUrl: c.logoUrl || undefined,
-                                    contactPerson: '',
-                                    clientEmail: '',
-                                    clientPhone: '',
-                                    deliveryLocation: defLoc,
-                                    paymentTerms: c.defaultPaymentTerms || prev.paymentTerms,
-                                    deliveryDays: c.defaultDeliveryDays || prev.deliveryDays,
-                                    warrantyTerms: c.defaultWarrantyTerms || prev.warrantyTerms,
-                                    shippingTerms: defLoc ? `Frete incluso p/ ${defLoc}.` : prev.shippingTerms,
-                                    showShippingInProposal: isBsb ? false : true,
-                                    code: newCode
-                                  };
-                                });
-                                setIsCompanySearchOpen(false);
-                              }}
-                              className="w-full text-left p-2.5 hover:bg-sky-50/80 rounded-xl transition flex items-center justify-between gap-3 border border-transparent hover:border-sky-200 cursor-pointer group"
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-7 h-7 rounded-lg bg-sky-100 group-hover:bg-sky-200 text-sky-700 flex items-center justify-center shrink-0">
-                                  <Building className="w-3.5 h-3.5" />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-xs font-bold text-slate-900 group-hover:text-sky-900 truncate">
-                                    {c.name}
-                                  </div>
-                                  <div className="text-[10.5px] text-slate-500 flex items-center gap-2 truncate">
-                                    {c.defaultDeliveryLocation && <span>📍  {c.defaultDeliveryLocation}</span>}
-                                    {c.contacts?.length > 0 && (
-                                      <span>👥  {c.contacts.length} comprador(es)</span>
+                          {filtered.map(c => {
+                            const cands = resolveCompanyCandidates(c);
+                            const bestLogo = c.logoUrl || (cands && cands.length > 0 ? cands[0] : undefined);
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  const formatted = formatCompanyPrefix(c.name, c.prefix);
+                                  const newCode = generateQuoteCode(c.name, new Date(), propsQuotes);
+                                  setCurrentQuote(prev => {
+                                    const isSavedForAnother = (propsQuotes || []).some(q => 
+                                      q.id === prev.id && 
+                                      q.clientCompany && 
+                                      q.clientCompany.trim().toLowerCase() !== formatted.trim().toLowerCase()
+                                    );
+                                    const defLoc = c.defaultDeliveryLocation || prev.deliveryLocation;
+                                    const isBsb = isBrasiliaDelivery(defLoc);
+                                    return {
+                                      ...prev,
+                                      id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
+                                      clientCompany: formatted,
+                                      clientLogoUrl: bestLogo,
+                                      contactPerson: '',
+                                      clientEmail: '',
+                                      clientPhone: '',
+                                      deliveryLocation: defLoc,
+                                      paymentTerms: c.defaultPaymentTerms || prev.paymentTerms,
+                                      deliveryDays: c.defaultDeliveryDays || prev.deliveryDays,
+                                      warrantyTerms: c.defaultWarrantyTerms || prev.warrantyTerms,
+                                      shippingTerms: defLoc ? `Frete incluso p/ ${defLoc}.` : prev.shippingTerms,
+                                      showShippingInProposal: isBsb ? false : true,
+                                      code: newCode
+                                    };
+                                  });
+                                  setIsCompanySearchOpen(false);
+                                }}
+                                className="w-full text-left p-2.5 hover:bg-sky-50/80 rounded-xl transition flex items-center justify-between gap-3 border border-transparent hover:border-sky-200 cursor-pointer group"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-7 h-7 rounded-lg bg-sky-100 group-hover:bg-sky-200 text-sky-700 flex items-center justify-center shrink-0 overflow-hidden">
+                                    {bestLogo ? (
+                                      <img 
+                                        src={bestLogo} 
+                                        alt="" 
+                                        className="w-full h-full object-contain p-0.5" 
+                                        onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }} 
+                                      />
+                                    ) : (
+                                      <Building className="w-3.5 h-3.5" />
                                     )}
                                   </div>
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-bold text-slate-900 group-hover:text-sky-900 truncate">
+                                      {c.name}
+                                    </div>
+                                    <div className="text-[10.5px] text-slate-500 flex items-center gap-2 truncate">
+                                      {c.defaultDeliveryLocation && <span>📍  {c.defaultDeliveryLocation}</span>}
+                                      {c.contacts?.length > 0 && (
+                                        <span>👥  {c.contacts.length} comprador(es)</span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
 
-                              <span className="text-[10.5px] font-bold text-sky-600 bg-white border border-sky-200 group-hover:bg-sky-600 group-hover:text-white px-2 py-0.5 rounded-md shrink-0 transition">
-                                Selecionar
-                              </span>
-                            </button>
-                          ))}
+                                <span className="text-[10.5px] font-bold text-sky-600 bg-white border border-sky-200 group-hover:bg-sky-600 group-hover:text-white px-2 py-0.5 rounded-md shrink-0 transition">
+                                  Selecionar
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       );
                     })()}
