@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
 import { generateProposalEmailHtml } from '../utils/aiEmailParser';
+import { resolveClientLogoBase64 } from '../utils/clientLogoEmailHelper';
 import DOMPurify from 'dompurify';
 
 function extractEmailString(val: any): string {
@@ -45,9 +46,26 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   const [sendError, setSendError] = useState<string | null>(null);
   const toInputRef = useRef<HTMLInputElement>(null);
 
+  const [clientLogoDataUrl, setClientLogoDataUrl] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    if (isOpen && quote.clientCompany) {
+      resolveClientLogoBase64({
+        name: quote.clientCompany,
+        contacts: quote.clientEmail ? [{ email: quote.clientEmail }] : []
+      }).then(dataUrl => {
+        if (isMounted && dataUrl) {
+          setClientLogoDataUrl(dataUrl);
+        }
+      }).catch(() => {});
+    }
+    return () => { isMounted = false; };
+  }, [isOpen, quote.clientCompany, quote.clientEmail]);
+
   const proposalHtml = useMemo(() => {
-    return generateProposalEmailHtml(quote, settings);
-  }, [quote, settings]);
+    return generateProposalEmailHtml(quote, settings, { clientLogoUrl: clientLogoDataUrl || undefined });
+  }, [quote, settings, clientLogoDataUrl]);
 
   const defaultSubject = (quote.subject && quote.subject !== 'Orçamento diversos' && quote.subject !== 'Fornecimento de produtos para informática' && quote.subject !== 'Fornecimento de Materiais e Equipamentos')
     ? quote.subject

@@ -3407,7 +3407,7 @@ export function maskPhone(value: string): string {
 export function generateProposalEmailHtml(
   quote: any, 
   settings: any, 
-  options: { forEmailSend?: boolean } = {}
+  options: { forEmailSend?: boolean; clientLogoUrl?: string } = {}
 ): string {
   const clientCompanyFormatted = escapeHtml(formatCompanyPrefix(quote.clientCompany));
   const contactPersonFormatted = escapeHtml(formatContactPerson(quote.contactPerson));
@@ -3482,13 +3482,28 @@ export function generateProposalEmailHtml(
       <img src="${logoImageSrc}" alt="Infodesk" width="324" height="79" style="width: 8.56cm; height: 2.08cm; max-width: 100%; object-fit: contain; display: block; border: 0;" />
     </div>
 
-    <!-- Dados do Cliente / Solicitante -->
-    <div style="margin-bottom: 18px; line-height: 1.5; font-family: Verdana, Geneva, sans-serif;">
-      <p style="margin: 0; font-weight: bold; font-size: 12pt; line-height: 1.5; font-family: Verdana, Geneva, sans-serif; color: #000000;">${clientCompanyFormatted}</p>
-      <p style="margin: 0; font-weight: bold; font-size: 12pt; line-height: 1.5; font-family: Verdana, Geneva, sans-serif; color: #000000;">${contactPersonFormatted}</p>
-      <p style="margin: 4px 0 0 0; font-size: 8pt; font-weight: bold; line-height: 1.35; font-family: Verdana, Geneva, sans-serif; color: #000000;">E-mail: <a href="mailto:${(quote.clientEmail || '').toLowerCase()}" style="color: #0000ee; text-decoration: underline; font-size: 8pt; font-weight: bold;">${(quote.clientEmail || '').toLowerCase()}</a></p>
-      ${quote.clientPhone ? `<p style="margin: 2px 0 0 0; font-size: 8pt; font-weight: bold; line-height: 1.35; font-family: Verdana, Geneva, sans-serif; color: #000000;">Telefone: ${quote.clientPhone}</p>` : ''}
-    </div>
+    <!-- Dados do Cliente / Solicitante (Com Logo do Cliente no Destinatário - Padrão Opção 2) -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="width: 100%; margin-bottom: 18px; border-collapse: collapse; font-family: Verdana, Geneva, sans-serif;">
+      <tr>
+        ${options.clientLogoUrl ? `
+          <td width="65" valign="middle" align="center" style="width: 65px; padding-right: 14px; vertical-align: middle;">
+            <table border="0" cellpadding="0" cellspacing="0" width="54" height="54" style="width: 54px; height: 54px; border: 1px solid #e2e8f0; border-radius: 50%; background-color: #ffffff; border-collapse: collapse;">
+              <tr>
+                <td width="54" height="54" align="center" valign="middle" style="width: 54px; height: 54px; text-align: center; vertical-align: middle; padding: 4px;">
+                  <img src="${options.clientLogoUrl}" alt="${clientCompanyFormatted}" width="46" height="46" border="0" style="width: 46px; height: 46px; max-width: 46px; max-height: 46px; object-fit: contain; display: block; margin: 0 auto; border: 0; outline: none;" />
+                </td>
+              </tr>
+            </table>
+          </td>
+        ` : ''}
+        <td valign="middle" style="vertical-align: middle; line-height: 1.5; font-family: Verdana, Geneva, sans-serif;">
+          <p style="margin: 0; font-weight: bold; font-size: 12pt; line-height: 1.5; font-family: Verdana, Geneva, sans-serif; color: #000000;">${clientCompanyFormatted}</p>
+          <p style="margin: 0; font-weight: bold; font-size: 12pt; line-height: 1.5; font-family: Verdana, Geneva, sans-serif; color: #000000;">${contactPersonFormatted}</p>
+          <p style="margin: 4px 0 0 0; font-size: 8pt; font-weight: bold; line-height: 1.35; font-family: Verdana, Geneva, sans-serif; color: #000000;">E-mail: <a href="mailto:${(quote.clientEmail || '').toLowerCase()}" style="color: #0000ee; text-decoration: underline; font-size: 8pt; font-weight: bold;">${(quote.clientEmail || '').toLowerCase()}</a></p>
+          ${quote.clientPhone ? `<p style="margin: 2px 0 0 0; font-size: 8pt; font-weight: bold; line-height: 1.35; font-family: Verdana, Geneva, sans-serif; color: #000000;">Telefone: ${quote.clientPhone}</p>` : ''}
+        </td>
+      </tr>
+    </table>
 
     <!-- Parágrafo de Abertura -->
     <p style="text-align: justify; text-indent: 1.25cm; margin-bottom: 16px; font-size: 9pt; font-family: Verdana, Geneva, sans-serif; line-height: 1.35; color: #000000;">
