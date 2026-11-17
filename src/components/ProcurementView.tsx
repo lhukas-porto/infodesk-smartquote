@@ -3383,16 +3383,16 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   <span className="text-[10px] text-slate-400 font-medium">Dados de aquisição</span>
                 </div>
 
-                {/* Fornecedor e Link da Loja */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
+                {/* Fornecedor e Link da Loja: Realoque com largura prioritária para o Link */}
+                <div className="flex flex-col sm:flex-row items-start gap-3.5">
+                  <div className="w-full sm:w-48 md:w-56 shrink-0">
                     <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
                       <span className="flex items-center gap-1">
                         <span>Fornecedor / Loja Real *</span>
                       </span>
                       {activeItemForPurchase.supplier && activeItemForPurchase.supplier !== purchaseForm.actualSupplier && (
-                        <span className="text-[10px] text-slate-400">
-                          Cotado: {activeItemForPurchase.supplier}
+                        <span className="text-[10px] text-slate-400 truncate max-w-[80px]" title={`Cotado: ${activeItemForPurchase.supplier}`}>
+                          {activeItemForPurchase.supplier}
                         </span>
                       )}
                     </label>
@@ -3404,7 +3404,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     />
                   </div>
 
-                  <div>
+                  <div className="w-full flex-1 min-w-0">
                     <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
                         <Link2 className="w-3.5 h-3.5 text-sky-600" />
