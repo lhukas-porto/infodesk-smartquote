@@ -447,9 +447,9 @@ export async function buildQuoteWordDocument(quote: Quote, settings: CompanySett
     ];
     obsLines.forEach((line, lIdx) => {
       if (lIdx === 0) {
-        obsRuns.push(new TextRun({ text: line, size: 20 }));
+        obsRuns.push(new TextRun({ text: line, bold: true, size: 20 }));
       } else {
-        obsRuns.push(new TextRun({ text: `   ${line}`, break: 1, size: 20 }));
+        obsRuns.push(new TextRun({ text: `   ${line}`, bold: true, break: 1, size: 20 }));
       }
     });
 

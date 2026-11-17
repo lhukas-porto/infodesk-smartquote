@@ -5309,7 +5309,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   notes: val
                 }));
               }}
-              className="w-full min-h-[85px] bg-slate-50 border border-slate-300 hover:border-slate-400 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl px-3.5 py-2.5 text-slate-900 font-medium text-xs leading-relaxed transition resize-y"
+              className="w-full min-h-[85px] bg-slate-50 border border-slate-300 hover:border-slate-400 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold text-xs leading-relaxed transition resize-y"
             />
           </div>
         </div>

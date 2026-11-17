@@ -116,7 +116,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       (shouldDisplayShippingInProposal(quote) && quote.shippingTerms ? `- ${quote.shippingTerms.toLowerCase().startsWith('frete') ? quote.shippingTerms : `Frete: ${quote.shippingTerms}`}\n` : '') +
       (() => {
         const clean = (quote.observations || quote.notes || '').trim().replace(/^(obs(\.|ervação|ervações)?\s*:\s*)/i, '').trim();
-        return clean ? `- Obs: ${clean}\n\n` : '\n';
+        return clean ? `- *Obs: ${clean}*\n\n` : '\n';
       })() +
       `${quote.city || (settings.cityState ? settings.cityState.split('-')[0].trim() : 'Brasília')}, ${quote.date}.\n\n` +
       `${settings.representativeName}\n` +
@@ -454,8 +454,8 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                 const clean = (quote.observations || quote.notes || '').trim().replace(/^(obs(\.|ervação|ervações)?\s*:\s*)/i, '').trim();
                 if (!clean) return null;
                 return (
-                  <p style={{ fontSize: '10pt', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
-                    ➤&nbsp; <strong style={{ fontWeight: 'bold' }}>Obs:</strong> {clean}
+                  <p className="font-bold" style={{ fontSize: '10pt', lineHeight: '1.5', fontWeight: 'bold', whiteSpace: 'pre-line' }}>
+                    ➤&nbsp; <strong style={{ fontWeight: 'bold' }}>Obs:</strong> <strong style={{ fontWeight: 'bold' }}>{clean}</strong>
                   </p>
                 );
               })()}
