@@ -236,6 +236,28 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   const [imagePickerItem, setImagePickerItem] = useState<ProcurementItem | null>(null);
   const [imagePickerTargetMode, setImagePickerTargetMode] = useState<'card' | 'modal'>('card');
 
+  // Zoom da Foto em Tela Cheia (Lightbox Fiel ao Orçamento)
+  const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
+
+  // Listener de tecla ESC para fechar o Zoom com prioridade máxima
+  useEffect(() => {
+    if (!zoomedImage) return;
+
+    const handleZoomKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        setZoomedImage(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleZoomKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleZoomKeyDown, true);
+    };
+  }, [zoomedImage]);
+
   // Unidades e Clientes Cadastrados para Seleção
   const registeredUnits = useMemo(() => getRegisteredUnits(), []);
   const registeredClients = useMemo(() => getClientCompanies(), []);
@@ -4553,6 +4575,59 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
           onSelectImage={(newUrl) => handleSelectImage(newUrl)}
         />
       )}
+
+      {/* Modal de Zoom da Foto no Meio da Tela (Fiel à Referência Visual do Orçamento) */}
+      {zoomedImage && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setZoomedImage(null)}
+        >
+          <div 
+            className="relative bg-white rounded-3xl pt-6 pb-7 px-6 sm:px-8 shadow-2xl max-w-md sm:max-w-lg w-full flex flex-col items-center animate-scaleIn border border-slate-100/80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Botão X discreto no canto superior direito exatamente como no orçamento */}
+            <button
+              type="button"
+              onClick={() => setZoomedImage(null)}
+              className="absolute top-4 right-4 text-stone-500 hover:text-stone-800 transition p-1 cursor-pointer"
+              title="Fechar (Esc)"
+            >
+              <X className="w-5 h-5 stroke-[2.2]" />
+            </button>
+
+            {/* Cabeçalho de Texto: Nome em negrito pesado escuro e subtítulo estilizado */}
+            <div className="text-center px-4 pt-1 pb-5 w-full">
+              <h2 className="text-base sm:text-lg font-black text-[#261f18] uppercase tracking-wide leading-tight font-sans">
+                {zoomedImage.title}
+              </h2>
+              <p className="text-[11px] sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
+                ESPECIFICAÇÃO TÉCNICA
+              </p>
+            </div>
+
+            {/* Moldura Quadrada com Bordas Arredondadas e Borda Dourada Elegante */}
+            <div className="relative w-72 h-72 sm:w-84 sm:h-84 md:w-96 md:h-96 rounded-2xl overflow-hidden border-[3px] border-[#e59b12] shadow-md bg-white flex items-center justify-center p-3 my-2">
+              <img
+                src={zoomedImage.url}
+                alt={zoomedImage.title}
+                className="max-w-full max-h-full object-contain rounded-xl select-none"
+              />
+            </div>
+
+            {/* Botão Fechar Retangular Clássico com borda fina e cantos levemente arredondados */}
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setZoomedImage(null)}
+                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-[13px] font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -4588,17 +4663,29 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         {/* Cabeçalho do Card */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div className="flex items-start gap-3.5 flex-1 min-w-0">
-            {/* Foto do Produto com Suporte Interativo a Busca e Troca */}
+            {/* Foto do Produto: Único comportamento é abrir o Zoom no meio da tela (Fiel ao Orçamento) */}
             <div 
-              className="relative group w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-slate-200 bg-white p-1.5 shrink-0 overflow-hidden flex items-center justify-center shadow-2xs hover:border-sky-400 transition cursor-pointer"
-              onClick={() => handleOpenImagePicker(item, 'card')}
-              title={item.imageUrl ? "Clique para alterar ou buscar outra foto na web" : "Clique para buscar foto deste produto na web"}
+              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-slate-200 bg-white p-1.5 shrink-0 overflow-hidden flex items-center justify-center shadow-2xs transition select-none ${
+                item.imageUrl 
+                  ? 'hover:border-sky-500 hover:shadow-md cursor-pointer' 
+                  : 'bg-slate-50 cursor-default'
+              }`}
+              onClick={(e) => {
+                if (item.imageUrl) {
+                  e.stopPropagation();
+                  setZoomedImage({
+                    url: item.imageUrl,
+                    title: item.name
+                  });
+                }
+              }}
+              title={item.imageUrl ? "Clique para ver a foto com ZOOM no meio da tela" : item.name}
             >
               {item.imageUrl ? (
                 <img 
                   src={item.imageUrl} 
                   alt={item.name} 
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain select-none pointer-events-none"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.style.display = 'none';
@@ -4609,16 +4696,9 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center text-slate-400">
-                  <Package className="w-5 h-5 text-slate-300 group-hover:scale-110 transition" />
-                  <span className="text-[9px] font-bold text-sky-600 mt-0.5 opacity-80 group-hover:opacity-100">Buscar</span>
+                  <Package className="w-6 h-6 text-slate-300" />
                 </div>
               )}
-
-              {/* Overlay interativo com hover suave */}
-              <div className="absolute inset-0 bg-slate-900/65 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition rounded-2xl backdrop-blur-2xs">
-                <Camera className="w-4 h-4 text-white" />
-                <span className="text-[9px] font-bold mt-0.5">{item.imageUrl ? 'Trocar' : 'Buscar Foto'}</span>
-              </div>
             </div>
 
             {/* Informações Principais */}

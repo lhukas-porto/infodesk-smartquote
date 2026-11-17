@@ -5395,14 +5395,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             </div>
           )}
         </div>
-        </div>
-      )}
-
-    </div>
-
-
-
-
+      </div>
+    )}
+  </div>
 
       {/* Modal Unificado de Verificação Geral e Edição do Produto (Catálogo / NCM) */}
       {isCatalogModalOpen && catalogReviewProduct && (
@@ -5445,15 +5440,17 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       {zoomedImage && (
         <div 
           className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setZoomedImage(null)}
         >
           <div 
             className="relative bg-white rounded-3xl pt-6 pb-7 px-6 sm:px-8 shadow-2xl max-w-md sm:max-w-lg w-full flex flex-col items-center animate-scaleIn border border-slate-100/80"
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Botão X discreto no canto superior direito exatamente como na foto */}
             <button
               type="button"
               onClick={() => setZoomedImage(null)}
-              className="absolute top-4 right-4 text-stone-500 hover:text-stone-800 transition p-1"
+              className="absolute top-4 right-4 text-stone-500 hover:text-stone-800 transition p-1 cursor-pointer"
               title="Fechar (Esc)"
             >
               <X className="w-5 h-5 stroke-[2.2]" />
