@@ -239,6 +239,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
       <div className="flex justify-start sm:justify-center overflow-x-auto max-w-full pb-8 print:block print:w-full print:m-0 print:p-0">
         <div 
           ref={documentRef}
+          id="quote-preview-document"
           className={`print-page ${a4Spacers.estimatedPageCount <= 1 ? 'is-single-page' : 'is-multi-page'} bg-white text-black w-full shadow-2xl rounded-sm border border-slate-200 flex flex-col justify-between`}
           style={{ 
             fontFamily: 'Verdana, Geneva, sans-serif',
