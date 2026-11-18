@@ -807,7 +807,12 @@ function saveScanResultToCache(query: string, result: ScannedPriceResult): void 
 
 export function getStoredGeminiKey(): string {
   try {
-    // Chave personalizada configurada localmente pelo usuário ou delegada ao proxy backend seguro
+    // 1. Chave configurada em variável de ambiente (.env / Vercel)
+    const envKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    if (envKey && typeof envKey === 'string' && envKey.trim()) {
+      return envKey.trim();
+    }
+    // 2. Chave personalizada configurada localmente pelo usuário no navegador
     const localKey = localStorage.getItem(STORAGE_GEMINI_KEY);
     if (localKey && typeof localKey === 'string' && localKey.trim()) {
       return localKey.trim();

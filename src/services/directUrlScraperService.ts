@@ -132,9 +132,24 @@ function extractPriceFromHtml(html: string): number | null {
     if (!isNaN(num) && num > 0) return Number(num.toFixed(2));
   }
 
-  // KaBuM! / Pichau padrão de preço à vista
+  // Amazon a-offscreen ou a-price-whole
+  const amazonOffscreen = html.match(/class=["'][^"']*a-offscreen[^"']*["']>R\$\s*([0-9.,]+)</i);
+  if (amazonOffscreen && amazonOffscreen[1]) {
+    const p = parseBrlPrice(amazonOffscreen[1]);
+    if (p > 0) return p;
+  }
+  const amazonWhole = html.match(/class=["'][^"']*a-price-whole[^"']*["']>([0-9.]+)[<,\s]/i);
+  if (amazonWhole && amazonWhole[1]) {
+    const fractionMatch = html.match(/class=["'][^"']*a-price-fraction[^"']*["']>([0-9]{2})</i);
+    const fraction = fractionMatch && fractionMatch[1] ? fractionMatch[1] : '00';
+    const num = parseFloat(`${amazonWhole[1].replace(/\./g, '')}.${fraction}`);
+    if (!isNaN(num) && num > 0) return Number(num.toFixed(2));
+  }
+
+  // KaBuM! / Pichau / Magazine Luiza padrão de preço à vista
   const kabumMatch = html.match(/class=["'][^"']*finalPrice[^"']*["'][^>]*>R\$\s*([0-9.,]+)</i)
-    || html.match(/preco_desconto["']\s*:\s*["']?([0-9.,]+)["']?/i);
+    || html.match(/preco_desconto["']\s*:\s*["']?([0-9.,]+)["']?/i)
+    || html.match(/data-testid=["']price-value["'][^>]*>R\$\s*([0-9.,]+)/i);
   if (kabumMatch && kabumMatch[1]) {
     const p = parseBrlPrice(kabumMatch[1]);
     if (p > 0) return p;
@@ -190,7 +205,45 @@ export async function scrapeDirectUrlPrice(
     return cached.result;
   }
 
-  // 2. Proxies CORS públicos com fallback para contornar bloqueio de mesma origem do navegador
+  // 2. Tenta primeiro o endpoint dedicado do backend (/api/scrape-url)
+  // Esse endpoint executa no servidor Node.js (sem restrições de CORS e com headers de navegador reais)
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const baseUrl = typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : '';
+    const apiEndpoint = `${baseUrl}/api/scrape-url?url=${encodeURIComponent(url)}`;
+
+    const resp = await fetch(apiEndpoint, {
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    clearTimeout(timer);
+
+    if (resp.ok) {
+      const data = await resp.json().catch(() => null);
+      if (data && data.success && data.price && data.price > 0) {
+        const result: ScrapedDirectUrlPrice = {
+          success: true,
+          price: data.price,
+          priceFormatted: data.priceFormatted || `R$ ${data.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          store: data.store || store,
+          inStock: data.inStock !== false,
+          title: data.title
+        };
+        directPriceCache.set(url, { result, timestamp: Date.now() });
+        return result;
+      }
+    }
+  } catch {
+    // Se a chamada do endpoint backend falhar, tenta fallback
+  }
+
+  // 3. Fallback: Proxies CORS públicos com timeout estrito
   const proxyEndpoints = [
     `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
     `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`

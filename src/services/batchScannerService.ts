@@ -131,9 +131,9 @@ export async function executeConcurrentBatchScan(
 
       try {
         // 1.5. CAMADA PRIORITÁRIA DE LINK SALVO (ITEM A - RECHECAGEM DIRETA NA URL)
-        // Se o item já possui um link direto de compra gravado (ex: Mercado Livre, KaBuM!, Amazon),
-        // inspeciona diretamente a URL específica antes de qualquer busca aberta na internet!
-        if (item.sourceUrl && isExactProductUrl(item.sourceUrl)) {
+        // Se o item já possui um link direto gravado (ex: Mercado Livre, KaBuM!, Amazon, etc.),
+        // inspeciona diretamente a URL específica via endpoint dedicado no servidor!
+        if (item.sourceUrl && typeof item.sourceUrl === 'string' && item.sourceUrl.startsWith('http')) {
           const directProgress: BatchItemProgress = {
             id: item.id,
             itemNumber: item.itemNumber,

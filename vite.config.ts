@@ -1,9 +1,10 @@
-import { defineConfig, Plugin } from 'vite';
+import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import googleShoppingHandler from './api/google-shopping';
 import geminiProxyHandler from './api/gemini-proxy';
 import imageSearchHandler from './api/image-search';
 import imageProxyHandler from './api/image-proxy';
+import scrapeUrlHandler from './api/scrape-url';
 
 function googleShoppingPlugin(): Plugin {
   return {
@@ -97,6 +98,40 @@ function imageProxyPlugin(): Plugin {
   };
 }
 
+function scrapeUrlPlugin(): Plugin {
+  return {
+    name: 'scrape-url-plugin',
+    configureServer(server) {
+      server.middlewares.use('/api/scrape-url', async (req, res) => {
+        try {
+          const parsedUrl = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+          const url = parsedUrl.searchParams.get('url') || '';
+          (req as any).query = { url };
+
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', (chunk: any) => { body += chunk; });
+            req.on('end', async () => {
+              try {
+                (req as any).body = JSON.parse(body);
+              } catch {
+                (req as any).body = {};
+              }
+              await scrapeUrlHandler(req, res);
+            });
+          } else {
+            await scrapeUrlHandler(req, res);
+          }
+        } catch (err: any) {
+          console.error('[Scrape URL Middleware Error]:', err?.message);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: err?.message }));
+        }
+      });
+    }
+  };
+}
+
 const APP_BUILD_ID = `sq-${Date.now()}`;
 
 function versionManifestPlugin(): Plugin {
@@ -124,35 +159,48 @@ function versionManifestPlugin(): Plugin {
   };
 }
 
-export default defineConfig({
-  define: {
-    __APP_BUILD_ID__: JSON.stringify(APP_BUILD_ID)
-  },
-  plugins: [react(), versionManifestPlugin(), imageSearchPlugin(), googleShoppingPlugin(), geminiProxyPlugin(), imageProxyPlugin()],
-  server: {
-    port: 5173,
-    host: true
-  },
-  build: {
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('docx')) return 'vendor-docx';
-            if (id.includes('exceljs')) return 'vendor-exceljs';
-            if (id.includes('tesseract.js')) return 'vendor-tesseract';
-            if (id.includes('papaparse')) return 'vendor-papaparse';
-            if (id.includes('dompurify')) return 'vendor-dompurify';
-            if (id.includes('@supabase')) return 'vendor-supabase';
-            if (id.includes('lucide-react')) return 'vendor-icons';
-            if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  process.env = { ...process.env, ...env };
+
+  return {
+    define: {
+      __APP_BUILD_ID__: JSON.stringify(APP_BUILD_ID)
+    },
+    plugins: [
+      react(),
+      versionManifestPlugin(),
+      imageSearchPlugin(),
+      googleShoppingPlugin(),
+      geminiProxyPlugin(),
+      imageProxyPlugin(),
+      scrapeUrlPlugin()
+    ],
+    server: {
+      port: 5173,
+      host: true
+    },
+    build: {
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('docx')) return 'vendor-docx';
+              if (id.includes('exceljs')) return 'vendor-exceljs';
+              if (id.includes('tesseract.js')) return 'vendor-tesseract';
+              if (id.includes('papaparse')) return 'vendor-papaparse';
+              if (id.includes('dompurify')) return 'vendor-dompurify';
+              if (id.includes('@supabase')) return 'vendor-supabase';
+              if (id.includes('lucide-react')) return 'vendor-icons';
+              if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
+            }
           }
         }
       }
+    },
+    esbuild: {
+      drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : []
     }
-  },
-  esbuild: {
-    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : []
-  }
+  };
 });
