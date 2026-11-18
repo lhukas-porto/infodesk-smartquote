@@ -40,6 +40,7 @@ export interface QuoteItem {
   rawSearchQuery?: string;
   category?: string;
   partNumber?: string;
+  sku?: string;
   ncm?: string;
   imageUrl?: string;
   showImage?: boolean;
@@ -136,6 +137,7 @@ export interface ProcurementItem {
   name: string;
   description?: string;
   partNumber?: string;
+  sku?: string;
   ncm?: string;
   imageUrl?: string;
   quantity: number;
@@ -192,6 +194,7 @@ export interface IncomingEmail {
     description: string;
     rawSearchQuery?: string;
     partNumber?: string;
+  sku?: string;
     itemCode?: string;
     ncm?: string;
     imageUrl?: string;
@@ -237,6 +240,7 @@ export interface WebSearchResult {
   title: string;
   specs: string;
   partNumber?: string;
+  sku?: string;
   ncm?: string;
   imageUrl?: string;
   estimatedCost: number;
@@ -283,6 +287,7 @@ export interface DiscoveredProduct {
   manufacturer?: string;
   model?: string;
   partNumber?: string;
+  sku?: string;
   category?: string;
   ncm?: string;
   quantity: number;

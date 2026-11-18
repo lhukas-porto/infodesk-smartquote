@@ -3590,10 +3590,8 @@ export function generateProposalEmailHtml(
 
   const itemsRows = (quote.items || []).map((item: any) => {
     const isException = excDetails.hasException && excDetails.itemNumbers.includes(item.itemNumber);
-    // Para envio oficial de e-mail (options.forEmailSend === true), apenas imagens embutidas (Base64 data: ou cid:) são exibidas.
-    // Isso blinda a proposta contra caixas cinzas de [X] no Microsoft Outlook caso uma URL externa falhe.
-    const isEmbeddedImage = Boolean(item.imageUrl && (item.imageUrl.startsWith('data:') || item.imageUrl.startsWith('cid:')));
-    const hasImage = item.showImage && item.imageUrl && (!options.forEmailSend || isEmbeddedImage);
+    // Se o item tem imagem ativa e URL válida, exibe na proposta (tanto embutidas Base64/CID quanto URLs remotas válidas)
+    const hasImage = Boolean(item.showImage !== false && item.imageUrl && item.imageUrl.trim());
     const safeItemName = escapeHtml(item.name);
     const safeImageUrl = (item.imageUrl || '').startsWith('data:')
       ? item.imageUrl

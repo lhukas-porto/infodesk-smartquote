@@ -44,7 +44,7 @@ export default async function handler(req: any, res: any) {
     const wantBase64 = req.query?.format === 'base64';
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
 
     const response = await fetch(rawUrl, {
       signal: controller.signal,
@@ -61,7 +61,9 @@ export default async function handler(req: any, res: any) {
 
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const contentType = response.headers.get('content-type') || 'image/png';
+    const rawContentType = response.headers.get('content-type') || 'image/png';
+    const cleanContentType = rawContentType.split(';')[0].trim().toLowerCase() || 'image/png';
+    const contentType = cleanContentType.startsWith('image/') ? cleanContentType : 'image/jpeg';
 
     if (wantBase64) {
       const base64Data = buffer.toString('base64');

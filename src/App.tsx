@@ -271,17 +271,38 @@ export const App: React.FC = () => {
     });
     const healed = sanitized.map(q => {
       const isConfirmedSent = Boolean(q.sentAt) || (q.code && q.code.trim().toUpperCase() === 'CNC 210926-3');
-      if (isConfirmedSent && (q.status === 'draft' || !q.status)) {
-        return {
-          ...q,
+      let targetQ = q;
+      if (isConfirmedSent && (targetQ.status === 'draft' || !targetQ.status)) {
+        targetQ = {
+          ...targetQ,
           status: 'sent' as const,
-          sentAt: q.sentAt || q.createdAt || undefined
+          sentAt: targetQ.sentAt || targetQ.createdAt || undefined
         };
       }
-      if (doesQuoteNeedDraftSanitization(q)) {
-        return sanitizeDraftQuote(q);
+      if (doesQuoteNeedDraftSanitization(targetQ)) {
+        targetQ = sanitizeDraftQuote(targetQ);
       }
-      return q;
+      // Cura automática de imagens de produtos (garante fotos ativas para Sabin 345734 e propostas similares)
+      if (Array.isArray(targetQ.items)) {
+        targetQ = {
+          ...targetQ,
+          items: targetQ.items.map(it => {
+            if (!it) return it;
+            let updated = it;
+            if (updated.imageUrl && updated.imageUrl.trim() && updated.showImage === false) {
+              updated = { ...updated, showImage: true };
+            }
+            if ((!updated.imageUrl || !updated.imageUrl.trim()) && (updated.name || updated.partNumber)) {
+              const cached = findProductImageInCache(updated.name, updated.partNumber, updated.sku);
+              if (cached) {
+                updated = { ...updated, imageUrl: cached, showImage: updated.showImage !== false };
+              }
+            }
+            return updated;
+          })
+        };
+      }
+      return targetQ;
     });
     const { updatedQuotes, hasChanges } = updateDraftQuotesToToday(healed);
     if (hasChanges || JSON.stringify(healed) !== JSON.stringify(raw)) {

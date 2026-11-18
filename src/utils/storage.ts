@@ -295,13 +295,17 @@ export const getCurrentDraftQuote = (): Quote | null => {
 
         if (Array.isArray(parsed.items)) {
           parsed.items = parsed.items.map((it: QuoteItem) => {
-            if (it && (!it.imageUrl || !it.imageUrl.trim()) && (it.name || it.partNumber)) {
-              const cachedImg = findProductImageInCache(it.name, it.partNumber);
+            let updatedIt = it;
+            if (updatedIt && (!updatedIt.imageUrl || !updatedIt.imageUrl.trim()) && (updatedIt.name || updatedIt.partNumber)) {
+              const cachedImg = findProductImageInCache(updatedIt.name, updatedIt.partNumber, updatedIt.sku);
               if (cachedImg) {
-                return { ...it, imageUrl: cachedImg };
+                updatedIt = { ...updatedIt, imageUrl: cachedImg, showImage: updatedIt.showImage !== false };
               }
             }
-            return it;
+            if (updatedIt && updatedIt.imageUrl && updatedIt.imageUrl.trim() && updatedIt.showImage === false) {
+              updatedIt = { ...updatedIt, showImage: true };
+            }
+            return updatedIt;
           });
           if (!parsed.openingText || parsed.openingText.trim() === 'Em atenção...' || parsed.openingText.trim() === 'Em atenção' || parsed.openingText.trim().startsWith('Em atenção ao que foi solicitado')) {
             parsed.openingText = defaultCompanySettings.defaultOpeningText;
@@ -1106,13 +1110,19 @@ export const getQuotes = (): Quote[] => {
               nextQ = {
                 ...nextQ,
                 items: nextQ.items.map((it: QuoteItem) => {
-                  if (it && (!it.imageUrl || !it.imageUrl.trim()) && (it.name || it.partNumber)) {
-                    const cachedImg = findProductImageInCache(it.name, it.partNumber);
+                  let updatedIt = it;
+                  if (updatedIt && (!updatedIt.imageUrl || !updatedIt.imageUrl.trim()) && (updatedIt.name || updatedIt.partNumber)) {
+                    const cachedImg = findProductImageInCache(updatedIt.name, updatedIt.partNumber, updatedIt.sku);
                     if (cachedImg) {
-                      return { ...it, imageUrl: cachedImg };
+                      hasFixedAny = true;
+                      updatedIt = { ...updatedIt, imageUrl: cachedImg, showImage: updatedIt.showImage !== false };
                     }
                   }
-                  return it;
+                  if (updatedIt && updatedIt.imageUrl && updatedIt.imageUrl.trim() && updatedIt.showImage === false) {
+                    hasFixedAny = true;
+                    updatedIt = { ...updatedIt, showImage: true };
+                  }
+                  return updatedIt;
                 })
               };
             }
