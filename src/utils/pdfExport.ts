@@ -3,63 +3,62 @@ import { generateProposalEmailHtml } from './aiEmailParser';
 
 /**
  * Gera o arquivo binário em Base64 do PDF oficial da proposta para anexo no envio de e-mails.
- * Utiliza o mesmo documento fiel, calibrado em folha A4 com Verdana e dados fiscais da Infodesk.
+ * Utiliza captura direta via html2canvas e montagem de páginas A4 em alta definição com jsPDF.
  */
 export async function generateQuotePdfBase64(
   quote: Quote,
   settings: CompanySettings,
   clientLogoDataUrl?: string
 ): Promise<{ filename: string; base64: string }> {
-  // Carrega dinamicamente html2pdf para manter o bundle principal leve
-  const html2pdfModule = await import('html2pdf.js');
-  const html2pdf = (html2pdfModule as any).default || html2pdfModule;
+  // Carrega html2canvas e jsPDF dinamicamente para manter o bundle principal leve
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf')
+  ]);
 
   const cleanCode = (quote.code || 'proposta').replace(/[^a-zA-Z0-9_-]/g, '_');
   const filename = `Proposta-Comercial-${cleanCode}.pdf`;
 
-  // Tenta capturar a réplica exata do DOM que o usuário está visualizando na tela
+  // 1. Tenta capturar a réplica exata do DOM que o usuário está visualizando na tela
   const livePreviewEl = document.getElementById('quote-preview-document');
-  let renderEl: HTMLElement;
+  let targetEl: HTMLElement;
 
   if (livePreviewEl) {
-    // Clona o elemento para não interferir na tela do usuário
-    renderEl = livePreviewEl.cloneNode(true) as HTMLElement;
-    renderEl.id = 'quote-pdf-render-clone';
-    renderEl.style.boxShadow = 'none';
-    renderEl.style.border = 'none';
-    renderEl.style.borderRadius = '0';
-    renderEl.style.margin = '0';
+    targetEl = livePreviewEl.cloneNode(true) as HTMLElement;
+    targetEl.id = 'quote-pdf-render-clone';
+    targetEl.style.boxShadow = 'none';
+    targetEl.style.border = 'none';
+    targetEl.style.borderRadius = '0';
+    targetEl.style.margin = '0';
   } else {
-    // Se invocado sem pré-visualização ativa, monta o container a partir do HTML oficial
     const proposalHtml = generateProposalEmailHtml(quote, settings, {
       clientLogoUrl: clientLogoDataUrl,
       forEmailSend: false
     });
-    renderEl = document.createElement('div');
-    renderEl.id = 'quote-pdf-render-fallback';
-    renderEl.innerHTML = proposalHtml;
-    renderEl.style.width = '21cm';
-    renderEl.style.fontFamily = 'Verdana, Geneva, sans-serif';
-    renderEl.style.color = '#000000';
-    renderEl.style.boxSizing = 'border-box';
+    targetEl = document.createElement('div');
+    targetEl.id = 'quote-pdf-render-fallback';
+    targetEl.innerHTML = proposalHtml;
+    targetEl.style.width = '21cm';
+    targetEl.style.fontFamily = 'Verdana, Geneva, sans-serif';
+    targetEl.style.color = '#000000';
+    targetEl.style.boxSizing = 'border-box';
   }
 
-  // REGRA CRÍTICA: NUNCA usar left: -9999px porque o html2canvas não renderiza elementos fora do viewport.
-  // Usamos position: fixed no topo esquerdo (0, 0) com z-index: -9999 para que o elemento fique
-  // dentro das coordenadas reais do viewport da janela, mas totalmente oculto atrás da interface do usuário.
-  renderEl.style.position = 'fixed';
-  renderEl.style.left = '0';
-  renderEl.style.top = '0';
-  renderEl.style.zIndex = '-9999';
-  renderEl.style.backgroundColor = '#ffffff';
-  renderEl.style.opacity = '1';
-  renderEl.style.visibility = 'visible';
-  renderEl.style.pointerEvents = 'none';
-  document.body.appendChild(renderEl);
+  // Posiciona de forma fixa no viewport com z-index negativo para não cobrir a tela do usuário,
+  // mas com visibilidade e opacidade 100% ativas para que o html2canvas capture cada pixel perfeitamente.
+  targetEl.style.position = 'fixed';
+  targetEl.style.left = '0';
+  targetEl.style.top = '0';
+  targetEl.style.zIndex = '-9999';
+  targetEl.style.backgroundColor = '#ffffff';
+  targetEl.style.opacity = '1';
+  targetEl.style.visibility = 'visible';
+  targetEl.style.pointerEvents = 'none';
+  document.body.appendChild(targetEl);
 
   try {
-    // Garante que todas as imagens (logomarca, ícones, fotos de produtos) estejam 100% carregadas antes do snapshot
-    const images = Array.from(renderEl.querySelectorAll('img'));
+    // 2. Garante que todas as imagens (logomarca, fotos dos produtos, ícones) estejam 100% carregadas
+    const images = Array.from(targetEl.querySelectorAll('img'));
     await Promise.all(
       images.map(img => {
         if (img.complete && img.naturalWidth !== 0) return Promise.resolve(true);
@@ -71,41 +70,78 @@ export async function generateQuotePdfBase64(
       })
     );
 
-    // Breve pausa para acomodação de fontes e estilos computados pelo navegador
-    await new Promise(r => setTimeout(r, 150));
+    // Pausa breve para renderização de fontes e layout computado
+    await new Promise(r => setTimeout(r, 120));
 
-    // Como o elemento já tem as margens A4 oficiais embutidas (padding 2cm esquerda, 1.32cm direita, 0.75cm topo, 0.45cm base),
-    // o margin do jsPDF é 0 para evitar margens duplicadas ou espremidas
-    const opt = {
-      margin: 0,
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        scrollX: 0,
-        scrollY: 0
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+    // 3. Captura o elemento em alta definição (escala 2x para máxima nitidez de impressão)
+    const canvas = await html2canvas(targetEl, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 794
+    });
 
-    const pdfDataUriString = await html2pdf()
-      .from(renderEl)
-      .set(opt)
-      .outputPdf('datauristring');
+    // 4. Monta o PDF folha por folha (A4: 210mm x 297mm)
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+      compress: true
+    });
 
-    const base64 = (pdfDataUriString || '').split(',')[1] || pdfDataUriString;
+    const pdfWidth = 210;
+    const pdfHeight = 297;
+    // Altura em pixels do canvas correspondente a 1 folha A4 proporcional
+    const pageCanvasHeight = Math.floor((pdfHeight * canvas.width) / pdfWidth);
+
+    let renderedHeight = 0;
+    let pageNumber = 0;
+
+    while (renderedHeight < canvas.height) {
+      const sliceHeight = Math.min(pageCanvasHeight, canvas.height - renderedHeight);
+
+      // Canvas individual da página atual
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceHeight;
+
+      const ctx = pageCanvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        ctx.drawImage(
+          canvas,
+          0, renderedHeight, canvas.width, sliceHeight,
+          0, 0, canvas.width, sliceHeight
+        );
+      }
+
+      const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.98);
+      const sliceHeightInMm = (sliceHeight * pdfWidth) / canvas.width;
+
+      if (pageNumber > 0) {
+        pdf.addPage('a4', 'portrait');
+      }
+      pdf.addImage(pageImgData, 'JPEG', 0, 0, pdfWidth, sliceHeightInMm, undefined, 'FAST');
+
+      renderedHeight += pageCanvasHeight;
+      pageNumber += 1;
+    }
+
+    const dataUriString = pdf.output('datauristring');
+    const base64 = (dataUriString || '').split(',')[1] || dataUriString;
 
     return {
       filename,
       base64
     };
   } finally {
-    if (document.body.contains(renderEl)) {
-      document.body.removeChild(renderEl);
+    if (document.body.contains(targetEl)) {
+      document.body.removeChild(targetEl);
     }
   }
 }
