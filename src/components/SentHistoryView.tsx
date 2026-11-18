@@ -28,11 +28,14 @@ import {
   Copy,
   PackageCheck,
   ShoppingCart,
-  Tag
+  Tag,
+  Cloud,
+  RefreshCw
 } from 'lucide-react';
 import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
 import { parseQuoteTimestamp, isSameDay } from '../utils/dateUtils';
+import { searchQuotesInSupabase } from '../services/supabase';
 import { QuoteApprovalModal } from './QuoteApprovalModal';
 import { WhatsAppQuoteModal, WhatsAppMessageMode } from './WhatsAppQuoteModal';
 
@@ -49,6 +52,8 @@ interface SentHistoryViewProps {
   onStageFilterChange?: (stage: StageId | 'all') => void;
   stageFilterTrigger?: number;
   isVisible?: boolean;
+  onRefreshQuotesFromCloud?: () => Promise<void>;
+  onAddFoundQuoteFromCloud?: (quote: Quote) => void;
 }
 
 type StageId = 'draft' | 'sent' | 'negotiating' | 'approved' | 'lost';
@@ -131,11 +136,19 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
   initialStageFilter = 'all',
   onStageFilterChange,
   stageFilterTrigger,
-  isVisible = true
+  isVisible = true,
+  onRefreshQuotesFromCloud,
+  onAddFoundQuoteFromCloud
 }) => {
   const [quoteForApproval, setQuoteForApproval] = useState<Quote | null>(null);
   const [quoteForWhatsApp, setQuoteForWhatsApp] = useState<Quote | null>(null);
-  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('today');
+  // REGRA DE OURO DO LUCAS: Padrão histórico completo ('all') para que NENHUMA cotação anterior fique oculta!
+  const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('all');
+  const [isSearchingCloud, setIsSearchingCloud] = useState<boolean>(false);
+  const [cloudSearchedTerm, setCloudSearchedTerm] = useState<string | null>(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
+  const [cloudFeedbackMsg, setCloudFeedbackMsg] = useState<string | null>(null);
+
   const [specificDate, setSpecificDate] = useState<string>(() => {
     const d = new Date();
     const year = d.getFullYear();
@@ -158,6 +171,46 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
   const [quoteForLoss, setQuoteForLoss] = useState<Quote | null>(null);
   const [selectedLossReason, setSelectedLossReason] = useState<string>('Preço / Concorrente mais barato');
   const [customLossReason, setCustomLossReason] = useState<string>('');
+
+  const handleFullCloudSync = async () => {
+    if (!onRefreshQuotesFromCloud || isSyncingCloud) return;
+    setIsSyncingCloud(true);
+    setCloudFeedbackMsg(null);
+    try {
+      await onRefreshQuotesFromCloud();
+      setCloudFeedbackMsg('✅ Histórico sincronizado com a nuvem!');
+      setTimeout(() => setCloudFeedbackMsg(null), 4000);
+    } catch {
+      setCloudFeedbackMsg('Aviso: Sincronização remota pendente.');
+      setTimeout(() => setCloudFeedbackMsg(null), 4000);
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
+  const handleCloudSearch = async () => {
+    if (!searchTerm.trim() || isSearchingCloud) return;
+    setIsSearchingCloud(true);
+    const termToSearch = searchTerm.trim();
+    setCloudSearchedTerm(termToSearch);
+    try {
+      const found = await searchQuotesInSupabase(termToSearch);
+      if (found && found.length > 0) {
+        found.forEach(q => {
+          onAddFoundQuoteFromCloud?.(q);
+        });
+        setCloudFeedbackMsg(`✅ ${found.length} cotação(ões) encontrada(s) na nuvem e carregada(s)!`);
+      } else {
+        setCloudFeedbackMsg(`Nenhuma cotação com "${termToSearch}" encontrada no Supabase.`);
+      }
+    } catch (err) {
+      console.warn('Erro ao consultar Supabase:', err);
+      setCloudFeedbackMsg('Erro ao consultar banco na nuvem.');
+    } finally {
+      setIsSearchingCloud(false);
+      setTimeout(() => setCloudFeedbackMsg(null), 5000);
+    }
+  };
 
   const LOSS_REASONS = [
     'Preço / Concorrente mais barato',
@@ -201,7 +254,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
       setSelectedStageFilter('draft');
       setSearchTerm('');
       setOnlyFollowUpDue(false);
-      setDateFilter('today');
+      setDateFilter('all');
       try {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch {}
@@ -309,8 +362,13 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
     const now = new Date();
     const todayFormatted = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    // Descarta rascunhos fantasmas vazios (0 itens comerciais) que possam ter ficado na memória
-    const validQuotes = quotes.filter(q => (q.status && q.status !== 'draft') || (Array.isArray(q.items) && q.items.length > 0));
+    // Descarta apenas rascunhos que não tenham código comercial NEM empresa cliente NEM itens comerciais
+    const validQuotes = quotes.filter(q => 
+      (q.status && q.status !== 'draft') || 
+      (Array.isArray(q.items) && q.items.length > 0) ||
+      Boolean(q.code && q.code.trim()) ||
+      Boolean(q.clientCompany && q.clientCompany.trim())
+    );
 
     if (dateFilter === 'all') return validQuotes;
 
@@ -389,7 +447,10 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
     });
 
     // Diretriz: Rascunhos em aberto devem sempre contabilizar todos os rascunhos válidos existentes
-    const allValidDrafts = quotes.filter(q => normalizeStatus(q) === 'draft' && (Array.isArray(q.items) && q.items.length > 0));
+    const allValidDrafts = quotes.filter(q => 
+      normalizeStatus(q) === 'draft' && 
+      ((Array.isArray(q.items) && q.items.length > 0) || Boolean(q.code && q.code.trim()) || Boolean(q.clientCompany && q.clientCompany.trim()))
+    );
     stats.draft.count = allValidDrafts.length;
     stats.draft.totalAmount = allValidDrafts.reduce((acc, q) => acc + (q.totalAmount || 0), 0);
 
@@ -402,10 +463,72 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
 
   // 3. Lista final filtrada por estágio, busca textual e ordenada
   const filteredQuotes = useMemo(() => {
-    // Se o usuário clicou no filtro 'draft', garante a exibição de todos os rascunhos válidos
+    // Propostas comerciais válidas completas
+    const validQuotes = quotes.filter(q => 
+      (q.status && q.status !== 'draft') || 
+      (Array.isArray(q.items) && q.items.length > 0) ||
+      Boolean(q.code && q.code.trim()) ||
+      Boolean(q.clientCompany && q.clientCompany.trim())
+    );
+
+    const hasSearch = Boolean(searchTerm.trim());
+
+    // REGRA DE OURO DO LUCAS: Quando o usuário digita um termo de busca (ex: "SC 006342"),
+    // a pesquisa DEVE varrer TODAS as propostas comerciais do sistema, sem ser restringida por data nem estágio!
+    // Nenhuma cotação pode ficar oculta quando o usuário pesquisa por ela.
+    if (hasSearch) {
+      const rawTerm = searchTerm.trim();
+      const term = normalizeSearchText(rawTerm);
+      const termNoSpaces = term.replace(/[^a-z0-9]/gi, '');
+
+      return validQuotes
+        .filter(q => {
+          if (!term) return true;
+
+          const comp = normalizeSearchText(q.clientCompany);
+          const contact = normalizeSearchText(q.contactPerson);
+          const code = normalizeSearchText(q.code);
+          const codeNoSpaces = code.replace(/[^a-z0-9]/gi, '');
+          const order = normalizeSearchText(q.clientOrderNumber);
+          const orderNoSpaces = order.replace(/[^a-z0-9]/gi, '');
+          const subject = normalizeSearchText(q.subject);
+          const email = normalizeSearchText(q.clientEmail);
+          const id = normalizeSearchText(q.id);
+
+          const matchesCode = code.includes(term) || (termNoSpaces.length >= 3 && codeNoSpaces.includes(termNoSpaces));
+          const matchesOrder = order.includes(term) || (termNoSpaces.length >= 3 && orderNoSpaces.includes(termNoSpaces));
+          const matchesHeader = comp.includes(term) || contact.includes(term) || email.includes(term) || subject.includes(term) || id.includes(term);
+
+          const itemMatch = Array.isArray(q.items) && q.items.some(it => {
+            const name = normalizeSearchText(it.name);
+            const desc = normalizeSearchText(it.description);
+            const pn = normalizeSearchText(it.partNumber);
+            const pnNoSpaces = pn.replace(/[^a-z0-9]/gi, '');
+            const ncm = normalizeSearchText(it.ncm);
+            const supp = normalizeSearchText(it.supplier);
+            return (
+              name.includes(term) ||
+              desc.includes(term) ||
+              pn.includes(term) ||
+              (termNoSpaces.length >= 3 && pnNoSpaces.includes(termNoSpaces)) ||
+              ncm.includes(term) ||
+              supp.includes(term)
+            );
+          });
+
+          return matchesCode || matchesOrder || matchesHeader || itemMatch;
+        })
+        .sort((a, b) => {
+          if (sortBy === 'amount_desc') return (b.totalAmount || 0) - (a.totalAmount || 0);
+          if (sortBy === 'amount_asc') return (a.totalAmount || 0) - (b.totalAmount || 0);
+          return getSortTimestamp(b) - getSortTimestamp(a);
+        });
+    }
+
+    // Se NÃO há termo de busca, respeita os filtros normais de data e estágio selecionados
     let sourceList = dateFilteredQuotes;
     if (selectedStageFilter === 'draft') {
-      const allDrafts = quotes.filter(q => normalizeStatus(q) === 'draft' && (Array.isArray(q.items) && q.items.length > 0));
+      const allDrafts = validQuotes.filter(q => normalizeStatus(q) === 'draft');
       const map = new Map<string, Quote>();
       sourceList.forEach(q => map.set(q.id, q));
       allDrafts.forEach(q => map.set(q.id, q));
@@ -417,44 +540,14 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
         const norm = normalizeStatus(q);
         if (selectedStageFilter !== 'all' && norm !== selectedStageFilter) return false;
         if (onlyFollowUpDue && !isFollowUpDue(q)) return false;
-
-        if (searchTerm.trim()) {
-          const term = normalizeSearchText(searchTerm);
-          if (!term) return true;
-
-          const comp = normalizeSearchText(q.clientCompany);
-          const contact = normalizeSearchText(q.contactPerson);
-          const code = normalizeSearchText(q.code);
-          const order = normalizeSearchText(q.clientOrderNumber);
-          const subject = normalizeSearchText(q.subject);
-
-          const itemMatch = Array.isArray(q.items) && q.items.some(it => {
-            const name = normalizeSearchText(it.name);
-            const desc = normalizeSearchText(it.description);
-            const pn = normalizeSearchText(it.partNumber);
-            const ncm = normalizeSearchText(it.ncm);
-            const supp = normalizeSearchText(it.supplier);
-            return (
-              name.includes(term) ||
-              desc.includes(term) ||
-              pn.includes(term) ||
-              ncm.includes(term) ||
-              supp.includes(term)
-            );
-          });
-
-          return comp.includes(term) || contact.includes(term) || code.includes(term) || order.includes(term) || subject.includes(term) || itemMatch;
-        }
         return true;
       })
       .sort((a, b) => {
         if (sortBy === 'amount_desc') return (b.totalAmount || 0) - (a.totalAmount || 0);
         if (sortBy === 'amount_asc') return (a.totalAmount || 0) - (b.totalAmount || 0);
-
-        // Classificação por horário de envio (mais recentes no topo)
         return getSortTimestamp(b) - getSortTimestamp(a);
       });
-  }, [dateFilteredQuotes, selectedStageFilter, onlyFollowUpDue, searchTerm, sortBy]);
+  }, [dateFilteredQuotes, quotes, selectedStageFilter, onlyFollowUpDue, searchTerm, sortBy]);
 
   return (
     <div className="space-y-5 animate-fadeIn">
@@ -573,11 +666,21 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-0.5 overflow-x-auto no-scrollbar max-w-full">
             <button
               type="button"
+              onClick={() => setDateFilter('all')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+                dateFilter === 'all' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Todo o histórico de cotações (Padrão)"
+            >
+              Todas
+            </button>
+            <button
+              type="button"
               onClick={() => setDateFilter('today')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
                 dateFilter === 'today' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="Exibir cotações de hoje (Padrão)"
+              title="Exibir cotações de hoje"
             >
               Hoje
             </button>
@@ -613,16 +716,6 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setDateFilter('all')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
-                dateFilter === 'all' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Todo o histórico de cotações"
-            >
-              Todas
-            </button>
-            <button
-              type="button"
               onClick={() => setDateFilter('specificDate')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 flex items-center gap-1 ${
                 dateFilter === 'specificDate' ? 'bg-white text-sky-700 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
@@ -644,9 +737,34 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
               <span>Período</span>
             </button>
           </div>
+
+          {onRefreshQuotesFromCloud && (
+            <button
+              type="button"
+              onClick={handleFullCloudSync}
+              disabled={isSyncingCloud}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 flex items-center gap-1.5 bg-white border border-slate-200 hover:border-sky-300 hover:bg-sky-50 text-slate-700 hover:text-sky-700 shadow-2xs disabled:opacity-50"
+              title="Recarregar todas as propostas da nuvem (Supabase) sem limites de cache"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin text-sky-600' : 'text-slate-500'}`} />
+              <span>{isSyncingCloud ? 'Sincronizando...' : 'Atualizar Nuvem'}</span>
+            </button>
+          )}
         </div>
 
       </div>
+
+      {cloudFeedbackMsg && (
+        <div className="bg-sky-50 border border-sky-200 text-sky-800 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-between shadow-2xs animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
+            <span>{cloudFeedbackMsg}</span>
+          </div>
+          <button type="button" onClick={() => setCloudFeedbackMsg(null)} className="text-sky-600 hover:text-sky-900 p-1 cursor-pointer">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Se dateFilter === 'specificDate', mostra o campo para escolher o dia */}
       {dateFilter === 'specificDate' && (
@@ -791,11 +909,36 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
             {selectedStageFilter === 'all' && stageStats.draft.count > 0
               ? `Você ainda não emitiu propostas comerciais no período selecionado, mas possui ${stageStats.draft.count} cotação(ões) em rascunho em aberto.`
               : searchTerm || selectedStageFilter !== 'all' || onlyFollowUpDue
-                ? 'Nenhum orçamento corresponde aos filtros de busca ou estágio selecionados.'
+                ? `Nenhum orçamento local corresponde à busca "${searchTerm || ''}".`
                 : dateFilter === 'today'
                   ? 'Nenhuma proposta comercial emitida no dia de hoje até o momento.'
                   : `Nenhuma proposta comercial encontrada para o filtro (${getDateFilterLabel(dateFilter)}).`}
           </p>
+
+          {/* Botão de Busca Direta na Nuvem (Supabase) quando a pesquisa local não encontrar */}
+          {searchTerm.trim() && (
+            <div className="pt-3 border-t border-slate-100 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                disabled={isSearchingCloud}
+                onClick={handleCloudSearch}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                {isSearchingCloud ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Cloud className="w-4 h-4" />
+                )}
+                <span>
+                  {isSearchingCloud ? 'Consultando Supabase...' : `Pesquisar "${searchTerm}" na Nuvem (Supabase)`}
+                </span>
+              </button>
+              <p className="text-[11px] text-slate-400">
+                Se a cotação foi criada em outro dispositivo ou ainda não baixou no navegador, a busca na nuvem localiza e inclui ela imediatamente.
+              </p>
+            </div>
+          )}
+
           {selectedStageFilter === 'all' && stageStats.draft.count > 0 && (
             <div className="pt-2">
               <button

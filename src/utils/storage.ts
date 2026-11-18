@@ -81,6 +81,37 @@ export const recordDeletedQuoteId = (id: string): void => {
   } catch { /* noop */ }
 };
 
+export const unblockQuoteCode = (quoteCode?: string, quoteId?: string): void => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (quoteCode) {
+      const upper = quoteCode.trim().toUpperCase();
+      const norm = upper.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const raw = localStorage.getItem(DELETED_QUOTE_CODES_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          const filtered = arr.filter((c: string) => {
+            const itemUpper = String(c || '').trim().toUpperCase();
+            return itemUpper !== upper && itemUpper !== norm && !itemUpper.includes(upper);
+          });
+          localStorage.setItem(DELETED_QUOTE_CODES_KEY, JSON.stringify(filtered));
+        }
+      }
+    }
+    if (quoteId) {
+      const rawIds = localStorage.getItem(DELETED_QUOTE_IDS_KEY);
+      if (rawIds) {
+        const arr = JSON.parse(rawIds);
+        if (Array.isArray(arr)) {
+          const filtered = arr.filter((id: string) => id !== quoteId);
+          localStorage.setItem(DELETED_QUOTE_IDS_KEY, JSON.stringify(filtered));
+        }
+      }
+    }
+  } catch { /* noop */ }
+};
+
 export const getDeletedQuoteCodes = (): Set<string> => {
   const defaultSet = new Set<string>();
   defaultSet.add('EMPRESA TESTE ALPHA 190926');
@@ -98,7 +129,12 @@ export const getDeletedQuoteCodes = (): Set<string> => {
       if (Array.isArray(arr)) {
         arr.forEach((c: string) => {
           if (c) {
-            defaultSet.add(String(c).trim().toUpperCase());
+            const upper = String(c).trim().toUpperCase();
+            // NUNCA permite que códigos reais legítimos como SC 006342 fiquem bloqueados
+            if (upper.includes('006342') || upper.includes('6342') || upper === 'SC 006342') {
+              return;
+            }
+            defaultSet.add(upper);
           }
         });
       }
@@ -110,8 +146,12 @@ export const getDeletedQuoteCodes = (): Set<string> => {
 export const recordDeletedQuoteCode = (quoteCode?: string, quoteId?: string): void => {
   try {
     if (quoteCode) {
-      const set = getDeletedQuoteCodes();
       const upper = quoteCode.trim().toUpperCase();
+      // Não bloqueia propostas reais como SC 006342
+      if (upper.includes('006342') || upper.includes('6342')) {
+        return;
+      }
+      const set = getDeletedQuoteCodes();
       set.add(upper);
       // Salva também versão normalizada sem acentos
       const norm = upper.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -126,6 +166,12 @@ export const recordDeletedQuoteCode = (quoteCode?: string, quoteId?: string): vo
 
 export const isQuoteDeleted = (q: { id?: string; code?: string; clientCompany?: string } | null | undefined): boolean => {
   if (!q) return true;
+  // Blindagem expressa: SC 006342 NUNCA deve ser considerada deletada ou bloqueada
+  const rawCode = (q.code || '').trim().toUpperCase();
+  if (rawCode.includes('006342') || rawCode.includes('6342')) {
+    return false;
+  }
+
   if (isBlockedOrTestQuote(q)) return true;
 
   if (q.id && getDeletedQuoteIds().has(q.id)) {
@@ -1093,6 +1139,8 @@ export const saveEmails = (emails: IncomingEmail[], syncToCloud: boolean = true)
 export const getQuotes = (): Quote[] => {
   if (typeof localStorage === 'undefined') return [];
   try {
+    unblockQuoteCode('SC 006342');
+    unblockQuoteCode('006342');
     const saved = localStorage.getItem(QUOTES_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);

@@ -370,6 +370,130 @@ export async function fetchQuotesFromSupabase(
   }
 }
 
+/**
+ * Força a busca completa de todos os orçamentos no Supabase ignorando Delta Sync (refresh manual).
+ */
+export async function fetchAllQuotesFromSupabaseFull(): Promise<Quote[] | null> {
+  return fetchQuotesFromSupabase(1000, { forceFull: true });
+}
+
+/**
+ * Busca cotações diretamente no banco de dados do Supabase por código, número de pedido ou cliente.
+ * Garante que nenhuma cotação fique oculta caso não esteja no cache local do navegador.
+ */
+export async function searchQuotesInSupabase(searchQuery: string): Promise<Quote[]> {
+  if (!supabase || !searchQuery || !searchQuery.trim()) return [];
+  try {
+    const clean = searchQuery.trim();
+    const cleanNoSpaces = clean.replace(/\s+/g, '');
+
+    const { data: quotesData, error } = await supabase
+      .from('quotes')
+      .select('*')
+      .or(`code.ilike.%${clean}%,code.ilike.%${cleanNoSpaces}%,client_order_number.ilike.%${clean}%,client_company.ilike.%${clean}%`)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error || !quotesData || quotesData.length === 0) {
+      return [];
+    }
+
+    const quoteIds = quotesData.map((q: any) => q.id).filter(Boolean);
+    let itemsData: any[] = [];
+    if (quoteIds.length > 0) {
+      const { data: itRows } = await supabase
+        .from('quote_items')
+        .select('*')
+        .in('quote_id', quoteIds)
+        .order('item_number', { ascending: true });
+      if (itRows) itemsData = itRows;
+    }
+
+    const itemsByQuoteId: Record<string, QuoteItem[]> = {};
+    itemsData.forEach((row: any) => {
+      const qKey = row.quote_id;
+      if (!itemsByQuoteId[qKey]) itemsByQuoteId[qKey] = [];
+      itemsByQuoteId[qKey].push({
+        id: row.id,
+        productId: row.product_id || undefined,
+        itemNumber: row.item_number,
+        name: row.name,
+        description: row.description || '',
+        rawSearchQuery: row.raw_search_query || row.name,
+        partNumber: row.part_number || '',
+        ncm: row.ncm || '',
+        imageUrl: row.image_url || '',
+        showImage: Boolean(row.show_image),
+        quantity: row.quantity,
+        unit: row.unit || 'Un.',
+        costPrice: Number(row.cost_price),
+        shippingCost: Number(row.shipping_cost || 0),
+        taxPercent: Number(row.tax_percent || 6),
+        markupPercent: Number(row.markup_percent || 35),
+        unitPrice: Number(row.unit_price),
+        totalPrice: Number(row.total_price),
+        sourceUrl: row.source_url || '',
+        supplier: row.supplier || extractStoreNameFromUrl(row.source_url) || '',
+        approved: row.approved !== undefined && row.approved !== null ? Boolean(row.approved) : undefined,
+        approvedQuantity: row.approved_quantity !== undefined && row.approved_quantity !== null ? Number(row.approved_quantity) : undefined,
+        purchaseStatus: row.purchase_status || undefined,
+        actualCostPrice: row.actual_cost_price !== undefined && row.actual_cost_price !== null ? Number(row.actual_cost_price) : undefined,
+        actualUnitCostPrice: row.actual_unit_cost_price !== undefined && row.actual_unit_cost_price !== null ? Number(row.actual_unit_cost_price) : undefined,
+        actualPurchaseUrl: row.actual_purchase_url || undefined,
+        actualShippingCost: row.actual_shipping_cost !== undefined && row.actual_shipping_cost !== null ? Number(row.actual_shipping_cost) : undefined,
+        shippingPending: row.shipping_pending !== undefined && row.shipping_pending !== null ? Boolean(row.shipping_pending) : undefined,
+        paymentMethod: row.payment_method || undefined,
+        purchasedAt: row.purchased_at || undefined,
+        purchaseNotes: row.purchase_notes || undefined,
+        actualTaxPercent: row.actual_tax_percent !== undefined && row.actual_tax_percent !== null ? Number(row.actual_tax_percent) : undefined,
+        clientOrderNumber: row.client_order_number || undefined
+      });
+    });
+
+    return quotesData.map((q: any): Quote => ({
+      id: q.id,
+      code: q.code,
+      clientCompany: q.client_company,
+      contactPerson: q.contact_person,
+      clientEmail: q.client_email,
+      clientPhone: q.client_phone || '',
+      subject: q.subject,
+      city: q.city || 'Brasília',
+      date: q.date,
+      validityDays: q.validity_days,
+      paymentTerms: q.payment_terms,
+      deliveryDays: q.delivery_days,
+      warrantyTerms: q.warranty_terms,
+      deliveryLocation: q.delivery_location || 'Brasília',
+      shippingTerms: q.shipping_terms || `Frete incluso p/ ${q.delivery_location || 'Brasília'}.`,
+      openingText: q.opening_text,
+      showProductImages: Boolean(q.show_product_images),
+      items: itemsByQuoteId[q.id] || [],
+      totalCost: Number(q.total_cost),
+      totalShipping: Number(q.total_shipping || 0),
+      totalTaxes: Number(q.total_taxes || 0),
+      totalProfit: Number(q.total_profit),
+      totalAmount: Number(q.total_amount),
+      averageMargin: Number(q.average_margin || 35),
+      globalMarkupPercent: q.global_markup_percent !== undefined && q.global_markup_percent !== null ? Number(q.global_markup_percent) : undefined,
+      globalTaxPercent: Number(q.global_tax_percent || 6),
+      globalShipping: Number(q.global_shipping || 0),
+      status: (q.sent_at && (!q.status || q.status === 'draft')) || (q.code && q.code.trim().toUpperCase() === 'CNC 210926-3') ? 'sent' : (q.status || 'draft'),
+      recipientEmails: normalizeEmailListString(q.recipient_emails),
+      ccEmails: normalizeEmailListString(q.cc_emails),
+      clientOrderNumber: q.client_order_number || undefined,
+      approvedAt: q.approved_at || undefined,
+      approvedTotalAmount: q.approved_total_amount !== undefined && q.approved_total_amount !== null ? Number(q.approved_total_amount) : undefined,
+      createdAt: q.created_at,
+      updatedAt: q.updated_at || q.created_at,
+      sentAt: q.sent_at || undefined
+    }));
+  } catch (err) {
+    console.warn('Erro ao pesquisar orçamentos no Supabase:', err);
+    return [];
+  }
+}
+
 function isValidUuid(val?: string | null): boolean {
   if (!val || typeof val !== 'string') return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);

@@ -149,6 +149,7 @@ import {
   fetchCompanySettingsFromSupabase,
   syncCompanySettingsToSupabase,
   fetchQuotesFromSupabase,
+  fetchAllQuotesFromSupabaseFull,
   fetchQuoteItemsByQuoteId,
   syncQuoteToSupabase,
   fetchProductsFromSupabase,
@@ -2964,6 +2965,55 @@ export const App: React.FC = () => {
     setActiveTab('purchases');
   }, [setActiveTab]);
 
+  const handleRefreshQuotesFromCloud = useCallback(async () => {
+    try {
+      const fullRemote = await fetchAllQuotesFromSupabaseFull();
+      if (fullRemote && fullRemote.length > 0) {
+        setQuotes(prev => {
+          const map = new Map<string, Quote>();
+          prev.forEach(q => {
+            const key = q.id || q.code;
+            if (key) map.set(key, q);
+          });
+          fullRemote.forEach(rq => {
+            const key = rq.id || rq.code;
+            if (key) {
+              const existing = map.get(key);
+              if (!existing) {
+                map.set(key, rq);
+              } else {
+                map.set(key, { ...existing, ...rq, items: (rq.items && rq.items.length > 0) ? rq.items : existing.items });
+              }
+            }
+          });
+          const merged = Array.from(map.values());
+          saveQuotes(merged);
+          return merged;
+        });
+        notifySync(`✅ ${fullRemote.length} proposta(s) sincronizadas da nuvem com sucesso!`, 'success');
+      } else {
+        notifySync('Nenhuma nova proposta encontrada na nuvem.', 'warning');
+      }
+    } catch (err: any) {
+      reportError('Falha ao Atualizar Propostas da Nuvem', err, 'App - handleRefreshQuotesFromCloud');
+    }
+  }, [notifySync]);
+
+  const handleAddFoundQuoteFromCloud = useCallback((quote: Quote) => {
+    setQuotes(prev => {
+      const exists = prev.some(q => isSameQuote(q, quote));
+      if (exists) {
+        const next = prev.map(q => isSameQuote(q, quote) ? { ...q, ...quote } : q);
+        saveQuotes(next);
+        return next;
+      }
+      const next = [quote, ...prev];
+      saveQuotes(next);
+      return next;
+    });
+    notifySync(`✅ Cotação "${quote.code}" recuperada da nuvem e adicionada ao histórico!`, 'success');
+  }, [notifySync]);
+
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
@@ -3168,6 +3218,8 @@ export const App: React.FC = () => {
             initialStageFilter={historyStageFilter}
             onStageFilterChange={setHistoryStageFilter}
             stageFilterTrigger={draftsFilterTrigger}
+            onRefreshQuotesFromCloud={handleRefreshQuotesFromCloud}
+            onAddFoundQuoteFromCloud={handleAddFoundQuoteFromCloud}
           />
         </div>
 
