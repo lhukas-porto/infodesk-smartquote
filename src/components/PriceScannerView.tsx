@@ -686,6 +686,13 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     matchInfo: CatalogMatchInfo;
   } | null>(null);
 
+  // Seleção por Checkbox no Modal de Escolha de Catálogo vs Descoberta IA (Diretriz do Lucas)
+  const [choiceIncludeCatalog, setChoiceIncludeCatalog] = useState<boolean>(true);
+  const [choiceIncludeDiscovered, setChoiceIncludeDiscovered] = useState<boolean>(false);
+
+  // Seleção por Checkbox dos Produtos Descobertos na Fase 1 (Diretriz do Lucas)
+  const [selectedDiscoveredIds, setSelectedDiscoveredIds] = useState<Set<string>>(new Set());
+
   // Itens salvos ou atualizados nesta sessão (para feedback imediato)
   const [savedInSessionIds, setSavedInSessionIds] = useState<Set<string>>(new Set());
 
@@ -1001,106 +1008,115 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     }
   };
 
-  // Executar a inserção do produto na cotação (seja versão do Catálogo ou versão da IA)
+  // Executar a inserção do produto na cotação (suporta versão do Catálogo, versão da IA, ou AMBAS via checkboxes)
   const executeInsertDiscoveredIntoQuote = (
-    mode: 'catalog' | 'discovered',
+    mode: ('catalog' | 'discovered')[] | 'catalog' | 'discovered',
     discovered: DiscoveredProduct,
-    existingCatalogProd?: Product
+    existingCatalogProd?: Product | null
   ) => {
-    let itemData: Partial<QuoteItem>;
+    const modes = Array.isArray(mode) ? mode : [mode];
+    const itemsToAdd: Partial<QuoteItem>[] = [];
 
-    if (mode === 'catalog' && existingCatalogProd) {
-      // Usa exatamente a versão do catálogo oficial (como já cadastrada pelo Lucas)
-      const cost = existingCatalogProd.costPrice || 0;
-      const itemMarkup = targetMarginPercent !== null
-        ? targetMarginPercent
-        : getScannerTieredMarkup(cost);
+    for (const m of modes) {
+      if (m === 'catalog' && existingCatalogProd) {
+        // Usa exatamente a versão do catálogo oficial (como já cadastrada pelo Lucas)
+        const cost = existingCatalogProd.costPrice || 0;
+        const itemMarkup = targetMarginPercent !== null
+          ? targetMarginPercent
+          : getScannerTieredMarkup(cost);
 
-      const unitPrice = (existingCatalogProd.sellingPrice && existingCatalogProd.sellingPrice > 0)
-        ? existingCatalogProd.sellingPrice
-        : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax) : (discovered.suggestedPrice || undefined));
+        const unitPrice = (existingCatalogProd.sellingPrice && existingCatalogProd.sellingPrice > 0)
+          ? existingCatalogProd.sellingPrice
+          : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax) : (discovered.suggestedPrice || undefined));
 
-      itemData = {
-        productId: existingCatalogProd.id,
-        name: existingCatalogProd.name,
-        description: existingCatalogProd.description || '',
-        partNumber: existingCatalogProd.partNumber || existingCatalogProd.sku || '',
-        ncm: existingCatalogProd.ncm || '',
-        category: existingCatalogProd.category || '',
-        imageUrl: existingCatalogProd.imageUrl || '',
-        showImage: Boolean(existingCatalogProd.imageUrl),
-        costPrice: cost,
-        shippingCost: existingCatalogProd.shippingCost !== undefined ? existingCatalogProd.shippingCost : effectiveShipping,
-        taxPercent: effectiveTax,
-        markupPercent: itemMarkup,
-        unitPrice,
-        quantity: discovered.quantity || 1,
-        unit: existingCatalogProd.unit || 'Un.',
-        supplier: existingCatalogProd.supplier || '',
-        sourceUrl: existingCatalogProd.sourceUrl || ''
-      };
-    } else {
-      // Usa a nova versão descoberta pelo Scanner IA
-      const chosenImage = discovered.images?.[discovered.selectedImageIndex || 0] || discovered.imageUrl || '';
-      const fullDesc = buildCompleteProductDescription(discovered);
-      const resolvedCode = resolveProductModelAndPartNumber({
-        nameOrQuery: discovered.standardizedName,
-        description: fullDesc || discovered.description,
-        brand: discovered.brand,
-        category: discovered.category,
-        scannerModel: discovered.model,
-        scannerPartNumber: discovered.partNumber
-      });
+        itemsToAdd.push({
+          productId: existingCatalogProd.id,
+          name: existingCatalogProd.name,
+          description: existingCatalogProd.description || '',
+          partNumber: existingCatalogProd.partNumber || existingCatalogProd.sku || '',
+          ncm: existingCatalogProd.ncm || '',
+          category: existingCatalogProd.category || '',
+          imageUrl: existingCatalogProd.imageUrl || '',
+          showImage: Boolean(existingCatalogProd.imageUrl),
+          costPrice: cost,
+          shippingCost: existingCatalogProd.shippingCost !== undefined ? existingCatalogProd.shippingCost : effectiveShipping,
+          taxPercent: effectiveTax,
+          markupPercent: itemMarkup,
+          unitPrice,
+          quantity: discovered.quantity || 1,
+          unit: existingCatalogProd.unit || 'Un.',
+          supplier: existingCatalogProd.supplier || '',
+          sourceUrl: existingCatalogProd.sourceUrl || ''
+        });
+      } else if (m === 'discovered') {
+        // Usa a nova versão descoberta pelo Scanner IA
+        const chosenImage = discovered.images?.[discovered.selectedImageIndex || 0] || discovered.imageUrl || '';
+        const fullDesc = buildCompleteProductDescription(discovered);
+        const resolvedCode = resolveProductModelAndPartNumber({
+          nameOrQuery: discovered.standardizedName,
+          description: fullDesc || discovered.description,
+          brand: discovered.brand,
+          category: discovered.category,
+          scannerModel: discovered.model,
+          scannerPartNumber: discovered.partNumber
+        });
 
-      const cost = discovered.costPrice && discovered.costPrice > 0
-        ? discovered.costPrice
-        : (discovered.suggestedPrice ? Number((discovered.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0);
+        const cost = discovered.costPrice && discovered.costPrice > 0
+          ? discovered.costPrice
+          : (discovered.suggestedPrice ? Number((discovered.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0);
 
-      const itemMarkup = targetMarginPercent !== null
-        ? targetMarginPercent
-        : getScannerTieredMarkup(cost);
+        const itemMarkup = targetMarginPercent !== null
+          ? targetMarginPercent
+          : getScannerTieredMarkup(cost);
 
-      const unitPrice = cost > 0
-        ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
-        : (discovered.suggestedPrice || undefined);
+        const unitPrice = cost > 0
+          ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
+          : (discovered.suggestedPrice || undefined);
 
-      itemData = {
-        productId: undefined,
-        name: discovered.standardizedName,
-        description: fullDesc || discovered.description || '',
-        partNumber: resolvedCode.partNumber,
-        ncm: cleanNcmCode(discovered.ncm || ''),
-        category: discovered.category,
-        imageUrl: chosenImage,
-        showImage: !!chosenImage,
-        costPrice: cost,
-        shippingCost: effectiveShipping,
-        taxPercent: effectiveTax,
-        markupPercent: itemMarkup,
-        unitPrice,
-        quantity: discovered.quantity || 1,
-        unit: discovered.unit || 'Un.',
-        supplier: discovered.supplier || '',
-        sourceUrl: discovered.sourceUrl || ''
-      };
+        itemsToAdd.push({
+          productId: undefined,
+          name: discovered.standardizedName,
+          description: fullDesc || discovered.description || '',
+          partNumber: resolvedCode.partNumber,
+          ncm: cleanNcmCode(discovered.ncm || ''),
+          category: discovered.category,
+          imageUrl: chosenImage,
+          showImage: !!chosenImage,
+          costPrice: cost,
+          shippingCost: effectiveShipping,
+          taxPercent: effectiveTax,
+          markupPercent: itemMarkup,
+          unitPrice,
+          quantity: discovered.quantity || 1,
+          unit: discovered.unit || 'Un.',
+          supplier: discovered.supplier || '',
+          sourceUrl: discovered.sourceUrl || ''
+        });
+      }
     }
 
-    if (targetItemIndex !== null && onUpdateQuoteItem) {
-      onUpdateQuoteItem(targetItemIndex, itemData);
-      showToast(mode === 'catalog' 
+    if (itemsToAdd.length === 0) return;
+
+    if (targetItemIndex !== null && onUpdateQuoteItem && itemsToAdd.length === 1) {
+      onUpdateQuoteItem(targetItemIndex, itemsToAdd[0]);
+      showToast(modes.includes('catalog')
         ? `Item substituído pelo produto "${existingCatalogProd?.name}" do catálogo!`
         : `Item "${discovered.standardizedName}" inserido na cotação!`);
       onNavigateToQuote?.();
     } else if (onStartNewQuoteWithItems) {
-      onStartNewQuoteWithItems([itemData]);
-      showToast(mode === 'catalog' 
+      onStartNewQuoteWithItems(itemsToAdd);
+      showToast(itemsToAdd.length > 1
+        ? `${itemsToAdd.length} opções inseridas no orçamento (Catálogo + Descoberta IA)!`
+        : modes.includes('catalog')
         ? `Novo orçamento criado e vinculado ao item "${existingCatalogProd?.name}" do catálogo!`
         : `Novo orçamento criado com "${discovered.standardizedName}"!`);
       onNavigateToQuote?.();
     } else {
-      onAddToQuote(itemData);
-      showToast(mode === 'catalog' 
-        ? `Item do catálogo "${existingCatalogProd?.name}" (Cód: ${existingCatalogProd?.sku || existingCatalogProd?.partNumber}) inserido na cotação!`
+      itemsToAdd.forEach(item => onAddToQuote(item));
+      showToast(itemsToAdd.length > 1
+        ? `${itemsToAdd.length} itens inseridos na cotação (Catálogo + Descoberta IA)!`
+        : modes.includes('catalog')
+        ? `Item do catálogo "${existingCatalogProd?.name}" inserido na cotação!`
         : `Item "${discovered.standardizedName}" inserido na cotação!`);
       onNavigateToQuote?.();
     }
@@ -1108,14 +1124,31 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     setQuoteCatalogChoice(null);
   };
 
-  // Inserir produto identificado individualmente na cotação
+  // Confirmar seleções de checkbox no modal de escolha Catálogo vs Descoberta IA (Diretriz do Lucas)
+  const handleConfirmQuoteChoices = () => {
+    if (!quoteCatalogChoice) return;
+    const modes: ('catalog' | 'discovered')[] = [];
+    if (choiceIncludeCatalog) modes.push('catalog');
+    if (choiceIncludeDiscovered) modes.push('discovered');
+
+    if (modes.length === 0) {
+      showToast('Marque pelo menos um dos checkboxes para inserir na cotação.');
+      return;
+    }
+
+    executeInsertDiscoveredIntoQuote(modes, quoteCatalogChoice.discovered, quoteCatalogChoice.existing);
+  };
+
+  // Inserir produto identificado individualmente na cotação (com verificação de catálogo)
   const handleAddSingleDiscoveredToQuote = (prod: DiscoveredProduct) => {
     // Cruzar com catálogo existente para verificar se "teoricamente" tem no catálogo
     const catalogMatch = findCatalogMatchDetails(prod, products);
     const existingInCatalog = catalogMatch && catalogMatch.score >= 50 ? catalogMatch.product : null;
 
     if (existingInCatalog && catalogMatch) {
-      // REGRA DO LUCAS: Quando achar um produto que teoricamente tem no catálogo, abre a opção de escolha!
+      // REGRA DO LUCAS: Quando achar um produto que teoricamente tem no catálogo, abre a opção de escolha com checkboxes!
+      setChoiceIncludeCatalog(true);
+      setChoiceIncludeDiscovered(false);
       setQuoteCatalogChoice({
         discovered: prod,
         existing: existingInCatalog,
@@ -1126,6 +1159,118 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
     // Se não tem no catálogo, insere direto a descoberta da IA
     executeInsertDiscoveredIntoQuote('discovered', prod);
+  };
+
+  // Checkbox seleção na Fase 1 (Produtos Identificados)
+  const handleToggleSelectDiscovered = (id: string) => {
+    setSelectedDiscoveredIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleToggleSelectAllDiscovered = () => {
+    if (selectedDiscoveredIds.size === discoveredProducts.length) {
+      setSelectedDiscoveredIds(new Set());
+    } else {
+      setSelectedDiscoveredIds(new Set(discoveredProducts.map(p => p.id)));
+    }
+  };
+
+  // Inserir itens marcados por checkbox na Fase 1
+  const handleApplySelectedDiscoveredToQuote = () => {
+    const selected = discoveredProducts.filter(p => selectedDiscoveredIds.has(p.id));
+    if (selected.length === 0) return;
+
+    const itemsData: Partial<QuoteItem>[] = selected.map(prod => {
+      const catalogMatch = findCatalogMatchDetails(prod, products);
+      const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
+
+      if (existingInCatalog) {
+        const cost = existingInCatalog.costPrice || 0;
+        const itemMarkup = targetMarginPercent !== null
+          ? targetMarginPercent
+          : getScannerTieredMarkup(cost);
+        const unitPrice = (existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0)
+          ? existingInCatalog.sellingPrice
+          : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax) : (prod.suggestedPrice || undefined));
+
+        return {
+          productId: existingInCatalog.id,
+          name: existingInCatalog.name,
+          description: existingInCatalog.description || '',
+          partNumber: existingInCatalog.partNumber || existingInCatalog.sku || '',
+          ncm: existingInCatalog.ncm || '',
+          category: existingInCatalog.category || '',
+          imageUrl: existingInCatalog.imageUrl || '',
+          showImage: Boolean(existingInCatalog.imageUrl),
+          costPrice: cost,
+          shippingCost: existingInCatalog.shippingCost !== undefined ? existingInCatalog.shippingCost : effectiveShipping,
+          taxPercent: effectiveTax,
+          markupPercent: itemMarkup,
+          unitPrice,
+          quantity: prod.quantity || 1,
+          unit: existingInCatalog.unit || 'Un.',
+          supplier: existingInCatalog.supplier || '',
+          sourceUrl: existingInCatalog.sourceUrl || ''
+        };
+      }
+
+      const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
+      const fullDesc = buildCompleteProductDescription(prod);
+      const resolvedCode = resolveProductModelAndPartNumber({
+        nameOrQuery: prod.standardizedName,
+        description: fullDesc || prod.description,
+        brand: prod.brand,
+        category: prod.category,
+        scannerModel: prod.model,
+        scannerPartNumber: prod.partNumber
+      });
+
+      const cost = prod.costPrice && prod.costPrice > 0 
+        ? prod.costPrice 
+        : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0);
+
+      const itemMarkup = targetMarginPercent !== null
+        ? targetMarginPercent
+        : getScannerTieredMarkup(cost);
+
+      const unitPrice = cost > 0 
+        ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
+        : (prod.suggestedPrice || undefined);
+
+      return {
+        productId: undefined,
+        name: prod.standardizedName,
+        description: fullDesc || prod.description || '',
+        partNumber: resolvedCode.partNumber,
+        ncm: cleanNcmCode(prod.ncm || ''),
+        category: prod.category,
+        imageUrl: chosenImage,
+        showImage: !!chosenImage,
+        costPrice: cost,
+        shippingCost: effectiveShipping,
+        taxPercent: effectiveTax,
+        markupPercent: itemMarkup,
+        unitPrice,
+        quantity: prod.quantity || 1,
+        unit: prod.unit || 'Un.',
+        supplier: '',
+        sourceUrl: ''
+      };
+    });
+
+    if (onStartNewQuoteWithItems) {
+      onStartNewQuoteWithItems(itemsData);
+      showToast(`Novo orçamento criado com ${itemsData.length} item(ns) selecionado(s)!`);
+      onNavigateToQuote?.();
+    } else {
+      itemsData.forEach(item => onAddToQuote(item));
+      showToast(`${itemsData.length} item(ns) selecionado(s) inserido(s) na cotação!`);
+      onNavigateToQuote?.();
+    }
   };
 
   // Salvar ou atualizar produto no catálogo com confirmação se já existe
@@ -2062,8 +2207,33 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               {discoveredProducts.length > 1 && (
                 <button
                   type="button"
+                  onClick={handleToggleSelectAllDiscovered}
+                  className="h-10 px-3.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold transition shadow-2xs flex items-center gap-2 cursor-pointer"
+                  title="Marcar ou desmarcar todos os produtos identificados"
+                >
+                  {selectedDiscoveredIds.size === discoveredProducts.length ? (
+                    <CheckSquare className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <Square className="w-4 h-4 text-slate-400" />
+                  )}
+                  <span>{selectedDiscoveredIds.size === discoveredProducts.length ? 'Desmarcar Todos' : 'Marcar Todos'}</span>
+                </button>
+              )}
+              {selectedDiscoveredIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={handleApplySelectedDiscoveredToQuote}
+                  className="h-10 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95 animate-fadeIn"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>Inserir Selecionados ({selectedDiscoveredIds.size})</span>
+                </button>
+              )}
+              {discoveredProducts.length > 1 && selectedDiscoveredIds.size === 0 && (
+                <button
+                  type="button"
                   onClick={handleAddAllDiscoveredToQuote}
-                  className="h-10 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
+                  className="h-10 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" />
                   <span>Inserir Todos ({discoveredProducts.length})</span>
@@ -2091,15 +2261,39 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               const catalogMatch = findCatalogMatchDetails(prod, products);
               const existingInCatalog = catalogMatch ? catalogMatch.product : null;
               const isJustSavedInSession = savedInSessionIds.has(prod.id);
+              const isCardSelected = selectedDiscoveredIds.has(prod.id);
 
               return (
                 <div
                   key={prod.id}
-                  className="bg-white border-2 border-emerald-400/40 hover:border-emerald-500/60 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-md transition-all duration-200 space-y-4 relative"
+                  className={`border-2 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-md transition-all duration-200 space-y-4 relative ${
+                    isCardSelected
+                      ? 'bg-emerald-50/20 border-emerald-500 ring-2 ring-emerald-300/40'
+                      : 'bg-white border-emerald-400/40 hover:border-emerald-500/60'
+                  }`}
                 >
                   {/* Top Badges Row */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
+                      {/* Checkbox para Cotação Múltipla */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSelectDiscovered(prod.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition shadow-2xs cursor-pointer ${
+                          isCardSelected
+                            ? 'bg-emerald-600 text-white border-emerald-700 ring-1 ring-emerald-300'
+                            : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/50'
+                        }`}
+                        title="Marcar este item com checkbox para a cotação"
+                      >
+                        {isCardSelected ? (
+                          <CheckSquare className="w-3.5 h-3.5 text-white" />
+                        ) : (
+                          <Square className="w-3.5 h-3.5 text-slate-400" />
+                        )}
+                        <span>{isCardSelected ? 'Selecionado' : 'Selecionar'}</span>
+                      </button>
+
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-full text-xs font-semibold">
                         <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                         {prod.id?.startsWith('disc-local-') || (typeof prod.confidence === 'string' && (prod.confidence.includes('Heurística') || prod.confidence.includes('Estruturada')))
@@ -3049,13 +3243,31 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Opção 1: PRODUTO OFICIAL DO CATÁLOGO */}
-                <div className="bg-sky-50/50 border-2 border-sky-300 hover:border-sky-500 rounded-3xl p-5 flex flex-col justify-between shadow-2xs transition group">
+                <div 
+                  onClick={() => setChoiceIncludeCatalog(prev => !prev)}
+                  className={`border-2 rounded-3xl p-5 flex flex-col justify-between shadow-2xs transition cursor-pointer select-none ${
+                    choiceIncludeCatalog
+                      ? 'bg-sky-50/80 border-sky-500 ring-2 ring-sky-300/50 shadow-sm'
+                      : 'bg-white border-slate-200 opacity-75 hover:opacity-100 hover:border-slate-300'
+                  }`}
+                >
                   <div className="space-y-3.5">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="px-3 py-1 bg-sky-600 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 shadow-2xs uppercase tracking-wider">
-                        <Database className="w-3.5 h-3.5" />
-                        Opção 1: Do Seu Catálogo
-                      </span>
+                      <label 
+                        onClick={(e) => e.stopPropagation()} 
+                        className="flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={choiceIncludeCatalog}
+                          onChange={(e) => setChoiceIncludeCatalog(e.target.checked)}
+                          className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer accent-sky-600"
+                        />
+                        <span className="px-2.5 py-1 bg-sky-600 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 shadow-2xs uppercase tracking-wider">
+                          <Database className="w-3.5 h-3.5" />
+                          Opção 1: Do Seu Catálogo
+                        </span>
+                      </label>
                       <span className="text-xs font-mono font-bold bg-white border border-sky-200 text-sky-800 px-2.5 py-0.5 rounded-md">
                         {quoteCatalogChoice.existing.sku || quoteCatalogChoice.existing.partNumber}
                       </span>
@@ -3123,29 +3335,47 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                     )}
                   </div>
 
-                  <div className="pt-4 mt-3">
+                  <div className="pt-4 mt-3" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => executeInsertDiscoveredIntoQuote('catalog', quoteCatalogChoice.discovered, quoteCatalogChoice.existing)}
-                      className="w-full h-11 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-98 cursor-pointer"
+                      className="w-full h-10 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-98 cursor-pointer"
                     >
                       <Check className="w-4 h-4 stroke-[3]" />
-                      <span>Usar Produto do Catálogo</span>
+                      <span>Inserir Apenas Este do Catálogo</span>
                     </button>
                     <p className="text-[10px] text-slate-500 text-center mt-1.5">
-                      Mantém o cadastro oficial, código e preços pré-registrados.
+                      Mantém o cadastro oficial e preços pré-registrados.
                     </p>
                   </div>
                 </div>
 
                 {/* Opção 2: DESCOBERTA NOVA DA IA */}
-                <div className="bg-emerald-50/50 border-2 border-emerald-300 hover:border-emerald-500 rounded-3xl p-5 flex flex-col justify-between shadow-2xs transition group">
+                <div 
+                  onClick={() => setChoiceIncludeDiscovered(prev => !prev)}
+                  className={`border-2 rounded-3xl p-5 flex flex-col justify-between shadow-2xs transition cursor-pointer select-none ${
+                    choiceIncludeDiscovered
+                      ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-300/50 shadow-sm'
+                      : 'bg-white border-slate-200 opacity-75 hover:opacity-100 hover:border-slate-300'
+                  }`}
+                >
                   <div className="space-y-3.5">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 shadow-2xs uppercase tracking-wider">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Opção 2: Descoberta IA
-                      </span>
+                      <label 
+                        onClick={(e) => e.stopPropagation()} 
+                        className="flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={choiceIncludeDiscovered}
+                          onChange={(e) => setChoiceIncludeDiscovered(e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                        />
+                        <span className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 shadow-2xs uppercase tracking-wider">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Opção 2: Descoberta IA
+                        </span>
+                      </label>
                       <span className="text-xs font-mono font-bold bg-white border border-emerald-200 text-emerald-800 px-2.5 py-0.5 rounded-md">
                         {quoteCatalogChoice.discovered.partNumber || 'Nova'}
                       </span>
@@ -3215,35 +3445,67 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                     )}
                   </div>
 
-                  <div className="pt-4 mt-3">
+                  <div className="pt-4 mt-3" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => executeInsertDiscoveredIntoQuote('discovered', quoteCatalogChoice.discovered, quoteCatalogChoice.existing)}
-                      className="w-full h-11 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-98 cursor-pointer"
+                      className="w-full h-10 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-98 cursor-pointer"
                     >
                       <Sparkles className="w-4 h-4" />
-                      <span>Usar Descoberta da IA</span>
+                      <span>Inserir Apenas Este da IA</span>
                     </button>
                     <p className="text-[10px] text-slate-500 text-center mt-1.5">
-                      Insere a nova especificação e valores encontrados nesta pesquisa.
+                      Insere a nova especificação e valores apurados.
                     </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Rodapé do Modal */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between px-6">
-              <button
-                type="button"
-                onClick={() => setQuoteCatalogChoice(null)}
-                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
-              >
-                Voltar ao Scanner
-              </button>
-              <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-                Dica: Você também pode usar os botões rápidos direto no card do produto.
-              </span>
+            {/* Rodapé do Modal com Suporte a Checkboxes Múltiplos */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 px-6">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setQuoteCatalogChoice(null)}
+                  className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <span className="text-xs text-slate-500 font-medium hidden md:inline">
+                  💡 Você pode marcar os checkboxes de ambos para incluir as duas opções na cotação.
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                <div className="text-right text-xs font-semibold text-slate-700 hidden sm:block">
+                  <span>Opções marcadas: </span>
+                  <span className="font-bold text-emerald-800 font-mono">
+                    {(choiceIncludeCatalog ? 1 : 0) + (choiceIncludeDiscovered ? 1 : 0)} de 2
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={!choiceIncludeCatalog && !choiceIncludeDiscovered}
+                  onClick={handleConfirmQuoteChoices}
+                  className={`h-11 px-6 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition cursor-pointer w-full sm:w-auto ${
+                    (!choiceIncludeCatalog && !choiceIncludeDiscovered)
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white active:scale-98'
+                  }`}
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>
+                    {choiceIncludeCatalog && choiceIncludeDiscovered
+                      ? 'Inserir Ambos na Cotação (2 itens)'
+                      : choiceIncludeCatalog
+                      ? 'Inserir Item Selecionado (Catálogo)'
+                      : choiceIncludeDiscovered
+                      ? 'Inserir Item Selecionado (Descoberta IA)'
+                      : 'Marque pelo menos 1 opção'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
