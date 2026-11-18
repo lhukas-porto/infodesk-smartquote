@@ -889,7 +889,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {(selectedCompany.locations && selectedCompany.locations.length > 0
-                    ? selectedCompany.locations
+                    ? [...selectedCompany.locations].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))
                     : [selectedCompany.defaultDeliveryLocation || 'Brasília']
                   ).map(loc => {
                     const isDefault = selectedCompany.defaultDeliveryLocation === loc;

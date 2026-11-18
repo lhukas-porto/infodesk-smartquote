@@ -1120,7 +1120,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       }
     });
 
-    return Array.from(locMap.values());
+    return Array.from(locMap.values()).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
   }, [matchedCompany, clientCompanies]);
 
   const handleSelectLocation = (loc: string) => {
@@ -3388,19 +3388,22 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     const query = (currentQuote.deliveryLocation || '').trim();
                     const queryLower = query.toLowerCase();
 
-                    // 1. Destinos da empresa selecionada (prioritários)
+                    // 1. Destinos da empresa selecionada (prioritários) - em ordem alfabética A-Z
                     const companyLocs = (matchedCompany?.locations || [])
                       .filter(l => {
                         const clean = (l || '').trim();
                         if (!clean || clean.startsWith('website:') || clean.startsWith('logo:')) return false;
                         return !queryLower || clean.toLowerCase().includes(queryLower);
-                      });
+                      })
+                      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 
-                    // 2. Outras localidades cadastradas no sistema
-                    const otherLocs = allRegisteredLocations.filter(loc => {
-                      if (companyLocs.some(cl => cl.toLowerCase() === loc.toLowerCase())) return false;
-                      return !queryLower || loc.toLowerCase().includes(queryLower);
-                    });
+                    // 2. Outras localidades cadastradas no sistema - em ordem alfabética A-Z
+                    const otherLocs = allRegisteredLocations
+                      .filter(loc => {
+                        if (companyLocs.some(cl => cl.toLowerCase() === loc.toLowerCase())) return false;
+                        return !queryLower || loc.toLowerCase().includes(queryLower);
+                      })
+                      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 
                     // Verifica se o termo digitado já existe exatamente cadastrado
                     const isExactRegistered = allRegisteredLocations.some(l => l.trim().toLowerCase() === queryLower);
