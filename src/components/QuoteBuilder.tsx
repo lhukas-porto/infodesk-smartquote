@@ -2946,9 +2946,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-          <div className="space-y-1.5 md:col-span-4">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+          <div className="md:col-span-4">
+            <div className="h-6 flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                 <Building className="w-3.5 h-3.5 text-sky-600" />
                 <span>Empresa / Órgão</span>
               </label>
@@ -2993,7 +2993,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   }}
                   onClick={() => setIsCompanySearchOpen(true)}
                   onFocus={() => setIsCompanySearchOpen(true)}
-                  className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-14 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
+                  className="w-full h-10 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl pl-9 pr-14 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-medium transition"
                 />
                 <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none w-5 h-5 flex items-center justify-center">
                   {effectiveClientLogo ? (
@@ -3173,9 +3173,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             </div>
           </div>
 
-          <div className="space-y-1.5 md:col-span-4">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+          <div className="md:col-span-4">
+            <div className="h-6 flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                 <UserCheck className="w-3.5 h-3.5 text-sky-600" />
                 <span>Nome do Comprador (A/C)</span>
               </label>
@@ -3200,7 +3200,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       setIsBuyerSearchOpen(true);
                     }
                   }}
-                  className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
+                  className="w-full h-10 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl pl-9 pr-8 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-medium transition"
                 />
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                   <UserCheck className="w-4 h-4 text-slate-400" />
@@ -3319,16 +3319,18 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           </div>
 
           {/* E-mail (ao lado do Nome do Comprador) */}
-          <div className="space-y-1.5 md:col-span-4">
-            <label className="block text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5 text-sky-600" />
-              <span>E-mail</span>
-            </label>
+          <div className="md:col-span-4">
+            <div className="h-6 flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-sky-600" />
+                <span>E-mail</span>
+              </label>
+            </div>
             <input
               type="email"
               value={currentQuote.clientEmail}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, clientEmail: e.target.value.toLowerCase() }))}
-              className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-medium lowercase transition"
+              className="w-full h-10 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-medium lowercase transition"
             />
           </div>
         </div>
@@ -3336,10 +3338,12 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         {/* Linha 2: 5 campos alinhados no Desktop - Telefone, Data, Localidade, CEP Frete (ao lado da cidade), Código */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[0.85fr_0.95fr_1.3fr_1.1fr_0.85fr] gap-3.5 pt-1">
           <div className="sm:col-span-1">
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5 truncate" title="Telefone do Contato (Opcional)">
-              <Phone className="w-3.5 h-3.5 text-sky-600" />
-              <span>Telefone (Opcional)</span>
-            </label>
+            <div className="h-6 flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5 truncate" title="Telefone do Contato (Opcional)">
+                <Phone className="w-3.5 h-3.5 text-sky-600" />
+                <span>Telefone (Opcional)</span>
+              </label>
+            </div>
             <input
               type="text"
               value={maskPhone(currentQuote.clientPhone || '')}
@@ -3348,26 +3352,28 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 setCurrentQuote(prev => ({ ...prev, clientPhone: masked }));
               }}
               maxLength={15}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-medium"
+              className="w-full h-10 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-medium transition"
             />
           </div>
 
-          <div className="sm:col-span-1 lg:col-span-1">
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-sky-600" />
-              <span>Data de Emissão</span>
-            </label>
+          <div className="sm:col-span-1">
+            <div className="h-6 flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-sky-600" />
+                <span>Data de Emissão</span>
+              </label>
+            </div>
             <input
               type="text"
               value={currentQuote.date}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, date: e.target.value }))}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-medium"
+              className="w-full h-10 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-medium transition"
             />
           </div>
 
-          <div ref={locationSearchContainerRef} className="relative sm:col-span-1 lg:col-span-1">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+          <div ref={locationSearchContainerRef} className="relative sm:col-span-1">
+            <div className="h-6 flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                 <span className="truncate" title="Localidade do Frete / Destino da Entrega">Localidade do Frete</span>
               </label>
@@ -3418,7 +3424,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     handleRegisterAndSelectLocation(typed);
                   }
                 }}
-                className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-14 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
+                className="w-full h-10 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-14 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
               />
               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                 <MapPin className="w-4 h-4 text-slate-400" />
@@ -3625,30 +3631,15 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
           {/* 4. CEP de Destino para Frete (Ao lado da localidade - Uso interno exclusivo do Lucas) */}
           <div className="sm:col-span-1">
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="h-6 flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5 truncate" title="CEP de Destino para Cálculo de Frete (Uso operacional interno)">
                 <Truck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                 <span>CEP Frete</span>
               </label>
-              {resolvedLocationCep.cep && (
-                <button
-                  type="button"
-                  onClick={() => handleCopyCep(resolvedLocationCep.formatted)}
-                  className={`text-[10px] font-bold flex items-center gap-1 px-1.5 py-0.5 rounded transition cursor-pointer ${
-                    isCepCopied
-                      ? 'bg-emerald-600 text-white'
-                      : 'text-sky-600 hover:text-sky-800 hover:bg-sky-50'
-                  }`}
-                  title="Copiar CEP para área de transferência"
-                >
-                  {isCepCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  <span>{isCepCopied ? 'Copiado!' : 'Copiar'}</span>
-                </button>
-              )}
             </div>
 
             {isEditingLocationCep ? (
-              <div className="relative flex items-center gap-1">
+              <div className="relative h-10 flex items-center gap-1">
                 <input
                   type="text"
                   value={locationCepInput}
@@ -3662,14 +3653,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     }
                   }}
                   maxLength={9}
-                  className="w-full bg-white border border-sky-400 focus:border-sky-500 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                  className="w-full h-10 bg-white border border-sky-400 focus:border-sky-500 rounded-xl px-3 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
                   autoFocus
                 />
                 <div className="flex items-center gap-0.5 shrink-0">
                   <button
                     type="button"
                     onClick={() => handleSaveLocationCep(currentQuote.deliveryLocation || '', locationCepInput)}
-                    className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shadow-2xs transition cursor-pointer"
+                    className="h-10 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shadow-2xs transition cursor-pointer"
                     title="Salvar CEP"
                   >
                     <Check className="w-3.5 h-3.5" />
@@ -3680,7 +3671,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       setIsEditingLocationCep(false);
                       setLocationCepInput('');
                     }}
-                    className="p-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+                    className="h-10 px-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
                     title="Cancelar"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -3689,7 +3680,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     type="button"
                     onClick={() => handleSearchViaCep(currentQuote.deliveryLocation || '')}
                     disabled={isSearchingViaCep}
-                    className="p-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition cursor-pointer disabled:opacity-50"
+                    className="h-10 px-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition cursor-pointer disabled:opacity-50"
                     title="Buscar CEP automaticamente no ViaCEP"
                   >
                     <Search className="w-3.5 h-3.5" />
@@ -3697,7 +3688,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 </div>
               </div>
             ) : (
-              <div className={`w-full min-h-[42px] bg-slate-50 hover:bg-white border rounded-xl px-3.5 py-2 flex items-center justify-between text-xs transition ${
+              <div className={`w-full h-10 bg-slate-50 hover:bg-white border rounded-xl px-3 flex items-center justify-between text-xs transition ${
                 currentQuote.deliveryLocation && !isBrasiliaDelivery(currentQuote.deliveryLocation)
                   ? 'border-sky-300 bg-sky-50/60'
                   : 'border-slate-300'
@@ -3705,7 +3696,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 <div className="flex items-center gap-1.5 min-w-0">
                   {resolvedLocationCep.cep ? (
                     <span 
-                      className="font-mono font-black text-sky-950 text-xs tracking-wider truncate cursor-pointer hover:text-sky-700"
+                      className="font-mono font-bold text-sky-950 text-xs tracking-wider truncate cursor-pointer hover:text-sky-700"
                       onClick={() => handleCopyCep(resolvedLocationCep.formatted)}
                       title={`Clique para copiar o CEP: ${resolvedLocationCep.formatted} (${resolvedLocationCep.source === 'company' ? 'Cadastrado no cliente' : resolvedLocationCep.source === 'dictionary' ? 'Padrão da cidade' : 'Histórico'})`}
                     >
@@ -3728,7 +3719,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       <button
                         type="button"
                         onClick={() => handleCopyCep(resolvedLocationCep.formatted)}
-                        className={`flex items-center gap-1 px-2 py-0.5 text-[10.5px] font-bold rounded-lg border transition shadow-2xs cursor-pointer ${
+                        className={`h-7 flex items-center gap-1 px-2 text-[10.5px] font-bold rounded-lg border transition shadow-2xs cursor-pointer ${
                           isCepCopied
                             ? 'bg-emerald-600 border-emerald-600 text-white'
                             : 'bg-white hover:bg-sky-600 text-sky-700 hover:text-white border-sky-300'
@@ -3766,7 +3757,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         setLocationCepInput('');
                         setIsEditingLocationCep(true);
                       }}
-                      className="flex items-center gap-1 px-2 py-0.5 text-[10.5px] font-bold rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition shadow-2xs cursor-pointer"
+                      className="h-7 flex items-center gap-1 px-2 text-[10.5px] font-bold rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition shadow-2xs cursor-pointer"
                       title="Cadastrar CEP para esta localidade"
                     >
                       <Plus className="w-3 h-3" />
@@ -3779,12 +3770,17 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           </div>
 
           <div className="sm:col-span-1">
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Código / Referência</label>
+            <div className="h-6 flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5 truncate">
+                <Tag className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <span>Código / Referência</span>
+              </label>
+            </div>
             <input
               type="text"
               value={currentQuote.code}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, code: e.target.value }))}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-mono font-medium"
+              className="w-full h-10 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 font-mono font-medium transition"
             />
           </div>
         </div>
@@ -3801,7 +3797,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             type="text"
             value={currentQuote.subject || ''}
             onChange={(e) => setCurrentQuote(prev => ({ ...prev, subject: e.target.value }))}
-            className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition"
+            className="w-full h-10 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition"
           />
         </div>
       </div>
