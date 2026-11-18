@@ -145,7 +145,7 @@ interface QuoteBuilderProps {
   onPreview: (customQuote?: Quote) => void;
   onSave: (customQuote?: Quote) => void;
   onSaveAsNewQuote?: (customQuote?: Quote) => void;
-  onSendEmail: () => void;
+  onSendEmail: (logoUrl?: string) => void;
   onOpenWebSearch: (query?: string, itemIdx?: number | null, existingItem?: Partial<QuoteItem>) => void;
   onSendToScanner?: (itemsText: string, photos: string[]) => void;
   onSaveToCatalog?: (prod: Product) => void;

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import googleShoppingHandler from './api/google-shopping';
 import geminiProxyHandler from './api/gemini-proxy';
 import imageSearchHandler from './api/image-search';
+import imageProxyHandler from './api/image-proxy';
 
 function googleShoppingPlugin(): Plugin {
   return {
@@ -75,6 +76,27 @@ function geminiProxyPlugin(): Plugin {
   };
 }
 
+function imageProxyPlugin(): Plugin {
+  return {
+    name: 'image-proxy-plugin',
+    configureServer(server) {
+      server.middlewares.use('/api/image-proxy', async (req, res) => {
+        try {
+          const parsedUrl = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+          const url = parsedUrl.searchParams.get('url') || '';
+          const format = parsedUrl.searchParams.get('format') || '';
+          (req as any).query = { url, format };
+          await imageProxyHandler(req, res);
+        } catch (err: any) {
+          console.error('[Image Proxy Middleware Error]:', err?.message);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: err?.message }));
+        }
+      });
+    }
+  };
+}
+
 const APP_BUILD_ID = `sq-${Date.now()}`;
 
 function versionManifestPlugin(): Plugin {
@@ -106,7 +128,7 @@ export default defineConfig({
   define: {
     __APP_BUILD_ID__: JSON.stringify(APP_BUILD_ID)
   },
-  plugins: [react(), versionManifestPlugin(), imageSearchPlugin(), googleShoppingPlugin(), geminiProxyPlugin()],
+  plugins: [react(), versionManifestPlugin(), imageSearchPlugin(), googleShoppingPlugin(), geminiProxyPlugin(), imageProxyPlugin()],
   server: {
     port: 5173,
     host: true

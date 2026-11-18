@@ -64,6 +64,17 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
     if (isOpen) {
       if (initialClientLogoUrl) {
         setClientLogoDataUrl(initialClientLogoUrl);
+        if (!initialClientLogoUrl.startsWith('data:')) {
+          resolveClientLogoBase64({
+            name: quote.clientCompany,
+            logoUrl: initialClientLogoUrl,
+            contacts: quote.clientEmail ? [{ email: quote.clientEmail }] : []
+          }).then(dataUrl => {
+            if (isMounted && dataUrl && dataUrl.startsWith('data:')) {
+              setClientLogoDataUrl(dataUrl);
+            }
+          }).catch(() => {});
+        }
       } else if (quote.clientCompany) {
         const immediate = quote.clientLogoUrl || getSynchronousClientLogoPreview(quote.clientCompany, quote.clientEmail);
         if (immediate) {

@@ -7,7 +7,7 @@ import {
   extractDeliveryExceptionDetails,
   escapeHtml 
 } from './aiEmailParser';
-import { resolveClientLogoBase64 } from './clientLogoEmailHelper';
+import { resolveClientLogoBase64, generateInitialsAvatarPngDataUrl } from './clientLogoEmailHelper';
 
 interface A4PageSlice {
   pageNumber: number;
@@ -27,38 +27,39 @@ interface A4PageSlice {
  * Evita que linhas de produtos sejam cortadas ao meio ou que páginas em branco sejam criadas.
  */
 function paginateQuoteForA4(quote: Quote): A4PageSlice[] {
-  const PAGE_CAPACITY_PX = 980; // Altura útil segura de 1 folha A4 (descontadas margens e respiros)
+  // Altura útil segura de 1 folha A4 (29.7cm = 1122.5px menos margens superior/inferior de 45px)
+  const PAGE_CAPACITY_PX = 1045;
   
   // Elementos fixos da Página 1
-  const headerHeight = 105;
-  const clientHeight = 115;
-  const introHeight = 65;
-  const preTableHeight = headerHeight + clientHeight + introHeight; // ~285px
-  const tableHeaderHeight = 38;
+  const headerHeight = 98; // Infodesk logo oficial (78px) + margem inferior (20px)
+  const clientHeight = 85; // Bloco do cliente com logo (4 linhas + respiro)
+  const introHeight = 48; // Parágrafo de abertura formal
+  const preTableHeight = headerHeight + clientHeight + introHeight; // ~231px
+  const tableHeaderHeight = 32;
 
   // Bloco de encerramento da última página
-  let conditionsHeight = 28 + (4 * 22);
+  let conditionsHeight = 26 + (4 * 20);
   if (shouldDisplayShippingInProposal(quote) && quote?.shippingTerms) {
-    conditionsHeight += 22;
+    conditionsHeight += 20;
   }
   const obs = (quote?.observations || quote?.notes || '').trim();
   if (obs) {
     const obsLines = obs.split(/\r?\n/).length;
-    conditionsHeight += Math.max(1, obsLines) * 22 + 8;
+    conditionsHeight += Math.max(1, obsLines) * 20 + 6;
   }
-  const dateTextHeight = 22;
-  const signatureTextHeight = 62;
-  const footerHeight = 68;
-  const baseClosingHeight = conditionsHeight + dateTextHeight + signatureTextHeight + footerHeight; // ~270px
-  const minClosingTotal = baseClosingHeight + 58; // Inclui espaçadores mínimos
+  const dateTextHeight = 20;
+  const signatureTextHeight = 58;
+  const footerHeight = 65;
+  const baseClosingHeight = conditionsHeight + dateTextHeight + signatureTextHeight + footerHeight; // ~249px
+  const minClosingTotal = baseClosingHeight + 45; // Inclui espaçadores mínimos
 
   const rawItems = (quote?.items || []).filter((it: any) => !it.isOptional);
 
-  // Calcula altura de cada linha
+  // Calcula altura de cada linha com base no conteúdo e imagem
   const getItemHeight = (item: any) => {
     const hasImage = Boolean(item.showImage && item.imageUrl);
     const nameLength = (item.name || '').length;
-    return hasImage ? (nameLength > 40 ? 170 : 150) : (nameLength > 40 ? 52 : 36);
+    return hasImage ? (nameLength > 50 ? 140 : 125) : (nameLength > 50 ? 38 : 28);
   };
 
   const pages: A4PageSlice[] = [];
@@ -69,9 +70,19 @@ function paginateQuoteForA4(quote: Quote): A4PageSlice[] {
   for (let i = 0; i < rawItems.length; i++) {
     const item = rawItems[i];
     const h = getItemHeight(item);
+    const isLastItem = (i === rawItems.length - 1);
+
+    // Se este for o último item da proposta e já tivermos 3+ itens na Página 1,
+    // mas o bloco de encerramento NÃO couber na Página 1 junto com ele:
+    // guardamos este item para liderar a Página 2 com o encerramento harmonioso.
+    const wouldLeaveClosingOrphanOnNextPage = 
+      isLastItem && 
+      pageIndex === 1 && 
+      currentItems.length >= 3 && 
+      (currentOccupied + h + minClosingTotal > PAGE_CAPACITY_PX);
 
     if (pageIndex === 1) {
-      if (currentOccupied + h <= PAGE_CAPACITY_PX) {
+      if (!wouldLeaveClosingOrphanOnNextPage && (currentOccupied + h <= PAGE_CAPACITY_PX)) {
         currentItems.push(item);
         currentOccupied += h;
       } else {
@@ -347,18 +358,27 @@ export async function generateQuotePdfBase64(
   const cleanCode = (quote.code || 'proposta').replace(/[^a-zA-Z0-9_-]/g, '_');
   const filename = `Proposta-Comercial-${cleanCode}.pdf`;
 
-  // 1. Garante a melhor logomarca do cliente (resolvida ou avatar com iniciais)
-  let effectiveClientLogo = clientLogoDataUrl;
-  if (!effectiveClientLogo && quote.clientCompany) {
+  // 1. Garante a melhor logomarca do cliente em Base64 Data URL (sem depender de CORS no html2canvas)
+  let effectiveClientLogo: string | undefined = clientLogoDataUrl;
+  if (!effectiveClientLogo || effectiveClientLogo.startsWith('http')) {
     try {
-      effectiveClientLogo = await resolveClientLogoBase64({
+      const resolved = await resolveClientLogoBase64({
         name: quote.clientCompany,
-        logoUrl: quote.clientLogoUrl,
+        logoUrl: effectiveClientLogo || quote.clientLogoUrl,
         contacts: quote.clientEmail ? [{ email: quote.clientEmail }] : []
-      }) || undefined;
+      });
+      if (resolved && resolved.startsWith('data:')) {
+        effectiveClientLogo = resolved;
+      }
     } catch {
       // Falha silenciosa de logo, fallback mantido
     }
+  }
+
+  // Se ainda assim for uma URL HTTP externa ou indefinido, gera avatar oficial PNG em Base64 com as iniciais da empresa
+  if ((!effectiveClientLogo || effectiveClientLogo.startsWith('http')) && quote.clientCompany) {
+    const avatar = generateInitialsAvatarPngDataUrl(quote.clientCompany);
+    if (avatar) effectiveClientLogo = avatar;
   }
 
   // 2. Divide a proposta nas páginas A4 oficiais

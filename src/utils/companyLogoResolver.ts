@@ -140,7 +140,11 @@ export const KNOWN_COMPANY_DIRECT_LOGOS: Record<string, string> = {
   'paulo octavio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
   'paulo octávio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
   'grupo paulo octavio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
-  'grupo paulo octávio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128'
+  'grupo paulo octávio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
+  'ubec.edu.br': 'https://sistemas.ubec.edu.br/UBEC.CDN/Content/Images/ubec-2019.png',
+  'www.ubec.edu.br': 'https://sistemas.ubec.edu.br/UBEC.CDN/Content/Images/ubec-2019.png',
+  ubec: 'https://sistemas.ubec.edu.br/UBEC.CDN/Content/Images/ubec-2019.png',
+  'grupo ubec': 'https://sistemas.ubec.edu.br/UBEC.CDN/Content/Images/ubec-2019.png'
 };
 
 export const getCandidateLogosForDomain = (domain: string): string[] => {

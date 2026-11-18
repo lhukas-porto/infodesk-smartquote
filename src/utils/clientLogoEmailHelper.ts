@@ -102,6 +102,24 @@ export async function isImageLoadable(url: string, timeoutMs: number = 2000): Pr
 async function fetchImageToDataUrl(url: string, timeoutMs: number = 2500): Promise<string | null> {
   if (!url || !url.startsWith('http')) return null;
 
+  // 1. Tenta primeiramente via proxy interno /api/image-proxy (Vercel Serverless / Vite dev middleware)
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.min(2200, timeoutMs));
+    const proxyRes = await fetch(`/api/image-proxy?url=${encodeURIComponent(url)}&format=base64`, {
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (proxyRes.ok) {
+      const json = await proxyRes.json().catch(() => null);
+      if (json?.success && json?.dataUrl && json.dataUrl.startsWith('data:image/')) {
+        return json.dataUrl;
+      }
+    }
+  } catch {
+    // Segue para fallbacks externos caso o proxy local esteja indisponível
+  }
+
   const cleanUrlNoProto = url.replace(/^https?:\/\//i, '');
   const endpoints = [
     `https://images.weserv.nl/?url=${encodeURIComponent(cleanUrlNoProto)}&output=png&w=128`,

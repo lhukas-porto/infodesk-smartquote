@@ -3050,8 +3050,8 @@ export const App: React.FC = () => {
             }}
             onSave={handleSaveQuote}
             onSaveAsNewQuote={handleSaveAsNewQuote}
-            onSendEmail={() => {
-              setPreviewClientLogoUrl(undefined);
+            onSendEmail={(logoUrl) => {
+              setPreviewClientLogoUrl(logoUrl);
               setIsEmailModalOpen(true);
             }}
             onOpenWebSearch={(query?: string, itemIdx?: number | null, existingItem?: Partial<QuoteItem>) => {
