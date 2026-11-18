@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Search,
   Sparkles,
@@ -690,8 +690,31 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   const [choiceIncludeCatalog, setChoiceIncludeCatalog] = useState<boolean>(true);
   const [choiceIncludeDiscovered, setChoiceIncludeDiscovered] = useState<boolean>(false);
 
-  // Seleção por Checkbox dos Produtos Descobertos na Fase 1 (Diretriz do Lucas)
-  const [selectedDiscoveredIds, setSelectedDiscoveredIds] = useState<Set<string>>(new Set());
+  // Escolha do usuário por produto (Checkbox: usar Catálogo vs usar Novo achado pela IA) - REGRA DO LUCAS
+  const [itemCatalogChoices, setItemCatalogChoices] = useState<Record<string, { useCatalog: boolean; useDiscovered: boolean }>>({});
+
+  const getItemChoice = useCallback((prodId: string) => {
+    return itemCatalogChoices[prodId] || { useCatalog: true, useDiscovered: false };
+  }, [itemCatalogChoices]);
+
+  const handleToggleItemChoice = useCallback((prodId: string, type: 'catalog' | 'discovered', checked: boolean) => {
+    setItemCatalogChoices(prev => {
+      const current = prev[prodId] || { useCatalog: true, useDiscovered: false };
+      const next = {
+        ...current,
+        [type === 'catalog' ? 'useCatalog' : 'useDiscovered']: checked
+      };
+      // Se desmarcou ambos, ativa o outro para não deixar sem seleção
+      if (!next.useCatalog && !next.useDiscovered) {
+        if (type === 'catalog') next.useDiscovered = true;
+        else next.useCatalog = true;
+      }
+      return {
+        ...prev,
+        [prodId]: next
+      };
+    });
+  }, []);
 
   // Itens salvos ou atualizados nesta sessão (para feedback imediato)
   const [savedInSessionIds, setSavedInSessionIds] = useState<Set<string>>(new Set());
@@ -1136,141 +1159,41 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       return;
     }
 
+    // Sincroniza a escolha no estado persistido dos cards
+    setItemCatalogChoices(prev => ({
+      ...prev,
+      [quoteCatalogChoice.discovered.id]: {
+        useCatalog: choiceIncludeCatalog,
+        useDiscovered: choiceIncludeDiscovered
+      }
+    }));
+
     executeInsertDiscoveredIntoQuote(modes, quoteCatalogChoice.discovered, quoteCatalogChoice.existing);
   };
 
-  // Inserir produto identificado individualmente na cotação (com verificação de catálogo)
+  // Inserir produto identificado individualmente na cotação (com verificação de catálogo e respeito ao checkbox escolhido pelo Lucas)
   const handleAddSingleDiscoveredToQuote = (prod: DiscoveredProduct) => {
     // Cruzar com catálogo existente para verificar se "teoricamente" tem no catálogo
     const catalogMatch = findCatalogMatchDetails(prod, products);
     const existingInCatalog = catalogMatch && catalogMatch.score >= 50 ? catalogMatch.product : null;
 
     if (existingInCatalog && catalogMatch) {
-      // REGRA DO LUCAS: Quando achar um produto que teoricamente tem no catálogo, abre a opção de escolha com checkboxes!
-      setChoiceIncludeCatalog(true);
-      setChoiceIncludeDiscovered(false);
-      setQuoteCatalogChoice({
-        discovered: prod,
-        existing: existingInCatalog,
-        matchInfo: catalogMatch
-      });
+      const choice = getItemChoice(prod.id);
+      const modes: ('catalog' | 'discovered')[] = [];
+      if (choice.useCatalog) modes.push('catalog');
+      if (choice.useDiscovered) modes.push('discovered');
+
+      if (modes.length === 0) {
+        showToast('Marque pelo menos uma das opções (Catálogo ou Novo Achado da IA) com o checkbox.');
+        return;
+      }
+
+      executeInsertDiscoveredIntoQuote(modes, prod, existingInCatalog);
       return;
     }
 
     // Se não tem no catálogo, insere direto a descoberta da IA
     executeInsertDiscoveredIntoQuote('discovered', prod);
-  };
-
-  // Checkbox seleção na Fase 1 (Produtos Identificados)
-  const handleToggleSelectDiscovered = (id: string) => {
-    setSelectedDiscoveredIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const handleToggleSelectAllDiscovered = () => {
-    if (selectedDiscoveredIds.size === discoveredProducts.length) {
-      setSelectedDiscoveredIds(new Set());
-    } else {
-      setSelectedDiscoveredIds(new Set(discoveredProducts.map(p => p.id)));
-    }
-  };
-
-  // Inserir itens marcados por checkbox na Fase 1
-  const handleApplySelectedDiscoveredToQuote = () => {
-    const selected = discoveredProducts.filter(p => selectedDiscoveredIds.has(p.id));
-    if (selected.length === 0) return;
-
-    const itemsData: Partial<QuoteItem>[] = selected.map(prod => {
-      const catalogMatch = findCatalogMatchDetails(prod, products);
-      const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
-
-      if (existingInCatalog) {
-        const cost = existingInCatalog.costPrice || 0;
-        const itemMarkup = targetMarginPercent !== null
-          ? targetMarginPercent
-          : getScannerTieredMarkup(cost);
-        const unitPrice = (existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0)
-          ? existingInCatalog.sellingPrice
-          : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax) : (prod.suggestedPrice || undefined));
-
-        return {
-          productId: existingInCatalog.id,
-          name: existingInCatalog.name,
-          description: existingInCatalog.description || '',
-          partNumber: existingInCatalog.partNumber || existingInCatalog.sku || '',
-          ncm: existingInCatalog.ncm || '',
-          category: existingInCatalog.category || '',
-          imageUrl: existingInCatalog.imageUrl || '',
-          showImage: Boolean(existingInCatalog.imageUrl),
-          costPrice: cost,
-          shippingCost: existingInCatalog.shippingCost !== undefined ? existingInCatalog.shippingCost : effectiveShipping,
-          taxPercent: effectiveTax,
-          markupPercent: itemMarkup,
-          unitPrice,
-          quantity: prod.quantity || 1,
-          unit: existingInCatalog.unit || 'Un.',
-          supplier: existingInCatalog.supplier || '',
-          sourceUrl: existingInCatalog.sourceUrl || ''
-        };
-      }
-
-      const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
-      const fullDesc = buildCompleteProductDescription(prod);
-      const resolvedCode = resolveProductModelAndPartNumber({
-        nameOrQuery: prod.standardizedName,
-        description: fullDesc || prod.description,
-        brand: prod.brand,
-        category: prod.category,
-        scannerModel: prod.model,
-        scannerPartNumber: prod.partNumber
-      });
-
-      const cost = prod.costPrice && prod.costPrice > 0 
-        ? prod.costPrice 
-        : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0);
-
-      const itemMarkup = targetMarginPercent !== null
-        ? targetMarginPercent
-        : getScannerTieredMarkup(cost);
-
-      const unitPrice = cost > 0 
-        ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
-        : (prod.suggestedPrice || undefined);
-
-      return {
-        productId: undefined,
-        name: prod.standardizedName,
-        description: fullDesc || prod.description || '',
-        partNumber: resolvedCode.partNumber,
-        ncm: cleanNcmCode(prod.ncm || ''),
-        category: prod.category,
-        imageUrl: chosenImage,
-        showImage: !!chosenImage,
-        costPrice: cost,
-        shippingCost: effectiveShipping,
-        taxPercent: effectiveTax,
-        markupPercent: itemMarkup,
-        unitPrice,
-        quantity: prod.quantity || 1,
-        unit: prod.unit || 'Un.',
-        supplier: '',
-        sourceUrl: ''
-      };
-    });
-
-    if (onStartNewQuoteWithItems) {
-      onStartNewQuoteWithItems(itemsData);
-      showToast(`Novo orçamento criado com ${itemsData.length} item(ns) selecionado(s)!`);
-      onNavigateToQuote?.();
-    } else {
-      itemsData.forEach(item => onAddToQuote(item));
-      showToast(`${itemsData.length} item(ns) selecionado(s) inserido(s) na cotação!`);
-      onNavigateToQuote?.();
-    }
   };
 
   // Salvar ou atualizar produto no catálogo com confirmação se já existe
@@ -1344,97 +1267,151 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     }
   };
 
-  // Inserir todos os identificados na cotação
+  // Inserir todos os identificados na cotação respeitando as escolhas de checkbox de cada produto (Catálogo vs IA)
   const handleAddAllDiscoveredToQuote = () => {
     if (discoveredProducts.length === 0) return;
 
-    const itemsData: Partial<QuoteItem>[] = discoveredProducts.map(prod => {
+    const itemsData: Partial<QuoteItem>[] = [];
+
+    discoveredProducts.forEach(prod => {
       const catalogMatch = findCatalogMatchDetails(prod, products);
-      const existingInCatalog = catalogMatch && catalogMatch.score >= 60 ? catalogMatch.product : null;
+      const existingInCatalog = catalogMatch && catalogMatch.score >= 50 ? catalogMatch.product : null;
 
       if (existingInCatalog) {
-        // REGRA DO LUCAS: Quando achar o produto no catálogo, usa EXATAMENTE o produto já existente no catálogo.
-        // Sem alterar, sem sobrescrever e sem inventar dados novos para ele.
-        const cost = existingInCatalog.costPrice || 0;
+        const choice = getItemChoice(prod.id);
+
+        // Se marcou para incluir a versão do Catálogo Oficial
+        if (choice.useCatalog) {
+          const cost = existingInCatalog.costPrice || 0;
+          const itemMarkup = targetMarginPercent !== null
+            ? targetMarginPercent
+            : getScannerTieredMarkup(cost);
+          const unitPrice = (existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0)
+            ? existingInCatalog.sellingPrice
+            : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax) : (prod.suggestedPrice || undefined));
+
+          itemsData.push({
+            productId: existingInCatalog.id,
+            name: existingInCatalog.name,
+            description: existingInCatalog.description || '',
+            partNumber: existingInCatalog.partNumber || existingInCatalog.sku || '',
+            ncm: existingInCatalog.ncm || '',
+            category: existingInCatalog.category || '',
+            imageUrl: existingInCatalog.imageUrl || '',
+            showImage: Boolean(existingInCatalog.imageUrl),
+            costPrice: cost,
+            shippingCost: existingInCatalog.shippingCost !== undefined ? existingInCatalog.shippingCost : effectiveShipping,
+            taxPercent: effectiveTax,
+            markupPercent: itemMarkup,
+            unitPrice,
+            quantity: prod.quantity || 1,
+            unit: existingInCatalog.unit || 'Un.',
+            supplier: existingInCatalog.supplier || '',
+            sourceUrl: existingInCatalog.sourceUrl || ''
+          });
+        }
+
+        // Se marcou para incluir a Nova Descoberta do Scanner IA
+        if (choice.useDiscovered) {
+          const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
+          const fullDesc = buildCompleteProductDescription(prod);
+          const resolvedCode = resolveProductModelAndPartNumber({
+            nameOrQuery: prod.standardizedName,
+            description: fullDesc || prod.description,
+            brand: prod.brand,
+            category: prod.category,
+            scannerModel: prod.model,
+            scannerPartNumber: prod.partNumber
+          });
+
+          const cost = prod.costPrice && prod.costPrice > 0 
+            ? prod.costPrice 
+            : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0);
+
+          const itemMarkup = targetMarginPercent !== null
+            ? targetMarginPercent
+            : getScannerTieredMarkup(cost);
+
+          const unitPrice = cost > 0 
+            ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
+            : (prod.suggestedPrice || undefined);
+
+          itemsData.push({
+            productId: undefined,
+            name: prod.standardizedName,
+            description: fullDesc || prod.description || '',
+            partNumber: resolvedCode.partNumber,
+            ncm: cleanNcmCode(prod.ncm || ''),
+            category: prod.category,
+            imageUrl: chosenImage,
+            showImage: !!chosenImage,
+            costPrice: cost,
+            shippingCost: effectiveShipping,
+            taxPercent: effectiveTax,
+            markupPercent: itemMarkup,
+            unitPrice,
+            quantity: prod.quantity || 1,
+            unit: prod.unit || 'Un.',
+            supplier: prod.supplier || '',
+            sourceUrl: prod.sourceUrl || ''
+          });
+        }
+      } else {
+        // Produto sem correspondência no catálogo: insere a descoberta da IA
+        const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
+        const fullDesc = buildCompleteProductDescription(prod);
+        const resolvedCode = resolveProductModelAndPartNumber({
+          nameOrQuery: prod.standardizedName,
+          description: fullDesc || prod.description,
+          brand: prod.brand,
+          category: prod.category,
+          scannerModel: prod.model,
+          scannerPartNumber: prod.partNumber
+        });
+
+        const cost = prod.costPrice && prod.costPrice > 0 
+          ? prod.costPrice 
+          : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0);
+
         const itemMarkup = targetMarginPercent !== null
           ? targetMarginPercent
           : getScannerTieredMarkup(cost);
-        const unitPrice = (existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0)
-          ? existingInCatalog.sellingPrice
-          : (cost > 0 ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax) : (prod.suggestedPrice || undefined));
 
-        return {
-          productId: existingInCatalog.id,
-          name: existingInCatalog.name,
-          description: existingInCatalog.description || '',
-          partNumber: existingInCatalog.partNumber || existingInCatalog.sku || '',
-          ncm: existingInCatalog.ncm || '',
-          category: existingInCatalog.category || '',
-          imageUrl: existingInCatalog.imageUrl || '',
-          showImage: Boolean(existingInCatalog.imageUrl),
+        const unitPrice = cost > 0 
+          ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
+          : (prod.suggestedPrice || undefined);
+
+        itemsData.push({
+          productId: undefined,
+          name: prod.standardizedName,
+          description: fullDesc || prod.description || '',
+          partNumber: resolvedCode.partNumber,
+          ncm: cleanNcmCode(prod.ncm || ''),
+          category: prod.category,
+          imageUrl: chosenImage,
+          showImage: !!chosenImage,
           costPrice: cost,
-          shippingCost: existingInCatalog.shippingCost !== undefined ? existingInCatalog.shippingCost : effectiveShipping,
+          shippingCost: effectiveShipping,
           taxPercent: effectiveTax,
           markupPercent: itemMarkup,
           unitPrice,
           quantity: prod.quantity || 1,
-          unit: existingInCatalog.unit || 'Un.',
-          supplier: existingInCatalog.supplier || '',
-          sourceUrl: existingInCatalog.sourceUrl || ''
-        };
+          unit: prod.unit || 'Un.',
+          supplier: '',
+          sourceUrl: ''
+        });
       }
-
-      const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
-      const fullDesc = buildCompleteProductDescription(prod);
-      const resolvedCode = resolveProductModelAndPartNumber({
-        nameOrQuery: prod.standardizedName,
-        description: fullDesc || prod.description,
-        brand: prod.brand,
-        category: prod.category,
-        scannerModel: prod.model,
-        scannerPartNumber: prod.partNumber
-      });
-
-      const cost = prod.costPrice && prod.costPrice > 0 
-        ? prod.costPrice 
-        : (prod.suggestedPrice ? Number((prod.suggestedPrice / (1 + effectiveDefaultMarkup / 100)).toFixed(2)) : 0);
-
-      const itemMarkup = targetMarginPercent !== null
-        ? targetMarginPercent
-        : getScannerTieredMarkup(cost);
-
-      const unitPrice = cost > 0 
-        ? calculateCommercialUnitPrice(cost, effectiveShipping, itemMarkup, effectiveTax)
-        : (prod.suggestedPrice || undefined);
-
-      return {
-        productId: undefined,
-        name: prod.standardizedName,
-        description: fullDesc || prod.description || '',
-        partNumber: resolvedCode.partNumber,
-        ncm: cleanNcmCode(prod.ncm || ''),
-        category: prod.category,
-        imageUrl: chosenImage,
-        showImage: !!chosenImage,
-        costPrice: cost,
-        shippingCost: effectiveShipping,
-        taxPercent: effectiveTax,
-        markupPercent: itemMarkup,
-        unitPrice,
-        quantity: prod.quantity || 1,
-        unit: prod.unit || 'Un.',
-        supplier: '',
-        sourceUrl: ''
-      };
     });
+
+    if (itemsData.length === 0) return;
 
     if (onStartNewQuoteWithItems) {
       onStartNewQuoteWithItems(itemsData);
-      showToast(`Novo orçamento criado com ${itemsData.length} produto(s)! As especificações oficiais serão geradas ao salvar.`);
+      showToast(`Novo orçamento criado com ${itemsData.length} produto(s)!`);
       onNavigateToQuote?.();
     } else {
       itemsData.forEach(item => onAddToQuote(item));
-      showToast(`${discoveredProducts.length} itens inseridos na sua cotação! As especificações oficiais serão geradas ao salvar.`);
+      showToast(`${itemsData.length} produto(s) inserido(s) na sua cotação conforme suas seleções!`);
       onNavigateToQuote?.();
     }
   };
@@ -2204,41 +2181,14 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap">
-              {discoveredProducts.length > 1 && (
-                <button
-                  type="button"
-                  onClick={handleToggleSelectAllDiscovered}
-                  className="h-10 px-3.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold transition shadow-2xs flex items-center gap-2 cursor-pointer"
-                  title="Marcar ou desmarcar todos os produtos identificados"
-                >
-                  {selectedDiscoveredIds.size === discoveredProducts.length ? (
-                    <CheckSquare className="w-4 h-4 text-emerald-600" />
-                  ) : (
-                    <Square className="w-4 h-4 text-slate-400" />
-                  )}
-                  <span>{selectedDiscoveredIds.size === discoveredProducts.length ? 'Desmarcar Todos' : 'Marcar Todos'}</span>
-                </button>
-              )}
-              {selectedDiscoveredIds.size > 0 && (
-                <button
-                  type="button"
-                  onClick={handleApplySelectedDiscoveredToQuote}
-                  className="h-10 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95 animate-fadeIn"
-                >
-                  <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>Inserir Selecionados ({selectedDiscoveredIds.size})</span>
-                </button>
-              )}
-              {discoveredProducts.length > 1 && selectedDiscoveredIds.size === 0 && (
-                <button
-                  type="button"
-                  onClick={handleAddAllDiscoveredToQuote}
-                  className="h-10 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
-                >
-                  <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>Inserir Todos ({discoveredProducts.length})</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleAddAllDiscoveredToQuote}
+                className="h-10 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Inserir Todos ({discoveredProducts.length})</span>
+              </button>
               <button
                 type="button"
                 onClick={handleStartPhase2Enrichment}
@@ -2261,39 +2211,15 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               const catalogMatch = findCatalogMatchDetails(prod, products);
               const existingInCatalog = catalogMatch ? catalogMatch.product : null;
               const isJustSavedInSession = savedInSessionIds.has(prod.id);
-              const isCardSelected = selectedDiscoveredIds.has(prod.id);
 
               return (
                 <div
                   key={prod.id}
-                  className={`border-2 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-md transition-all duration-200 space-y-4 relative ${
-                    isCardSelected
-                      ? 'bg-emerald-50/20 border-emerald-500 ring-2 ring-emerald-300/40'
-                      : 'bg-white border-emerald-400/40 hover:border-emerald-500/60'
-                  }`}
+                  className="border-2 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-md transition-all duration-200 space-y-4 relative bg-white border-emerald-400/40 hover:border-emerald-500/60"
                 >
                   {/* Top Badges Row */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      {/* Checkbox para Cotação Múltipla */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleSelectDiscovered(prod.id)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition shadow-2xs cursor-pointer ${
-                          isCardSelected
-                            ? 'bg-emerald-600 text-white border-emerald-700 ring-1 ring-emerald-300'
-                            : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/50'
-                        }`}
-                        title="Marcar este item com checkbox para a cotação"
-                      >
-                        {isCardSelected ? (
-                          <CheckSquare className="w-3.5 h-3.5 text-white" />
-                        ) : (
-                          <Square className="w-3.5 h-3.5 text-slate-400" />
-                        )}
-                        <span>{isCardSelected ? 'Selecionado' : 'Selecionar'}</span>
-                      </button>
-
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-full text-xs font-semibold">
                         <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                         {prod.id?.startsWith('disc-local-') || (typeof prod.confidence === 'string' && (prod.confidence.includes('Heurística') || prod.confidence.includes('Estruturada')))
@@ -2471,26 +2397,18 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           )}
                         </div>
 
-                        {/* Comparativo de Catálogo quando já existe */}
-                        {existingInCatalog && (
-                          <div className="mb-2.5 px-3.5 py-2.5 bg-sky-50/90 border border-sky-200/90 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-sky-900 shadow-2xs">
-                            <div className="flex items-start sm:items-center gap-2 min-w-0">
-                              <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0 mt-0.5 sm:mt-0" />
-                              <div className="min-w-0">
-                                <div>
-                                  <strong>Produto Oficial no Catálogo:</strong> Identificado como <em>"{existingInCatalog.name}"</em> · Custo no catálogo: <strong>R$ {(existingInCatalog.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
-                                </div>
-                                <div className="text-[11px] text-sky-700 font-medium mt-0.5 flex items-center gap-1">
-                                  <Sparkles className="w-3 h-3 text-sky-600 shrink-0" />
-                                  <span>Ao puxar para a cotação, será utilizado exatamente o cadastro oficial pré-existente (sem alterações no catálogo).</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-[10.5px] font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2 py-0.5 rounded-md font-mono">
-                                SKU: {existingInCatalog.sku || existingInCatalog.partNumber}
+                        {/* Indicador de correspondência com catálogo */}
+                        {existingInCatalog && catalogMatch && (
+                          <div className="mb-2.5 px-3 py-1.5 bg-sky-50/80 border border-sky-200/80 rounded-xl flex items-center justify-between gap-2 text-xs text-sky-900">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Database className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                              <span className="truncate">
+                                Item similar detectado no catálogo: <strong>"{existingInCatalog.name}"</strong>
                               </span>
                             </div>
+                            <span className="shrink-0 text-[10.5px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md font-mono">
+                              {catalogMatch.score}% similar
+                            </span>
                           </div>
                         )}
 
@@ -2559,6 +2477,145 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                             ))}
                           </div>
                         )}
+
+                        {/* SELEÇÃO POR CHECKBOX: CATÁLOGO vs NOVO ACHADO DA IA (REGRA DO LUCAS) */}
+                        {existingInCatalog && catalogMatch && (
+                          <div className="bg-gradient-to-r from-sky-50/70 via-slate-50 to-emerald-50/70 border border-slate-200 rounded-2xl p-4 my-3.5 space-y-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                                  <Database className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                  <span className="text-xs font-bold text-slate-800">
+                                    Item Similar Encontrado no Catálogo ({catalogMatch.score}% compatível)
+                                  </span>
+                                  <p className="text-[11px] text-slate-500 font-medium">
+                                    Marque no checkbox qual versão incluir na cotação:
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentChoice = getItemChoice(prod.id);
+                                  setChoiceIncludeCatalog(currentChoice.useCatalog);
+                                  setChoiceIncludeDiscovered(currentChoice.useDiscovered);
+                                  setQuoteCatalogChoice({
+                                    discovered: prod,
+                                    existing: existingInCatalog,
+                                    matchInfo: catalogMatch
+                                  });
+                                }}
+                                className="text-[11px] font-bold text-sky-700 hover:text-sky-900 bg-white border border-sky-200 hover:border-sky-300 px-2.5 py-1 rounded-lg transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                                title="Abrir comparação detalhada lado a lado"
+                              >
+                                <span>Ver Comparação Completa</span>
+                                <ExternalLink className="w-3 h-3 text-sky-600" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                              {(() => {
+                                const choice = getItemChoice(prod.id);
+                                const isCatChecked = choice.useCatalog;
+                                const isDiscChecked = choice.useDiscovered;
+
+                                return (
+                                  <>
+                                    <label
+                                      className={`flex items-start gap-3 p-3 rounded-2xl border-2 transition cursor-pointer select-none ${
+                                        isCatChecked
+                                          ? 'bg-sky-50/90 border-sky-500 ring-2 ring-sky-200/60 shadow-xs'
+                                          : 'bg-white border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isCatChecked}
+                                        onChange={(e) => handleToggleItemChoice(prod.id, 'catalog', e.target.checked)}
+                                        className="mt-1 w-4 h-4 rounded text-sky-600 focus:ring-sky-500 accent-sky-600 cursor-pointer shrink-0"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                            <Database className="w-3 h-3 text-sky-700" />
+                                            1. Do Seu Catálogo
+                                          </span>
+                                          <span className="font-mono text-[10.5px] font-bold text-slate-600">
+                                            {existingInCatalog.sku || existingInCatalog.partNumber}
+                                          </span>
+                                        </div>
+                                        <strong className="block text-xs font-bold text-slate-900 leading-snug line-clamp-1" title={existingInCatalog.name}>
+                                          {existingInCatalog.name}
+                                        </strong>
+                                        <div className="flex items-baseline gap-2 mt-1 text-[11px]">
+                                          <span className="text-slate-500 font-medium">Custo:</span>
+                                          <strong className="text-slate-900 font-mono">
+                                            R$ {(existingInCatalog.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                          </strong>
+                                          {existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0 && (
+                                            <>
+                                              <span className="text-slate-400">·</span>
+                                              <span className="text-sky-700 font-bold font-mono">
+                                                Venda: R$ {existingInCatalog.sellingPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                              </span>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </label>
+
+                                    <label
+                                      className={`flex items-start gap-3 p-3 rounded-2xl border-2 transition cursor-pointer select-none ${
+                                        isDiscChecked
+                                          ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-200/60 shadow-xs'
+                                          : 'bg-white border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isDiscChecked}
+                                        onChange={(e) => handleToggleItemChoice(prod.id, 'discovered', e.target.checked)}
+                                        className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer shrink-0"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                            <Sparkles className="w-3 h-3 text-emerald-600" />
+                                            2. Novo Achado no Scanner
+                                          </span>
+                                          <span className="font-mono text-[10.5px] font-bold text-slate-600">
+                                            {prod.partNumber || prod.model || 'Novo'}
+                                          </span>
+                                        </div>
+                                        <strong className="block text-xs font-bold text-slate-900 leading-snug line-clamp-1" title={prod.standardizedName}>
+                                          {prod.standardizedName}
+                                        </strong>
+                                        <div className="flex items-baseline gap-2 mt-1 text-[11px]">
+                                          <span className="text-slate-500 font-medium">Custo:</span>
+                                          <strong className="text-slate-900 font-mono">
+                                            {prod.costPrice
+                                              ? `R$ ${prod.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                                              : 'Sob Consulta'}
+                                          </strong>
+                                          {prod.suggestedPrice && prod.suggestedPrice > 0 && (
+                                            <>
+                                              <span className="text-slate-400">·</span>
+                                              <span className="text-emerald-700 font-bold font-mono">
+                                                Sugerido: R$ {prod.suggestedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                              </span>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </label>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Bottom Bar: Suggested Price + Actions */}
@@ -2624,78 +2681,95 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           })()}
                         </div>
 
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 h-10">
-                            <input
-                              type="number"
-                              min="1"
-                              value={prod.quantity || 1}
-                              onChange={(e) => handleUpdateDiscoveredProduct(prod.id, { quantity: parseInt(e.target.value, 10) || 1 })}
-                              className="w-12 h-8 bg-white border border-slate-200 rounded-lg px-1.5 text-xs font-bold text-slate-800 text-center focus:outline-none focus:border-emerald-500"
-                              title="Quantidade para a cotação"
-                            />
-                            <input
-                              type="text"
-                              value={prod.unit || 'Un.'}
-                              onChange={(e) => handleUpdateDiscoveredProduct(prod.id, { unit: e.target.value })}
-                              className="w-12 h-8 bg-white border border-slate-200 rounded-lg px-1.5 text-xs font-semibold text-slate-700 text-center focus:outline-none focus:border-emerald-500"
-                              title="Unidade"
-                            />
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleAddSingleDiscoveredToQuote(prod)}
-                            className="h-10 px-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-98"
-                          >
-                            <Plus className="w-4 h-4 stroke-[3]" />
-                            <span>+ Inserir na Cotação</span>
-                          </button>
-
-                          {existingInCatalog ? (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <button
-                                type="button"
-                                onClick={() => executeInsertDiscoveredIntoQuote('catalog', prod, existingInCatalog)}
-                                className="h-10 px-3.5 bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-2xs transition active:scale-95 cursor-pointer"
-                                title="Inserir a versão oficial do catálogo nesta cotação"
-                              >
-                                <Database className="w-4 h-4 text-sky-600" />
-                                <span>Usar Catálogo</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => executeInsertDiscoveredIntoQuote('discovered', prod)}
-                                className="h-10 px-3.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-2xs transition active:scale-95 cursor-pointer"
-                                title="Inserir a versão nova da IA nesta cotação"
-                              >
-                                <Sparkles className="w-4 h-4 text-emerald-600" />
-                                <span>Usar Descoberta IA</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => executeSaveProductToCatalog(prod, null, 'create_new')}
-                                className="h-10 px-3.5 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                                title="Cadastrar esta descoberta do scanner como um novo item independente no catálogo (com outro código)"
-                              >
-                                <Plus className="w-4 h-4 text-emerald-600" />
-                                <span>Salvar no Catálogo</span>
-                              </button>
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 h-10">
+                              <input
+                                type="number"
+                                min="1"
+                                value={prod.quantity || 1}
+                                onChange={(e) => handleUpdateDiscoveredProduct(prod.id, { quantity: parseInt(e.target.value, 10) || 1 })}
+                                className="w-12 h-8 bg-white border border-slate-200 rounded-lg px-1.5 text-xs font-bold text-slate-800 text-center focus:outline-none focus:border-emerald-500"
+                                title="Quantidade para a cotação"
+                              />
+                              <input
+                                type="text"
+                                value={prod.unit || 'Un.'}
+                                onChange={(e) => handleUpdateDiscoveredProduct(prod.id, { unit: e.target.value })}
+                                className="w-12 h-8 bg-white border border-slate-200 rounded-lg px-1.5 text-xs font-semibold text-slate-700 text-center focus:outline-none focus:border-emerald-500"
+                                title="Unidade"
+                              />
                             </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleRequestSaveOrUpdate(prod, null)}
-                              className="h-10 px-4 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
-                              title="Salvar produto no catálogo para reutilizar em cotações"
-                            >
-                              <Printer className="w-4 h-4 text-slate-500" />
-                              <span>Salvar no Catálogo</span>
-                            </button>
-                          )}
-                        </div>
+
+                            {(() => {
+                              if (existingInCatalog && catalogMatch) {
+                                const choice = getItemChoice(prod.id);
+                                const isBoth = choice.useCatalog && choice.useDiscovered;
+                                const isOnlyCat = choice.useCatalog && !choice.useDiscovered;
+                                const isOnlyDisc = !choice.useCatalog && choice.useDiscovered;
+                                const isNone = !choice.useCatalog && !choice.useDiscovered;
+
+                                let btnLabel = '+ Inserir na Cotação';
+                                if (isBoth) btnLabel = '+ Inserir Ambos na Cotação';
+                                else if (isOnlyCat) btnLabel = '+ Inserir do Catálogo';
+                                else if (isOnlyDisc) btnLabel = '+ Inserir Novo da IA';
+                                else btnLabel = 'Selecione uma opção';
+
+                                return (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                      type="button"
+                                      disabled={isNone}
+                                      onClick={() => handleAddSingleDiscoveredToQuote(prod)}
+                                      className={`h-10 px-4 rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 active:scale-98 cursor-pointer ${
+                                        isNone
+                                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-70'
+                                          : isOnlyCat
+                                          ? 'bg-sky-600 hover:bg-sky-700 text-white'
+                                          : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'
+                                      }`}
+                                      title={isNone ? 'Selecione pelo menos uma das opções com o checkbox' : 'Inserir item(ns) selecionado(s) na cotação'}
+                                    >
+                                      <Plus className="w-4 h-4 stroke-[3]" />
+                                      <span>{btnLabel}</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => executeSaveProductToCatalog(prod, null, 'create_new')}
+                                      className="h-10 px-3.5 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                                      title="Cadastrar esta descoberta do scanner como um novo item independente no catálogo (com outro código)"
+                                    >
+                                      <Plus className="w-4 h-4 text-emerald-600" />
+                                      <span>Salvar Novo no Catálogo</span>
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddSingleDiscoveredToQuote(prod)}
+                                    className="h-10 px-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-xs flex items-center gap-2 cursor-pointer active:scale-98"
+                                  >
+                                    <Plus className="w-4 h-4 stroke-[3]" />
+                                    <span>+ Inserir na Cotação</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRequestSaveOrUpdate(prod, null)}
+                                    className="h-10 px-4 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                                    title="Salvar produto no catálogo para reutilizar em cotações"
+                                  >
+                                    <Printer className="w-4 h-4 text-slate-500" />
+                                    <span>Salvar no Catálogo</span>
+                                  </button>
+                                </div>
+                              );
+                            })()}
+                          </div>
                       </div>
                     </div>
                   </div>
