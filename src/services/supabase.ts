@@ -673,9 +673,34 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
       updated_at: new Date().toISOString()
     };
 
+    // 1. Sanitizar previamente os productIds verificando se eles realmente existem na tabela products do Supabase.
+    // Isso evita o erro 23503 (violação da foreign key quote_items_product_id_fkey) quando um item possui um UUID local ou de produto não persistido no banco.
+    const rawCandidateProductIds = (quote.items || [])
+      .map(it => it.productId)
+      .filter((id): id is string => Boolean(id && isValidUuid(id)));
+    
+    const uniqueCandidateIds = Array.from(new Set(rawCandidateProductIds));
+    const validProductIdsSet = new Set<string>();
+
+    if (uniqueCandidateIds.length > 0 && supabase) {
+      try {
+        const { data: existingProducts, error: prodCheckErr } = await supabase
+          .from('products')
+          .select('id')
+          .in('id', uniqueCandidateIds);
+        if (!prodCheckErr && Array.isArray(existingProducts)) {
+          existingProducts.forEach(p => {
+            if (p?.id) validProductIdsSet.add(p.id);
+          });
+        }
+      } catch (errProd) {
+        console.warn('[Supabase] Aviso ao verificar integridade de produtos para quote_items:', errProd);
+      }
+    }
+
     const itemsPayload = (quote.items || []).map((item, idx) => ({
       item_number: item.itemNumber || idx + 1,
-      product_id: isValidUuid(item.productId) ? item.productId : null,
+      product_id: (isValidUuid(item.productId) && validProductIdsSet.has(item.productId!)) ? item.productId : null,
       name: (item.name || '').trim() || `Item ${idx + 1}`,
       description: item.description || '',
       raw_search_query: item.rawSearchQuery || item.name || '',
@@ -739,6 +764,14 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         rpcSuccess = true;
       } else {
         console.warn('[Supabase] RPC save_quote_atomic não pôde ser concluída, acionando fallback controlado:', rpcError.message);
+        // Se a RPC falhou com violação de chave estrangeira 23503, sanitiza product_id para null
+        if (
+          rpcError.code === '23503' || 
+          String(rpcError.message || '').includes('quote_items_product_id_fkey') ||
+          String(rpcError.details || '').includes('products')
+        ) {
+          uniqueItemsPayload.forEach(it => { it.product_id = null; });
+        }
       }
     } catch (rpcErr) {
       console.warn('[Supabase] Falha ao invocar RPC save_quote_atomic:', rpcErr);
@@ -775,7 +808,19 @@ export async function syncQuoteToSupabase(quote: Quote): Promise<void> {
         quote_id: savedQuote.id
       }));
 
-      const { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
+      let { error: itemsInsertError } = await supabase.from('quote_items').insert(itemsToInsert);
+
+      // Auto-recuperação de integridade referencial: se houver erro de FK em product_id (23503), re-tenta imediatamente com product_id = null
+      if (itemsInsertError && (
+        itemsInsertError.code === '23503' || 
+        String(itemsInsertError.message || '').includes('quote_items_product_id_fkey') ||
+        String(itemsInsertError.details || '').includes('products')
+      )) {
+        console.warn('[Supabase] Violação de FK detectada em quote_items.product_id (23503). Sanitizando product_id para null e re-tentando inserção...');
+        const sanitizedItems = itemsToInsert.map(it => ({ ...it, product_id: null }));
+        const retryResult = await supabase.from('quote_items').insert(sanitizedItems);
+        itemsInsertError = retryResult.error;
+      }
 
       if (itemsInsertError) {
         // ROLLBACK DEFENSIVO: Restaura imediatamente os itens anteriores para nunca perder dados no banco
