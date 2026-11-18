@@ -386,11 +386,31 @@ export async function searchQuotesInSupabase(searchQuery: string): Promise<Quote
   try {
     const clean = searchQuery.trim();
     const cleanNoSpaces = clean.replace(/\s+/g, '');
+    const tokens = clean.split(/[\s\-–—/]+/).map(t => t.trim()).filter(t => t.length >= 2);
+
+    // Constrói condições OR dinâmicas para abranger código, empresa, pedido, assunto e tokens individuais
+    const orConditions: string[] = [
+      `code.ilike.%${clean}%`,
+      `code.ilike.%${cleanNoSpaces}%`,
+      `client_order_number.ilike.%${clean}%`,
+      `client_company.ilike.%${clean}%`,
+      `subject.ilike.%${clean}%`
+    ];
+
+    // Se a busca tiver tokens compostos (ex: "SC 006342 - Equipamentos para ICMBIO"), adiciona termos-chave
+    tokens.forEach(tok => {
+      orConditions.push(`code.ilike.%${tok}%`);
+      orConditions.push(`client_company.ilike.%${tok}%`);
+      orConditions.push(`subject.ilike.%${tok}%`);
+      orConditions.push(`client_order_number.ilike.%${tok}%`);
+    });
+
+    const uniqueOrConditions = Array.from(new Set(orConditions)).slice(0, 25);
 
     const { data: quotesData, error } = await supabase
       .from('quotes')
       .select('*')
-      .or(`code.ilike.%${clean}%,code.ilike.%${cleanNoSpaces}%,client_order_number.ilike.%${clean}%,client_company.ilike.%${clean}%`)
+      .or(uniqueOrConditions.join(','))
       .order('created_at', { ascending: false })
       .limit(50);
 

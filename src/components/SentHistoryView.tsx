@@ -480,6 +480,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
       const rawTerm = searchTerm.trim();
       const term = normalizeSearchText(rawTerm);
       const termNoSpaces = term.replace(/[^a-z0-9]/gi, '');
+      const tokens = term.split(/[\s\-–—/]+/).filter(t => t.length >= 2);
 
       return validQuotes
         .filter(q => {
@@ -516,7 +517,18 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
             );
           });
 
-          return matchesCode || matchesOrder || matchesHeader || itemMatch;
+          // Correspondência inteligente por múltiplos tokens (ex: "SC 006342 - Equipamentos para ICMBIO"):
+          // Quando o usuário pesquisa combinando código, assunto e cliente, confere se os termos estão presentes no conjunto da proposta
+          const allTokensMatch = tokens.length > 1 && tokens.every(tok => {
+            const inHeader = code.includes(tok) || comp.includes(tok) || subject.includes(tok) || order.includes(tok) || contact.includes(tok);
+            if (inHeader) return true;
+            return Array.isArray(q.items) && q.items.some(it => 
+              normalizeSearchText(it.name).includes(tok) || 
+              normalizeSearchText(it.partNumber).includes(tok)
+            );
+          });
+
+          return matchesCode || matchesOrder || matchesHeader || itemMatch || allTokensMatch;
         })
         .sort((a, b) => {
           if (sortBy === 'amount_desc') return (b.totalAmount || 0) - (a.totalAmount || 0);
