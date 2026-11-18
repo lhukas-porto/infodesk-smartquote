@@ -92,6 +92,9 @@ export const KNOWN_COMPANY_DOMAINS: Record<string, string> = {
   'bsb.aero': 'bsb.aero',
   inframerica: 'bsb.aero',
   'inframérica': 'bsb.aero',
+  'inframerica.aero': 'bsb.aero',
+  'inframerica concessionária do aeroporto de brasília': 'bsb.aero',
+  'inframerica concessionaria do aeroporto de brasilia': 'bsb.aero',
   'aeroporto de brasilia': 'bsb.aero',
   'aeroporto de brasília': 'bsb.aero',
   cnc: 'cnc.org.br',
@@ -121,20 +124,20 @@ export const KNOWN_COMPANY_DOMAINS: Record<string, string> = {
 };
 
 export const KNOWN_COMPANY_DIRECT_LOGOS: Record<string, string> = {
-  'bsb.aero': 'https://www.bsb.aero/apple-touch-icon.png',
-  inframerica: 'https://www.bsb.aero/apple-touch-icon.png',
-  'inframérica': 'https://www.bsb.aero/apple-touch-icon.png',
-  'aeroporto de brasilia': 'https://www.bsb.aero/apple-touch-icon.png',
-  'aeroporto de brasília': 'https://www.bsb.aero/apple-touch-icon.png',
-  'micromed.health': 'https://micromed.health/wp-content/uploads/2024/04/cropped-favicon-180x180.png',
-  micromed: 'https://micromed.health/wp-content/uploads/2024/04/cropped-favicon-180x180.png',
-  'cnc.org.br': 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png',
-  'portaldocomercio.org.br': 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png',
-  cnc: 'https://portal-bucket.azureedge.net/wp-content/2024/02/cropped-favicon_cnc_512px-180x180.png',
-  'geap.org.br': 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
-  'www.geap.org.br': 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
-  'geap.com.br': 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
-  geap: 'https://icons.duckduckgo.com/ip2/www.geap.org.br.ico',
+  'bsb.aero': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://bsb.aero&size=128',
+  inframerica: 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://bsb.aero&size=128',
+  'inframérica': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://bsb.aero&size=128',
+  'aeroporto de brasilia': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://bsb.aero&size=128',
+  'aeroporto de brasília': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://bsb.aero&size=128',
+  'micromed.health': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://micromed.health&size=128',
+  micromed: 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://micromed.health&size=128',
+  'cnc.org.br': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://cnc.org.br&size=128',
+  'portaldocomercio.org.br': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://cnc.org.br&size=128',
+  cnc: 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://cnc.org.br&size=128',
+  'geap.org.br': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.geap.org.br&size=128',
+  'www.geap.org.br': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.geap.org.br&size=128',
+  'geap.com.br': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.geap.org.br&size=128',
+  geap: 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.geap.org.br&size=128',
   'paulooctavio.com.br': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
   paulooctavio: 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
   'paulo octavio': 'https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.paulooctavio.com.br&size=128',
@@ -149,7 +152,13 @@ export const getCandidateLogosForDomain = (domain: string): string[] => {
 
   const list: string[] = [];
 
-  // 0. Mapeamentos diretos conhecidos (alta resolução personalizada)
+  // 1. Google Favicon v2 com 'clean' e 'www.clean' (SEMPRE prioridade máxima #1 - alta fidelidade da página do cliente e CDN global estável)
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${clean}&size=128`);
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.${clean}&size=128`);
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${clean}&size=128`);
+  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${clean}&size=128`);
+
+  // 2. Mapeamentos diretos conhecidos (se houver algum)
   if (KNOWN_COMPANY_DIRECT_LOGOS[clean]) {
     list.push(KNOWN_COMPANY_DIRECT_LOGOS[clean]);
   }
@@ -157,17 +166,7 @@ export const getCandidateLogosForDomain = (domain: string): string[] => {
     list.push(KNOWN_COMPANY_DIRECT_LOGOS[`www.${clean}`]);
   }
 
-  // 1. Google Favicon v2 com 'clean' e 'www.clean' (é o motor principal de maior cobertura do sistema)
-  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${clean}&size=128`);
-  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.${clean}&size=128`);
-  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${clean}&size=128`);
-  list.push(`https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${clean}&size=128`);
-
-  // 2. Unavatar Aggregator (Clearbit + Google + redes)
-  list.push(`https://unavatar.io/${clean}`);
-  list.push(`https://unavatar.io/www.${clean}`);
-
-  // 3. Google Favicon v1 (fallback clássico universal)
+  // 3. Google Favicon v1 (fallback universal clássico)
   list.push(`https://www.google.com/s2/favicons?domain=${clean}&sz=128`);
   list.push(`https://www.google.com/s2/favicons?domain=www.${clean}&sz=128`);
 
@@ -175,11 +174,9 @@ export const getCandidateLogosForDomain = (domain: string): string[] => {
   list.push(`https://icons.duckduckgo.com/ip2/${clean}.ico`);
   list.push(`https://icons.duckduckgo.com/ip2/www.${clean}.ico`);
 
-  // 5. Ícones nativos da raiz da página (HTTPS)
-  list.push(`https://www.${clean}/apple-touch-icon.png`);
-  list.push(`https://${clean}/apple-touch-icon.png`);
-  list.push(`https://www.${clean}/favicon.ico`);
-  list.push(`https://${clean}/favicon.ico`);
+  // 5. Unavatar Aggregator
+  list.push(`https://unavatar.io/${clean}`);
+  list.push(`https://unavatar.io/www.${clean}`);
 
   return Array.from(new Set(list));
 };

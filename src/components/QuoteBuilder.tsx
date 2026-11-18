@@ -3001,7 +3001,18 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       src={effectiveClientLogo} 
                       alt="" 
                       className="w-4 h-4 object-contain" 
-                      onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }} 
+                      onError={(e) => {
+                        const img = e.currentTarget as HTMLImageElement;
+                        if (!img.dataset.fallback && effectiveClientLogo.includes('t0.gstatic.com')) {
+                          img.dataset.fallback = '1';
+                          const match = effectiveClientLogo.match(/url=https?:\/\/([^&]+)/);
+                          if (match && match[1]) {
+                            img.src = `https://www.google.com/s2/favicons?domain=${match[1]}&sz=128`;
+                            return;
+                          }
+                        }
+                        img.style.display = 'none';
+                      }} 
                     />
                   ) : (
                     <Building className="w-4 h-4 text-slate-400" />

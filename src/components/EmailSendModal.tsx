@@ -352,6 +352,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
 
             <div>
               <label className="block text-slate-600 font-bold mb-1">Remetente</label>
+              <label className="block text-slate-600 font-bold mb-1">Remetente</label>
               {(() => {
                 const repFirst = (settings.representativeName || '').trim().split(/\s+/)[0] || 'Lucas';
                 const trade = (settings.tradeName || 'Infodesk').trim();

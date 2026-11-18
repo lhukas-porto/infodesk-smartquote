@@ -320,12 +320,32 @@ export const initialClientCompanies: ClientCompany[] = [
     id: 'comp-inframerica',
     name: 'Inframerica Concessionária do Aeroporto de Brasília',
     prefix: 'À',
+    website: 'bsb.aero',
     defaultDeliveryLocation: 'Brasília',
     locations: [
       'Brasília',
       'Natal'
     ],
     lastUsed: '2026-08-20T10:00:00Z',
-    contacts: []
+    contacts: [
+      {
+        id: 'cont-paulo-infra',
+        name: 'Paulo Silva',
+        title: 'Sr.',
+        email: 'compras@inframerica.aero',
+        phone: '(61) 3364-9000',
+        role: 'Comprador Sênior',
+        location: 'Brasília'
+      },
+      {
+        id: 'cont-mariana-infra',
+        name: 'Mariana Duarte',
+        title: 'Srta.',
+        email: 'mariana.duarte@inframerica.aero',
+        phone: '(61) 3364-9015',
+        role: 'Suprimentos & TI',
+        location: 'Brasília'
+      }
+    ]
   }
 ];
