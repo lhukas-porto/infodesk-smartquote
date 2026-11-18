@@ -243,7 +243,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
           style={{ 
             fontFamily: 'Verdana, Geneva, sans-serif',
             width: '21cm',
-            minHeight: '29.7cm',
+            minHeight: a4Spacers.estimatedPageCount > 1 ? `${a4Spacers.estimatedPageCount * 29.7}cm` : '29.7cm',
             maxWidth: '21cm',
             boxSizing: 'border-box',
             paddingTop: '0.75cm',
@@ -531,7 +531,13 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
           {/* Bottom Divider & Company Details */}
           <div 
             className="mt-auto pt-2 pb-1 text-black space-y-0.5 text-center font-bold sq-avoid-break shrink-0"
-            style={{ borderTop: '0.5pt solid #000000', fontFamily: 'Verdana, Geneva, sans-serif', fontSize: '9.5pt', fontWeight: 'bold' }}
+            style={{ 
+              borderTop: '0.5pt solid #000000', 
+              fontFamily: 'Verdana, Geneva, sans-serif', 
+              fontSize: '9.5pt', 
+              fontWeight: 'bold',
+              marginTop: a4Spacers.estimatedPageCount > 1 ? `${a4Spacers.spacerBeforeFooter}px` : undefined
+            }}
           >
             <p className="font-bold" style={{ fontSize: '9.5pt', fontWeight: 'bold' }}>{settings.companyName || 'Lucas Porto da Fonseca-ME'}</p>
             <p className="font-bold" style={{ fontSize: '9.5pt', fontWeight: 'bold' }}>{settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste'} – {settings.cityState || 'Brasília - DF'}</p>

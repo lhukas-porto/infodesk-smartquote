@@ -3431,8 +3431,8 @@ export interface A4ProposalSpacers {
  */
 export function calculateA4ProposalSpacers(quote: any, settings?: any): A4ProposalSpacers {
   // Altura útil padrão de 1 folha A4 em pixels web (96 DPI: 29.7cm ≈ 1122px, menos margens de ~45px = 1077px)
-  // Usamos 1000px como teto seguro para absorver variações de renderização de fontes e quebras de linha
-  const A4_PAGE_HEIGHT_PX = 1000;
+  // Usamos 1020px como teto seguro para absorver variações de renderização de fontes e quebras de linha
+  const PAGE_CAPACITY_PX = 1020;
   
   // 1. Cabeçalho com Logomarca Infodesk (8.56cm x 2.08cm + margem inferior)
   const headerHeight = 105;
@@ -3443,37 +3443,57 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
   // 3. Parágrafo de abertura ("Em atenção...")
   const introHeight = 65;
 
+  // Cabeçalho pré-tabela acumulado na Página 1
+  const preTableHeight = headerHeight + clientHeight + introHeight; // ~285px
+
   // 4. Tabela Oficial de Produtos
   const tableHeaderHeight = 38;
   const items = (quote?.items || []).filter((it: any) => !it.isOptional);
   const optionalItems = (quote?.items || []).filter((it: any) => it.isOptional);
-  let itemsHeight = 0;
-  
+
+  // Simulação precisa de paginação linha a linha (com repetição de thead a cada quebra)
+  let currentPage = 1;
+  let currentHeightOnPage = preTableHeight + tableHeaderHeight;
+
   items.forEach((item: any) => {
     const hasImage = Boolean(item.showImage && item.imageUrl);
     const nameLength = (item.name || '').length;
     // Se o item tem imagem ativa, ocupa ~150-170px (miniatura de até 2.71cm + paddings/bordas + nome em até 2 linhas)
-    if (hasImage) {
-      itemsHeight += nameLength > 40 ? 170 : 150;
+    const rowHeight = hasImage ? (nameLength > 40 ? 170 : 150) : (nameLength > 40 ? 52 : 36);
+
+    // Se a linha não couber na página atual, ocorre a quebra de página
+    if (currentHeightOnPage + rowHeight > PAGE_CAPACITY_PX) {
+      currentPage += 1;
+      currentHeightOnPage = tableHeaderHeight + rowHeight;
     } else {
-      // Sem imagem: se o nome passar de 40 caracteres ocupa 2 linhas (~52px), senão ~38px
-      itemsHeight += nameLength > 40 ? 52 : 38;
+      currentHeightOnPage += rowHeight;
     }
   });
 
   // Itens Opcionais / Upgrades Sugeridos
-  let optionalHeight = 0;
   if (optionalItems.length > 0) {
-    optionalHeight += 28; // Título / header
-    optionalHeight += 28; // thead
+    const optHeaderHeight = 28;
+    if (currentHeightOnPage + optHeaderHeight > PAGE_CAPACITY_PX) {
+      currentPage += 1;
+      currentHeightOnPage = optHeaderHeight;
+    } else {
+      currentHeightOnPage += optHeaderHeight;
+    }
+
     optionalItems.forEach(() => {
-      optionalHeight += 28;
+      const optRowHeight = 28;
+      if (currentHeightOnPage + optRowHeight > PAGE_CAPACITY_PX) {
+        currentPage += 1;
+        currentHeightOnPage = tableHeaderHeight + optRowHeight;
+      } else {
+        currentHeightOnPage += optRowHeight;
+      }
     });
-    optionalHeight += 28; // Subtotal
-    optionalHeight += 20; // margem
+
+    currentHeightOnPage += 28; // Subtotal
   }
 
-  const tableTotalHeight = tableHeaderHeight + itemsHeight + optionalHeight + 20;
+  currentHeightOnPage += 16; // Margem inferior da tabela
 
   // 5. Bloco de Condições Gerais
   let conditionsHeight = 28; // Título "Condições gerais:"
@@ -3490,27 +3510,37 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
   }
 
   // 6. Bloco de Data e Assinatura (textos fixos)
-  const dateTextHeight = 24;
-  const signatureTextHeight = 68; // Nome do responsável + Telefones
+  const dateTextHeight = 22;
+  const signatureTextHeight = 62; // Nome do responsável + Telefones
 
   // 7. Rodapé Fiscal Fixo na base
-  const footerHeight = 72; // Linha divisória preta + 3 linhas de dados fiscais
+  const footerHeight = 68; // Linha divisória preta + 3 linhas de dados fiscais
 
-  // Altura total consumida pelo conteúdo sem os espaçadores inteligentes
-  const baseContentHeight = headerHeight + clientHeight + introHeight + tableTotalHeight + 
-                            conditionsHeight + dateTextHeight + signatureTextHeight + footerHeight;
+  // Altura base somada dos blocos de encerramento
+  const baseClosingHeight = conditionsHeight + dateTextHeight + signatureTextHeight + footerHeight;
 
-  // Se cabe confortavelmente em 1 folha A4 (caso mais comum de orçamentos de 1 a 4 itens):
-  if (baseContentHeight <= A4_PAGE_HEIGHT_PX) {
-    const availableSpace = Math.max(0, A4_PAGE_HEIGHT_PX - baseContentHeight);
+  // Espaçadores mínimos de segurança
+  const minSpacerAfterConditions = 20;
+  const minSpacerAfterDate = 14;
+  const minSpacerBeforeFooter = 24;
+  const minClosingTotal = baseClosingHeight + minSpacerAfterConditions + minSpacerAfterDate + minSpacerBeforeFooter;
 
-    // Distribuição harmônica proporcional e segura ao espaço disponível:
-    // - Condições -> Data: entre 20px e 65px
-    // - Data -> Assinatura: entre 16px e 36px
-    // - Assinatura -> Rodapé Fiscal: entre 24px e 90px (no print web, mt-auto cuida da absorção fluida)
-    const spacerAfterConditions = Math.max(20, Math.min(65, Math.round(availableSpace * 0.40)));
-    const spacerAfterDate = Math.max(16, Math.min(36, Math.round(availableSpace * 0.25)));
-    const spacerBeforeFooter = Math.max(24, Math.min(90, Math.round(availableSpace * 0.35)));
+  // Verifica se o bloco de encerramento cabe na página atual ou se precisa quebrar para a próxima
+  if (currentHeightOnPage + minClosingTotal > PAGE_CAPACITY_PX) {
+    currentPage += 1;
+    currentHeightOnPage = minClosingTotal;
+  } else {
+    currentHeightOnPage += minClosingTotal;
+  }
+
+  // Espaço livre remanescente na ÚLTIMA página para distribuição harmônica
+  const freeSpace = Math.max(0, PAGE_CAPACITY_PX - currentHeightOnPage);
+
+  // Cenário 1: Orçamento de 1 Página (caso mais comum de 1 a 3 itens)
+  if (currentPage === 1) {
+    const spacerAfterConditions = Math.max(20, Math.min(55, minSpacerAfterConditions + Math.round(freeSpace * 0.35)));
+    const spacerAfterDate = Math.max(14, Math.min(32, minSpacerAfterDate + Math.round(freeSpace * 0.22)));
+    const spacerBeforeFooter = Math.max(24, Math.min(80, minSpacerBeforeFooter + Math.round(freeSpace * 0.43)));
 
     return {
       spacerAfterConditions,
@@ -3520,30 +3550,17 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
     };
   }
 
-  // Se ultrapassar 1 página A4 (orçamentos longos de 6+ itens com fotos):
-  const pagesCount = Math.ceil(baseContentHeight / A4_PAGE_HEIGHT_PX);
-  const remainderInLastPage = baseContentHeight % A4_PAGE_HEIGHT_PX;
-  const availableInLastPage = A4_PAGE_HEIGHT_PX - remainderInLastPage;
+  // Cenário 2: Orçamento Multi-Páginas (2+ páginas com itens distribuídos)
+  // Distribuição harmônica fluida que elimina o aspecto "espremido" no topo e empurra o rodapé para a base da última folha
+  const extraConditions = Math.min(110, Math.round(freeSpace * 0.30));
+  const extraDate = Math.min(50, Math.round(freeSpace * 0.18));
+  const extraFooter = Math.min(260, Math.round(freeSpace * 0.52));
 
-  if (availableInLastPage >= 120 && availableInLastPage <= 480) {
-    const spacerAfterConditions = Math.max(20, Math.min(60, Math.round(availableInLastPage * 0.35)));
-    const spacerAfterDate = Math.max(16, Math.min(35, Math.round(availableInLastPage * 0.22)));
-    const spacerBeforeFooter = Math.max(24, Math.min(80, Math.round(availableInLastPage * 0.43)));
-
-    return {
-      spacerAfterConditions,
-      spacerAfterDate,
-      spacerBeforeFooter,
-      estimatedPageCount: pagesCount
-    };
-  }
-
-  // Fallback padrão elegante para páginas quase preenchidas
   return {
-    spacerAfterConditions: 24,
-    spacerAfterDate: 18,
-    spacerBeforeFooter: 28,
-    estimatedPageCount: pagesCount
+    spacerAfterConditions: minSpacerAfterConditions + extraConditions,
+    spacerAfterDate: minSpacerAfterDate + extraDate,
+    spacerBeforeFooter: minSpacerBeforeFooter + extraFooter,
+    estimatedPageCount: currentPage
   };
 }
 
