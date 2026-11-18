@@ -38,6 +38,7 @@ import {
   getCandidateLogosForDomain,
   resolveCompanyCandidates
 } from '../utils/companyLogoResolver';
+import { resolveLocationCep } from '../utils/cepHelper';
 
 interface ClientManagementViewProps {
   companies: ClientCompany[];
@@ -893,10 +894,16 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     : [selectedCompany.defaultDeliveryLocation || 'Brasília']
                   ).map(loc => {
                     const isDefault = selectedCompany.defaultDeliveryLocation === loc;
+                    const resolvedCep = resolveLocationCep(loc, selectedCompany);
                     return (
                       <div key={loc} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs border transition ${isDefault ? 'bg-sky-50 border-sky-300 text-sky-950 font-semibold shadow-sm ring-1 ring-sky-200' : 'bg-white border-slate-200 text-slate-700 hover:border-sky-300'}`}>
                         <button type="button" onClick={() => handleSetDefaultLocation(selectedCompany.id, loc)} className={`transition ${isDefault ? 'text-amber-500 font-bold' : 'text-slate-300 hover:text-amber-500'}`} title={isDefault ? 'Destino padrão' : 'Definir como padrão'}>★</button>
                         <span>{loc}</span>
+                        {resolvedCep.cep && (
+                          <span className="text-[10px] font-mono font-bold text-sky-800 bg-sky-100/80 px-1.5 py-0.5 rounded-md border border-sky-200/60" title="CEP para frete">
+                            {resolvedCep.formatted}
+                          </span>
+                        )}
                         {isDefault && <span className="text-[9.5px] px-1.5 py-0.5 bg-sky-600 text-white rounded font-bold uppercase tracking-wider">Padrão</span>}
                         <button type="button" onClick={() => handleRemoveLocation(selectedCompany.id, loc)} className="text-slate-400 hover:text-red-500 ml-1 p-0.5 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                       </div>
@@ -904,7 +911,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   })}
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); handleAddLocationToCompany(selectedCompany.id); }} className="flex items-center gap-2 pt-1">
-                  <input type="text" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500" />
+                  <input type="text" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-sky-500" />
                   <button type="submit" disabled={!newLocationName.trim()} className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 shrink-0 transition cursor-pointer">
                     <Plus className="w-3.5 h-3.5" /><span>Adicionar</span>
                   </button>

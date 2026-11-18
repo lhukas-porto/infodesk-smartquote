@@ -1376,6 +1376,7 @@ export const getClientCompanies = (): ClientCompany[] => {
             prefix: resolvedPrefix as 'À' | 'Ao',
             defaultDeliveryLocation: c.defaultDeliveryLocation || locs[0] || 'Brasília',
             locations: locs,
+            locationCeps: c.locationCeps || {},
             contacts: dedupedContacts
           };
         }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
@@ -1428,6 +1429,7 @@ export const saveClientCompanies = (companies: ClientCompany[], syncToCloud: boo
           locations: Array.isArray(comp.locations) && comp.locations.length > 0
             ? Array.from(new Set(comp.locations.filter(Boolean).map(l => l.trim())))
             : (comp.defaultDeliveryLocation ? [comp.defaultDeliveryLocation] : ['Brasília - DF']),
+          locationCeps: comp.locationCeps || {},
           contacts: sortedContacts
         };
       })

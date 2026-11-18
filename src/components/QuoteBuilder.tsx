@@ -135,6 +135,14 @@ import { parseQuoteTimestamp } from '../utils/dateUtils';
 import { learnSupplier, learnSuppliersFromProducts } from '../services/supplierLearningService';
 import { resolveCompanyCandidates } from '../utils/companyLogoResolver';
 import { findMatchingClientCompany } from '../utils/clientLogoEmailHelper';
+import {
+  resolveLocationCep,
+  formatCep,
+  setGlobalLocationCep,
+  fetchCepFromViaCep,
+  normalizeLocationKey,
+  extractCityBaseKey
+} from '../utils/cepHelper';
 
 interface QuoteBuilderProps {
   currentQuote: Quote;
@@ -1172,6 +1180,71 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
     setLinkNotification(`Localidade "${clean}" cadastrada e salva com sucesso!`);
     setTimeout(() => setLinkNotification(null), 3500);
+  };
+
+  // HUD Operacional: Gestão de CEP da localidade para cálculo de frete (uso interno exclusivo)
+  const [isEditingLocationCep, setIsEditingLocationCep] = useState(false);
+  const [locationCepInput, setLocationCepInput] = useState('');
+  const [isCepCopied, setIsCepCopied] = useState(false);
+  const [isSearchingViaCep, setIsSearchingViaCep] = useState(false);
+
+  const resolvedLocationCep = useMemo(() => {
+    return resolveLocationCep(currentQuote.deliveryLocation, matchedCompany);
+  }, [currentQuote.deliveryLocation, matchedCompany]);
+
+  const handleCopyCep = (cepText: string) => {
+    if (!cepText) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(cepText).catch(() => {});
+    }
+    setIsCepCopied(true);
+    setTimeout(() => setIsCepCopied(false), 2000);
+  };
+
+  const handleSaveLocationCep = (loc: string, cepValue: string) => {
+    const formatted = formatCep(cepValue);
+    if (!formatted || formatted.replace(/\D/g, '').length < 8) {
+      alert('Por favor, informe um CEP válido com 8 dígitos.');
+      return;
+    }
+    const cleanLoc = loc.trim();
+    const key = normalizeLocationKey(cleanLoc);
+    const cityKey = extractCityBaseKey(cleanLoc);
+
+    // 1. Salva no cache global de localidades
+    setGlobalLocationCep(cleanLoc, formatted);
+
+    // 2. Se há empresa vinculada, salva nos metadados da empresa e persiste
+    if (matchedCompany) {
+      const updatedCeps = { ...(matchedCompany.locationCeps || {}) };
+      updatedCeps[key] = formatted;
+      if (cityKey) updatedCeps[cityKey] = formatted;
+
+      const updatedCompanies = clientCompanies.map(c =>
+        c.id === matchedCompany.id ? { ...c, locationCeps: updatedCeps } : c
+      );
+      handleUpdateCompanies(updatedCompanies);
+    }
+
+    setIsEditingLocationCep(false);
+    setLocationCepInput('');
+    setLinkNotification(`CEP ${formatted} salvo para ${cleanLoc}!`);
+    setTimeout(() => setLinkNotification(null), 3500);
+  };
+
+  const handleSearchViaCep = async (cityName: string) => {
+    if (!cityName) return;
+    setIsSearchingViaCep(true);
+    try {
+      const found = await fetchCepFromViaCep(cityName);
+      if (found) {
+        setLocationCepInput(found);
+      } else {
+        alert(`Não encontramos um CEP automático para "${cityName}". Você pode digitar o CEP manualmente.`);
+      }
+    } finally {
+      setIsSearchingViaCep(false);
+    }
   };
 
   // Helpers de formatação brasileira com separador de milhar (.) e 2 casas decimais (,): ex: 1.100,00
@@ -3545,6 +3618,155 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     );
                   })()}
                 </div>
+              </div>
+            )}
+
+            {/* HUD Operacional: CEP de Destino para Cálculo de Frete (Uso interno do Lucas - NÃO vai para proposta/PDF/e-mail) */}
+            {currentQuote.deliveryLocation && (
+              <div className={`mt-2 rounded-xl border p-2 text-xs transition-all animate-fadeIn ${
+                !isBrasiliaDelivery(currentQuote.deliveryLocation)
+                  ? 'bg-gradient-to-r from-sky-50 via-sky-50/80 to-blue-50/70 border-sky-300 shadow-2xs'
+                  : 'bg-slate-50 border-slate-200'
+              }`}>
+                {isEditingLocationCep ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-sky-600" />
+                        <span>CEP de Destino para Frete</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium truncate max-w-[120px]">
+                        {currentQuote.deliveryLocation}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={locationCepInput}
+                          onChange={(e) => setLocationCepInput(formatCep(e.target.value))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSaveLocationCep(currentQuote.deliveryLocation || '', locationCepInput);
+                            } else if (e.key === 'Escape') {
+                              setIsEditingLocationCep(false);
+                            }
+                          }}
+                          maxLength={9}
+                          className="w-full px-2.5 py-1 text-xs font-mono font-bold bg-white border border-sky-400 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                          autoFocus
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveLocationCep(currentQuote.deliveryLocation || '', locationCepInput)}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                        title="Salvar CEP"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Salvar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingLocationCep(false);
+                          setLocationCepInput('');
+                        }}
+                        className="p-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+                        title="Cancelar"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                      <span className="truncate">Operacional interno (não vai na proposta)</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSearchViaCep(currentQuote.deliveryLocation || '')}
+                        disabled={isSearchingViaCep}
+                        className="text-sky-600 hover:text-sky-800 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
+                      >
+                        <Search className="w-3 h-3" />
+                        <span>{isSearchingViaCep ? 'Buscando...' : 'ViaCEP'}</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1 shrink-0">
+                        <Truck className="w-3.5 h-3.5 text-sky-600" />
+                        <span>CEP Frete:</span>
+                      </span>
+                      {resolvedLocationCep.cep ? (
+                        <span 
+                          className="font-mono font-black text-sky-950 bg-white px-2 py-0.5 rounded-lg border border-sky-200 shadow-2xs text-xs tracking-wider shrink-0"
+                          title={`CEP de destino para cálculo de frete (${resolvedLocationCep.source === 'company' ? 'Cadastrado no cliente' : resolvedLocationCep.source === 'dictionary' ? 'Padrão da cidade' : 'Histórico'})`}
+                        >
+                          {resolvedLocationCep.formatted}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-amber-700 font-medium italic truncate">
+                          Não cadastrado
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {resolvedLocationCep.cep ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyCep(resolvedLocationCep.formatted)}
+                            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border transition shadow-2xs cursor-pointer ${
+                              isCepCopied
+                                ? 'bg-emerald-600 border-emerald-600 text-white'
+                                : 'bg-white hover:bg-sky-600 text-sky-700 hover:text-white border-sky-300'
+                            }`}
+                            title="Copiar CEP para calcular frete nos fornecedores"
+                          >
+                            {isCepCopied ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                <span>Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copiar CEP</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLocationCepInput(resolvedLocationCep.formatted);
+                              setIsEditingLocationCep(true);
+                            }}
+                            className="p-1 rounded-md text-slate-400 hover:text-sky-600 hover:bg-white/80 transition cursor-pointer"
+                            title="Editar CEP desta localidade"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLocationCepInput('');
+                            setIsEditingLocationCep(true);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition shadow-2xs cursor-pointer"
+                          title="Cadastrar CEP para esta localidade"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>+ Cadastrar CEP</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

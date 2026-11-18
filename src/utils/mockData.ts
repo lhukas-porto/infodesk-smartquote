@@ -281,6 +281,12 @@ export const initialClientCompanies: ClientCompany[] = [
       'Joinville',
       'Itabira'
     ],
+    locationCeps: {
+      'brasilia': '70040-010',
+      'coronel fabriciano': '35170-001',
+      'joinville': '89201-000',
+      'itabira': '35900-001'
+    },
     lastUsed: '2026-09-03T12:00:00Z',
     contacts: []
   },

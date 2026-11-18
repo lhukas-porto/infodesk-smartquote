@@ -319,7 +319,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-slate-600 font-bold">
-                  Destinatários (Para:) *
+                  Destinatários
                 </label>
                 {!showCc && (
                   <button

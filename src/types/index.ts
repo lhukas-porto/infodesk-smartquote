@@ -269,6 +269,7 @@ export interface ClientCompany {
   defaultDeliveryDays?: string;
   defaultWarrantyTerms?: string;
   locations?: string[];
+  locationCeps?: Record<string, string>;
   lastUsed?: string;
   logoUrl?: string;
   website?: string;
