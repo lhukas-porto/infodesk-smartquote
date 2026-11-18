@@ -25,7 +25,7 @@ interface QuotePreviewProps {
   quote: Quote;
   settings: CompanySettings;
   onBackToEdit: () => void;
-  onSendEmail: () => void;
+  onSendEmail: (logoUrl?: string) => void;
   sourceTab?: 'builder' | 'history' | 'purchases' | 'dashboard';
   isEmailModalOpen?: boolean;
 }
@@ -226,7 +226,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
           </button>
 
           <button
-            onClick={onSendEmail}
+            onClick={() => onSendEmail(currentClientLogo)}
             className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm shadow-blue-500/20 transition"
           >
             <Send className="w-3.5 h-3.5" />

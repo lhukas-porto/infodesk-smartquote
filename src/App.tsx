@@ -435,6 +435,7 @@ export const App: React.FC = () => {
     });
   };
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [previewClientLogoUrl, setPreviewClientLogoUrl] = useState<string | undefined>();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
   const [clientCompanies, setClientCompanies] = useState<ClientCompany[]>(() => getClientCompanies());
@@ -3049,7 +3050,10 @@ export const App: React.FC = () => {
             }}
             onSave={handleSaveQuote}
             onSaveAsNewQuote={handleSaveAsNewQuote}
-            onSendEmail={() => setIsEmailModalOpen(true)}
+            onSendEmail={() => {
+              setPreviewClientLogoUrl(undefined);
+              setIsEmailModalOpen(true);
+            }}
             onOpenWebSearch={(query?: string, itemIdx?: number | null, existingItem?: Partial<QuoteItem>) => {
               setWebSearchQuery(query || '');
               setWebSearchTargetIndex(itemIdx !== undefined ? itemIdx : null);
@@ -3084,7 +3088,10 @@ export const App: React.FC = () => {
             sourceTab={previewSourceTab}
             isEmailModalOpen={isEmailModalOpen}
             onBackToEdit={() => setActiveTab(previewSourceTab)}
-            onSendEmail={() => setIsEmailModalOpen(true)}
+            onSendEmail={(logoUrl) => {
+              setPreviewClientLogoUrl(logoUrl);
+              setIsEmailModalOpen(true);
+            }}
           />
         )}
 
@@ -3262,6 +3269,7 @@ export const App: React.FC = () => {
         onConfirmSend={handleConfirmSendEmail}
         connectedUserEmail={connectedUserEmail}
         onSwitchAccount={handleSwitchGoogleAccount}
+        initialClientLogoUrl={previewClientLogoUrl}
       />
 
       <SettingsModal

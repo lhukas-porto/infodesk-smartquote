@@ -36,6 +36,7 @@ interface EmailSendModalProps {
   }) => Promise<void> | void;
   connectedUserEmail?: string | null;
   onSwitchAccount?: () => Promise<void> | void;
+  initialClientLogoUrl?: string;
 }
 
 export const EmailSendModal: React.FC<EmailSendModalProps> = ({
@@ -45,7 +46,8 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   settings,
   onConfirmSend,
   connectedUserEmail,
-  onSwitchAccount
+  onSwitchAccount,
+  initialClientLogoUrl
 }) => {
   const [isSending, setIsSending] = useState(false);
   const [isSentSuccess, setIsSentSuccess] = useState(false);
@@ -54,32 +56,36 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   const toInputRef = useRef<HTMLInputElement>(null);
 
   const [clientLogoDataUrl, setClientLogoDataUrl] = useState<string | null>(() => {
-    return quote.clientLogoUrl || getSynchronousClientLogoPreview(quote.clientCompany, quote.clientEmail);
+    return initialClientLogoUrl || quote.clientLogoUrl || getSynchronousClientLogoPreview(quote.clientCompany, quote.clientEmail);
   });
 
   React.useEffect(() => {
     let isMounted = true;
-    if (isOpen && quote.clientCompany) {
-      const immediate = quote.clientLogoUrl || getSynchronousClientLogoPreview(quote.clientCompany, quote.clientEmail);
-      if (immediate) {
-        setClientLogoDataUrl(immediate);
-      }
-
-      resolveClientLogoBase64({
-        name: quote.clientCompany,
-        logoUrl: quote.clientLogoUrl,
-        contacts: quote.clientEmail ? [{ email: quote.clientEmail }] : []
-      }).then(dataUrl => {
-        if (isMounted && dataUrl && dataUrl.startsWith('data:')) {
-          setClientLogoDataUrl(dataUrl);
-        } else if (isMounted && quote.clientCompany) {
-          const avatar = generateInitialsAvatarPngDataUrl(quote.clientCompany);
-          if (avatar) setClientLogoDataUrl(avatar);
+    if (isOpen) {
+      if (initialClientLogoUrl) {
+        setClientLogoDataUrl(initialClientLogoUrl);
+      } else if (quote.clientCompany) {
+        const immediate = quote.clientLogoUrl || getSynchronousClientLogoPreview(quote.clientCompany, quote.clientEmail);
+        if (immediate) {
+          setClientLogoDataUrl(immediate);
         }
-      }).catch(() => {});
+
+        resolveClientLogoBase64({
+          name: quote.clientCompany,
+          logoUrl: quote.clientLogoUrl,
+          contacts: quote.clientEmail ? [{ email: quote.clientEmail }] : []
+        }).then(dataUrl => {
+          if (isMounted && dataUrl && dataUrl.startsWith('data:')) {
+            setClientLogoDataUrl(dataUrl);
+          } else if (isMounted && quote.clientCompany) {
+            const avatar = generateInitialsAvatarPngDataUrl(quote.clientCompany);
+            if (avatar) setClientLogoDataUrl(avatar);
+          }
+        }).catch(() => {});
+      }
     }
     return () => { isMounted = false; };
-  }, [isOpen, quote.clientCompany, quote.clientEmail, quote.clientLogoUrl]);
+  }, [isOpen, initialClientLogoUrl, quote.clientCompany, quote.clientEmail, quote.clientLogoUrl]);
 
   const proposalHtml = useMemo(() => {
     return generateProposalEmailHtml(quote, settings, { clientLogoUrl: clientLogoDataUrl || undefined });

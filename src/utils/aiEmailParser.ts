@@ -3383,7 +3383,7 @@ export function getNextUniqueQuoteCode(
  * Função utilitária para sanitizar e escapar caracteres especiais de HTML,
  * prevenindo quebras visuais e injeção XSS nas propostas.
  */
-function escapeHtml(str: any): string {
+export function escapeHtml(str: any): string {
   if (str === null || str === undefined) return '';
   return String(str)
     .replace(/&/g, '&amp;')
