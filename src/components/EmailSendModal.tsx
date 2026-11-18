@@ -27,7 +27,13 @@ interface EmailSendModalProps {
   onClose: () => void;
   quote: Quote;
   settings: CompanySettings;
-  onConfirmSend: (quote: Quote) => Promise<void> | void;
+  onConfirmSend: (quote: Quote, options?: {
+    attachments?: Array<{
+      filename: string;
+      mimeType: string;
+      contentBase64: string;
+    }>;
+  }) => Promise<void> | void;
   connectedUserEmail?: string | null;
   onSwitchAccount?: () => Promise<void> | void;
 }
@@ -44,6 +50,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [isSentSuccess, setIsSentSuccess] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [attachPdf, setAttachPdf] = useState(false);
   const toInputRef = useRef<HTMLInputElement>(null);
 
   const [clientLogoDataUrl, setClientLogoDataUrl] = useState<string | null>(() => {
@@ -113,6 +120,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
       setIsSending(false);
       setIsSentSuccess(false);
       setSendError(null);
+      setAttachPdf(false); // Regra do Lucas: desmarcado por padrão
       const resolvedTo = getResolvedInitialTo(quote);
       const resolvedCc = extractEmailString(quote.ccEmails);
       setToEmails(resolvedTo);
@@ -151,6 +159,23 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
       const finalSubject = (subject || '').trim() || 'Fornecimento de Materiais';
       const cleanCc = extractEmailString(ccEmails);
 
+      let attachments: Array<{ filename: string; mimeType: string; contentBase64: string }> | undefined = undefined;
+
+      if (attachPdf) {
+        try {
+          const { generateQuotePdfBase64 } = await import('../utils/pdfExport');
+          const pdf = await generateQuotePdfBase64(quote, settings, clientLogoDataUrl || undefined);
+          attachments = [{
+            filename: pdf.filename,
+            mimeType: 'application/pdf',
+            contentBase64: pdf.base64
+          }];
+        } catch (pdfErr) {
+          console.error('Erro ao gerar anexo PDF da proposta:', pdfErr);
+          throw new Error('Não foi possível gerar o arquivo PDF da proposta para anexar. Desmarque a opção de PDF ou tente novamente.');
+        }
+      }
+
       await onConfirmSend({
         ...quote,
         clientLogoUrl: clientLogoDataUrl || quote.clientLogoUrl || undefined,
@@ -160,7 +185,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
         subject: finalSubject,
         status: 'sent',
         sentAt: new Date().toISOString()
-      });
+      }, { attachments });
 
       setIsSending(false);
       setIsSentSuccess(true);
@@ -328,15 +353,49 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
             />
           </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-slate-700 font-bold">
-                  Conteúdo do E-mail (Proposta Oficial Embutida no Corpo)
+          {/* Opção de Anexo PDF Oficial (Regra do Lucas: desmarcado por padrão) */}
+          <div className="p-3 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 transition">
+            <div className="flex items-center gap-2.5">
+              <div className={`p-2 rounded-xl transition ${attachPdf ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-slate-200/60 text-slate-500'}`}>
+                <Paperclip className="w-4 h-4" />
+              </div>
+              <div>
+                <label htmlFor="attach-pdf-checkbox" className="text-xs font-bold text-slate-800 cursor-pointer block">
+                  Anexar Proposta Comercial em PDF (.pdf)
                 </label>
-                <span className="text-[10px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 font-semibold">
-                  Sem anexo • Proposta formatada direto no corpo
+                <span className="text-[11px] text-slate-500 block">
+                  {attachPdf 
+                    ? 'O arquivo PDF oficial será gerado e enviado em anexo' 
+                    : 'Desmarcado • A proposta será enviada diretamente no corpo do e-mail'}
                 </span>
               </div>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                id="attach-pdf-checkbox"
+                type="checkbox"
+                checked={attachPdf}
+                onChange={(e) => setAttachPdf(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-10 h-5.5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-sky-600"></div>
+            </label>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-slate-700 font-bold">
+                Conteúdo do E-mail (Proposta Oficial Embutida no Corpo)
+              </label>
+              <span className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${
+                attachPdf 
+                  ? 'text-rose-700 bg-rose-50 border-rose-200' 
+                  : 'text-sky-700 bg-sky-50 border-sky-200'
+              }`}>
+                {attachPdf ? '📎 Com anexo PDF • Proposta também formatada no corpo' : 'Sem anexo • Proposta formatada direto no corpo'}
+              </span>
+            </div>
 
               {/* Pré-visualização rica do corpo do e-mail com a proposta formatada */}
               <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
@@ -423,7 +482,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
               ) : isSending ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                  <span>Enviando via Workspace...</span>
+                  <span>{attachPdf ? 'Gerando PDF & Enviando...' : 'Enviando via Workspace...'}</span>
                 </>
               ) : (
                 <>

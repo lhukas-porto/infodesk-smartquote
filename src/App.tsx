@@ -2165,7 +2165,16 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleConfirmSendEmail = async (sentQuote: Quote) => {
+  const handleConfirmSendEmail = async (
+    sentQuote: Quote,
+    options?: {
+      attachments?: Array<{
+        filename: string;
+        mimeType: string;
+        contentBase64: string;
+      }>;
+    }
+  ) => {
     const updatedComps = registerOrUpdateClient(
       sentQuote.clientCompany,
       sentQuote.contactPerson,
@@ -2274,7 +2283,8 @@ export const App: React.FC = () => {
         replyTo: replyToAddress,
         subject: finalSubject,
         bodyText: `Prezada(o) ${sentQuote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial ${sentQuote.code} para ${sentQuote.clientCompany}.\n\nValor Total: R$ ${sentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCondições de Pagamento: ${sentQuote.paymentTerms}\nPrazo de Entrega: ${sentQuote.deliveryDays}\nGarantia: ${sentQuote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\n${tradeName}\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`,
-        bodyHtml: proposalHtml
+        bodyHtml: proposalHtml,
+        attachments: options?.attachments
       });
     } catch (err: any) {
       console.error('Erro no envio via Gmail API:', err);

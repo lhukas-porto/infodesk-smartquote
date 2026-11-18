@@ -433,6 +433,11 @@ export const sendRealGmailMessage = async (
     subject: string;
     bodyText: string;
     bodyHtml?: string;
+    attachments?: Array<{
+      filename: string;
+      mimeType: string;
+      contentBase64: string;
+    }>;
   }
 ) => {
   const utf8Subject = `=?utf-8?B?${encodeUtf8Base64(params.subject)}?=`;
@@ -451,6 +456,9 @@ export const sendRealGmailMessage = async (
     fromHeader = `${utf8FromName} <${cleanEmail}>`;
   }
 
+  const hasAttachments = Boolean(params.attachments && params.attachments.length > 0);
+  const mixedBoundary = hasAttachments ? `__mixed_boundary_${Date.now()}__` : null;
+
   const messageParts = [
     `From: ${fromHeader}`,
     `To: ${(params.to || '').toLowerCase().trim()}`,
@@ -466,6 +474,12 @@ export const sendRealGmailMessage = async (
 
   messageParts.push(`Subject: ${utf8Subject}`);
   messageParts.push('MIME-Version: 1.0');
+
+  if (hasAttachments) {
+    messageParts.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
+    messageParts.push('');
+    messageParts.push(`--${mixedBoundary}`);
+  }
 
   if (params.bodyHtml) {
     // Identifica e extrai imagens inline em Base64 (data:image/...) para convertê-las em CIDs MIME nativos.
@@ -610,6 +624,24 @@ export const sendRealGmailMessage = async (
       '',
       params.bodyText
     );
+  }
+
+  // Anexos de arquivos oficiais (ex: Proposta em PDF)
+  if (hasAttachments && params.attachments && params.attachments.length > 0) {
+    for (const att of params.attachments) {
+      messageParts.push('');
+      messageParts.push(`--${mixedBoundary}`);
+      messageParts.push(`Content-Type: ${att.mimeType || 'application/pdf'}; name="${att.filename}"`);
+      messageParts.push('Content-Transfer-Encoding: base64');
+      messageParts.push(`Content-Disposition: attachment; filename="${att.filename}"`);
+      messageParts.push('');
+
+      const cleanAttBase64 = (att.contentBase64 || '').replace(/\s+/g, '');
+      const attChunks = cleanAttBase64.match(/.{1,76}/g) || [cleanAttBase64];
+      messageParts.push(attChunks.join('\r\n'));
+    }
+    messageParts.push('');
+    messageParts.push(`--${mixedBoundary}--`);
   }
 
   const message = messageParts.join('\r\n');
