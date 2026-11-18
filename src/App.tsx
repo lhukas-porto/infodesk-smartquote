@@ -2174,6 +2174,8 @@ export const App: React.FC = () => {
         mimeType: string;
         contentBase64: string;
       }>;
+      customBodyHtml?: string;
+      customBodyText?: string;
     }
   ) => {
     const updatedComps = registerOrUpdateClient(
@@ -2245,8 +2247,10 @@ export const App: React.FC = () => {
         console.warn('Aviso: falha ao incrustar fotos dos produtos para e-mail:', embedErr);
       }
 
-      // Para envio oficial por e-mail pelo Gmail, usamos as fotos e a logo embutidas com CID inline (à prova de Outlook)
-      const proposalHtml = generateProposalEmailHtml(quoteWithEmbeddedAssets, settings, { 
+      // Para envio oficial por e-mail pelo Gmail:
+      // Se options?.customBodyHtml foi fornecido (ex: modo Apenas PDF anexo), utiliza-o diretamente.
+      // Caso contrário, gera a proposta completa com a tabela de produtos no corpo.
+      const proposalHtml = options?.customBodyHtml || generateProposalEmailHtml(quoteWithEmbeddedAssets, settings, { 
         forEmailSend: true,
         clientLogoUrl: clientLogoDataUrl
       });
@@ -2276,6 +2280,8 @@ export const App: React.FC = () => {
       const replyToAddress = senderAddress;
       const finalSubject = (sentQuote.subject || '').trim() || `Proposta Comercial ${sentQuote.code} — Infodesk — Fornecimento de Materiais`;
 
+      const defaultPlainText = `Prezada(o) ${sentQuote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial ${sentQuote.code} para ${sentQuote.clientCompany}.\n\nValor Total: R$ ${sentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCondições de Pagamento: ${sentQuote.paymentTerms}\nPrazo de Entrega: ${sentQuote.deliveryDays}\nGarantia: ${sentQuote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\n${tradeName}\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`;
+
       await sendRealGmailMessage(token, {
         to: recipient,
         cc: ccList || undefined,
@@ -2283,7 +2289,7 @@ export const App: React.FC = () => {
         fromName: senderDisplayName,
         replyTo: replyToAddress,
         subject: finalSubject,
-        bodyText: `Prezada(o) ${sentQuote.contactPerson || 'Cliente'},\n\nEm atenção à solicitação de Vossa Senhoria, encaminhamos a proposta comercial ${sentQuote.code} para ${sentQuote.clientCompany}.\n\nValor Total: R$ ${sentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nCondições de Pagamento: ${sentQuote.paymentTerms}\nPrazo de Entrega: ${sentQuote.deliveryDays}\nGarantia: ${sentQuote.warrantyTerms}\n\nAtenciosamente,\n${settings.representativeName}\n${tradeName}\nTelefone: ${settings.phone}\nWhatsApp: ${settings.whatsapp}\n${settings.address} – ${settings.cityState}`,
+        bodyText: options?.customBodyText || defaultPlainText,
         bodyHtml: proposalHtml,
         attachments: options?.attachments
       });

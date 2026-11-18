@@ -4135,6 +4135,145 @@ export function isSameQuote(
   return false;
 }
 
+/**
+ * Gera o HTML formal do e-mail quando a proposta é enviada exclusivamente como PDF anexo.
+ * Contém o cabeçalho Infodesk, identificação do cliente com favicon/logo, mensagem formal de encaminhamento,
+ * resumo das condições comerciais principais e banner indicando o anexo oficial em PDF.
+ */
+export function generatePdfOnlyEmailHtml(
+  quote: any,
+  settings: any,
+  options: { forEmailSend?: boolean; clientLogoUrl?: string; customMessage?: string } = {}
+): string {
+  const clientCompanyFormatted = escapeHtml(formatCompanyPrefix(quote.clientCompany));
+  const contactPersonFormatted = escapeHtml(formatContactPerson(quote.contactPerson));
+  const cleanPhone = escapeHtml((settings.phone || '61 3033-5373').replace(/[()]/g, '').trim());
+  const cleanWhatsapp = escapeHtml((settings.whatsapp || '61 9 9627-2630').replace(/[()]/g, '').trim());
+  const cleanRawWhatsapp = (settings.whatsapp || '61 9 9627-2630').replace(/\D/g, '');
+  const logoImageSrc = options.forEmailSend ? 'cid:infodesk-logo' : '/infodesk-logo.png';
+  const formattedTotal = Number(quote.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const validityText = formatProposalValidityText(quote.validityDays);
+
+  const customText = options.customMessage
+    ? options.customMessage
+        .split(/\r?\n\r?\n/)
+        .map(p => `<p style="margin: 0 0 12px 0; text-align: justify; line-height: 1.5; color: #1e293b;">${escapeHtml(p).replace(/\r?\n/g, '<br/>')}</p>`)
+        .join('')
+    : `<p style="margin: 0 0 12px 0; text-align: justify; line-height: 1.5; color: #1e293b;">Em atenção à solicitação de Vossa Senhoria, temos a satisfação de encaminhar em anexo a nossa Proposta Comercial em formato PDF referente ao fornecimento dos materiais e equipamentos solicitados.</p>`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Proposta Comercial ${escapeHtml(quote.code || '')} — Infodesk</title>
+</head>
+<body style="margin: 0; padding: 24px; background-color: #ffffff; font-family: Verdana, Geneva, sans-serif; font-size: 10pt; line-height: 1.45; color: #000000;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 680px; margin: 0 auto; background-color: #ffffff; font-family: Verdana, Geneva, sans-serif;">
+    <tr>
+      <td>
+        <!-- Cabeçalho Infodesk -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">
+          <tr>
+            <td align="left">
+              <img src="${logoImageSrc}" alt="Infodesk" width="220" style="width: 220px; height: auto; display: block; border: 0;" />
+            </td>
+          </tr>
+        </table>
+
+        <!-- Destinatário com Ícone/Logo -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 22px;">
+          <tr>
+            ${options.clientLogoUrl ? `
+              <td width="48" valign="middle" align="center" style="width: 48px; padding-right: 14px; vertical-align: middle;">
+                <img src="${options.clientLogoUrl}" alt="${clientCompanyFormatted}" width="42" height="42" style="width: 42px; height: 42px; max-width: 42px; max-height: 42px; object-fit: contain; display: block; border: 0;" />
+              </td>
+            ` : ''}
+            <td valign="middle" style="line-height: 1.4; font-size: 11pt;">
+              <div style="font-weight: bold; color: #000000; font-size: 11pt;">${clientCompanyFormatted}</div>
+              <div style="font-weight: bold; color: #000000; font-size: 11pt;">${contactPersonFormatted}</div>
+              ${quote.clientEmail ? `<div style="font-size: 8.5pt; font-weight: bold; margin-top: 4px; color: #000000;">E-mail: <a href="mailto:${(quote.clientEmail || '').toLowerCase()}" style="color: #0000ee; text-decoration: underline;">${(quote.clientEmail || '').toLowerCase()}</a></div>` : ''}
+            </td>
+          </tr>
+        </table>
+
+        <!-- Mensagem de Encaminhamento -->
+        <div style="font-size: 10pt; color: #1e293b; margin-bottom: 20px;">
+          ${customText}
+        </div>
+
+        <!-- Banner de Destaque do Anexo PDF -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px; background-color: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+          <tr>
+            <td style="padding: 16px 20px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td width="36" valign="middle" style="width: 36px; vertical-align: middle;">
+                    <span style="font-size: 24px;">📎</span>
+                  </td>
+                  <td valign="middle" style="vertical-align: middle;">
+                    <div style="font-size: 11pt; font-weight: bold; color: #0f172a;">Documento Oficial Anexo em PDF</div>
+                    <div style="font-size: 9pt; color: #64748b; margin-top: 2px;">
+                      Proposta Comercial nº <strong>${escapeHtml(quote.code || 'Infodesk')}</strong> • Contém a relação completa de itens, fotos, especificações técnicas e valores.
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Resumo das Condições Comerciais -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 9.5pt; line-height: 1.6; color: #334155;">
+                <tr>
+                  <td width="50%" style="padding: 3px 0;"><strong>Valor Total:</strong> R$ ${formattedTotal}</td>
+                  <td width="50%" style="padding: 3px 0;"><strong>Condições de Pagto:</strong> ${escapeHtml(quote.paymentTerms || 'Faturado.')}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 3px 0;"><strong>Prazo de Entrega:</strong> ${escapeHtml(quote.deliveryDays || 'Pronta Entrega')}</td>
+                  <td style="padding: 3px 0;"><strong>Validade da Proposta:</strong> ${escapeHtml(validityText)}</td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="padding: 3px 0;"><strong>Garantia:</strong> ${escapeHtml(quote.warrantyTerms || '06 meses')}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Parágrafo de Encerramento -->
+        <p style="margin: 0 0 20px 0; font-size: 10pt; line-height: 1.5; color: #1e293b;">
+          Permanecemos à inteira disposição de Vossa Senhoria para quaisquer esclarecimentos técnicos ou negociações.
+        </p>
+
+        <!-- Assinatura Oficial -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 24px; margin-bottom: 28px;">
+          <tr>
+            <td align="left" style="font-size: 10pt; line-height: 1.45; color: #000000;">
+              <div style="color: #64748b; font-size: 9pt;">Atenciosamente,</div>
+              <div style="font-weight: bold; font-size: 10.5pt; margin-top: 4px;">${escapeHtml(settings.representativeName || 'Lucas Porto')}</div>
+              <div style="font-size: 9pt; color: #475569;">${escapeHtml(settings.tradeName || 'Infodesk')} — Informática & Tecnologia</div>
+              <div style="font-size: 9pt; color: #475569; margin-top: 4px;">
+                Telefone: ${cleanPhone} &nbsp;|&nbsp; WhatsApp: <a href="https://api.whatsapp.com/send?phone=55${cleanRawWhatsapp}" style="color: #0000ee; text-decoration: underline;">${cleanWhatsapp}</a>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Rodapé Fiscal -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-top: 0.5pt solid #cbd5e1; padding-top: 10px; font-size: 8.5pt; color: #64748b; text-align: center;">
+          <tr>
+            <td align="center">
+              <div><strong>${escapeHtml(settings.companyName || 'Lucas Porto da Fonseca ME')}</strong></div>
+              <div>${escapeHtml(settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste')} – ${escapeHtml(settings.cityState || 'Brasília - DF')}</div>
+              <div style="margin-top: 2px;">CNPJ: ${escapeHtml(settings.cnpj || '15.266.716/0001-02')} &nbsp;&nbsp;•&nbsp;&nbsp; I.E.: ${escapeHtml(settings.stateRegistration || '07.602.330/001-92')}</div>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 export { 
   resolveProductModelAndPartNumber, 
   extractModelAndPartNumberFromText, 
