@@ -31,6 +31,7 @@ import { ClientCompany, ClientContact, Quote } from '../types';
 import { maskPhone } from '../utils/aiEmailParser';
 import {
   extractCleanDomain,
+  formatSafeWebsiteUrl,
   getCompanyInitials,
   getAvatarColor,
   KNOWN_COMPANY_DOMAINS,
@@ -825,7 +826,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                           )}
                           {selectedCompany.website && (
                             <a
-                              href={`https://${extractCleanDomain(selectedCompany.website)}`}
+                              href={formatSafeWebsiteUrl(selectedCompany.website)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-xs text-sky-600 hover:text-sky-800 hover:underline flex items-center gap-1 font-medium ml-1"
