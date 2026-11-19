@@ -2,6 +2,8 @@ import { IncomingEmail } from '../types';
 import { extractItemsFromEmailContent, extractFullCompanyName, extractDeliveryLocation, extractContactPhone } from '../utils/aiEmailParser';
 import { INFODESK_LOGO_BASE64, INFODESK_LOGO_MIME, PHONE_ICON_BASE64, PHONE_ICON_MIME, WHATSAPP_ICON_BASE64, WHATSAPP_ICON_MIME } from '../utils/infodeskLogoBase64';
 
+import { reportError } from './errorReporter';
+
 declare global {
   interface Window {
     google?: any;
@@ -15,22 +17,36 @@ const GMAIL_USER_EMAIL = 'infodesk_gmail_user_email';
 let memoryAccessToken: string | null = null;
 let memoryTokenExpiry: number = 0;
 
-export const getStoredAccessToken = (): string | null => {
-  // Limpar resquícios antigos de storage persistente por segurança
-  try {
-    sessionStorage.removeItem(GMAIL_TOKEN_KEY);
-    sessionStorage.removeItem(GMAIL_TOKEN_EXPIRY);
-    localStorage.removeItem(GMAIL_TOKEN_KEY);
-    localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
-  } catch {}
+export const isGmailTokenExpiringSoon = (thresholdMinutes: number = 5): boolean => {
+  const expiry = memoryTokenExpiry || (typeof sessionStorage !== 'undefined' ? Number(sessionStorage.getItem(GMAIL_TOKEN_EXPIRY) || 0) : 0);
+  if (!expiry) return true;
+  return (expiry - Date.now()) < (thresholdMinutes * 60 * 1000);
+};
 
-  if (!memoryAccessToken) return null;
-  if (memoryTokenExpiry && Date.now() > memoryTokenExpiry) {
-    memoryAccessToken = null;
-    memoryTokenExpiry = 0;
+export const getStoredAccessToken = (): string | null => {
+  let token = memoryAccessToken;
+  let expiry = memoryTokenExpiry;
+
+  if (!token && typeof sessionStorage !== 'undefined') {
+    try {
+      token = sessionStorage.getItem(GMAIL_TOKEN_KEY);
+      expiry = Number(sessionStorage.getItem(GMAIL_TOKEN_EXPIRY) || 0);
+    } catch {}
+  }
+
+  if (!token) return null;
+
+  if (expiry && Date.now() > expiry) {
+    disconnectGmailAccount();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('infodesk_gmail_auth_expired'));
+    }
     return null;
   }
-  return memoryAccessToken;
+
+  memoryAccessToken = token;
+  memoryTokenExpiry = expiry;
+  return token;
 };
 
 export const getStoredUserEmail = (): string | null => {
@@ -115,8 +131,8 @@ export const requestGmailAccessToken = async (
           memoryAccessToken = accessToken;
           memoryTokenExpiry = expiryTime;
           try {
-            sessionStorage.removeItem(GMAIL_TOKEN_KEY);
-            sessionStorage.removeItem(GMAIL_TOKEN_EXPIRY);
+            sessionStorage.setItem(GMAIL_TOKEN_KEY, accessToken);
+            sessionStorage.setItem(GMAIL_TOKEN_EXPIRY, String(expiryTime));
             localStorage.removeItem(GMAIL_TOKEN_KEY);
             localStorage.removeItem(GMAIL_TOKEN_EXPIRY);
           } catch {}
@@ -329,8 +345,13 @@ export const fetchRealGmailMessages = async (
   if (!res.ok) {
     if (res.status === 401) {
       disconnectGmailAccount();
-      throw new Error('Sessão do Google expirada. Por favor, conecte novamente.');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('infodesk_gmail_auth_expired'));
+      }
+      reportError('Sessão Google Workspace Expirada', new Error('O token de 60 minutos do Google expirou.'), 'Gmail API - 401 Unauthorized');
+      throw new Error('Sessão do Google expirada. Por favor, conecte novamente em 1 clique.');
     }
+    reportError('Falha ao Buscar E-mails do Gmail', new Error(res.statusText), `Gmail API - Status ${res.status}`);
     throw new Error(`Erro ao buscar e-mails: ${res.statusText}`);
   }
 
@@ -658,9 +679,38 @@ export const sendRealGmailMessage = async (
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      disconnectGmailAccount();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('infodesk_gmail_auth_expired'));
+      }
+      reportError('Sessão Google Workspace Expirada', new Error('O token de envio de e-mails expirou (limite de 60 min).'), 'Gmail API - Send 401');
+      throw new Error('Sessão do Google Workspace expirada. Por favor, reconecte sua conta em 1 clique para concluir o envio.');
+    }
     const errorData = await response.json().catch(() => ({}));
+    reportError('Falha no Envio do E-mail via Gmail API', new Error(errorData.error?.message || `Status ${response.status}`), 'Gmail Send Message');
     throw new Error(errorData.error?.message || `Erro ao enviar e-mail (${response.status})`);
   }
 
   return await response.json();
+};
+
+/**
+ * Tenta silenciosamente renovar o token do Google OAuth sem exibir popups invasivos,
+ * aproveitando a sessão ativa do usuário no navegador.
+ */
+export const trySilentGmailTokenRefresh = async (clientId: string): Promise<string | null> => {
+  const currentToken = getStoredAccessToken();
+  if (currentToken && !isGmailTokenExpiringSoon(5)) return currentToken;
+
+  const userEmail = getStoredUserEmail();
+  if (!userEmail) return null;
+
+  try {
+    const res = await requestGmailAccessToken(clientId, false, userEmail);
+    return res.token;
+  } catch (err) {
+    console.warn('[Gmail] Renovação silenciosa de token falhou (requer nova autorização interativa):', err);
+    return null;
+  }
 };

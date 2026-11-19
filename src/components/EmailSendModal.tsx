@@ -4,7 +4,8 @@ import {
   Mail, 
   Paperclip, 
   Check,
-  FileText
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
 import { generateProposalEmailHtml, generatePdfOnlyEmailHtml, formatProposalValidityText } from '../utils/aiEmailParser';
@@ -255,6 +256,47 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
       setIsSending(false);
       setIsSentSuccess(false);
       setSendError(err?.message || 'Ocorreu um erro ao enviar o e-mail via Google Workspace.');
+    }
+  };
+
+  const handleMailtoFallback = async () => {
+    try {
+      const cleanTo = extractEmailString(toEmails);
+      const repName = settings.representativeName || 'Lucas Porto';
+      const trade = settings.tradeName || 'Infodesk';
+      const phone = (settings.phone || '61 3033-5373').replace(/[()]/g, '').trim();
+      const wa = (settings.whatsapp || '61 9 9627-2630').replace(/[()]/g, '').trim();
+      const formattedTotal = Number(quote.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const finalSubject = (subject || '').trim() || `Proposta Comercial ${quote.code} — Infodesk`;
+
+      const executiveSummary = 
+        `Prezada(o) ${quote.contactPerson || 'Cliente'},\n\n` +
+        `Em atenção à solicitação de Vossa Senhoria, temos a grata satisfação de encaminhar a proposta comercial ${quote.code} para ${quote.clientCompany}.\n\n` +
+        `• Valor Total: R$ ${formattedTotal}\n` +
+        `• Condições de Pagamento: ${quote.paymentTerms || 'Faturado.'}\n` +
+        `• Prazo de Entrega: ${quote.deliveryDays || 'Pronta Entrega'}\n` +
+        `• Validade da Proposta: ${formatProposalValidityText(quote.validityDays)}\n` +
+        `• Garantia: ${quote.warrantyTerms || '06 meses'}\n\n` +
+        `A proposta detalhada em alta resolução com a relação completa de todos os ${quote.items?.length || 0} itens, fotos e especificações técnicas segue em anexo em formato PDF (arquivo baixado automaticamente).\n\n` +
+        `Permanecemos à inteira disposição para quaisquer esclarecimentos.\n\n` +
+        `Atenciosamente,\n` +
+        `${repName}\n` +
+        `${trade} — Informática & Tecnologia\n` +
+        `Telefone: ${phone} | WhatsApp: ${wa}\n` +
+        `${settings.address || 'CLSW 304 Bloco A Sala 108 – Sudoeste'} – ${settings.cityState || 'Brasília - DF'}`;
+
+      // Baixa o PDF oficial automaticamente
+      try {
+        const { downloadQuotePdf } = await import('../utils/pdfExport');
+        await downloadQuotePdf(quote, settings);
+      } catch (pdfErr) {
+        console.warn('Erro ao disparar download do PDF para anexo mailto:', pdfErr);
+      }
+
+      const mailtoUrl = `mailto:${encodeURIComponent(cleanTo)}?subject=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(executiveSummary)}`;
+      window.open(mailtoUrl, '_self');
+    } catch (err: any) {
+      console.warn('Falha no mailto fallback:', err);
     }
   };
 
@@ -590,6 +632,16 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 ⚠️ {sendError}
               </span>
             )}
+
+            <button
+              type="button"
+              onClick={handleMailtoFallback}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+              title="Abrir no cliente padrão do computador (Outlook/Thunderbird) com download automático do PDF"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+              <span>Abrir no Outlook</span>
+            </button>
 
             <button
               type="button"

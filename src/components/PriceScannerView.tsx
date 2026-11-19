@@ -58,7 +58,6 @@ import {
   getStoredGeminiKey,
   isGeminiCircuitBreakerActive
 } from '../services/priceScannerService';
-import { WebImagePickerModal } from './WebImagePickerModal';
 import { UniversalListImportModal } from './UniversalListImportModal';
 import { 
   findRecentPriceByPartNumber, 
@@ -736,15 +735,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
   const [activeCaseStyle, setActiveCaseStyle] = useState<WordCaseStyle>('sentence');
   const caseMenuRef = useRef<HTMLDivElement>(null);
 
-  // Modal de Seleção de Foto Comercial
-  const [photoPickerTarget, setPhotoPickerTarget] = useState<{
-    type: 'discovered' | 'batch';
-    id: string;
-    name: string;
-    images: string[];
-    currentImageUrl: string;
-  } | null>(null);
-
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -991,44 +981,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         imageUrl: chosenImg
       };
     }));
-  };
-
-  const handlePhotoPicked = (newImageUrl: string) => {
-    if (!photoPickerTarget) return;
-
-    if (photoPickerTarget.type === 'discovered') {
-      setDiscoveredProducts(prev => prev.map(p => {
-        if (p.id !== photoPickerTarget.id) return p;
-        const existingImages = p.images || [];
-        const newImages = newImageUrl && !existingImages.includes(newImageUrl)
-          ? [newImageUrl, ...existingImages]
-          : existingImages;
-        const newIndex = newImages.indexOf(newImageUrl);
-        return {
-          ...p,
-          images: newImages,
-          selectedImageIndex: newIndex >= 0 ? newIndex : 0,
-          imageUrl: newImageUrl
-        };
-      }));
-      showToast('Foto do orçamento atualizada!');
-    } else if (photoPickerTarget.type === 'batch') {
-      setBatchResults(prev => prev.map(item => {
-        if (item.id !== photoPickerTarget.id) return item;
-        const existingImages = item.images || [];
-        const newImages = newImageUrl && !existingImages.includes(newImageUrl)
-          ? [newImageUrl, ...existingImages]
-          : existingImages;
-        const newIndex = newImages.indexOf(newImageUrl);
-        return {
-          ...item,
-          images: newImages,
-          selectedImageIndex: newIndex >= 0 ? newIndex : 0,
-          imageUrl: newImageUrl
-        };
-      }));
-      showToast('Foto do orçamento atualizada!');
-    }
   };
 
   // Executar a inserção do produto na cotação (suporta versão do Catálogo, versão da IA, ou AMBAS via checkboxes)
@@ -2326,23 +2278,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           </div>
                         </div>
                       )}
-
-                      {/* Botão para abrir modal com todas as fotos / pesquisar outras */}
-                      <button
-                        type="button"
-                        onClick={() => setPhotoPickerTarget({
-                          type: 'discovered',
-                          id: prod.id,
-                          name: prod.standardizedName,
-                          images,
-                          currentImageUrl: currentImg
-                        })}
-                        className="mt-2.5 text-[11px] font-bold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2.5 py-1 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
-                        title="Ver todas as fotos encontradas ou buscar novas fotos na web"
-                      >
-                        <Search className="w-3 h-3" />
-                        <span>Ver todas / Buscar mais fotos</span>
-                      </button>
                     </div>
 
                     {/* Right Column: Tags, Sub-specs, Title, Description, Specs Chips */}
@@ -2851,20 +2786,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setPhotoPickerTarget({
-                          type: 'batch',
-                          id: item.id,
-                          name: item.standardizedName,
-                          images: item.images && item.images.length > 0 ? item.images : (item.imageUrl ? [item.imageUrl] : []),
-                          currentImageUrl: item.imageUrl || ''
-                        })}
-                        className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold hover:underline mt-1 cursor-pointer"
-                        title="Trocar ou pesquisar foto para a cotação"
-                      >
-                        Trocar Foto
-                      </button>
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -3564,18 +3485,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             </div>
           </div>
         </div>
-      )}
-
-      {/* MODAL DE ESCOLHA DE FOTOS DA WEB */}
-      {photoPickerTarget && (
-        <WebImagePickerModal
-          isOpen={true}
-          onClose={() => setPhotoPickerTarget(null)}
-          productName={photoPickerTarget.name}
-          initialImages={photoPickerTarget.images}
-          currentImageUrl={photoPickerTarget.currentImageUrl}
-          onSelectImage={handlePhotoPicked}
-        />
       )}
 
       {/* MODAL DE IMPORTAÇÃO DE PLANILHA EXCEL / CSV NO SCANNER */}

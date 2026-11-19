@@ -33,6 +33,7 @@ import './sponsoredLinksPriceScanner.test';
 import './scannerRobustnessAndQuantity.test';
 import './supplierManagementTab.test';
 import './productPrintImagePersistence.test';
+import './catalogRestoreAndAuditFixes.test';
 import './quoteEnhancementsSuite.test';
 import './supplierUrlConsistency.test';
 import './cepIsolationAndMultiLocation.test';

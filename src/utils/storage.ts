@@ -14,7 +14,8 @@ import {
   syncPaymentMethodsToSupabase,
   deleteCategoryFromSupabase,
   deleteUnitFromSupabase,
-  deletePaymentMethodFromSupabase
+  deletePaymentMethodFromSupabase,
+  uploadBase64ImageToSupabaseStorage
 } from '../services/supabase';
 
 const SETTINGS_KEY = 'infodesk_settings';
@@ -27,7 +28,7 @@ const ACTIVE_TAB_KEY = 'infodesk_active_tab';
 const MANUAL_ANALYSES_KEY = 'infodesk_manual_analyses';
 const DELETED_QUOTE_CODES_KEY = 'infodesk_deleted_quote_codes';
 
-const CURRENT_CACHE_VERSION = '2026-11-19-cep-isolation-v2';
+const CURRENT_CACHE_VERSION = '2026-11-19-catalog-restore-v1';
 const CACHE_VERSION_KEY = 'infodesk_cache_version';
 
 export const ensureFreshCacheVersion = (): void => {
@@ -35,11 +36,11 @@ export const ensureFreshCacheVersion = (): void => {
     const saved = localStorage.getItem(CACHE_VERSION_KEY);
     if (saved !== CURRENT_CACHE_VERSION) {
       // Limpa dados legados, fichas técnicas antigas e cache global compartilhado de CEPs
+      // NUNCA remove 'infodesk_products', preservando o catálogo completo do usuário
       localStorage.removeItem('infodesk_deleted_products');
-      localStorage.removeItem('infodesk_products');
       localStorage.removeItem('infodesk_location_ceps');
       localStorage.setItem(CACHE_VERSION_KEY, CURRENT_CACHE_VERSION);
-      console.log('[Storage] Cache version atualizada: isolamento total de CEPs por cliente e limpeza realizada.');
+      console.log('[Storage] Cache version atualizada: isolamento total de CEPs por cliente e integridade do catálogo preservada.');
     } else {
       // Higienização preventiva
       localStorage.removeItem('infodesk_location_ceps');
@@ -2664,6 +2665,17 @@ export const saveProductImageToCache = (
     }
 
     if (hasChanges) {
+      // Se a imagem for Base64 (print colado), tenta offload assíncrono para o Supabase Storage
+      // para substituí-la por uma URL pública HTTP permanente, economizando 99.9% de quota local
+      if (cleanUrl.startsWith('data:image/') && cleanUrl.length > 5000) {
+        const hint = identifier.partNumber || identifier.sku || identifier.name || 'print';
+        uploadBase64ImageToSupabaseStorage(cleanUrl, hint).then(publicUrl => {
+          if (publicUrl) {
+            saveProductImageToCache(identifier, publicUrl, false);
+          }
+        }).catch(() => {});
+      }
+
       // Debounce do salvamento em disco para evitar dezenas de I/O por segundo
       if (imageCachePersistTimer) clearTimeout(imageCachePersistTimer);
       imageCachePersistTimer = setTimeout(() => {
@@ -2898,6 +2910,148 @@ export const syncCatalogProductImagesFromQuotes = (
   });
 
   return { updatedProducts, updatedCount };
+};
+
+/**
+ * Restauração & Reconstituição Automática do Catálogo Completo:
+ * Vasculha propostas salvas no histórico, rascunhos em tela, compras diretas e backups locais
+ * para recuperar e reinjetar no catálogo todos os produtos que já foram orçados, com fotos,
+ * part numbers, custos e categorias originais.
+ */
+export const restoreCatalogFromQuotesAndBackups = (
+  existingProducts: Product[] = []
+): { products: Product[]; addedCount: number } => {
+  const currentList = Array.isArray(existingProducts) ? [...existingProducts] : [];
+  const seenPns = new Set<string>();
+  const seenNames = new Set<string>();
+  const seenSkus = new Set<string>();
+
+  currentList.forEach(p => {
+    const pn = (p.partNumber || '').trim().toLowerCase();
+    const sku = (p.sku || '').trim().toLowerCase();
+    const name = normalizeSearchText(p.name || '');
+    if (pn && pn.length >= 3) seenPns.add(pn);
+    if (sku && !sku.startsWith('inf-auto-')) seenSkus.add(sku);
+    if (name && name.length >= 3) seenNames.add(name);
+  });
+
+  let addedCount = 0;
+  const newProducts: Product[] = [];
+
+  const processItem = (it: any) => {
+    if (!it || !it.name || typeof it.name !== 'string' || !it.name.trim()) return;
+    const cleanName = it.name.trim();
+    if (cleanName.length < 3) return;
+
+    const nameKey = normalizeSearchText(cleanName);
+    const pn = (it.partNumber || '').trim().toLowerCase();
+    const sku = (it.sku || '').trim().toLowerCase();
+
+    // Se já existe no catálogo pelo Part Number, SKU ou Nome normalizado, ignora
+    if (pn && pn.length >= 3 && seenPns.has(pn)) return;
+    if (sku && !sku.startsWith('inf-auto-') && seenSkus.has(sku)) return;
+    if (nameKey && nameKey.length >= 3 && seenNames.has(nameKey)) return;
+
+    // Resgata foto do item ou do cache persistente
+    const img = it.imageUrl || findProductImageInCache(cleanName, it.partNumber, it.sku);
+
+    const safeNameHash = cleanName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase();
+    const safeSku = it.sku || (it.partNumber ? it.partNumber.toUpperCase() : `INF-${safeNameHash || 'AUTO'}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`);
+
+    const newProd: Product = {
+      id: it.productId && it.productId.length >= 10 ? it.productId : (it.id && it.id.length >= 10 ? it.id : `prod-recov-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
+      sku: safeSku,
+      partNumber: it.partNumber || '',
+      ncm: it.ncm || '',
+      name: cleanName,
+      description: '',
+      category: normalizeToOfficialCategory(it.category || 'Informática, Hardware & Periféricos'),
+      costPrice: Number(it.costPrice) || Number(it.unitPrice) || Number(it.actualCostPrice) || Number(it.actualUnitCostPrice) || 0,
+      unit: it.unit || 'Un.',
+      supplier: it.supplier || '',
+      stock: 0,
+      imageUrl: (typeof img === 'string') ? img.trim() : '',
+      lastUpdated: it.lastUpdated || new Date().toISOString()
+    };
+
+    if (pn && pn.length >= 3) seenPns.add(pn);
+    if (sku && !sku.startsWith('inf-auto-')) seenSkus.add(sku);
+    if (nameKey && nameKey.length >= 3) seenNames.add(nameKey);
+
+    newProducts.push(newProd);
+    addedCount++;
+  };
+
+  // 1. Vasculha propostas salvas no histórico local
+  try {
+    const quotes = getQuotes();
+    if (Array.isArray(quotes)) {
+      quotes.forEach(q => {
+        if (Array.isArray(q.items)) {
+          q.items.forEach(processItem);
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('[Storage] Falha ao recuperar produtos de orçamentos:', err);
+  }
+
+  // 2. Vasculha rascunho atual de tela
+  try {
+    const draft = getCurrentDraftQuote();
+    if (draft && Array.isArray(draft.items)) {
+      draft.items.forEach(processItem);
+    }
+  } catch {}
+
+  // 3. Vasculha compras diretas salvas
+  try {
+    const directPurchases = getDirectPurchases();
+    if (Array.isArray(directPurchases)) {
+      directPurchases.forEach(dp => {
+        const itemAny = dp as any;
+        processItem({
+          id: dp.id,
+          productId: dp.productId,
+          name: dp.name,
+          partNumber: dp.partNumber,
+          category: itemAny.category,
+          costPrice: itemAny.costPrice || dp.quotedCostPrice || dp.actualCostPrice || dp.actualUnitCostPrice,
+          unit: dp.unit,
+          imageUrl: dp.imageUrl,
+          supplier: dp.supplier
+        });
+      });
+    }
+  } catch {}
+
+  // 4. Vasculha chaves de backup infodesk_backup_items_* no localStorage
+  if (typeof localStorage !== 'undefined') {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('infodesk_backup_items_')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              parsed.forEach(processItem);
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  if (addedCount > 0) {
+    const combined = [...currentList, ...newProducts];
+    saveProducts(combined);
+    syncBatchProductsToSupabase(newProducts).catch(() => {});
+    console.log(`[Storage] 🎉 Restauração concluída: ${addedCount} produto(s) histórico(s) resgatados para o catálogo! Total agora: ${combined.length}`);
+    return { products: combined, addedCount };
+  }
+
+  return { products: currentList, addedCount: 0 };
 };
 
 // ==============================================================================

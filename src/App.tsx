@@ -99,7 +99,8 @@ import {
   saveProductImageToCache,
   findProductImageInCache,
   recoverProductImagesFromQuotes,
-  syncCatalogProductImagesFromQuotes
+  syncCatalogProductImagesFromQuotes,
+  restoreCatalogFromQuotesAndBackups
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -997,7 +998,16 @@ export const App: React.FC = () => {
             deleteProductFromSupabase(gp.id, gp.sku, gp.partNumber, gp.name).catch(() => {});
           }
           setProducts(prev => {
-            const merged = mergeRemoteProductsWithLocal(sanitizedRemote, prev);
+            let merged = mergeRemoteProductsWithLocal(sanitizedRemote, prev);
+
+            // Reconstituição e Restauração Automática do Catálogo Completo:
+            // Se o catálogo tiver menos produtos do que o histórico total ou houver itens de propostas ausentes,
+            // ressuscita todos os produtos e fotos dos orçamentos históricos e backups!
+            const restored = restoreCatalogFromQuotesAndBackups(merged);
+            if (restored.addedCount > 0) {
+              merged = restored.products;
+            }
+
             // Sincronização Retroativa & Permanente: injeta fotos de orçamentos e do cache nos produtos sem foto
             const quotesToSearch = remoteQuotes || getQuotes() || [];
             const { updatedProducts, updatedCount } = syncCatalogProductImagesFromQuotes(merged, quotesToSearch);
@@ -1008,11 +1018,20 @@ export const App: React.FC = () => {
               syncBatchProductsToSupabase(updatedProducts.filter(p => p.imageUrl)).catch(() => {});
               return updatedProducts;
             }
+            saveProducts(merged);
             return merged;
           });
 
           // Higienização de Fichas Técnicas: limpa descrições legadas permanentemente no banco Supabase
           clearAllProductDescriptionsInSupabase().catch(() => {});
+        } else {
+          // Se o Supabase estiver indisponível ou retornar vazio, reconstitui o catálogo local a partir dos orçamentos históricos
+          const currentLocal = getProducts();
+          const restored = restoreCatalogFromQuotesAndBackups(currentLocal);
+          if (restored.addedCount > 0) {
+            setProducts(restored.products);
+            saveProducts(restored.products);
+          }
         }
 
         // 4. Empresas e Cidades de Frete

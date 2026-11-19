@@ -24,7 +24,8 @@ import { extractImageFromStoreUrl, extractDirectImageFromUrlPatterns } from './i
 import { DiscoveredProduct } from '../types';
 import { searchProductImages } from './imageSearchService';
 import { compressImageDataUrl } from '../utils/imageCompressor';
-import { getSettings } from '../utils/storage';
+import { getSettings, getProducts } from '../utils/storage';
+import { findRecentPriceByPartNumber } from './priceCacheService';
 import { reportError } from './errorReporter';
 import { isMeasurementOrSpecToken } from '../utils/productModelExtractor';
 
@@ -1724,6 +1725,90 @@ export async function scanSingleProductPrice(
     }
   } catch (shopErr) {
     console.warn('[scanSingleProductPrice] Google Shopping fetch failed:', shopErr);
+  }
+
+  // 1.2 Fallback de Alta Fidelidade: Histórico Recente e Cache de Preços por Part Number
+  try {
+    const pnCandidate = cleanAlphanumericCode(cleanQ) || cleanQ;
+    const cachedOffer = await findRecentPriceByPartNumber(pnCandidate);
+    if (cachedOffer && cachedOffer.costPrice > 0) {
+      const details = resolveProductDetails(cleanQ);
+      const res: ScannedPriceResult = {
+        id: `scan-cache-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        originalQuery: query,
+        standardizedName: formatProductSentenceCase(cachedOffer.name || details.standardizedName || cleanQ),
+        partNumber: cleanAlphanumericCode(cachedOffer.partNumber || details.partNumber),
+        ncm: cleanNcmCode(details.ncm),
+        bestPrice: cachedOffer.costPrice,
+        priceFormatted: formatBRL(cachedOffer.costPrice),
+        isPixPrice: false,
+        store: sanitizeSupplierName(cachedOffer.supplier || 'Histórico Recente'),
+        observation: `Preço resgatado do histórico recente (${cachedOffer.supplier || 'Infodesk'})`,
+        status: 'exact',
+        buyUrl: cachedOffer.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(cleanQ)}&tbm=shop`,
+        imageUrl: resolveImageForDescription(cleanQ) || details.imageUrl,
+        category: getCategoryFromNcm(details.ncm, details.category),
+        costPrice: cachedOffer.costPrice,
+        suggestedPrice: Number((cachedOffer.costPrice * (1 + (getSettings().defaultMarkupPercent ?? 23.5) / 100)).toFixed(2)),
+        allOffers: [{
+          title: formatProductSentenceCase(cachedOffer.name || cleanQ),
+          store: sanitizeSupplierName(cachedOffer.supplier || 'Histórico Recente'),
+          price: cachedOffer.costPrice,
+          priceFormatted: formatBRL(cachedOffer.costPrice),
+          link: cachedOffer.sourceUrl || ''
+        }],
+        rating: 4.8
+      };
+      saveScanResultToCache(cleanQ, res);
+      return res;
+    }
+
+    // 1.3 Fallback de Alta Fidelidade: Catálogo Local de Produtos (getProducts())
+    const localProds = getProducts();
+    const matchedLocal = localProds.find(p => {
+      const pPn = (p.partNumber || '').trim().toLowerCase();
+      const pSku = (p.sku || '').trim().toLowerCase();
+      const pName = p.name ? p.name.toLowerCase() : '';
+      const qLower = cleanQ.toLowerCase();
+      if (pPn && pPn.length >= 3 && qLower.includes(pPn)) return true;
+      if (pSku && pSku.length >= 3 && !pSku.startsWith('inf-auto-') && qLower.includes(pSku)) return true;
+      if (pName && qLower && (pName.includes(qLower) || qLower.includes(pName))) return true;
+      return false;
+    });
+
+    if (matchedLocal && matchedLocal.costPrice > 0) {
+      const details = resolveProductDetails(matchedLocal.name);
+      const res: ScannedPriceResult = {
+        id: `scan-cat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        originalQuery: query,
+        standardizedName: formatProductSentenceCase(matchedLocal.name),
+        partNumber: cleanAlphanumericCode(matchedLocal.partNumber || matchedLocal.sku),
+        ncm: cleanNcmCode(matchedLocal.ncm || details.ncm),
+        bestPrice: matchedLocal.costPrice,
+        priceFormatted: formatBRL(matchedLocal.costPrice),
+        isPixPrice: false,
+        store: sanitizeSupplierName(matchedLocal.supplier || 'Catálogo Infodesk'),
+        observation: `Item localizado no catálogo interno (${matchedLocal.supplier || 'Infodesk'})`,
+        status: 'exact',
+        buyUrl: matchedLocal.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(matchedLocal.name)}&tbm=shop`,
+        imageUrl: matchedLocal.imageUrl || resolveImageForDescription(matchedLocal.name),
+        category: normalizeToOfficialCategory(matchedLocal.category || details.category),
+        costPrice: matchedLocal.costPrice,
+        suggestedPrice: Number((matchedLocal.costPrice * (1 + (getSettings().defaultMarkupPercent ?? 23.5) / 100)).toFixed(2)),
+        allOffers: [{
+          title: formatProductSentenceCase(matchedLocal.name),
+          store: sanitizeSupplierName(matchedLocal.supplier || 'Catálogo Infodesk'),
+          price: matchedLocal.costPrice,
+          priceFormatted: formatBRL(matchedLocal.costPrice),
+          link: matchedLocal.sourceUrl || ''
+        }],
+        rating: 5.0
+      };
+      saveScanResultToCache(cleanQ, res);
+      return res;
+    }
+  } catch (localFallbackErr) {
+    console.warn('[scanSingleProductPrice] Fallback local falhou:', localFallbackErr);
   }
 
   // 2. Check Curated High-Fidelity Knowledge Base

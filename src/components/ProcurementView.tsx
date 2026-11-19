@@ -40,7 +40,6 @@ import {
   Store,
   FileText,
   Scissors,
-  Camera,
   Image as ImageIcon
 } from 'lucide-react';
 import { Quote, ProcurementItem, Product, CompanySettings } from '../types';

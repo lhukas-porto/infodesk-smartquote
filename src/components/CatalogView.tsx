@@ -50,7 +50,8 @@ import {
   findProductImageInCache,
   saveProductImageToCache,
   recoverProductImagesFromQuotes,
-  syncCatalogProductImagesFromQuotes
+  syncCatalogProductImagesFromQuotes,
+  restoreCatalogFromQuotesAndBackups
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { ProductEditModal } from './ProductEditModal';
@@ -115,16 +116,31 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
   // 📸 Image Picker Modal
-  // Sincronização Retroativa de Fotos: resgata fotos de orçamentos anteriores para produtos sem foto
+  // Sincronização & Restauração Retroativa: recupera produtos históricos e fotos de orçamentos anteriores
   useEffect(() => {
-    if (quotes && quotes.length > 0 && products.length > 0) {
-      const { updatedProducts, updatedCount } = syncCatalogProductImagesFromQuotes(products, quotes);
-      if (updatedCount > 0) {
-        setProducts(updatedProducts);
-        saveProducts(updatedProducts);
-        syncBatchProductsToSupabase(updatedProducts.filter(p => p.imageUrl)).catch(() => {});
-        setImportStatus(`✨ ${updatedCount} foto(s) resgatada(s) de orçamentos anteriores!`);
-        setTimeout(() => setImportStatus(null), 4000);
+    if (quotes && quotes.length > 0) {
+      let currentList = products;
+      // Se o catálogo tiver menos de 300 produtos ou houver itens de orçamentos ausentes, restaura!
+      if (products.length < 300) {
+        const { products: restoredList, addedCount } = restoreCatalogFromQuotesAndBackups(products);
+        if (addedCount > 0) {
+          currentList = restoredList;
+          setProducts(restoredList);
+          saveProducts(restoredList);
+          setImportStatus(`🎉 ${addedCount} produto(s) recuperados do histórico para o catálogo!`);
+          setTimeout(() => setImportStatus(null), 5000);
+        }
+      }
+
+      if (currentList.length > 0) {
+        const { updatedProducts, updatedCount } = syncCatalogProductImagesFromQuotes(currentList, quotes);
+        if (updatedCount > 0) {
+          setProducts(updatedProducts);
+          saveProducts(updatedProducts);
+          syncBatchProductsToSupabase(updatedProducts.filter(p => p.imageUrl)).catch(() => {});
+          setImportStatus(`✨ ${updatedCount} foto(s) resgatada(s) de orçamentos anteriores!`);
+          setTimeout(() => setImportStatus(null), 4000);
+        }
       }
     }
   }, [quotes]);

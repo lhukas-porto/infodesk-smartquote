@@ -923,14 +923,45 @@ export async function fetchProductsFromSupabase(options?: { forceFull?: boolean 
       lastSyncMs > 0 &&
       (nowMs - lastSyncMs) < DELTA_SYNC_MAX_AGE_MS;
 
-    let query = supabase.from('products').select('*').order('created_at', { ascending: false });
+    let allRows: any[] = [];
+    const CHUNK_SIZE = 500;
+    let from = 0;
+
     if (canUseDelta) {
       const sinceIso = new Date(lastSyncMs - DELTA_SAFETY_WINDOW_MS).toISOString();
-      query = query.gte('updated_at', sinceIso);
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .gte('updated_at', sinceIso);
+
+      if (error || !data) return localProducts;
+      allRows = data;
+    } else {
+      // Sincronização Completa com Paginação Contínua (.range):
+      // Garante que catálogos com 800+ produtos sejam recuperados na íntegra sem truncamento
+      // pelo limite padrão do PostgREST (max-rows: 100/1000).
+      while (true) {
+        const { data: chunk, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, from + CHUNK_SIZE - 1);
+
+        if (error || !chunk) {
+          if (allRows.length > 0) break;
+          return null;
+        }
+
+        allRows.push(...chunk);
+        if (chunk.length < CHUNK_SIZE) {
+          break; // Todas as páginas recuperadas
+        }
+        from += CHUNK_SIZE;
+      }
     }
 
-    const { data, error } = await query;
-    if (error || !data) return canUseDelta ? localProducts : null;
+    const data = allRows;
 
     try {
       if (typeof localStorage !== 'undefined') {
@@ -1985,6 +2016,61 @@ export function onCorporateAuthStateChange(callback: (session: any) => void) {
     callback(session);
   });
   return subscription;
+}
+
+// ==============================================================================
+// 11. SUPABASE STORAGE (Bucket: product-images)
+// ==============================================================================
+/**
+ * Faz upload de imagem Base64 para o Supabase Storage (bucket 'product-images')
+ * Retorna a URL pública HTTP leve, poupando megabytes de fotos pesadas no localStorage!
+ */
+export async function uploadBase64ImageToSupabaseStorage(
+  base64DataUrl: string, 
+  fileNameHint?: string
+): Promise<string | null> {
+  if (!supabase || !base64DataUrl || !base64DataUrl.startsWith('data:image/')) return null;
+
+  try {
+    const parts = base64DataUrl.split(',');
+    if (parts.length < 2) return null;
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/webp';
+    const ext = mimeType.split('/')[1] || 'webp';
+    
+    // Converte base64 para Uint8Array / Blob
+    const byteCharacters = atob(parts[1]);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mimeType });
+
+    const safeHint = (fileNameHint || 'prod').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20).toLowerCase();
+    const fileName = `${safeHint}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}.${ext}`;
+
+    const { data, error } = await supabase.storage
+      .from('product-images')
+      .upload(fileName, blob, {
+        contentType: mimeType,
+        upsert: true
+      });
+
+    if (error || !data) {
+      console.warn('[Supabase Storage] Upload falhou (bucket pode não existir ou permissão):', error?.message);
+      return null;
+    }
+
+    const { data: pubData } = supabase.storage
+      .from('product-images')
+      .getPublicUrl(fileName);
+
+    return pubData?.publicUrl || null;
+  } catch (err) {
+    console.warn('[Supabase Storage] Erro inesperado no upload:', err);
+    return null;
+  }
 }
 
 

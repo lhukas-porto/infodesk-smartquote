@@ -4,7 +4,6 @@ import {
   Trash2,
   Search,
   Sparkles,
-  Zap,
   Save,
   Send,
   Eye,
@@ -27,7 +26,6 @@ import {
   FileSpreadsheet,
   Package,
   X,
-  Camera,
   ImagePlus,
   FileText,
   ChevronDown,
@@ -42,7 +40,6 @@ import {
   ClipboardPaste,
   ChevronUp,
   Sliders,
-  LayoutList,
   PlusCircle,
   Mail,
   MoreVertical,
@@ -112,7 +109,6 @@ import {
 import { CreatableCombobox } from './CreatableCombobox';
 import { UniversalListImportModal } from './UniversalListImportModal';
 import { BatchPriceScanModal } from './BatchPriceScanModal';
-import { WebImagePickerModal } from './WebImagePickerModal';
 import { ProductEditModal } from './ProductEditModal';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
 import { compressImageDataUrl } from '../utils/imageCompressor';
@@ -563,8 +559,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [auditProceedCallback, setAuditProceedCallback] = useState<(() => void) | null>(null);
 
-  // Modo de visualização da tabela (Compacto vs Completo com NCM/PartNumber/Links)
-  const [isCompactTableMode, setIsCompactTableMode] = useState<boolean>(false);
 
   // Painel sanfona retrátil de Condições Gerais de Fornecimento
   const [isCommercialConditionsOpen, setIsCommercialConditionsOpen] = useState<boolean>(true);
@@ -888,52 +882,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const [isTaxModalOpen, setIsTaxModalOpen] = useState(false);
   const [modalTaxInput, setModalTaxInput] = useState('');
 
-  // Modal de Busca e Escolha de Foto Comercial na Web
-  const [webImagePickerItem, setWebImagePickerItem] = useState<{
-    type: 'quote_item' | 'catalog_review';
-    itemId?: string;
-    itemIndex?: number;
-    productName: string;
-    currentImageUrl?: string;
-  } | null>(null);
-
-  const handlePhotoSelectedForQuote = (selectedUrl: string) => {
-    if (!webImagePickerItem) return;
-
-    if (webImagePickerItem.type === 'quote_item') {
-      const targetId = webImagePickerItem.itemId;
-      const targetIdx = webImagePickerItem.itemIndex;
-
-      setCurrentQuote(prev => {
-        const updatedItems = prev.items.map((item, idx) => {
-          if ((targetId && item.id === targetId) || (!targetId && idx === targetIdx)) {
-            if (selectedUrl && selectedUrl.trim()) {
-              saveProductImageToCache(
-                { name: item.name, partNumber: item.partNumber },
-                selectedUrl.trim(),
-                false
-              );
-            }
-            return {
-              ...item,
-              imageUrl: selectedUrl,
-              showImage: !!selectedUrl
-            };
-          }
-          return item;
-        });
-
-        return {
-          ...prev,
-          items: updatedItems,
-          updatedAt: new Date().toISOString()
-        };
-      });
-    } else if (webImagePickerItem.type === 'catalog_review') {
-      setCatalogReviewProduct(prev => prev ? { ...prev, imageUrl: selectedUrl } : null);
-    }
-    setWebImagePickerItem(null);
-  };
 
   // Estado da validação pré-envio / checklist antifalhas
   const [validationModal, setValidationModal] = useState<{
@@ -3952,60 +3900,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 return null;
               })()}
 
-              {/* Botão de Varredura em Lote (MEL-03) */}
-              {currentQuote.items && currentQuote.items.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setIsBatchPriceScanOpen(true)}
-                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-gradient-to-r from-amber-50 to-sky-50 hover:from-amber-100 hover:to-sky-100 text-slate-800 border border-amber-300/80 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
-                  title="Pesquisar preços de múltiplos produtos em paralelo em segundo plano com IA (MEL-03)"
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-                  <span className="hidden sm:inline">Pesquisa de preços (IA)</span>
-                  <span className="sm:hidden">Revisar</span>
-                  {itemsWithoutCostCount > 0 && (
-                    <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[9px] font-bold font-mono">
-                      {itemsWithoutCostCount}
-                    </span>
-                  )}
-                </button>
-              )}
-
-              {/* Botão de Alternância de Visualização Compacta / Detalhada */}
-              {currentQuote.items && currentQuote.items.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setIsCompactTableMode(prev => !prev)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition flex items-center gap-1.5 border shadow-2xs cursor-pointer shrink-0 whitespace-nowrap ${
-                    isCompactTableMode
-                      ? 'bg-sky-50 text-sky-700 border-sky-300 ring-1 ring-sky-200'
-                      : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'
-                  }`}
-                  title="Alternar entre modo compacto (linhas menores e mais limpas) e detalhado (com utilitários de fotos e links expandidos)"
-                >
-                  <LayoutList className="w-3.5 h-3.5 text-sky-600" />
-                  <span className="hidden sm:inline">{isCompactTableMode ? 'Visualização Detalhada' : 'Visualização Compacta'}</span>
-                  <span className="sm:hidden">{isCompactTableMode ? 'Detalhada' : 'Compacta'}</span>
-                </button>
-              )}
-
-              {/* Botão de Envio / Cópia de Itens e Quantidades para WhatsApp */}
-              {currentQuote.items && currentQuote.items.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setWhatsAppInitialMode('items_only');
-                    setIsWhatsAppModalOpen(true);
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
-                  title="Gerar e copiar texto de itens e quantidades para mandar no WhatsApp (fornecedores ou conferência)"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="hidden sm:inline">WhatsApp (Itens & Qtd)</span>
-                  <span className="sm:hidden">WhatsApp</span>
-                </button>
-              )}
-
               {/* Botão de Simulador de Desconto Geral */}
               {currentQuote.items && currentQuote.items.length > 0 && (
                 <button
@@ -4964,8 +4858,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   </tr>
 
                   {/* Barra de utilidades: estende-se abaixo da descrição, Qtd e Unidade em linha única sem esticar a tabela */}
-                  {!isCompactTableMode && (
-                    <tr
+                  <tr
                       className={`transition ${
                         selectedItemIds.includes(item.id)
                           ? 'bg-sky-50/50 hover:bg-sky-50/80'
@@ -5155,7 +5048,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         </div>
                       </td>
                     </tr>
-                  )}
                 </React.Fragment>
               ))
               )}
@@ -6143,17 +6035,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         items={currentQuote.items || []}
         onApplyResults={handleApplyBatchScanResults}
       />
-
-      {/* Modal de Escolha de Foto Comercial na Web */}
-      {webImagePickerItem && (
-        <WebImagePickerModal
-          isOpen={true}
-          onClose={() => setWebImagePickerItem(null)}
-          productName={webImagePickerItem.productName}
-          currentImageUrl={webImagePickerItem.currentImageUrl}
-          onSelectImage={handlePhotoSelectedForQuote}
-        />
-      )}
 
       {/* Modal de Scanner de Fornecedores por Item (MEL-08 / Item 1.C) */}
       {itemForSupplierScan && (
