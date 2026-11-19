@@ -11,6 +11,7 @@ import {
   Trash2 
 } from 'lucide-react';
 import { searchProductImages } from '../services/imageSearchService';
+import { compressImageDataUrl } from '../utils/imageCompressor';
 
 interface WebImagePickerModalProps {
   isOpen: boolean;
@@ -115,11 +116,12 @@ export const WebImagePickerModal: React.FC<WebImagePickerModalProps> = ({
           const blob = item.getAsFile();
           if (blob) {
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = async (event) => {
               const dataUrl = event.target?.result as string;
               if (dataUrl) {
-                setImages(prev => [dataUrl, ...prev.filter(img => img !== dataUrl)]);
-                setSelectedImage(dataUrl);
+                const compressed = await compressImageDataUrl(dataUrl);
+                setImages(prev => [compressed, ...prev.filter(img => img !== compressed)]);
+                setSelectedImage(compressed);
               }
             };
             reader.readAsDataURL(blob);
@@ -143,18 +145,20 @@ export const WebImagePickerModal: React.FC<WebImagePickerModalProps> = ({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const dataUrl = event.target?.result as string;
       if (dataUrl) {
-        setImages(prev => [dataUrl, ...prev.filter(img => img !== dataUrl)]);
-        setSelectedImage(dataUrl);
+        const compressed = await compressImageDataUrl(dataUrl);
+        setImages(prev => [compressed, ...prev.filter(img => img !== compressed)]);
+        setSelectedImage(compressed);
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleConfirm = () => {
-    onSelectImage(selectedImage);
+  const handleConfirm = async () => {
+    const finalImg = selectedImage ? await compressImageDataUrl(selectedImage) : '';
+    onSelectImage(finalImg);
     onClose();
   };
 

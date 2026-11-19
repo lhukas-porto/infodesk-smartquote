@@ -30,9 +30,7 @@ import {
   Calendar,
   FileSpreadsheet,
   Clock,
-  AlertTriangle,
-  Sparkles,
-  Loader2
+  AlertTriangle
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Product, Quote } from '../types';
@@ -58,7 +56,7 @@ import {
 import { CreatableCombobox } from './CreatableCombobox';
 import { ProductEditModal } from './ProductEditModal';
 import { WebImagePickerModal } from './WebImagePickerModal';
-import { autoFindProductImage } from '../services/imageSearchService';
+import { compressImageDataUrl } from '../utils/imageCompressor';
 import { 
   syncProductToSupabase, 
   syncBatchProductsToSupabase, 
@@ -118,15 +116,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
-  // 📸 Image Picker Modal & Autocura de Fotos na Tabela
+  // 📸 Image Picker Modal
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
   const [activeImagePickerProduct, setActiveImagePickerProduct] = useState<Product | null>(null);
-  const [isAutoSearchingImages, setIsAutoSearchingImages] = useState(false);
-  const [autoSearchProgress, setAutoSearchProgress] = useState<{ current: number; total: number } | null>(null);
-
-  const missingImageCount = React.useMemo(() => {
-    return products.filter(p => !p.imageUrl && !findProductImageInCache(p.name, p.partNumber, p.sku)).length;
-  }, [products]);
 
   // Sincronização Retroativa de Fotos: resgata fotos de orçamentos anteriores para produtos sem foto
   useEffect(() => {
@@ -147,14 +139,16 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     setIsImagePickerOpen(true);
   };
 
-  const handleSelectImageForProduct = (imageUrl: string) => {
-    if (!activeImagePickerProduct) return;
-    const targetProd = activeImagePickerProduct;
+  const handleSelectImageForProduct = async (imageUrl: string, productOverride?: Product) => {
+    const targetProd = productOverride || activeImagePickerProduct;
+    if (!targetProd) return;
     const cleanImg = (imageUrl || '').trim();
+    // Compacta a imagem se for Data URL para garantir permanência ultraleve sem estourar cota
+    const effectiveImg = cleanImg.startsWith('data:image/') ? await compressImageDataUrl(cleanImg) : cleanImg;
 
     const updatedProd: Product = {
       ...targetProd,
-      imageUrl: cleanImg,
+      imageUrl: effectiveImg,
       lastUpdated: new Date().toISOString()
     };
 
@@ -166,7 +160,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
     saveProductImageToCache(
       { name: updatedProd.name, partNumber: updatedProd.partNumber, sku: updatedProd.sku },
-      cleanImg,
+      effectiveImg,
       false
     );
 
@@ -200,75 +194,17 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         if (!file) continue;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
           const base64 = event.target?.result as string;
           if (base64) {
-            setActiveImagePickerProduct(targetProd);
-            handleSelectImageForProduct(base64);
+            const compressed = await compressImageDataUrl(base64);
+            await handleSelectImageForProduct(compressed, targetProd);
           }
         };
         reader.readAsDataURL(file);
         break;
       }
     }
-  };
-
-  const handleRunAutoHealCatalogImages = async () => {
-    const missing = products.filter(p => !p.imageUrl && !findProductImageInCache(p.name, p.partNumber, p.sku));
-    if (missing.length === 0) {
-      alert('Todos os produtos do catálogo já possuem fotos cadastradas!');
-      return;
-    }
-
-    setIsAutoSearchingImages(true);
-    setAutoSearchProgress({ current: 0, total: missing.length });
-
-    let foundCount = 0;
-    const updatedMap = new Map<string, string>();
-
-    for (let i = 0; i < missing.length; i++) {
-      const prod = missing[i];
-      setAutoSearchProgress({ current: i + 1, total: missing.length });
-
-      try {
-        const found = await autoFindProductImage(prod.name, prod.partNumber);
-        if (found) {
-          foundCount++;
-          updatedMap.set(prod.id, found);
-          saveProductImageToCache({ name: prod.name, partNumber: prod.partNumber, sku: prod.sku }, found, false);
-        }
-      } catch (err) {
-        console.warn('Erro ao buscar imagem para produto:', prod.name, err);
-      }
-    }
-
-    if (foundCount > 0) {
-      setProducts(prev => {
-        const next = prev.map(p => {
-          const img = updatedMap.get(p.id);
-          if (img) {
-            const updatedP = { ...p, imageUrl: img, lastUpdated: new Date().toISOString() };
-            syncProductToSupabase(updatedP).catch(() => {});
-            if (onUpdateProductCascade) {
-              try { onUpdateProductCascade(updatedP, p); } catch {}
-            }
-            return updatedP;
-          }
-          return p;
-        });
-        saveProducts(next);
-        return next;
-      });
-
-      setImportStatus(`🎉 ${foundCount} foto(s) encontrada(s) e adicionadas com sucesso!`);
-      setTimeout(() => setImportStatus(null), 5000);
-    } else {
-      setImportStatus(`Nenhuma foto nova encontrada nos motores de busca para os produtos pendentes.`);
-      setTimeout(() => setImportStatus(null), 4000);
-    }
-
-    setIsAutoSearchingImages(false);
-    setAutoSearchProgress(null);
   };
   const [isExportingContaAzul, setIsExportingContaAzul] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
@@ -898,30 +834,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             <Download className="w-3.5 h-3.5 text-emerald-600" />
             <span>{isExportingContaAzul ? 'Exportando...' : 'Exportar XLS'}</span>
           </button>
-
-          {missingImageCount > 0 && (
-            <button
-              type="button"
-              onClick={handleRunAutoHealCatalogImages}
-              disabled={isAutoSearchingImages}
-              className="px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
-              title={`Buscar fotos automaticamente na web para ${missingImageCount} produto(s) sem imagem`}
-            >
-              {isAutoSearchingImages ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
-                  <span>
-                    Buscando {autoSearchProgress ? `(${autoSearchProgress.current}/${autoSearchProgress.total})` : '...'}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Buscar Fotos IA ({missingImageCount})</span>
-                </>
-              )}
-            </button>
-          )}
 
           <button
             onClick={() => setIsAddModalOpen(true)}

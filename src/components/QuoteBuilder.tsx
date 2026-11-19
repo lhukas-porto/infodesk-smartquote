@@ -1438,7 +1438,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     const cleanImg = imageUrl.trim();
 
     saveProductImageToCache(
-      { name: item.name, partNumber: item.partNumber, sku: item.productId },
+      { name: item.name, partNumber: item.partNumber, sku: item.productId || item.sku },
       cleanImg,
       false
     );
@@ -1446,14 +1446,27 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     if (onSaveToCatalog && (item.name || item.partNumber)) {
       const cleanPn = (item.partNumber || '').trim().toLowerCase();
       const cleanName = (item.name || '').trim().toLowerCase();
+      const normItemName = normalizeSearchText(item.name || '');
 
-      const existingProd = products.find(p =>
-        (item.productId && p.id === item.productId) ||
-        (cleanPn && p.partNumber && p.partNumber.trim().toLowerCase() === cleanPn) ||
-        (cleanName && p.name && p.name.trim().toLowerCase() === cleanName)
-      );
+      const existingProd = products.find(p => {
+        if (item.productId && p.id === item.productId) return true;
+        const pPn = (p.partNumber || '').trim().toLowerCase();
+        const pSku = (p.sku || '').trim().toLowerCase();
+        if (cleanPn && cleanPn.length >= 3 && pPn && pPn === cleanPn) return true;
+        if (cleanPn && cleanPn.length >= 3 && pSku && pSku === cleanPn) return true;
+        if (cleanName && p.name && p.name.trim().toLowerCase() === cleanName) return true;
+        const normPName = normalizeSearchText(p.name || '');
+        if (normItemName && normItemName.length >= 3 && normPName === normItemName) return true;
+        if (normItemName.length >= 6 && normPName.length >= 6 && (normItemName.includes(normPName) || normPName.includes(normItemName))) return true;
+        return false;
+      });
 
       if (existingProd) {
+        saveProductImageToCache(
+          { name: existingProd.name, partNumber: existingProd.partNumber, sku: existingProd.sku },
+          cleanImg,
+          false
+        );
         onSaveToCatalog({
           ...existingProd,
           imageUrl: cleanImg,

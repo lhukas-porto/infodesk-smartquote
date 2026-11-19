@@ -951,7 +951,17 @@ export const getProducts = (): Product[] => {
     try {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
-        return deduplicateProductsList(parsed).filter(p => !isProductDeleted(p));
+        return deduplicateProductsList(parsed)
+          .filter(p => !isProductDeleted(p))
+          .map(p => {
+            if (!p.imageUrl || !p.imageUrl.trim()) {
+              const cached = findProductImageInCache(p.name, p.partNumber, p.sku);
+              if (cached) {
+                return { ...p, imageUrl: cached };
+              }
+            }
+            return p;
+          });
       }
     } catch (e) { console.error(e); }
   }
@@ -2521,7 +2531,7 @@ export const removeProcurementSplit = (originalItemId: string): void => {
 // 16. CACHE GLOBAL PERSISTENTE DE IMAGENS DE PRODUTOS (ALTO DESEMPENHO)
 // ==============================================================================
 const PRODUCT_IMAGES_CACHE_KEY = 'infodesk_product_images_cache_v1';
-const MAX_IMAGE_CACHE_ENTRIES = 500;
+const MAX_IMAGE_CACHE_ENTRIES = 2500;
 
 let inMemoryProductImageCache: Record<string, string> | null = null;
 let imageCachePersistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -2577,8 +2587,8 @@ export const saveProductImageToCache = (
 ): void => {
   if (!imageUrl || (!identifier.name && !identifier.partNumber && !identifier.sku)) return;
   const cleanUrl = imageUrl.trim();
-  // Aceita URLs de imagem e Data URLs de até 350KB
-  if (!cleanUrl || (cleanUrl.startsWith('data:image/') && cleanUrl.length > 350000)) return;
+  // Aceita URLs de imagem e Data URLs de até 1.5MB (garantindo que qualquer foto colada seja indexada)
+  if (!cleanUrl || (cleanUrl.startsWith('data:image/') && cleanUrl.length > 1500000)) return;
 
   try {
     const cache = getProductImageCache();
