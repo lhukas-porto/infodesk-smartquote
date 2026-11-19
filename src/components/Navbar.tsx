@@ -95,12 +95,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between min-h-16 py-2 gap-2 sm:gap-4 lg:gap-6">
           
-          {/* Lado Esquerdo: Marca Infodesk & SmartQuote */}
+          {/* Lado Esquerdo: Marca Infodesk & SmartQuote (clique direciona ao Scanner IA) */}
           <div className="flex items-center shrink-0">
             <div 
-              className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none shrink-0 group py-1" 
-              onClick={() => setActiveTab('builder')}
-              title="Nova Cotação Comercial"
+              className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none shrink-0 group py-1 active:scale-98 transition-transform" 
+              onClick={() => setActiveTab('websearch')}
+              title="Scanner IA de Produtos"
             >
               <img 
                 src="/infodesk-logo.png" 
