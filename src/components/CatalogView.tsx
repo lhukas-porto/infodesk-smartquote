@@ -30,10 +30,12 @@ import {
   Calendar,
   FileSpreadsheet,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import Papa from 'papaparse';
-import { Product } from '../types';
+import { Product, Quote } from '../types';
 import { CatalogDuplicatesModal } from './CatalogDuplicatesModal';
 import { 
   saveProducts, 
@@ -50,10 +52,13 @@ import {
   saveLastCatalogExportDate,
   findProductImageInCache,
   saveProductImageToCache,
-  recoverProductImagesFromQuotes
+  recoverProductImagesFromQuotes,
+  syncCatalogProductImagesFromQuotes
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { ProductEditModal } from './ProductEditModal';
+import { WebImagePickerModal } from './WebImagePickerModal';
+import { autoFindProductImage } from '../services/imageSearchService';
 import { 
   syncProductToSupabase, 
   syncBatchProductsToSupabase, 
@@ -97,19 +102,174 @@ interface CatalogViewProps {
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   onAddToQuote: (product: Product) => void;
   onUpdateProductCascade?: (updatedProduct: Product, oldProduct?: Product) => void;
+  quotes?: Quote[];
 }
 
 export const CatalogView: React.FC<CatalogViewProps> = ({
   products,
   setProducts,
   onAddToQuote,
-  onUpdateProductCascade
+  onUpdateProductCascade,
+  quotes
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  // 📸 Image Picker Modal & Autocura de Fotos na Tabela
+  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
+  const [activeImagePickerProduct, setActiveImagePickerProduct] = useState<Product | null>(null);
+  const [isAutoSearchingImages, setIsAutoSearchingImages] = useState(false);
+  const [autoSearchProgress, setAutoSearchProgress] = useState<{ current: number; total: number } | null>(null);
+
+  const missingImageCount = React.useMemo(() => {
+    return products.filter(p => !p.imageUrl && !findProductImageInCache(p.name, p.partNumber, p.sku)).length;
+  }, [products]);
+
+  // Sincronização Retroativa de Fotos: resgata fotos de orçamentos anteriores para produtos sem foto
+  useEffect(() => {
+    if (quotes && quotes.length > 0 && products.length > 0) {
+      const { updatedProducts, updatedCount } = syncCatalogProductImagesFromQuotes(products, quotes);
+      if (updatedCount > 0) {
+        setProducts(updatedProducts);
+        saveProducts(updatedProducts);
+        syncBatchProductsToSupabase(updatedProducts.filter(p => p.imageUrl)).catch(() => {});
+        setImportStatus(`✨ ${updatedCount} foto(s) resgatada(s) de orçamentos anteriores!`);
+        setTimeout(() => setImportStatus(null), 4000);
+      }
+    }
+  }, [quotes]);
+
+  const handleOpenImagePickerForProduct = (product: Product) => {
+    setActiveImagePickerProduct(product);
+    setIsImagePickerOpen(true);
+  };
+
+  const handleSelectImageForProduct = (imageUrl: string) => {
+    if (!activeImagePickerProduct) return;
+    const targetProd = activeImagePickerProduct;
+    const cleanImg = (imageUrl || '').trim();
+
+    const updatedProd: Product = {
+      ...targetProd,
+      imageUrl: cleanImg,
+      lastUpdated: new Date().toISOString()
+    };
+
+    setProducts(prev => {
+      const next = prev.map(p => p.id === targetProd.id ? updatedProd : p);
+      saveProducts(next);
+      return next;
+    });
+
+    saveProductImageToCache(
+      { name: updatedProd.name, partNumber: updatedProd.partNumber, sku: updatedProd.sku },
+      cleanImg,
+      false
+    );
+
+    syncProductToSupabase(updatedProd).catch(err => {
+      console.warn('Erro ao sincronizar foto no Supabase:', err);
+    });
+
+    if (onUpdateProductCascade) {
+      try {
+        onUpdateProductCascade(updatedProd, targetProd);
+      } catch (err) {
+        console.warn('Erro na propagação em cascata da foto:', err);
+      }
+    }
+
+    setIsImagePickerOpen(false);
+    setActiveImagePickerProduct(null);
+    setImportStatus(`Foto do produto "${updatedProd.name}" salva com sucesso!`);
+    setTimeout(() => setImportStatus(null), 4000);
+  };
+
+  const handlePasteImageOnProductRow = (e: React.ClipboardEvent, targetProd: Product) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const file = items[i].getAsFile();
+        if (!file) continue;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64 = event.target?.result as string;
+          if (base64) {
+            setActiveImagePickerProduct(targetProd);
+            handleSelectImageForProduct(base64);
+          }
+        };
+        reader.readAsDataURL(file);
+        break;
+      }
+    }
+  };
+
+  const handleRunAutoHealCatalogImages = async () => {
+    const missing = products.filter(p => !p.imageUrl && !findProductImageInCache(p.name, p.partNumber, p.sku));
+    if (missing.length === 0) {
+      alert('Todos os produtos do catálogo já possuem fotos cadastradas!');
+      return;
+    }
+
+    setIsAutoSearchingImages(true);
+    setAutoSearchProgress({ current: 0, total: missing.length });
+
+    let foundCount = 0;
+    const updatedMap = new Map<string, string>();
+
+    for (let i = 0; i < missing.length; i++) {
+      const prod = missing[i];
+      setAutoSearchProgress({ current: i + 1, total: missing.length });
+
+      try {
+        const found = await autoFindProductImage(prod.name, prod.partNumber);
+        if (found) {
+          foundCount++;
+          updatedMap.set(prod.id, found);
+          saveProductImageToCache({ name: prod.name, partNumber: prod.partNumber, sku: prod.sku }, found, false);
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar imagem para produto:', prod.name, err);
+      }
+    }
+
+    if (foundCount > 0) {
+      setProducts(prev => {
+        const next = prev.map(p => {
+          const img = updatedMap.get(p.id);
+          if (img) {
+            const updatedP = { ...p, imageUrl: img, lastUpdated: new Date().toISOString() };
+            syncProductToSupabase(updatedP).catch(() => {});
+            if (onUpdateProductCascade) {
+              try { onUpdateProductCascade(updatedP, p); } catch {}
+            }
+            return updatedP;
+          }
+          return p;
+        });
+        saveProducts(next);
+        return next;
+      });
+
+      setImportStatus(`🎉 ${foundCount} foto(s) encontrada(s) e adicionadas com sucesso!`);
+      setTimeout(() => setImportStatus(null), 5000);
+    } else {
+      setImportStatus(`Nenhuma foto nova encontrada nos motores de busca para os produtos pendentes.`);
+      setTimeout(() => setImportStatus(null), 4000);
+    }
+
+    setIsAutoSearchingImages(false);
+    setAutoSearchProgress(null);
+  };
   const [isExportingContaAzul, setIsExportingContaAzul] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
   const [isDuplicatesModalOpen, setIsDuplicatesModalOpen] = useState(false);
@@ -739,6 +899,30 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             <span>{isExportingContaAzul ? 'Exportando...' : 'Exportar XLS'}</span>
           </button>
 
+          {missingImageCount > 0 && (
+            <button
+              type="button"
+              onClick={handleRunAutoHealCatalogImages}
+              disabled={isAutoSearchingImages}
+              className="px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+              title={`Buscar fotos automaticamente na web para ${missingImageCount} produto(s) sem imagem`}
+            >
+              {isAutoSearchingImages ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+                  <span>
+                    Buscando {autoSearchProgress ? `(${autoSearchProgress.current}/${autoSearchProgress.total})` : '...'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Buscar Fotos IA ({missingImageCount})</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95"
@@ -924,7 +1108,12 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             <tbody className="divide-y divide-slate-100">
               {paginatedProducts.length > 0 ? (
                 paginatedProducts.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/80 transition">
+                  <tr 
+                    key={p.id} 
+                    tabIndex={0}
+                    onPaste={(e) => handlePasteImageOnProductRow(e, p)}
+                    className="hover:bg-slate-50/80 transition focus:bg-sky-50/30 focus:outline-hidden"
+                  >
                     <td className="px-3 py-2 font-mono font-semibold text-sky-700 text-xs">
                       {p.sku || p.partNumber || <span className="text-slate-300 font-normal italic">-</span>}
                     </td>
@@ -932,11 +1121,27 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       <div className="flex items-center gap-2.5">
                         {(() => {
                           const effectiveImg = p.imageUrl || findProductImageInCache(p.name, p.partNumber, p.sku);
-                          if (!effectiveImg) return null;
+                          if (!effectiveImg) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenImagePickerForProduct(p)}
+                                title="Sem foto. Clique para buscar na web ou colar imagem (Ctrl+V)"
+                                className="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] rounded-lg border border-dashed border-slate-300 hover:border-sky-500 bg-slate-50 hover:bg-sky-50/70 p-0.5 shadow-2xs shrink-0 flex flex-col items-center justify-center cursor-pointer transition text-slate-400 hover:text-sky-600 group/empty select-none"
+                              >
+                                <Camera className="w-3.5 h-3.5 group-hover/empty:scale-110 transition text-slate-400 group-hover/empty:text-sky-600" />
+                                <span className="text-[7.5px] font-bold tracking-tight uppercase leading-none mt-0.5 text-slate-400 group-hover/empty:text-sky-600">+ Foto</span>
+                              </button>
+                            );
+                          }
                           return (
                             <div
                               onClick={() => setZoomedImage({ url: effectiveImg, title: p.name })}
-                              title="Clique para ver a foto com ZOOM"
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenImagePickerForProduct(p);
+                              }}
+                              title="Clique para ver a foto com ZOOM (duplo clique para alterar)"
                               className="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs hover:border-sky-500 hover:shadow-md shrink-0 overflow-hidden cursor-pointer transition relative group/cimg select-none"
                             >
                               <img
@@ -1019,6 +1224,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                           title="Adicionar ao Orçamento Atual"
                         >
                           + Orçar
+                        </button>
+                        <button
+                          onClick={() => handleOpenImagePickerForProduct(p)}
+                          className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 rounded-lg transition cursor-pointer active:scale-95"
+                          title="Buscar / Alterar Foto na Web"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleOpenEditModal(p)}
@@ -1460,6 +1672,20 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           await syncProductToSupabase(mergedProd);
         }}
       />
+
+      {/* Modal Inteligente de Busca e Seleção de Imagens para o Produto */}
+      {isImagePickerOpen && activeImagePickerProduct && (
+        <WebImagePickerModal
+          isOpen={isImagePickerOpen}
+          onClose={() => {
+            setIsImagePickerOpen(false);
+            setActiveImagePickerProduct(null);
+          }}
+          productName={`${activeImagePickerProduct.name} ${activeImagePickerProduct.partNumber || ''}`.trim()}
+          currentImageUrl={activeImagePickerProduct.imageUrl || findProductImageInCache(activeImagePickerProduct.name, activeImagePickerProduct.partNumber, activeImagePickerProduct.sku) || ''}
+          onSelectImage={handleSelectImageForProduct}
+        />
+      )}
 
     </div>
   );

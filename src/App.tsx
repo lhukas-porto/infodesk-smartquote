@@ -3356,6 +3356,7 @@ export const App: React.FC = () => {
             setProducts={setProducts}
             onAddToQuote={handleAddProductToQuote}
             onUpdateProductCascade={handleCascadeProductUpdate}
+            quotes={quotes}
           />
         )}
 
