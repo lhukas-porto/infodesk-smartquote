@@ -3146,7 +3146,10 @@ export const App: React.FC = () => {
       updatedAt: updatedQuote.updatedAt || nowIso
     };
     setQuotes(prev => {
-      const next = prev.map(q => isSameQuote(q, quoteToPersist) ? quoteToPersist : q);
+      const exists = prev.some(q => isSameQuote(q, quoteToPersist));
+      const next = exists
+        ? prev.map(q => isSameQuote(q, quoteToPersist) ? quoteToPersist : q)
+        : [quoteToPersist, ...prev];
       saveQuotes(next);
       syncQuoteToSupabase(quoteToPersist).catch(err => {
         reportError('Falha ao Sincronizar Proposta Aprovada no Banco', err, 'App - syncQuoteToSupabase');

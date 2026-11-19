@@ -30,7 +30,8 @@ import {
   ShoppingCart,
   Tag,
   Cloud,
-  RefreshCw
+  RefreshCw,
+  RotateCcw
 } from 'lucide-react';
 import { Quote } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
@@ -38,6 +39,7 @@ import { parseQuoteTimestamp, isSameDay } from '../utils/dateUtils';
 import { searchQuotesInSupabase } from '../services/supabase';
 import { QuoteApprovalModal } from './QuoteApprovalModal';
 import { WhatsAppQuoteModal, WhatsAppMessageMode } from './WhatsAppQuoteModal';
+import { QuoteRecoveryModal } from './QuoteRecoveryModal';
 
 interface SentHistoryViewProps {
   quotes: Quote[];
@@ -148,6 +150,8 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
   const [cloudSearchedTerm, setCloudSearchedTerm] = useState<string | null>(null);
   const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
   const [cloudFeedbackMsg, setCloudFeedbackMsg] = useState<string | null>(null);
+  const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState<boolean>(false);
+  const [recoveryInitialSearch, setRecoveryInitialSearch] = useState<string>('WWF');
 
   const [specificDate, setSpecificDate] = useState<string>(() => {
     const d = new Date();
@@ -861,6 +865,19 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setRecoveryInitialSearch(searchTerm || 'WWF');
+              setIsRecoveryModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/90 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer shrink-0"
+            title="Recuperar orçamentos e rascunhos apagados acidentalmente da lixeira de segurança"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+            <span>Recuperar Apagados</span>
+          </button>
+
           <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
             <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
             <span>Ordenar:</span>
@@ -950,6 +967,20 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
               </p>
             </div>
           )}
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRecoveryInitialSearch(searchTerm || 'WWF');
+                setIsRecoveryModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 rounded-xl transition cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+              <span>Buscar em Backups e Rascunhos Apagados (Lixeira)</span>
+            </button>
+          </div>
 
           {selectedStageFilter === 'all' && stageStats.draft.count > 0 && (
             <div className="pt-2">
@@ -1577,6 +1608,23 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
           onClose={() => setQuoteForWhatsApp(null)}
           quote={quoteForWhatsApp}
           initialMode={whatsAppInitialMode}
+        />
+      )}
+
+      {/* Central de Recuperação de Propostas e Rascunhos Excluídos */}
+      {isRecoveryModalOpen && (
+        <QuoteRecoveryModal
+          isOpen={true}
+          onClose={() => setIsRecoveryModalOpen(false)}
+          initialSearchTerm={recoveryInitialSearch}
+          onRestoreQuote={(restoredQuote) => {
+            if (onUpdateQuote) {
+              onUpdateQuote(restoredQuote);
+            }
+            if (selectedStageFilter !== 'draft') {
+              handleSelectStage('draft');
+            }
+          }}
         />
       )}
 

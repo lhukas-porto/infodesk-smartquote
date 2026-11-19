@@ -38,6 +38,7 @@ import './quoteEnhancementsSuite.test';
 import './supplierUrlConsistency.test';
 import './cepIsolationAndMultiLocation.test';
 import './scannerEnrichment.test';
+import './quoteRecovery.test';
 
 console.log('\n======================================================');
 console.log('🏁 SUÍTE COMPLETA DE TESTES EXECUTADA COM 100% DE SUCESSO!');

@@ -3188,5 +3188,240 @@ export const getLastPriceForClient = (
   return null;
 };
 
+// ==============================================================================
+// 18. RECUPERAÇÃO DE PROPOSTAS E RASCUNHOS EXCLUÍDOS / LIXEIRA DE SEGURANÇA
+// ==============================================================================
+export interface RecoveredCandidate {
+  id: string;
+  code: string;
+  clientCompany: string;
+  clientName?: string;
+  date: string;
+  itemsCount: number;
+  totalAmount: number;
+  source: 'backup_items' | 'draft_memory' | 'tombstone_quotes' | 'manual_analyses';
+  sourceLabel: string;
+  quote: Quote;
+}
+
+export const scanAndRecoverDeletedQuotes = (searchTerm?: string): RecoveredCandidate[] => {
+  if (typeof localStorage === 'undefined') return [];
+  const results: RecoveredCandidate[] = [];
+  const seenIds = new Set<string>();
+  const cleanTerm = (searchTerm || '').trim().toLowerCase();
+
+  const matchesTerm = (text: any): boolean => {
+    if (!cleanTerm) return true;
+    if (!text) return false;
+    return String(text).toLowerCase().includes(cleanTerm);
+  };
+
+  // 1. Vasculha infodesk_current_draft_quote
+  try {
+    const rawDraft = localStorage.getItem(CURRENT_DRAFT_QUOTE_KEY);
+    if (rawDraft) {
+      const draft = JSON.parse(rawDraft);
+      if (draft && (draft.clientCompany || (draft.items && draft.items.length > 0))) {
+        const matches = matchesTerm(draft.clientCompany) ||
+          matchesTerm(draft.contactPerson) ||
+          matchesTerm(draft.code) ||
+          (draft.items || []).some((it: any) => matchesTerm(it.name) || matchesTerm(it.description));
+
+        if (matches) {
+          const qId = draft.id || 'draft-recovered';
+          if (!seenIds.has(qId)) {
+            seenIds.add(qId);
+            results.push({
+              id: qId,
+              code: draft.code || 'Rascunho do Editor',
+              clientCompany: draft.clientCompany || 'Cliente Não Informado',
+              clientName: draft.contactPerson,
+              date: draft.date || draft.updatedAt || new Date().toISOString(),
+              itemsCount: (draft.items || []).length,
+              totalAmount: draft.totalAmount || (draft.items || []).reduce((acc: number, it: any) => acc + (it.totalPrice || 0), 0),
+              source: 'draft_memory',
+              sourceLabel: 'Rascunho Ativo em Memória',
+              quote: draft
+            });
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Vasculha infodesk_quotes mesmo que filtrado por tombstone
+  try {
+    const rawQuotes = localStorage.getItem(QUOTES_KEY);
+    if (rawQuotes) {
+      const list = JSON.parse(rawQuotes);
+      if (Array.isArray(list)) {
+        list.forEach(q => {
+          const isDeleted = isQuoteDeleted(q);
+          const matches = matchesTerm(q.clientCompany) ||
+            matchesTerm(q.contactPerson) ||
+            matchesTerm(q.code) ||
+            (q.items || []).some((it: any) => matchesTerm(it.name) || matchesTerm(it.description));
+
+          if (matches) {
+            const qId = q.id || q.code || Math.random().toString();
+            if (!seenIds.has(qId)) {
+              seenIds.add(qId);
+              results.push({
+                id: qId,
+                code: q.code || 'Sem Código',
+                clientCompany: q.clientCompany || 'Cliente Não Informado',
+                clientName: q.contactPerson,
+                date: q.date || q.updatedAt || new Date().toISOString(),
+                itemsCount: (q.items || []).length,
+                totalAmount: q.totalAmount || 0,
+                source: 'tombstone_quotes',
+                sourceLabel: isDeleted ? 'Proposta Excluída (Marcada para Descarte)' : 'Proposta no Histórico',
+                quote: q
+              });
+            }
+          }
+        });
+      }
+    }
+  } catch {}
+
+  // 3. Vasculha chaves infodesk_backup_items_*
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('infodesk_backup_items_')) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          const items: QuoteItem[] = JSON.parse(raw);
+          if (Array.isArray(items) && items.length > 0) {
+            const rawKey = k.replace('infodesk_backup_items_', '');
+            const cleanKeyFormatted = rawKey.replace(/_/g, ' ');
+            const matchesKey = matchesTerm(cleanKeyFormatted);
+            const matchesItems = items.some(it => matchesTerm(it.name) || matchesTerm(it.description) || matchesTerm(it.supplier));
+
+            if (matchesKey || matchesItems) {
+              const qId = `backup-${rawKey}`;
+              if (!seenIds.has(qId)) {
+                seenIds.add(qId);
+                const totalAmt = items.reduce((acc, it) => acc + (it.totalPrice || (it.unitPrice || 0) * (it.quantity || 1)), 0);
+                
+                const reconstituted: Quote = {
+                  id: `recov-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                  code: cleanKeyFormatted.startsWith('SC') ? cleanKeyFormatted : `REC ${cleanKeyFormatted}`,
+                  clientCompany: cleanTerm ? cleanTerm.toUpperCase() : 'Cliente Recuperado',
+                  date: new Date().toISOString().split('T')[0],
+                  status: 'draft',
+                  items,
+                  totalAmount: Number(totalAmt.toFixed(2)),
+                  paymentTerms: '28 DDL',
+                  deliveryTime: '5 a 7 dias úteis',
+                  validityDays: '10 dias',
+                  updatedAt: new Date().toISOString()
+                } as any;
+
+                results.push({
+                  id: qId,
+                  code: reconstituted.code || cleanKeyFormatted,
+                  clientCompany: reconstituted.clientCompany,
+                  date: reconstituted.date,
+                  itemsCount: items.length,
+                  totalAmount: reconstituted.totalAmount,
+                  source: 'backup_items',
+                  sourceLabel: `Backup Local de Itens (${cleanKeyFormatted})`,
+                  quote: reconstituted
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // 4. Vasculha infodesk_manual_analyses
+  try {
+    const rawAnalyses = localStorage.getItem(MANUAL_ANALYSES_KEY);
+    if (rawAnalyses) {
+      const analyses = JSON.parse(rawAnalyses);
+      if (Array.isArray(analyses)) {
+        analyses.forEach((a, aIdx) => {
+          const matches = matchesTerm(a.clientName) ||
+            matchesTerm(a.clientCompany) ||
+            matchesTerm(a.rawText) ||
+            (a.items || []).some((it: any) => matchesTerm(it.name) || matchesTerm(it.description));
+
+          if (matches) {
+            const qId = a.id || `analysis-${aIdx}`;
+            if (!seenIds.has(qId)) {
+              seenIds.add(qId);
+              const items = a.items || [];
+              const totalAmt = items.reduce((acc: number, it: any) => acc + (it.totalPrice || 0), 0);
+              
+              const reconstituted: Quote = {
+                id: `recov-analysis-${Date.now()}-${aIdx}`,
+                code: a.quoteCode || `RASC ${aIdx + 1}`,
+                clientCompany: a.clientCompany || (cleanTerm ? cleanTerm.toUpperCase() : 'Cliente Análise'),
+                contactPerson: a.clientName || '',
+                date: a.createdAt ? a.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+                status: 'draft',
+                items,
+                totalAmount: Number(totalAmt.toFixed(2)),
+                updatedAt: new Date().toISOString()
+              } as any;
+
+              results.push({
+                id: qId,
+                code: reconstituted.code,
+                clientCompany: reconstituted.clientCompany,
+                clientName: a.clientName || '',
+                date: reconstituted.date,
+                itemsCount: items.length,
+                totalAmount: reconstituted.totalAmount,
+                source: 'manual_analyses',
+                sourceLabel: 'Análise de Entrada / Solicitação',
+                quote: reconstituted
+              });
+            }
+          }
+        });
+      }
+    }
+  } catch {}
+
+  return results;
+};
+
+export const restoreRecoveredQuote = (quoteToRestore: Quote): Quote => {
+  if (typeof localStorage === 'undefined') return quoteToRestore;
+  try {
+    if (quoteToRestore.code) unblockQuoteCode(quoteToRestore.code);
+    if (quoteToRestore.id) unblockQuoteCode(undefined, quoteToRestore.id);
+
+    const cleanQuote: Quote = {
+      ...quoteToRestore,
+      status: 'draft',
+      updatedAt: new Date().toISOString()
+    };
+
+    if (cleanQuote.code) saveQuoteItemsBackup(cleanQuote.code, cleanQuote.items || []);
+    if (cleanQuote.id) saveQuoteItemsBackup(cleanQuote.id, cleanQuote.items || []);
+
+    const raw = localStorage.getItem(QUOTES_KEY);
+    let existingList: Quote[] = [];
+    if (raw) {
+      try { existingList = JSON.parse(raw); } catch {}
+    }
+    
+    const filtered = existingList.filter(q => q.id !== cleanQuote.id && (!cleanQuote.code || q.code !== cleanQuote.code));
+    const nextList = [cleanQuote, ...filtered];
+    saveQuotes(nextList);
+
+    return cleanQuote;
+  } catch (err) {
+    console.error('Erro ao restaurar orçamento recuperado:', err);
+    return quoteToRestore;
+  }
+};
+
 
 
