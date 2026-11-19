@@ -807,7 +807,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">Catálogo de Produtos</h1>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Base de produtos, custos de referência e especificações técnicas.
+              Base de produtos e custos de referência.
             </p>
           </div>
         </div>
@@ -982,7 +982,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   title="Clique para ordenar por Nome do Produto"
                 >
                   <div className="flex items-center gap-1.5">
-                    <span>Produto & Especificações</span>
+                    <span>Produto</span>
                     {sortField === 'name' ? (
                       sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600" /> : <ArrowDown className="w-3 h-3 text-sky-600" />
                     ) : (
@@ -1360,7 +1360,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 {zoomedImage.title}
               </h2>
               <p className="text-[11px] sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
-                ESPECIFICAÇÃO TÉCNICA
+                FOTO DO PRODUTO
               </p>
             </div>
 
