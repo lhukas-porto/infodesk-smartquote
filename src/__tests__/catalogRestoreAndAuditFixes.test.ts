@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import { restoreCatalogFromQuotesAndBackups, saveProducts, getProducts, saveQuotes, deduplicateDirectPurchases } from '../utils/storage';
 import { Product, Quote, ProcurementItem } from '../types';
 import { isGmailTokenExpiringSoon } from '../services/gmailService';
+import { getScannerTieredMarkup } from '../services/pricingEngine';
 
 describe('Restauração do Catálogo e Resolução dos 4 Erros da Auditoria', () => {
 
@@ -171,6 +172,14 @@ describe('Restauração do Catálogo e Resolução dos 4 Erros da Auditoria', ()
 
     // Confirma que nenhum id é igual ao outro
     assert.notStrictEqual(deduped[0].id, deduped[1].id, 'O segundo item duplicado deve ter recebido um novo UUID único');
+  });
+
+  it('5. getScannerTieredMarkup deve aplicar as faixas corretas para custos (22 -> 35%, 54 -> 30%, 8 -> 100%, 150 -> 23.5%)', () => {
+    assert.strictEqual(getScannerTieredMarkup(8), 100, 'Até R$ 10 deve ser 100%');
+    assert.strictEqual(getScannerTieredMarkup(15), 50, 'De R$ 10 a R$ 20 deve ser 50%');
+    assert.strictEqual(getScannerTieredMarkup(22), 35, 'De R$ 20 a R$ 50 deve ser 35%');
+    assert.strictEqual(getScannerTieredMarkup(54), 30, 'De R$ 50 a R$ 100 deve ser 30%');
+    assert.strictEqual(getScannerTieredMarkup(150), 23.5, 'Acima de R$ 100 deve ser 23.5%');
   });
 
 });

@@ -1542,7 +1542,18 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
       if ('costPrice' in updates || 'markupPercent' in updates || 'shippingCost' in updates || 'taxPercent' in updates) {
         const cost = item.costPrice;
-        const markup = item.markupPercent ?? globalMarkup;
+        let markup = item.markupPercent ?? globalMarkup;
+
+        // Regra do Lucas: se o Custo mudou e a Margem NÃO foi editada explicitamente nesta ação,
+        // recalcula automaticamente a margem % pela Tabela de Faixas de Lucro (Tiered Markup).
+        // Exemplo: de R$ 22 (35%) para R$ 54 -> ajusta automaticamente para 30%!
+        if ('costPrice' in updates && !('markupPercent' in updates)) {
+          if (cost > 0) {
+            markup = getScannerTieredMarkup(cost);
+            item.markupPercent = markup;
+          }
+        }
+
         const shipping = item.shippingCost ?? globalShipping;
         const tax = item.taxPercent ?? globalTax;
 
@@ -1605,7 +1616,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
     const newCost = Number(p.costPrice) || 0;
     const newShipping = currentItem.shippingCost ?? globalShipping ?? 0;
-    const newMarkup = currentItem.markupPercent ?? globalMarkup ?? 0;
+    const newMarkup = newCost > 0 ? getScannerTieredMarkup(newCost) : (currentItem.markupPercent ?? globalMarkup ?? 0);
     const newTax = currentItem.taxPercent ?? globalTax ?? 0;
     const newUnitPrice = calculateItemUnitPrice(newCost, newShipping, newMarkup, newTax);
 
@@ -1621,6 +1632,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       category: p.category || currentItem.category || '',
       unit: p.unit || currentItem.unit || 'Un.',
       costPrice: newCost,
+      markupPercent: newMarkup,
       supplier: sanitizeSupplierName(p.supplier || currentItem.supplier),
       sourceUrl: p.sourceUrl || currentItem.sourceUrl || '',
       unitPrice: newUnitPrice,
@@ -4675,6 +4687,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                               const copy = { ...prev };
                               delete copy[`${idx}-costPrice`];
                               delete copy[`${idx}-unitPrice`];
+                              delete copy[`${idx}-markupPercent`];
                               return copy;
                             });
                           }
