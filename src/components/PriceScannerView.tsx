@@ -1752,21 +1752,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
             </p>
           </div>
         </div>
-
-        {/* Status Dinâmico do Motor de IA */}
-        <div className="flex items-center gap-2.5 self-start md:self-center">
-          {Boolean(getStoredGeminiKey()) && !isGeminiCircuitBreakerActive() ? (
-            <div className="px-3.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200/90 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Gemini 3.1 Flash Conectado</span>
-            </div>
-          ) : (
-            <div className="px-3.5 py-1.5 bg-sky-50 text-sky-800 border border-sky-200/90 rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs">
-              <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-              <span>Dedução Heurística Ativa</span>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Card de Busca e Entrada */}
