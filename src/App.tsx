@@ -98,7 +98,8 @@ import {
   doesQuoteNeedDraftSanitization,
   saveProductImageToCache,
   findProductImageInCache,
-  recoverProductImagesFromQuotes
+  recoverProductImagesFromQuotes,
+  syncCatalogProductImagesFromQuotes
 } from './utils/storage';
 import { defaultCompanySettings } from './utils/mockData';
 import { 
@@ -995,7 +996,18 @@ export const App: React.FC = () => {
             deleteProductFromSupabase(gp.id, gp.sku, gp.partNumber, gp.name).catch(() => {});
           }
           setProducts(prev => {
-            return mergeRemoteProductsWithLocal(sanitizedRemote, prev);
+            const merged = mergeRemoteProductsWithLocal(sanitizedRemote, prev);
+            // Sincronização Retroativa & Permanente: injeta fotos de orçamentos e do cache nos produtos sem foto
+            const quotesToSearch = remoteQuotes || getQuotes() || [];
+            const { updatedProducts, updatedCount } = syncCatalogProductImagesFromQuotes(merged, quotesToSearch);
+            if (updatedCount > 0) {
+              console.log(`[Storage] ${updatedCount} produto(s) do catálogo enriquecidos com fotos permanentes de orçamentos.`);
+              saveProducts(updatedProducts);
+              // Sincroniza os produtos enriquecidos com fotos no Supabase em segundo plano
+              syncBatchProductsToSupabase(updatedProducts.filter(p => p.imageUrl)).catch(() => {});
+              return updatedProducts;
+            }
+            return merged;
           });
         }
 
@@ -1909,6 +1921,37 @@ export const App: React.FC = () => {
 
     saveCurrentDraftQuote(quoteToSave);
     setCurrentQuote(quoteToSave);
+
+    // Sincroniza fotos dos itens salvos para os produtos correspondentes no catálogo geral
+    if (quoteToSave.items && quoteToSave.items.length > 0) {
+      setProducts(prevProducts => {
+        let hasProdChanges = false;
+        const updatedProds = prevProducts.map(p => {
+          if (p.imageUrl && p.imageUrl.trim()) return p;
+          const cleanPn = (p.partNumber || '').trim().toLowerCase();
+          const cleanName = (p.name || '').trim().toLowerCase();
+          const matchItem = quoteToSave.items.find(it => 
+            it.imageUrl && it.imageUrl.trim() && (
+              (it.productId && it.productId === p.id) ||
+              (cleanPn && it.partNumber && it.partNumber.trim().toLowerCase() === cleanPn) ||
+              (cleanName && it.name && it.name.trim().toLowerCase() === cleanName)
+            )
+          );
+          if (matchItem && matchItem.imageUrl) {
+            hasProdChanges = true;
+            const updatedProd = { ...p, imageUrl: matchItem.imageUrl.trim(), lastUpdated: new Date().toISOString() };
+            syncProductToSupabase(updatedProd).catch(() => {});
+            return updatedProd;
+          }
+          return p;
+        });
+        if (hasProdChanges) {
+          saveProducts(updatedProds);
+          return updatedProds;
+        }
+        return prevProducts;
+      });
+    }
 
     setQuotes(prev => {
       // Atualiza a proposta correspondente no array local (por ID ou código)

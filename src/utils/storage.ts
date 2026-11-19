@@ -426,7 +426,7 @@ export const saveCurrentDraftQuote = (quote: Quote | null): void => {
             }
             return {
               ...item,
-              imageUrl: (item.imageUrl && item.imageUrl.startsWith('data:') && item.imageUrl.length > 90000) ? '' : item.imageUrl
+              imageUrl: (item.imageUrl && item.imageUrl.startsWith('data:') && item.imageUrl.length > 350000) ? '' : item.imageUrl
             };
           })
         };
@@ -463,7 +463,7 @@ export const saveQuoteItemsBackup = (key: string, items: QuoteItem[]): void => {
       }
       return {
         ...it,
-        imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:') && it.imageUrl.length > 90000) ? '' : it.imageUrl
+        imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:') && it.imageUrl.length > 350000) ? '' : it.imageUrl
       };
     });
     localStorage.setItem(`infodesk_backup_items_${cleanKey}`, JSON.stringify(cleanItems));
@@ -1214,8 +1214,8 @@ export const saveQuotes = (quotes: Quote[]): void => {
           }
           return {
             ...it,
-            // Mantém imagens HTTP/HTTPS e imagens base64 compactas (< 85KB)
-            imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:') && it.imageUrl.length > 85000) ? '' : it.imageUrl
+            // Mantém imagens HTTP/HTTPS e imagens base64 compactas (< 350KB)
+            imageUrl: (it.imageUrl && it.imageUrl.startsWith('data:') && it.imageUrl.length > 350000) ? '' : it.imageUrl
           };
         })
       }));
@@ -2570,8 +2570,8 @@ export const saveProductImageToCache = (
 ): void => {
   if (!imageUrl || (!identifier.name && !identifier.partNumber && !identifier.sku)) return;
   const cleanUrl = imageUrl.trim();
-  // Aceita URLs de imagem e Data URLs de até 150KB
-  if (!cleanUrl || (cleanUrl.startsWith('data:image/') && cleanUrl.length > 150000)) return;
+  // Aceita URLs de imagem e Data URLs de até 350KB
+  if (!cleanUrl || (cleanUrl.startsWith('data:image/') && cleanUrl.length > 350000)) return;
 
   try {
     const cache = getProductImageCache();
@@ -2741,6 +2741,107 @@ export const recoverProductImagesFromQuotes = (force: boolean = false): number =
     console.warn('Erro ao recuperar fotos dos orçamentos:', err);
   }
   return recoveredCount;
+};
+
+/**
+ * Sincronização Retroativa & Permanente de Fotos de Cotações para o Catálogo:
+ * Varre todos os produtos do catálogo que estão sem foto e injeta fotos
+ * correspondentes encontradas em orçamentos anteriores ou no cache de prints.
+ */
+export const syncCatalogProductImagesFromQuotes = (
+  products: Product[],
+  quotes: Quote[]
+): { updatedProducts: Product[]; updatedCount: number } => {
+  if (!Array.isArray(products) || products.length === 0) {
+    return { updatedProducts: products, updatedCount: 0 };
+  }
+
+  const imagesByPn = new Map<string, string>();
+  const imagesBySku = new Map<string, string>();
+  const imagesByName = new Map<string, string>();
+
+  const registerImageCandidate = (name?: string, pn?: string, sku?: string, img?: string) => {
+    if (!img || !img.trim()) return;
+    const cleanImg = img.trim();
+    if (pn && pn.trim()) {
+      const k = pn.trim().toLowerCase();
+      if (!imagesByPn.has(k)) imagesByPn.set(k, cleanImg);
+    }
+    if (sku && sku.trim()) {
+      const k = sku.trim().toLowerCase();
+      if (!imagesBySku.has(k)) imagesBySku.set(k, cleanImg);
+    }
+    if (name && name.trim()) {
+      const norm = normalizeSearchText(name);
+      if (norm && norm.length >= 3 && !imagesByName.has(norm)) {
+        imagesByName.set(norm, cleanImg);
+      }
+    }
+  };
+
+  // 1. Coleta fotos existentes nas propostas do histórico
+  if (Array.isArray(quotes)) {
+    quotes.forEach(q => {
+      (q.items || []).forEach(it => {
+        if (it.imageUrl && it.imageUrl.trim()) {
+          registerImageCandidate(it.name, it.partNumber, it.productId, it.imageUrl);
+        }
+      });
+    });
+  }
+
+  // 2. Coleta fotos do cache de imagens indexadas
+  try {
+    const cache = getProductImageCache();
+    Object.entries(cache).forEach(([k, imgUrl]) => {
+      if (typeof imgUrl === 'string' && imgUrl.trim()) {
+        const clean = imgUrl.trim();
+        if (k.startsWith('pn:')) {
+          const pn = k.replace('pn:', '');
+          if (!imagesByPn.has(pn)) imagesByPn.set(pn, clean);
+        } else if (k.startsWith('sku:')) {
+          const sku = k.replace('sku:', '');
+          if (!imagesBySku.has(sku)) imagesBySku.set(sku, clean);
+        } else if (k.startsWith('name:')) {
+          const nm = k.replace('name:', '');
+          if (!imagesByName.has(nm)) imagesByName.set(nm, clean);
+        }
+      }
+    });
+  } catch { /* noop */ }
+
+  let updatedCount = 0;
+  const updatedProducts = products.map(p => {
+    if (p.imageUrl && p.imageUrl.trim()) {
+      saveProductImageToCache({ name: p.name, partNumber: p.partNumber, sku: p.sku }, p.imageUrl.trim(), true);
+      return p;
+    }
+
+    const pnKey = (p.partNumber || '').trim().toLowerCase();
+    const skuKey = (p.sku || '').trim().toLowerCase();
+    const nameNorm = normalizeSearchText(p.name || '');
+
+    const foundImage =
+      (pnKey && imagesByPn.get(pnKey)) ||
+      (skuKey && imagesBySku.get(skuKey)) ||
+      (nameNorm && imagesByName.get(nameNorm)) ||
+      findProductImageInCache(p.name, p.partNumber, p.sku);
+
+    if (foundImage && foundImage.trim()) {
+      updatedCount++;
+      const resolvedImg = foundImage.trim();
+      saveProductImageToCache({ name: p.name, partNumber: p.partNumber, sku: p.sku }, resolvedImg, false);
+      return {
+        ...p,
+        imageUrl: resolvedImg,
+        lastUpdated: new Date().toISOString()
+      };
+    }
+
+    return p;
+  });
+
+  return { updatedProducts, updatedCount };
 };
 
 // ==============================================================================

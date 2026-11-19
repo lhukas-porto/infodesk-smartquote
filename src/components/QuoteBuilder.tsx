@@ -1430,6 +1430,56 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     }
   };
 
+  // Propagação Imediata de Imagem (Diretriz do Lucas):
+  // Quando uma foto é colada ou anexada ao item, ela é promovida imediatamente para
+  // o Catálogo Geral de Produtos (estado local + Supabase) para nunca sumir no futuro!
+  const syncPastedImageToCatalogProduct = (item: QuoteItem, imageUrl: string) => {
+    if (!item || !imageUrl || !imageUrl.trim()) return;
+    const cleanImg = imageUrl.trim();
+
+    saveProductImageToCache(
+      { name: item.name, partNumber: item.partNumber, sku: item.productId },
+      cleanImg,
+      false
+    );
+
+    if (onSaveToCatalog && (item.name || item.partNumber)) {
+      const cleanPn = (item.partNumber || '').trim().toLowerCase();
+      const cleanName = (item.name || '').trim().toLowerCase();
+
+      const existingProd = products.find(p =>
+        (item.productId && p.id === item.productId) ||
+        (cleanPn && p.partNumber && p.partNumber.trim().toLowerCase() === cleanPn) ||
+        (cleanName && p.name && p.name.trim().toLowerCase() === cleanName)
+      );
+
+      if (existingProd) {
+        onSaveToCatalog({
+          ...existingProd,
+          imageUrl: cleanImg,
+          lastUpdated: new Date().toISOString()
+        });
+      } else if (item.name && item.name.trim()) {
+        onSaveToCatalog({
+          id: item.productId || `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          sku: item.partNumber || item.productId || `SKU-${Date.now().toString().slice(-6)}`,
+          name: item.name.trim(),
+          description: item.description || '',
+          partNumber: item.partNumber || '',
+          ncm: item.ncm || '',
+          category: 'Informática, Hardware & Periféricos',
+          costPrice: item.costPrice || 0,
+          unit: item.unit || 'Un.',
+          supplier: item.supplier || '',
+          stock: 0,
+          imageUrl: cleanImg,
+          sourceUrl: item.sourceUrl || '',
+          lastUpdated: new Date().toISOString()
+        });
+      }
+    }
+  };
+
   const handleItemUpdate = (index: number, updates: Partial<QuoteItem>) => {
     setCurrentQuote(prev => {
       const updatedItems = [...prev.items];
@@ -1473,13 +1523,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         }
       }
 
-      // Salva imagem no cache APENAS quando a imagem for de fato adicionada ou alterada, NUNCA durante digitação de texto
+      // Salva imagem no cache e sincroniza imediatamente com o Catálogo Geral
       if ('imageUrl' in updates && item.imageUrl && item.imageUrl.trim()) {
-        saveProductImageToCache(
-          { name: item.name, partNumber: item.partNumber },
-          item.imageUrl.trim(),
-          false
-        );
+        syncPastedImageToCatalogProduct(item, item.imageUrl.trim());
       }
 
       updatedItems[index] = item;
@@ -1601,6 +1647,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       if (rawUrl) {
         const compressed = await compressImageDataUrl(rawUrl);
         handleItemUpdate(targetIdx, { imageUrl: compressed, showImage: true });
+        const currentItem = currentQuote.items[targetIdx];
+        if (currentItem) {
+          syncPastedImageToCatalogProduct(currentItem, compressed);
+        }
       }
     };
     reader.readAsDataURL(file);
@@ -1706,10 +1756,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       handleItemUpdate(index, { imageUrl: dataUrl, showImage: true });
       const currentItem = currentQuote.items[index];
       if (currentItem) {
-        saveProductImageToCache(
-          { name: currentItem.name, partNumber: currentItem.partNumber },
-          dataUrl
-        );
+        syncPastedImageToCatalogProduct(currentItem, dataUrl);
       }
     }
   };
@@ -1722,10 +1769,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       handleItemUpdate(index, { imageUrl: dataUrl, showImage: true });
       const currentItem = currentQuote.items[index];
       if (currentItem) {
-        saveProductImageToCache(
-          { name: currentItem.name, partNumber: currentItem.partNumber },
-          dataUrl
-        );
+        syncPastedImageToCatalogProduct(currentItem, dataUrl);
       }
     } else {
       alert('Nenhuma imagem encontrada na área de transferência. Tire um print (PrintScreen ou Win+Shift+S) ou copie uma imagem antes de colar.');

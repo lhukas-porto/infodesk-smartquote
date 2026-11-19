@@ -257,7 +257,7 @@ export async function fetchQuotesFromSupabase(
         ncm: row.ncm || '',
         imageUrl: (() => {
           const rawImg = row.image_url || '';
-          if (rawImg && rawImg.startsWith('data:') && rawImg.length > 70000) return '';
+          if (rawImg && rawImg.startsWith('data:') && rawImg.length > 350000) return '';
           const finalImg = rawImg || findProductImageInCache(row.name, row.part_number) || '';
           if (finalImg) {
             saveProductImageToCache({ name: row.name, partNumber: row.part_number }, finalImg, true);
