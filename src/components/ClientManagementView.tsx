@@ -250,9 +250,9 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     return base.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
   }, [companies, searchFilter]);
 
-  // Paginação das Empresas (Opção 3: Master-Detail com Barra Lateral Paginada)
+  // Paginação das Empresas (Opção 3: Master-Detail com Barra Lateral Paginada em 3 Colunas x 5 Linhas = 15 empresas)
   const [companyPage, setCompanyPage] = useState(1);
-  const [companyPageSize, setCompanyPageSize] = useState(10);
+  const [companyPageSize, setCompanyPageSize] = useState(15);
 
   // Reseta para página 1 ao pesquisar ou alterar a quantidade por página
   React.useEffect(() => {
@@ -572,8 +572,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
       {/* Master-Detail Layout */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col lg:grid lg:grid-cols-12 min-h-0 lg:min-h-[640px]">
 
-        {/* Left: Companies Grid List */}
-        <div className="lg:col-span-4 xl:col-span-4 border-r border-slate-200 flex flex-col justify-between bg-slate-50/50 p-4 space-y-3 min-h-[320px] lg:min-h-[640px] max-h-[84vh]">
+        {/* Left: Companies Grid List (3 Colunas x 5 Linhas = 15 empresas por visualização) */}
+        <div className="lg:col-span-6 xl:col-span-6 border-r border-slate-200 flex flex-col justify-between bg-slate-50/50 p-4 space-y-3 min-h-[320px] lg:min-h-[680px] max-h-[88vh]">
           <div className="flex-1 flex flex-col min-h-0 space-y-3">
             <div className="flex items-center justify-between pt-0.5 shrink-0">
               <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -661,8 +661,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
               </form>
             )}
 
-            {/* Grid de Empresas em 2 Colunas */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5 flex-1 overflow-y-auto pr-0.5 custom-scrollbar content-start">
+            {/* Grid de Empresas em 3 Colunas x 5 Linhas */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2.5 flex-1 overflow-y-auto pr-0.5 custom-scrollbar content-start">
               {paginatedCompanies.map(comp => {
                 const isSelected = selectedCompany?.id === comp.id;
                 const cleanCompName = comp.name.toLowerCase().trim().replace(/^(ao|à|a|para)\s+/i, '');
@@ -741,10 +741,10 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   className="bg-white border border-slate-200 text-slate-700 rounded-lg px-2 py-0.5 text-[11px] font-semibold focus:outline-none focus:border-sky-500 cursor-pointer shadow-2xs"
                   title="Empresas por página"
                 >
-                  <option value={8}>8 por pág.</option>
-                  <option value={10}>10 por pág.</option>
-                  <option value={12}>12 por pág.</option>
-                  <option value={20}>20 por pág.</option>
+                  <option value={15}>15 por pág. (3x5)</option>
+                  <option value={30}>30 por pág.</option>
+                  <option value={45}>45 por pág.</option>
+                  <option value={60}>60 por pág.</option>
                 </select>
               </div>
 
@@ -789,7 +789,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
         </div>
 
         {/* Right: Company Detail + Buyers Hero Banner (Espaço Ampliado para Compradores) */}
-        <div className="lg:col-span-8 xl:col-span-8 flex flex-col p-6 overflow-y-auto space-y-5 min-h-[640px] max-h-[84vh] bg-white">
+        <div className="lg:col-span-6 xl:col-span-6 flex flex-col p-6 overflow-y-auto space-y-5 min-h-[640px] max-h-[88vh] bg-white">
           {selectedCompany ? (
             <>
               {/* Company Header Hero Banner Card */}
