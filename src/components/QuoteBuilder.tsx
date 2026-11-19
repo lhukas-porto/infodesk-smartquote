@@ -3599,19 +3599,24 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (currentQuote.deliveryLocation?.trim()) {
-                      handleRegisterAndSelectLocation(currentQuote.deliveryLocation);
+                    const typed = (currentQuote.deliveryLocation || '').trim();
+                    if (typed) {
+                      const typedLower = typed.toLowerCase();
+                      const matched = allRegisteredLocations.find(l => l.trim().toLowerCase() === typedLower) ||
+                        allRegisteredLocations.find(l => l.trim().toLowerCase().startsWith(typedLower)) ||
+                        allRegisteredLocations.find(l => l.trim().toLowerCase().includes(typedLower));
+                      if (matched) {
+                        handleSelectLocation(matched);
+                      } else {
+                        handleRegisterAndSelectLocation(typed);
+                      }
                     }
                   } else if (e.key === 'Escape') {
                     setIsLocationSearchOpen(false);
                   }
                 }}
                 onBlur={() => {
-                  // Se o usuário digitou uma localidade não cadastrada e saiu do campo, cadastra automaticamente
-                  const typed = (currentQuote.deliveryLocation || '').trim();
-                  if (typed && !allRegisteredLocations.some(l => l.trim().toLowerCase() === typed.toLowerCase())) {
-                    handleRegisterAndSelectLocation(typed);
-                  }
+                  // Previne cadastro acidental de termos parciais ou incompletos digitados na busca
                 }}
                 className="w-full h-10 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 hover:border-sky-400 rounded-xl pl-9 pr-14 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition"
               />
@@ -3685,6 +3690,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           <div className="pb-1.5 border-b border-slate-100">
                             <button
                               type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleRegisterAndSelectLocation(query);
+                              }}
                               onClick={() => handleRegisterAndSelectLocation(query)}
                               className="w-full text-left p-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-900 transition flex items-center justify-between gap-2.5 cursor-pointer shadow-2xs group"
                             >
@@ -3727,6 +3736,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                 <button
                                   key={`comp-${loc}`}
                                   type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleSelectLocation(loc);
+                                  }}
                                   onClick={() => handleSelectLocation(loc)}
                                   className={`w-full text-left p-2 rounded-xl transition flex items-center justify-between gap-3 border cursor-pointer ${
                                     isSelected
@@ -3778,6 +3791,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                 <button
                                   key={`other-${loc}`}
                                   type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleSelectLocation(loc);
+                                  }}
                                   onClick={() => handleSelectLocation(loc)}
                                   className={`w-full text-left p-2 rounded-xl transition flex items-center justify-between gap-3 border cursor-pointer ${
                                     isSelected
