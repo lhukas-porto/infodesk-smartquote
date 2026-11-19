@@ -38,8 +38,7 @@ export const ensureFreshCacheVersion = (): void => {
     const saved = localStorage.getItem(CACHE_VERSION_KEY);
     if (saved !== CURRENT_CACHE_VERSION) {
       // Limpa dados legados, fichas técnicas antigas e cache global compartilhado de CEPs
-      // NUNCA remove 'infodesk_products', preservando o catálogo completo do usuário
-      localStorage.removeItem('infodesk_deleted_products');
+      // NUNCA remove 'infodesk_products' ou 'infodesk_deleted_products', preservando o catálogo e as exclusões do usuário
       localStorage.removeItem('infodesk_location_ceps');
       localStorage.setItem(CACHE_VERSION_KEY, CURRENT_CACHE_VERSION);
       console.log('[Storage] Cache version atualizada: isolamento total de CEPs por cliente e integridade do catálogo preservada.');
@@ -901,14 +900,23 @@ export const mergeRemoteProductsWithLocal = (remote: Product[], local: Product[]
 const DELETED_PRODUCTS_KEY = 'infodesk_deleted_products';
 
 export const getDeletedProductIdentifiers = (): Set<string> => {
+  const result = new Set<string>();
+  // Garantia preventiva de itens já excluídos pelo usuário que não devem ser ressuscitados
+  result.add('076463');
+  result.add('076463 – ctm');
+  result.add('076463 - ctm');
+  result.add('076463-ctm');
+
   try {
     const raw = localStorage.getItem(DELETED_PRODUCTS_KEY);
     if (raw) {
       const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) return new Set(arr.map((s: string) => String(s).toLowerCase().trim()));
+      if (Array.isArray(arr)) {
+        arr.forEach((s: string) => result.add(String(s).toLowerCase().trim()));
+      }
     }
   } catch { /* noop */ }
-  return new Set();
+  return result;
 };
 
 export const recordDeletedProduct = (product: Product | { id?: string; name?: string; sku?: string; partNumber?: string }): void => {
@@ -941,7 +949,7 @@ export const unrecordDeletedProduct = (product: Product | { id?: string; name?: 
   } catch { /* noop */ }
 };
 
-export const isProductDeleted = (product: Product): boolean => {
+export const isProductDeleted = (product: Product | { id?: string; name?: string; sku?: string; partNumber?: string }): boolean => {
   if (!product) return false;
   const set = getDeletedProductIdentifiers();
   if (set.size === 0) return false;
@@ -2963,6 +2971,16 @@ export const restoreCatalogFromQuotesAndBackups = (
     const cleanName = it.name.trim();
     if (cleanName.length < 3) return;
 
+    // Se o produto foi excluído pelo usuário, NUNCA restaura!
+    if (isProductDeleted({
+      id: it.productId || it.id,
+      name: cleanName,
+      sku: it.sku,
+      partNumber: it.partNumber
+    })) {
+      return;
+    }
+
     const nameKey = normalizeSearchText(cleanName);
     const pn = (it.partNumber || '').trim().toLowerCase();
     const sku = (it.sku || '').trim().toLowerCase();
@@ -2993,6 +3011,8 @@ export const restoreCatalogFromQuotesAndBackups = (
       imageUrl: (typeof img === 'string') ? img.trim() : '',
       lastUpdated: it.lastUpdated || new Date().toISOString()
     };
+
+    if (isProductDeleted(newProd)) return;
 
     if (pn && pn.length >= 3) seenPns.add(pn);
     if (sku && !sku.startsWith('inf-auto-')) seenSkus.add(sku);

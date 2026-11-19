@@ -124,10 +124,11 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       // Se o catálogo tiver menos de 300 produtos ou houver itens de orçamentos ausentes, restaura!
       if (products.length < 300) {
         const { products: restoredList, addedCount } = restoreCatalogFromQuotesAndBackups(products);
-        if (addedCount > 0) {
-          currentList = restoredList;
-          setProducts(restoredList);
-          saveProducts(restoredList);
+        const filteredRestored = restoredList.filter(p => !isProductDeleted(p));
+        if (addedCount > 0 && filteredRestored.length !== products.length) {
+          currentList = filteredRestored;
+          setProducts(filteredRestored);
+          saveProducts(filteredRestored);
           setImportStatus(`🎉 ${addedCount} produto(s) recuperados do histórico para o catálogo!`);
           setTimeout(() => setImportStatus(null), 5000);
         }
