@@ -25,6 +25,7 @@ import {
   Edit3,
   FileSpreadsheet,
   Package,
+  PackageCheck,
   X,
   ImagePlus,
   FileText,
@@ -104,7 +105,9 @@ import {
   sanitizeQuoteItemForDuplication,
   saveProductImageToCache,
   findProductImageInCache,
-  getLastPriceForClient
+  getLastPriceForClient,
+  saveCurrentDraftQuote,
+  saveQuoteItemsBackup
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { UniversalListImportModal } from './UniversalListImportModal';
@@ -126,6 +129,16 @@ import { DiscountSimulatorModal } from './DiscountSimulatorModal';
 import { TargetPriceModal } from './TargetPriceModal';
 import { KitsModal } from './KitsModal';
 import { QuoteAuditModal, auditQuote } from './QuoteAuditModal';
+import { QuoteApprovalModal } from './QuoteApprovalModal';
+
+const BUILDER_LOSS_REASONS = [
+  'Preço / Concorrente mais barato',
+  'Prazo de entrega longo',
+  'Falta de estoque / Produto indisponível',
+  'Cancelamento / Desistência do cliente',
+  'Cliente optou por outro modelo/marca',
+  'Outro motivo'
+];
 import { buildSingleItemWhatsAppText, buildWhatsAppDistributorQuoteMessage } from '../utils/whatsappFormatter';
 import { parseQuoteTimestamp } from '../utils/dateUtils';
 import { learnSupplier, learnSuppliersFromProducts } from '../services/supplierLearningService';
@@ -558,6 +571,53 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const [isKitsModalOpen, setIsKitsModalOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [auditProceedCallback, setAuditProceedCallback] = useState<(() => void) | null>(null);
+
+  // Modais de Aprovação e Perda (Fidelidade 100% com o Histórico)
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [isLossModalOpen, setIsLossModalOpen] = useState(false);
+  const [selectedLossReason, setSelectedLossReason] = useState<string>('Preço / Concorrente mais barato');
+  const [customLossReason, setCustomLossReason] = useState<string>('');
+
+  const handleConfirmApprovalFromBuilder = (approvedQuote: Quote) => {
+    setCurrentQuote(approvedQuote);
+    saveCurrentDraftQuote(approvedQuote);
+
+    if (approvedQuote.items && approvedQuote.items.length > 0) {
+      if (approvedQuote.code) saveQuoteItemsBackup(approvedQuote.code, approvedQuote.items);
+      if (approvedQuote.id) saveQuoteItemsBackup(approvedQuote.id, approvedQuote.items);
+    }
+
+    if (onSave) {
+      onSave(approvedQuote);
+    } else if (onUpdateStatus) {
+      onUpdateStatus('approved');
+    }
+    setIsApprovalModalOpen(false);
+  };
+
+  const handleConfirmLossFromBuilder = () => {
+    const finalReason = selectedLossReason === 'Outro motivo' 
+      ? (customLossReason.trim() || 'Outro motivo')
+      : selectedLossReason;
+
+    const updated: Quote = {
+      ...currentQuote,
+      status: 'lost',
+      lossReason: finalReason,
+      updatedAt: new Date().toISOString()
+    };
+
+    setCurrentQuote(updated);
+    saveCurrentDraftQuote(updated);
+
+    if (onSave) {
+      onSave(updated);
+    } else if (onUpdateStatus) {
+      onUpdateStatus('lost');
+    }
+    setIsLossModalOpen(false);
+    setCustomLossReason('');
+  };
 
 
   // Painel sanfona retrátil de Condições Gerais de Fornecimento
@@ -2781,44 +2841,67 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           </p>
 
           {/* Pipeline de Estágios Direto no QuoteBuilder */}
-          <div className="mt-3 flex items-center gap-1 bg-slate-100/90 p-1.5 rounded-xl border border-slate-200/80 overflow-x-auto max-w-full">
-            {[
-              { id: 'draft', label: 'Rascunho', shortLabel: 'Rascunho', icon: Clock, activeBg: 'bg-amber-500', activeText: 'text-white' },
-              { id: 'sent', label: 'Enviada', shortLabel: 'Enviada', icon: Send, activeBg: 'bg-sky-600', activeText: 'text-white' },
-              { id: 'negotiating', label: 'Em Negociação', shortLabel: 'Negociação', icon: MessageSquare, activeBg: 'bg-purple-600', activeText: 'text-white' },
-              { id: 'approved', label: 'Aprovada / Ganha', shortLabel: 'Aprovada', icon: CheckCircle2, activeBg: 'bg-emerald-600', activeText: 'text-white' },
-              { id: 'lost', label: 'Perdida', shortLabel: 'Perdida', icon: X, activeBg: 'bg-rose-600', activeText: 'text-white' }
-            ].map((st, sIdx, sArr) => {
-              const currentStatus = currentQuote.status || 'draft';
-              const isCurrent = currentStatus === st.id;
-              const Icon = st.icon;
-              return (
-                <React.Fragment key={st.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onUpdateStatus) {
-                        onUpdateStatus(st.id as Quote['status']);
-                      } else {
-                        setCurrentQuote(prev => ({ ...prev, status: st.id as Quote['status'], updatedAt: new Date().toISOString() }));
-                      }
-                    }}
-                    className={`py-1 px-2.5 sm:px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                      isCurrent
-                        ? `${st.activeBg} ${st.activeText} shadow-xs`
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
-                    }`}
-                    title={`Mover proposta para: ${st.label}`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{st.shortLabel}</span>
-                  </button>
-                  {sIdx < sArr.length - 1 && (
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 mx-0.5" />
-                  )}
-                </React.Fragment>
-              );
-            })}
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-slate-100/90 p-1.5 rounded-xl border border-slate-200/80 overflow-x-auto max-w-full">
+              {[
+                { id: 'draft', label: 'Rascunho', shortLabel: 'Rascunho', icon: Clock, activeBg: 'bg-amber-500', activeText: 'text-white' },
+                { id: 'sent', label: 'Enviada', shortLabel: 'Enviada', icon: Send, activeBg: 'bg-sky-600', activeText: 'text-white' },
+                { id: 'negotiating', label: 'Em Negociação', shortLabel: 'Negociação', icon: MessageSquare, activeBg: 'bg-purple-600', activeText: 'text-white' },
+                { id: 'approved', label: 'Aprovada / Ganha', shortLabel: 'Aprovada', icon: CheckCircle2, activeBg: 'bg-emerald-600', activeText: 'text-white' },
+                { id: 'lost', label: 'Perdida', shortLabel: 'Perdida', icon: X, activeBg: 'bg-rose-600', activeText: 'text-white' }
+              ].map((st, sIdx, sArr) => {
+                const currentStatus = currentQuote.status || 'draft';
+                const isCurrent = currentStatus === st.id;
+                const Icon = st.icon;
+                return (
+                  <React.Fragment key={st.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (st.id === 'approved') {
+                          if (!currentQuote.items || currentQuote.items.length === 0) {
+                            alert('Adicione ao menos um produto na proposta antes de marcar como Aprovada.');
+                            return;
+                          }
+                          setIsApprovalModalOpen(true);
+                        } else if (st.id === 'lost') {
+                          setIsLossModalOpen(true);
+                        } else if (onUpdateStatus) {
+                          onUpdateStatus(st.id as Quote['status']);
+                        } else {
+                          setCurrentQuote(prev => ({ ...prev, status: st.id as Quote['status'], updatedAt: new Date().toISOString() }));
+                        }
+                      }}
+                      className={`py-1 px-2.5 sm:px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                        isCurrent
+                          ? `${st.activeBg} ${st.activeText} shadow-xs`
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                      }`}
+                      title={`Mover proposta para: ${st.label}`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{st.shortLabel}</span>
+                    </button>
+                    {sIdx < sArr.length - 1 && (
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 mx-0.5" />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {/* Botão de Gestão de Itens Aprovados quando a proposta está Ganha */}
+            {(currentQuote.status === 'approved' || Boolean(currentQuote.approvedAt)) && (
+              <button
+                type="button"
+                onClick={() => setIsApprovalModalOpen(true)}
+                className="text-[11px] text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 font-bold px-2.5 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap"
+                title="Ver e ajustar itens aprovados desta proposta comercial"
+              >
+                <PackageCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Itens Aprovados</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -6345,6 +6428,106 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             cb();
           } : undefined}
         />
+      )}
+
+      {/* Modal de Aprovação Seletiva de Itens da Proposta (Idêntico ao Histórico) */}
+      {isApprovalModalOpen && (
+        <QuoteApprovalModal
+          quote={currentQuote}
+          isOpen={isApprovalModalOpen}
+          onClose={() => setIsApprovalModalOpen(false)}
+          onConfirmApproval={handleConfirmApprovalFromBuilder}
+        />
+      )}
+
+      {/* Modal de Registro de Motivo de Perda (Idêntico ao Histórico) */}
+      {isLossModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-scaleIn">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+                  <X className="w-4 h-4 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Registrar Motivo de Perda
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    Proposta {currentQuote.code || currentQuote.id}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLossModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <label className="block text-xs font-semibold text-slate-700">
+                Selecione o motivo pelo qual a proposta não foi fechada:
+              </label>
+
+              <div className="space-y-1.5">
+                {BUILDER_LOSS_REASONS.map(reason => (
+                  <label
+                    key={reason}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition text-xs font-medium ${
+                      selectedLossReason === reason
+                        ? 'bg-rose-50/70 border-rose-300 text-rose-950 font-bold'
+                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="builderLossReason"
+                      value={reason}
+                      checked={selectedLossReason === reason}
+                      onChange={() => setSelectedLossReason(reason)}
+                      className="text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    />
+                    <span>{reason}</span>
+                  </label>
+                ))}
+              </div>
+
+              {selectedLossReason === 'Outro motivo' && (
+                <div className="pt-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Descreva o motivo:
+                  </label>
+                  <input
+                    type="text"
+                    value={customLossReason}
+                    onChange={(e) => setCustomLossReason(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsLossModalOpen(false)}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLossFromBuilder}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
+              >
+                Confirmar Perda
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Notificação Flutuante de Vínculo e Cadastro de Destinos/Compradores */}
