@@ -216,12 +216,12 @@
   /* Orçamento multi-páginas (6+ itens): quebra fluida mantendo integridade das tabelas */
   .print-page.is-multi-page {
     height: auto !important;
-    min-height: 28.45cm !important;
+    min-height: auto !important;
     max-height: none !important;
     overflow: visible !important;
     display: flex !important;
     flex-direction: column !important;
-    justify-content: space-between !important;
+    justify-content: flex-start !important;
   }
 
   /* Repetição automática do cabeçalho da tabela em caso de quebra para página 2 ou 3 */

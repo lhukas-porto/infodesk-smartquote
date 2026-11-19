@@ -263,11 +263,11 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
         <div 
           ref={documentRef}
           id="quote-preview-document"
-          className={`print-page ${a4Spacers.estimatedPageCount <= 1 ? 'is-single-page' : 'is-multi-page'} bg-white text-black w-full shadow-2xl rounded-sm border border-slate-200 flex flex-col justify-between`}
+          className={`print-page ${a4Spacers.estimatedPageCount <= 1 ? 'is-single-page' : 'is-multi-page'} bg-white text-black w-full shadow-2xl rounded-sm border border-slate-200 flex flex-col`}
           style={{ 
             fontFamily: 'Verdana, Geneva, sans-serif',
             width: '21cm',
-            minHeight: a4Spacers.estimatedPageCount > 1 ? `${a4Spacers.estimatedPageCount * 29.7}cm` : '29.7cm',
+            minHeight: '29.7cm',
             maxWidth: '21cm',
             boxSizing: 'border-box',
             paddingTop: '0.75cm',
@@ -517,7 +517,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
               style={{ 
                 fontFamily: 'Verdana, Geneva, sans-serif', 
                 fontSize: '10pt',
-                marginTop: `${a4Spacers.spacerAfterConditions}px`
+                marginTop: `${Math.min(24, Math.max(16, a4Spacers.spacerAfterConditions))}px`
               }}
             >
               <div>
@@ -528,7 +528,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
                 className="space-y-0.5 text-right" 
                 style={{ 
                   fontSize: '10pt',
-                  marginTop: `${a4Spacers.spacerAfterDate}px`
+                  marginTop: `${Math.min(16, Math.max(10, a4Spacers.spacerAfterDate))}px`
                 }}
               >
                 <p className="text-black font-normal" style={{ fontSize: '10pt' }}>{settings.representativeName || 'Lucas Porto'}</p>
@@ -554,13 +554,13 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
 
           {/* Bottom Divider & Company Details */}
           <div 
-            className="mt-auto pt-2 pb-1 text-black space-y-0.5 text-center font-bold sq-avoid-break shrink-0"
+            className="pt-2 pb-1 text-black space-y-0.5 text-center font-bold sq-avoid-break shrink-0"
             style={{ 
               borderTop: '0.5pt solid #000000', 
               fontFamily: 'Verdana, Geneva, sans-serif', 
               fontSize: '9.5pt', 
               fontWeight: 'bold',
-              marginTop: a4Spacers.estimatedPageCount > 1 ? `${a4Spacers.spacerBeforeFooter}px` : undefined
+              marginTop: a4Spacers.estimatedPageCount <= 1 ? 'auto' : '28px'
             }}
           >
             <p className="font-bold" style={{ fontSize: '9.5pt', fontWeight: 'bold' }}>{settings.companyName || 'Lucas Porto da Fonseca-ME'}</p>

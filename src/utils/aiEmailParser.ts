@@ -3521,9 +3521,9 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
   const baseClosingHeight = conditionsHeight + dateTextHeight + signatureTextHeight + footerHeight;
 
   // Espaçadores mínimos de segurança
-  const minSpacerAfterConditions = 20;
-  const minSpacerAfterDate = 14;
-  const minSpacerBeforeFooter = 24;
+  const minSpacerAfterConditions = 16;
+  const minSpacerAfterDate = 10;
+  const minSpacerBeforeFooter = 20;
   const minClosingTotal = baseClosingHeight + minSpacerAfterConditions + minSpacerAfterDate + minSpacerBeforeFooter;
 
   // Verifica se o bloco de encerramento cabe na página atual ou se precisa quebrar para a próxima
@@ -3539,9 +3539,9 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
 
   // Cenário 1: Orçamento de 1 Página (caso mais comum de 1 a 3 itens)
   if (currentPage === 1) {
-    const spacerAfterConditions = Math.max(20, Math.min(55, minSpacerAfterConditions + Math.round(freeSpace * 0.35)));
-    const spacerAfterDate = Math.max(14, Math.min(32, minSpacerAfterDate + Math.round(freeSpace * 0.22)));
-    const spacerBeforeFooter = Math.max(24, Math.min(80, minSpacerBeforeFooter + Math.round(freeSpace * 0.43)));
+    const spacerAfterConditions = Math.max(16, Math.min(28, minSpacerAfterConditions + Math.round(freeSpace * 0.08)));
+    const spacerAfterDate = Math.max(10, Math.min(18, minSpacerAfterDate + Math.round(freeSpace * 0.05)));
+    const spacerBeforeFooter = Math.max(20, Math.min(36, minSpacerBeforeFooter + Math.round(freeSpace * 0.10)));
 
     return {
       spacerAfterConditions,
@@ -3552,15 +3552,11 @@ export function calculateA4ProposalSpacers(quote: any, settings?: any): A4Propos
   }
 
   // Cenário 2: Orçamento Multi-Páginas (2+ páginas com itens distribuídos)
-  // Distribuição harmônica fluida que elimina o aspecto "espremido" no topo e empurra o rodapé para a base da última folha
-  const extraConditions = Math.min(110, Math.round(freeSpace * 0.30));
-  const extraDate = Math.min(50, Math.round(freeSpace * 0.18));
-  const extraFooter = Math.min(260, Math.round(freeSpace * 0.52));
-
+  // Encerramento contínuo, harmônico e compacto: nunca gera vácuos ou espaços gigantescos antes do rodapé
   return {
-    spacerAfterConditions: minSpacerAfterConditions + extraConditions,
-    spacerAfterDate: minSpacerAfterDate + extraDate,
-    spacerBeforeFooter: minSpacerBeforeFooter + extraFooter,
+    spacerAfterConditions: 18,
+    spacerAfterDate: 12,
+    spacerBeforeFooter: 24,
     estimatedPageCount: currentPage
   };
 }
