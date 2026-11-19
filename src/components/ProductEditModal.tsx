@@ -4,6 +4,7 @@ import {
   X,
   ZoomIn,
   ImagePlus,
+  Camera,
   Search,
   Truck,
   Calculator,
@@ -19,6 +20,7 @@ import {
   OFFICIAL_CATEGORIES
 } from '../utils/aiEmailParser';
 import { CreatableCombobox } from './CreatableCombobox';
+import { WebImagePickerModal } from './WebImagePickerModal';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { getSettings, findProductImageInCache, saveProductImageToCache } from '../utils/storage';
@@ -154,6 +156,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [shippingInput, setShippingInput] = useState<string>('');
 
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
+  const [isWebImagePickerOpen, setIsWebImagePickerOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -504,14 +507,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           title: draft.name || 'Produto'
                         });
                       } else {
-                        handleTriggerImageUpload();
+                        setIsWebImagePickerOpen(true);
                       }
+                    }}
+                    onDoubleClick={() => {
+                      setIsWebImagePickerOpen(true);
                     }}
                     onPaste={handlePasteImage}
                     title={
                       draft.imageUrl
-                        ? "Clique para ver a foto com ZOOM (ou aperte Ctrl+V para colar outra foto)"
-                        : "Clique para escolher foto do produto ou aperte Ctrl+V para colar foto copiada"
+                        ? "Clique para ZOOM / Duplo clique para buscar foto na web (ou Ctrl+V)"
+                        : "Clique para pesquisar foto na web ou aperte Ctrl+V para colar"
                     }
                     className={`w-16 h-16 rounded-xl overflow-hidden shrink-0 flex items-center justify-center p-1 cursor-pointer transition relative group/cimg select-none focus:outline-none focus:ring-2 focus:ring-sky-400 ${
                       draft.imageUrl
@@ -538,6 +544,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       </div>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsWebImagePickerOpen(true)}
+                    className="mt-1.5 w-16 inline-flex items-center justify-center gap-1 text-[9px] font-bold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1 py-0.5 rounded-lg transition cursor-pointer text-center shadow-2xs"
+                    title="Pesquisar foto deste produto na internet"
+                  >
+                    <Camera className="w-2.5 h-2.5 text-sky-600 shrink-0" />
+                    <span>{draft.imageUrl ? 'Trocar' : 'Web'}</span>
+                  </button>
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -935,6 +950,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Busca de Foto Web para o Catálogo */}
+      {isWebImagePickerOpen && (
+        <WebImagePickerModal
+          isOpen={true}
+          onClose={() => setIsWebImagePickerOpen(false)}
+          productName={draft.name || draft.partNumber || ''}
+          currentImageUrl={draft.imageUrl}
+          onSelectImage={(url) => {
+            setDraft(prev => ({ ...prev, imageUrl: url }));
+            setIsWebImagePickerOpen(false);
+          }}
+        />
       )}
     </>
   );

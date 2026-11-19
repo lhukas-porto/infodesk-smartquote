@@ -27,6 +27,7 @@ import {
   Package,
   PackageCheck,
   X,
+  Camera,
   ImagePlus,
   FileText,
   ChevronDown,
@@ -112,6 +113,7 @@ import {
 import { CreatableCombobox } from './CreatableCombobox';
 import { UniversalListImportModal } from './UniversalListImportModal';
 import { BatchPriceScanModal } from './BatchPriceScanModal';
+import { WebImagePickerModal } from './WebImagePickerModal';
 import { ProductEditModal } from './ProductEditModal';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
 import { compressImageDataUrl } from '../utils/imageCompressor';
@@ -953,6 +955,53 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     issues: [],
     onConfirmAction: () => {}
   });
+
+  // Modal de Busca e Escolha de Foto Comercial na Web
+  const [webImagePickerItem, setWebImagePickerItem] = useState<{
+    type: 'quote_item' | 'catalog_review';
+    itemId?: string;
+    itemIndex?: number;
+    productName: string;
+    currentImageUrl?: string;
+  } | null>(null);
+
+  const handlePhotoSelectedForQuote = (selectedUrl: string) => {
+    if (!webImagePickerItem) return;
+
+    if (webImagePickerItem.type === 'quote_item') {
+      const targetId = webImagePickerItem.itemId;
+      const targetIdx = webImagePickerItem.itemIndex;
+
+      setCurrentQuote(prev => {
+        const updatedItems = prev.items.map((item, idx) => {
+          if ((targetId && item.id === targetId) || (!targetId && idx === targetIdx)) {
+            if (selectedUrl && selectedUrl.trim()) {
+              saveProductImageToCache(
+                { name: item.name, partNumber: item.partNumber },
+                selectedUrl.trim(),
+                false
+              );
+            }
+            return {
+              ...item,
+              imageUrl: selectedUrl,
+              showImage: !!selectedUrl
+            };
+          }
+          return item;
+        });
+
+        return {
+          ...prev,
+          items: updatedItems,
+          updatedAt: new Date().toISOString()
+        };
+      });
+    } else if (webImagePickerItem.type === 'catalog_review') {
+      setCatalogReviewProduct(prev => prev ? { ...prev, imageUrl: selectedUrl } : null);
+    }
+    setWebImagePickerItem(null);
+  };
 
   const runPreFlightCheck = (): { type: 'error' | 'warning'; message: string }[] => {
     const issues: { type: 'error' | 'warning'; message: string }[] = [];
@@ -4462,13 +4511,28 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                   itemNumber: item.itemNumber || idx + 1
                                 });
                               } else {
-                                activeImageUploadIndexRef.current = idx;
-                                handleTriggerUploadImage(idx);
+                                setWebImagePickerItem({
+                                  type: 'quote_item',
+                                  itemId: item.id,
+                                  itemIndex: idx,
+                                  productName: item.name || `Item ${item.itemNumber || idx + 1}`,
+                                  currentImageUrl: item.imageUrl
+                                });
                               }
+                            }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setWebImagePickerItem({
+                                type: 'quote_item',
+                                itemId: item.id,
+                                itemIndex: idx,
+                                productName: item.name || `Item ${item.itemNumber || idx + 1}`,
+                                currentImageUrl: item.imageUrl
+                              });
                             }}
                             onFocus={() => { activeImageUploadIndexRef.current = idx; }}
                             onPaste={(e) => handlePasteImageToItem(e, idx)}
-                            title={item.imageUrl ? "Clique para ver a foto com ZOOM no meio da tela (ou use Ctrl+V para colar outra)" : "Clique para buscar foto nos arquivos ou aperte Ctrl+V para colar"}
+                            title={item.imageUrl ? "Clique para ZOOM / Duplo clique para buscar foto na web (ou Ctrl+V)" : "Clique para pesquisar foto na web ou aperte Ctrl+V para colar"}
                             className={`w-10 h-10 min-w-[40px] max-w-[40px] min-h-[40px] max-h-[40px] rounded-lg border flex items-center justify-center shrink-0 overflow-hidden cursor-pointer transition relative group/img select-none focus:outline-none focus:ring-2 focus:ring-sky-400 ${
                               item.imageUrl 
                                 ? 'border-slate-200 bg-white p-0.5 shadow-2xs hover:border-sky-500 hover:shadow-md' 
@@ -4975,6 +5039,22 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                               />
                               <span className="font-semibold text-[10px]">Foto na proposta</span>
                             </label>
+
+                            <button
+                              type="button"
+                              onClick={() => setWebImagePickerItem({
+                                type: 'quote_item',
+                                itemId: item.id,
+                                itemIndex: idx,
+                                productName: item.name || `Item ${item.itemNumber || idx + 1}`,
+                                currentImageUrl: item.imageUrl
+                              })}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded-lg transition cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                              title="Pesquisar e escolher foto comercial deste produto na web"
+                            >
+                              <Camera className="w-3 h-3 text-sky-600" />
+                              <span>{item.imageUrl ? 'Trocar Foto' : 'Pesquisar Foto'}</span>
+                            </button>
                           </div>
 
                           {/* Divisor vertical suave */}
@@ -6551,6 +6631,17 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           </div>
           <span>{linkNotification}</span>
         </div>
+      )}
+
+      {/* Modal de Busca e Escolha de Foto Comercial na Web */}
+      {webImagePickerItem && (
+        <WebImagePickerModal
+          isOpen={true}
+          onClose={() => setWebImagePickerItem(null)}
+          productName={webImagePickerItem.productName}
+          currentImageUrl={webImagePickerItem.currentImageUrl}
+          onSelectImage={handlePhotoSelectedForQuote}
+        />
       )}
 
     </div>
