@@ -96,12 +96,14 @@ interface CatalogViewProps {
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   onAddToQuote: (product: Product) => void;
+  onUpdateProductCascade?: (updatedProduct: Product, oldProduct?: Product) => void;
 }
 
 export const CatalogView: React.FC<CatalogViewProps> = ({
   products,
   setProducts,
-  onAddToQuote
+  onAddToQuote,
+  onUpdateProductCascade
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -655,9 +657,19 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       return finalNext;
     });
 
+    const oldProductSnapshot = editingProduct;
     setEditingProduct(null);
     setImportStatus(`Produto "${finalProd.name}" atualizado com sucesso!`);
     setTimeout(() => setImportStatus(null), 4000);
+
+    // Propaga a atualização em cascata para compras, cotações e rascunhos ativos
+    if (onUpdateProductCascade) {
+      try {
+        onUpdateProductCascade(finalProd, oldProductSnapshot || undefined);
+      } catch (cascadeErr) {
+        console.warn('[Cascade Product] Erro na propagação em cascata:', cascadeErr);
+      }
+    }
 
     unrecordDeletedProduct(finalProd);
     syncProductToSupabase(finalProd).catch(err => {

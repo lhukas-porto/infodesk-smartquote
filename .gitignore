@@ -29,6 +29,8 @@ dist-ssr
 *.sw?
 
 # Temp and extracted files
+.temp/
+supabase/.temp/
 extracted_assets/
 extracted_doc/
 extracted_quote.txt

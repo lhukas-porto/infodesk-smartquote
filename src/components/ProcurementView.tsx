@@ -559,12 +559,15 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
           const quotedTotalPrice = Number((quotedUnitPrice * qty).toFixed(2));
           const splitConfig = splitsMap[baseId];
 
-          // Resolução inteligente da imagem: item -> registro blindado -> catálogo de produtos (estoque)
+          // Resolução inteligente da imagem e sincronização de dados com o catálogo oficial (estoque)
           const matchedStockProduct = stockProducts.find(p =>
             (item.productId && p.id === item.productId) ||
             (item.partNumber && p.partNumber && item.partNumber.trim().toLowerCase() === p.partNumber.trim().toLowerCase()) ||
             (item.name && p.name && normalizeSearchText(p.name) === normalizeSearchText(item.name))
           );
+          const effectiveName = (matchedStockProduct?.name && matchedStockProduct.name.trim()) ? matchedStockProduct.name : item.name;
+          const effectivePartNumber = (matchedStockProduct?.partNumber && matchedStockProduct.partNumber.trim()) ? matchedStockProduct.partNumber : item.partNumber;
+          const effectiveDescription = (matchedStockProduct?.description !== undefined && matchedStockProduct.description.trim()) ? matchedStockProduct.description : item.description;
           const itemTax = item.actualTaxPercent ?? item.taxPercent ?? quote.globalTaxPercent ?? defaultTax;
           const effectiveApprovedAt = quote.approvedAt || quote.createdAt || (quote.date && quote.date.includes('-') ? quote.date : new Date().toISOString());
 
@@ -634,9 +637,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 approvedAt: effectiveApprovedAt,
                 itemId: subId,
                 itemNumber: item.itemNumber,
-                name: item.name,
-                description: item.description,
-                partNumber: item.partNumber,
+                name: effectiveName,
+                description: effectiveDescription,
+                partNumber: effectivePartNumber,
                 ncm: item.ncm,
                 imageUrl: effectiveImageUrl,
                 quantity: subQty,
@@ -720,9 +723,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
               approvedAt: effectiveApprovedAt,
               itemId: itemId,
               itemNumber: item.itemNumber,
-              name: item.name,
-              description: item.description,
-              partNumber: item.partNumber,
+              name: effectiveName,
+              description: effectiveDescription,
+              partNumber: effectivePartNumber,
               ncm: item.ncm,
               imageUrl: effectiveImageUrl,
               quantity: qty,
@@ -765,6 +768,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
         (dp.partNumber && p.partNumber && dp.partNumber.trim().toLowerCase() === p.partNumber.trim().toLowerCase()) ||
         (dp.name && p.name && normalizeSearchText(p.name) === normalizeSearchText(dp.name))
       );
+      const effectiveDpName = (matchedStock?.name && matchedStock.name.trim()) ? matchedStock.name : dp.name;
+      const effectiveDpPartNumber = (matchedStock?.partNumber && matchedStock.partNumber.trim()) ? matchedStock.partNumber : dp.partNumber;
+      const effectiveDpDescription = (matchedStock?.description !== undefined && matchedStock.description.trim()) ? matchedStock.description : dp.description;
 
       if (splitConfig && splitConfig.parts && splitConfig.parts.length > 0) {
         const origTotalQty = splitConfig.originalQuantity || (splitConfig.parts ? splitConfig.parts.reduce((acc, p) => acc + p.quantity, 0) : dp.quantity) || 1;
@@ -810,6 +816,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
           list.push({
             ...dp,
+            name: effectiveDpName,
+            description: effectiveDpDescription,
+            partNumber: effectiveDpPartNumber,
             id: subId,
             itemId: subId,
             quantity: subQty,
@@ -848,6 +857,9 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
         list.push({
           ...dp,
+          name: effectiveDpName,
+          description: effectiveDpDescription,
+          partNumber: effectiveDpPartNumber,
           imageUrl: effectiveDpImageUrl,
           supplier: effectiveSupplier,
           actualSupplier: effectiveActualSupplier,

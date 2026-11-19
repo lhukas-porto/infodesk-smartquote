@@ -1004,6 +1004,13 @@ export const saveProducts = (products: Product[]): void => {
       }
     }
   }
+
+  // Notifica imediatamente toda a aplicação sobre a atualização dos produtos no catálogo
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('infodesk_products_changed'));
+    } catch { /* noop */ }
+  }
 };
 
 // ==========================================

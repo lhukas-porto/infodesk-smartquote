@@ -1781,6 +1781,7 @@ export const App: React.FC = () => {
       ...p,
       lastUpdated: nowIso
     };
+    let oldProductSnapshot: Product | undefined;
 
     setProducts(prev => {
       const normName = normalizeSearchText(p.name);
@@ -1815,6 +1816,7 @@ export const App: React.FC = () => {
       let next: Product[];
       if (existingIdx >= 0) {
         const existing = prev[existingIdx];
+        oldProductSnapshot = existing;
         savedProduct = { 
           ...existing, 
           ...p, 
@@ -1843,7 +1845,140 @@ export const App: React.FC = () => {
 
     unrecordDeletedProduct(savedProduct);
     await syncProductToSupabase(savedProduct);
+
+    if (oldProductSnapshot) {
+      handleCascadeProductUpdate(savedProduct, oldProductSnapshot).catch(() => {});
+    }
   };
+
+  const handleCascadeProductUpdate = useCallback(async (updatedProduct: Product, oldProduct?: Product) => {
+    const normUpdatedName = normalizeSearchText(updatedProduct.name || '');
+    const normOldName = oldProduct?.name ? normalizeSearchText(oldProduct.name) : '';
+    const normUpdatedPn = (updatedProduct.partNumber || '').trim().toLowerCase();
+    const normOldPn = (oldProduct?.partNumber || '').trim().toLowerCase();
+    const normUpdatedSku = (updatedProduct.sku || '').trim().toLowerCase();
+    const normOldSku = (oldProduct?.sku || '').trim().toLowerCase();
+
+    const checkMatches = (it: { productId?: string; partNumber?: string; sku?: string; name?: string }) => {
+      const itPn = (it.partNumber || '').trim().toLowerCase();
+      const itSku = (it.sku || '').trim().toLowerCase();
+      const itName = normalizeSearchText(it.name || '');
+
+      if (it.productId && (it.productId === updatedProduct.id || (oldProduct && it.productId === oldProduct.id))) return true;
+      if (normUpdatedPn && normUpdatedPn.length >= 3 && itPn === normUpdatedPn) return true;
+      if (normOldPn && normOldPn.length >= 3 && itPn === normOldPn) return true;
+      if (normUpdatedSku && !normUpdatedSku.startsWith('inf-auto-') && itSku === normUpdatedSku) return true;
+      if (normOldSku && !normOldSku.startsWith('inf-auto-') && itSku === normOldSku) return true;
+      if (normOldName && normOldName.length >= 3 && itName === normOldName) return true;
+      if (normUpdatedName && normUpdatedName.length >= 3 && itName === normUpdatedName) return true;
+      return false;
+    };
+
+    // 1. Atualizar quotes em memória e salvar
+    let hasQuotesChanged = false;
+    const quotesToSync: Quote[] = [];
+
+    setQuotes(prevQuotes => {
+      const next = prevQuotes.map(q => {
+        if (!Array.isArray(q.items) || q.items.length === 0) return q;
+        let itemsChanged = false;
+        const newItems = q.items.map(it => {
+          if (!checkMatches(it)) return it;
+          itemsChanged = true;
+          return {
+            ...it,
+            productId: updatedProduct.id,
+            name: updatedProduct.name,
+            partNumber: updatedProduct.partNumber || it.partNumber,
+            sku: updatedProduct.sku || it.sku,
+            ncm: updatedProduct.ncm || it.ncm,
+            category: updatedProduct.category || it.category,
+            imageUrl: updatedProduct.imageUrl || it.imageUrl,
+            showImage: updatedProduct.imageUrl ? true : it.showImage,
+            description: updatedProduct.description?.trim() ? updatedProduct.description : it.description
+          };
+        });
+
+        if (itemsChanged) {
+          hasQuotesChanged = true;
+          const updatedQ = { ...q, items: newItems };
+          if (updatedQ.code) saveQuoteItemsBackup(updatedQ.code, newItems);
+          if (updatedQ.id) saveQuoteItemsBackup(updatedQ.id, newItems);
+          quotesToSync.push(updatedQ);
+          return updatedQ;
+        }
+        return q;
+      });
+
+      if (hasQuotesChanged) {
+        saveQuotes(next);
+      }
+      return next;
+    });
+
+    // 2. Atualizar currentQuote (se estiver aberta no QuoteBuilder)
+    setCurrentQuote(prev => {
+      if (!prev || !Array.isArray(prev.items) || prev.items.length === 0) return prev;
+      let itemsChanged = false;
+      const newItems = prev.items.map(it => {
+        if (!checkMatches(it)) return it;
+        itemsChanged = true;
+        return {
+          ...it,
+          productId: updatedProduct.id,
+          name: updatedProduct.name,
+          partNumber: updatedProduct.partNumber || it.partNumber,
+          sku: updatedProduct.sku || it.sku,
+          ncm: updatedProduct.ncm || it.ncm,
+          category: updatedProduct.category || it.category,
+          imageUrl: updatedProduct.imageUrl || it.imageUrl,
+          showImage: updatedProduct.imageUrl ? true : it.showImage,
+          description: updatedProduct.description?.trim() ? updatedProduct.description : it.description
+        };
+      });
+
+      if (itemsChanged) {
+        const updatedDraft = { ...prev, items: newItems };
+        saveCurrentDraftQuote(updatedDraft);
+        if (updatedDraft.code) saveQuoteItemsBackup(updatedDraft.code, newItems);
+        if (updatedDraft.id) saveQuoteItemsBackup(updatedDraft.id, newItems);
+        return updatedDraft;
+      }
+      return prev;
+    });
+
+    // 3. Atualizar Compras Diretas Avulsas (directPurchases)
+    try {
+      const dps = getDirectPurchases();
+      let dpsChanged = false;
+      const updatedDps = dps.map(dp => {
+        if (!checkMatches(dp)) return dp;
+        dpsChanged = true;
+        return {
+          ...dp,
+          productId: updatedProduct.id,
+          name: updatedProduct.name,
+          partNumber: updatedProduct.partNumber || dp.partNumber,
+          imageUrl: updatedProduct.imageUrl || dp.imageUrl,
+          description: updatedProduct.description?.trim() ? updatedProduct.description : dp.description
+        };
+      });
+      if (dpsChanged) {
+        saveDirectPurchases(updatedDps);
+      }
+    } catch (dpErr) {
+      console.warn('[Cascade Product] Erro ao atualizar compras diretas:', dpErr);
+    }
+
+    // 4. Sincronizar quotes alteradas com o Supabase em segundo plano
+    if (quotesToSync.length > 0) {
+      quotesToSync.forEach(q => {
+        syncQuoteToSupabase(q).catch(err => {
+          console.warn('[Cascade Product] Erro ao sincronizar proposta alterada com Supabase:', q.code, err);
+        });
+      });
+    }
+  }, []);
 
   const handleSaveQuote = async (customQuote?: Quote) => {
     const baseQuote = customQuote || currentQuote;
@@ -3220,6 +3355,7 @@ export const App: React.FC = () => {
             products={products}
             setProducts={setProducts}
             onAddToQuote={handleAddProductToQuote}
+            onUpdateProductCascade={handleCascadeProductUpdate}
           />
         )}
 
