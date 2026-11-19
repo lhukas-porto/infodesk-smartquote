@@ -281,6 +281,12 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
--- 5. RECARREGAR O CACHE DO SCHEMA DO POSTGREST
+-- 5. PERMISSÕES DE EXECUÇÃO DA FUNÇÃO ATÔMICA
+-- Essencial: sem este GRANT, o Supabase bloqueia a execução com erro 42501 (permission denied)
+-- ------------------------------------------------------------------------------
+GRANT EXECUTE ON FUNCTION save_quote_atomic(JSONB, JSONB) TO anon, authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 6. RECARREGAR O CACHE DO SCHEMA DO POSTGREST
 -- ------------------------------------------------------------------------------
 NOTIFY pgrst, 'reload schema';
