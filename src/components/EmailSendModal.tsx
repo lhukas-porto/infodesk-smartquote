@@ -5,7 +5,12 @@ import {
   Paperclip, 
   Check,
   FileText,
-  ExternalLink
+  ExternalLink,
+  X,
+  ShieldCheck,
+  Users,
+  AtSign,
+  Sparkles
 } from 'lucide-react';
 import { CompanySettings, Quote } from '../types';
 import { generateProposalEmailHtml, generatePdfOnlyEmailHtml, formatProposalValidityText } from '../utils/aiEmailParser';
@@ -300,32 +305,43 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
     }
   };
 
+  const repFirst = (settings.representativeName || '').trim().split(/\s+/)[0] || 'Lucas';
+  const trade = (settings.tradeName || 'Infodesk').trim();
+  const senderDisplayName = `${repFirst} - ${trade}`;
+  const senderEmail = (connectedUserEmail || 'lucas@infodesk.net.br').toLowerCase();
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl overflow-hidden shadow-xl animate-scaleIn space-y-4">
+      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl overflow-hidden shadow-xl animate-scaleIn">
         
         {/* Cabeçalho do Modal */}
-        <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-sky-50/30 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-xl shadow-xs shrink-0 flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-xl shadow-xs shrink-0 flex items-center justify-center">
               <Mail className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                Disparar Proposta Comercial por E-mail
-              </h2>
-              <p className="text-xs text-slate-500">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                  Disparar Proposta Comercial por E-mail
+                </h2>
+                <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-bold font-mono uppercase tracking-wider rounded-lg">
+                  {quote.code}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Envio autenticado pelo Google Workspace com cópia automática em "Itens Enviados"
               </p>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={handleCancel}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-200/50 transition cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer"
             title="Fechar"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -356,20 +372,21 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
             </div>
           )}
           
-          {/* Destinatários e Remetente */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Destinatários e Remetente — Perfeitamente Alinhados */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-slate-600 font-bold">
-                  Destinatários
+              <div className="h-6 flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Destinatários (Para:)</span>
                 </label>
                 {!showCc && (
                   <button
                     type="button"
                     onClick={() => setShowCc(true)}
-                    className="text-[10px] text-sky-600 hover:text-sky-800 hover:underline font-semibold cursor-pointer"
+                    className="text-[11px] text-sky-600 hover:text-sky-800 font-semibold cursor-pointer hover:underline flex items-center gap-0.5"
                   >
-                    + Adicionar Cópia (Cc)
+                    <span>+ Adicionar Cópia (Cc)</span>
                   </button>
                 )}
               </div>
@@ -381,42 +398,46 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                   setToEmails(e.target.value);
                   if (sendError) setSendError(null);
                 }}
-                className={`w-full bg-white border ${
+                className={`w-full h-10 px-3.5 bg-white border ${
                   sendError && !extractEmailString(toEmails)
                     ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/20'
-                    : 'border-slate-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-500'
-                } rounded-xl px-3 py-2 text-slate-900 font-medium focus:outline-none text-xs transition`}
+                    : 'border-slate-300 hover:border-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-100'
+                } rounded-xl text-xs sm:text-sm text-slate-900 font-medium focus:outline-none transition shadow-2xs`}
               />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
-                Separe múltiplos e-mails por vírgula ou ponto e vírgula
-              </span>
+              <div className="h-5 flex items-center text-[10.5px] text-slate-400 mt-1">
+                <span>Separe múltiplos e-mails por vírgula ou ponto e vírgula</span>
+              </div>
             </div>
 
             <div>
-              <label className="block text-slate-600 font-bold mb-1">Remetente</label>
-              <label className="block text-slate-600 font-bold mb-1">Remetente</label>
-              {(() => {
-                const repFirst = (settings.representativeName || '').trim().split(/\s+/)[0] || 'Lucas';
-                const trade = (settings.tradeName || 'Infodesk').trim();
-                const senderDisplayName = `${repFirst} - ${trade}`;
-                const senderEmail = (connectedUserEmail || 'lucas@infodesk.net.br').toLowerCase();
-                return (
-                  <input
-                    type="text"
-                    value={`${senderDisplayName} <${senderEmail}>`}
-                    readOnly
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-600 font-medium focus:outline-none text-xs"
-                  />
-                );
-              })()}
+              <div className="h-6 flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Remetente Oficial</span>
+                </label>
+                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold rounded-md flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>Autenticado</span>
+                </span>
+              </div>
+              <input
+                type="text"
+                value={`${senderDisplayName} <${senderEmail}>`}
+                readOnly
+                className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium font-mono focus:outline-none select-all"
+              />
+              <div className="h-5 flex items-center text-[10.5px] text-slate-400 mt-1">
+                <span>Disparo verificado com cópia salva em "Itens Enviados"</span>
+              </div>
             </div>
           </div>
 
           {showCc && (
-            <div className="bg-sky-50/50 p-3 rounded-xl border border-sky-100">
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-slate-700 font-bold text-[11px]">
-                  Com Cópia (Cc):
+            <div className="p-3 bg-sky-50/50 rounded-2xl border border-sky-100 space-y-1.5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <AtSign className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Com Cópia (Cc):</span>
                 </label>
                 <button
                   type="button"
@@ -424,27 +445,29 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                     setCcEmails('');
                     setShowCc(false);
                   }}
-                  className="text-[10px] text-slate-400 hover:text-red-500 cursor-pointer"
+                  className="text-[11px] text-slate-400 hover:text-rose-600 font-semibold cursor-pointer transition flex items-center gap-1"
                 >
-                  Remover Cc
+                  <X className="w-3 h-3" />
+                  <span>Remover Cópia</span>
                 </button>
               </div>
               <input
                 type="text"
                 value={ccEmails}
                 onChange={(e) => setCcEmails(e.target.value)}
-                className="w-full bg-white border border-sky-200 rounded-lg px-3 py-1.5 text-slate-900 font-medium focus:outline-none focus:border-sky-500 text-xs"
+                className="w-full h-9 px-3.5 bg-white border border-sky-200 hover:border-sky-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs text-slate-900 font-medium focus:outline-none transition"
               />
             </div>
           )}
 
           {/* Assunto */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-slate-700">
-                Assunto do E-mail
+            <div className="h-6 flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-sky-600" />
+                <span>Assunto do E-mail</span>
               </label>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[10.5px] text-slate-400">
                 Título oficial que o cliente verá na caixa de entrada
               </span>
             </div>
@@ -452,31 +475,32 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full bg-white border border-slate-300 hover:border-sky-400 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-100 transition shadow-2xs"
+              className="w-full h-10 px-3.5 bg-white border border-slate-300 hover:border-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900 font-semibold tracking-tight focus:outline-none transition shadow-2xs"
             />
           </div>
 
           {/* 3 Opções de Formato de Envio */}
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-slate-800">
-                Como deseja enviar esta proposta?
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                <span>Como deseja enviar esta proposta?</span>
               </label>
               <span className="text-[10.5px] text-slate-400">
                 Escolha o formato ideal para este cliente
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               
               {/* Opção 1: No corpo do e-mail (Padrão) */}
               <button
                 type="button"
                 onClick={() => setSendMode('body_only')}
-                className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
+                className={`p-3.5 rounded-2xl border text-left transition-all duration-150 flex flex-col justify-between gap-3 cursor-pointer ${
                   sendMode === 'body_only'
-                    ? 'bg-sky-50/80 border-sky-500 ring-2 ring-sky-100 shadow-2xs'
-                    : 'bg-white hover:bg-slate-50 border-slate-200'
+                    ? 'bg-sky-50/80 border-sky-500 ring-2 ring-sky-200 shadow-xs'
+                    : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -486,14 +510,14 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                     <Mail className="w-4 h-4" />
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                    sendMode === 'body_only' ? 'bg-sky-200/90 text-sky-900' : 'bg-slate-100 text-slate-500'
+                    sendMode === 'body_only' ? 'bg-sky-200 text-sky-900' : 'bg-slate-100 text-slate-500'
                   }`}>
                     Padrão
                   </span>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 leading-tight">No corpo do e-mail</p>
-                  <p className="text-[10.5px] text-slate-500 mt-1 leading-snug">Proposta e tabela completas no corpo, sem anexo</p>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">Proposta e tabela completas no corpo, sem anexo</p>
                 </div>
               </button>
 
@@ -501,10 +525,10 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
               <button
                 type="button"
                 onClick={() => setSendMode('body_and_pdf')}
-                className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
+                className={`p-3.5 rounded-2xl border text-left transition-all duration-150 flex flex-col justify-between gap-3 cursor-pointer ${
                   sendMode === 'body_and_pdf'
-                    ? 'bg-sky-50/80 border-sky-500 ring-2 ring-sky-100 shadow-2xs'
-                    : 'bg-white hover:bg-slate-50 border-slate-200'
+                    ? 'bg-sky-50/80 border-sky-500 ring-2 ring-sky-200 shadow-xs'
+                    : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -514,14 +538,14 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                     <Paperclip className="w-4 h-4" />
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                    sendMode === 'body_and_pdf' ? 'bg-sky-200/90 text-sky-900' : 'bg-slate-100 text-slate-500'
+                    sendMode === 'body_and_pdf' ? 'bg-sky-200 text-sky-900' : 'bg-slate-100 text-slate-500'
                   }`}>
                     Corpo + PDF
                   </span>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 leading-tight">Corpo + PDF anexo</p>
-                  <p className="text-[10.5px] text-slate-500 mt-1 leading-snug">Proposta no e-mail e documento oficial em PDF anexo</p>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">Proposta no e-mail e documento oficial em PDF anexo</p>
                 </div>
               </button>
 
@@ -529,10 +553,10 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
               <button
                 type="button"
                 onClick={() => setSendMode('pdf_only')}
-                className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
+                className={`p-3.5 rounded-2xl border text-left transition-all duration-150 flex flex-col justify-between gap-3 cursor-pointer ${
                   sendMode === 'pdf_only'
-                    ? 'bg-sky-50/80 border-sky-500 ring-2 ring-sky-100 shadow-2xs'
-                    : 'bg-white hover:bg-slate-50 border-slate-200'
+                    ? 'bg-sky-50/80 border-sky-500 ring-2 ring-sky-200 shadow-xs'
+                    : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -542,14 +566,14 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                     <FileText className="w-4 h-4" />
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                    sendMode === 'pdf_only' ? 'bg-sky-200/90 text-sky-900' : 'bg-slate-100 text-slate-500'
+                    sendMode === 'pdf_only' ? 'bg-sky-200 text-sky-900' : 'bg-slate-100 text-slate-500'
                   }`}>
                     Só PDF
                   </span>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 leading-tight">Apenas PDF anexo</p>
-                  <p className="text-[10.5px] text-slate-500 mt-1 leading-snug">Mensagem formal no corpo e proposta em PDF</p>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">Mensagem formal no corpo e proposta em PDF</p>
                 </div>
               </button>
 
@@ -558,53 +582,78 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
 
           {/* Área de Contexto Dinâmica baseada na escolha */}
           {sendMode === 'pdf_only' ? (
-            <div className="space-y-2 p-3.5 bg-sky-50/60 border border-sky-200 rounded-2xl animate-fadeIn">
+            <div className="space-y-2.5 p-3.5 bg-sky-50/60 border border-sky-200 rounded-2xl animate-fadeIn">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Mensagem que acompanhará a proposta em PDF:</span>
+                  <span>Mensagem formal que acompanhará o PDF em anexo:</span>
                 </label>
                 <span className="text-[10px] text-sky-700 font-semibold bg-sky-100 px-2 py-0.5 rounded-full">
-                  Editável
+                  Carta de Apresentação Editável
                 </span>
               </div>
               <textarea
                 value={pdfOnlyMessage}
                 onChange={(e) => setPdfOnlyMessage(e.target.value)}
-                rows={5}
+                rows={4}
                 className="w-full bg-white border border-sky-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl p-3 text-xs text-slate-800 font-medium leading-relaxed resize-none focus:outline-none transition shadow-2xs"
               />
-              <div className="p-2.5 bg-white/90 border border-sky-100 rounded-xl text-[11px] text-slate-600 flex items-center gap-2">
-                <span className="font-bold text-sky-800 shrink-0">📎 Anexo Confirmado:</span>
-                <span className="truncate">O arquivo <strong>Proposta-Comercial-{(quote.code || 'Infodesk').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf</strong> será anexado com a tabela oficial de produtos e imagens.</span>
+              <div className="p-2.5 bg-white border border-sky-100 rounded-xl text-[11px] text-slate-600 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-bold text-sky-800 shrink-0">📎 Anexo Confirmado:</span>
+                  <span className="truncate"><strong>Proposta-Comercial-{(quote.code || 'Infodesk').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf</strong></span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                  Alta Resolução
+                </span>
               </div>
             </div>
           ) : sendMode === 'body_and_pdf' ? (
-            <div className="p-3 bg-sky-50/70 border border-sky-200 rounded-2xl flex items-center gap-3 text-sky-900 animate-fadeIn">
-              <div className="p-2 bg-sky-100 rounded-xl text-sky-700 shrink-0">
-                <Paperclip className="w-4 h-4" />
+            <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-2xl flex items-center justify-between gap-3 text-sky-900 animate-fadeIn">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 bg-sky-600 text-white rounded-xl shadow-2xs shrink-0">
+                  <Paperclip className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-sky-950 flex items-center gap-2">
+                    <span>Formato Duplo Selecionado</span>
+                    <span className="px-1.5 py-0.2 bg-sky-200/90 text-sky-900 text-[10px] font-bold rounded font-mono">PDF + HTML</span>
+                  </p>
+                  <p className="text-[11px] text-sky-700 truncate">
+                    A proposta será exibida no corpo do e-mail E o arquivo <strong>Proposta-Comercial-{(quote.code || 'Infodesk').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf</strong> será anexado.
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-sky-950">Formato Duplo Selecionado</p>
-                <p className="text-[11px] text-sky-700">A proposta será exibida no corpo do e-mail E o arquivo <strong>Proposta-Comercial-{(quote.code || 'Infodesk').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf</strong> será anexado para download.</p>
-              </div>
+              <span className="text-[10.5px] font-bold text-sky-800 bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 shrink-0 hidden sm:inline-flex items-center gap-1">
+                📎 Anexo Automático
+              </span>
             </div>
           ) : (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-3 text-slate-700 animate-fadeIn">
-              <div className="p-2 bg-slate-200/60 rounded-xl text-slate-600 shrink-0">
-                <Mail className="w-4 h-4" />
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 text-slate-700 animate-fadeIn">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 bg-slate-200/80 rounded-xl text-slate-600 shrink-0">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <span>Envio Ágil no Corpo do E-mail</span>
+                    <span className="px-1.5 py-0.2 bg-slate-200 text-slate-700 text-[10px] font-bold rounded font-mono">{quote.code}</span>
+                  </p>
+                  <p className="text-[11px] text-slate-500 truncate">
+                    {quote.clientCompany ? `${quote.clientCompany} • ` : ''}{quote.items?.length || 0} produto(s) formatado(s) com fotos e tabela oficial de preços.
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-800">Formato Tradicional Selecionado</p>
-                <p className="text-[11px] text-slate-500">Envio padrão rápido: a proposta comercial formatada com a tabela oficial de produtos é enviada direto no corpo do e-mail, sem anexos.</p>
-              </div>
+              <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shrink-0 hidden sm:inline-flex items-center gap-1">
+                <Check className="w-3 h-3" /> Abertura Instantânea
+              </span>
             </div>
           )}
 
         </div>
 
         {/* Rodapé do Modal */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-[11px] text-slate-600">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>
@@ -636,7 +685,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
             <button
               type="button"
               onClick={handleMailtoFallback}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+              className="h-10 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
               title="Abrir no cliente padrão do computador (Outlook/Thunderbird) com download automático do PDF"
             >
               <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
@@ -646,7 +695,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
             <button
               type="button"
               onClick={handleCancel}
-              className="px-4 py-2 bg-slate-100 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-semibold transition cursor-pointer"
+              className="h-10 px-4 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95"
             >
               Cancelar
             </button>
@@ -655,12 +704,12 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
               type="button"
               onClick={handleSend}
               disabled={isSending || isSentSuccess}
-              className={`px-5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer ${
+              className={`h-10 px-5 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer active:scale-95 ${
                 isSentSuccess
                   ? 'bg-emerald-600 text-white'
                   : isSending
                   ? 'bg-sky-500 text-white opacity-90 cursor-wait'
-                  : 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white'
+                  : 'bg-sky-600 hover:bg-sky-700 text-white'
               }`}
             >
               {isSentSuccess ? (
