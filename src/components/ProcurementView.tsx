@@ -178,7 +178,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   };
 
   // 2. Modos de Exibição: Itens Individuais, Agrupado por Proposta, ou Referência de Preços Pagos
-  const [viewMode, setViewMode] = useState<ViewModeOption>('items');
+  const [viewMode, setViewMode] = useState<ViewModeOption>('quotes');
   const [collapsedQuotes, setCollapsedQuotes] = useState<Record<string, boolean>>({});
   const [collapsedSuppliers, setCollapsedSuppliers] = useState<Record<string, boolean>>({});
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
