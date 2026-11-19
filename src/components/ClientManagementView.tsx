@@ -52,7 +52,7 @@ interface ClientManagementViewProps {
 
 const CompanyLogoBadge: React.FC<{
   company: ClientCompany;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   className?: string;
 }> = ({ company, size = 'sm', className = '' }) => {
   const candidates = React.useMemo(() => resolveCompanyCandidates(company), [company.id, company.name, company.website, company.logoUrl, company.contacts]);
@@ -66,7 +66,8 @@ const CompanyLogoBadge: React.FC<{
   const avatarColor = getAvatarColor(company.name);
 
   const sizeClasses = {
-    sm: 'w-9 h-9 text-xs',
+    xs: 'w-7 h-7 text-[10px]',
+    sm: 'w-8 h-8 text-[11px]',
     md: 'w-11 h-11 text-sm',
     lg: 'w-14 h-14 text-base'
   }[size];
@@ -662,7 +663,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
             )}
 
             {/* Grid de Empresas em 3 Colunas x 5 Linhas */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2.5 flex-1 overflow-y-auto pr-0.5 custom-scrollbar content-start">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2 flex-1 overflow-y-auto pr-0.5 custom-scrollbar content-start">
               {paginatedCompanies.map(comp => {
                 const isSelected = selectedCompany?.id === comp.id;
                 const cleanCompName = comp.name.toLowerCase().trim().replace(/^(ao|à|a|para)\s+/i, '');
@@ -672,20 +673,20 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   <div
                     key={comp.id}
                     onClick={() => { setSelectedCompanyId(comp.id); setIsEditingCompany(false); setEditingContact(null); }}
-                    className={`p-2.5 rounded-2xl cursor-pointer border transition-all duration-150 flex flex-col justify-between gap-2 ${
+                    className={`p-2 rounded-xl cursor-pointer border transition-all duration-150 flex flex-col justify-between gap-1.5 ${
                       isSelected
                         ? 'bg-sky-50/90 border-sky-400 shadow-xs ring-2 ring-sky-300/40'
                         : 'bg-white hover:bg-slate-50/90 border-slate-200/90 hover:border-slate-300 shadow-2xs'
                     }`}
                   >
                     {/* Card Top: Logo / Avatar + Name + Location */}
-                    <div className="flex items-center gap-2.5">
-                      <CompanyLogoBadge company={comp} size="sm" />
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CompanyLogoBadge company={comp} size="xs" />
                       <div className="min-w-0 flex-1">
                         <h4 className={`text-xs font-bold leading-tight truncate ${isSelected ? 'text-sky-950' : 'text-slate-900'}`} title={comp.name}>
                           {comp.name}
                         </h4>
-                        <p className="text-[10px] text-slate-500 truncate flex items-center gap-0.5 mt-0.5" title={comp.defaultDeliveryLocation || 'Brasília - DF'}>
+                        <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5" title={comp.defaultDeliveryLocation || 'Brasília - DF'}>
                           <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                           <span className="truncate">{comp.defaultDeliveryLocation || 'Brasília - DF'}</span>
                         </p>
@@ -693,27 +694,29 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     </div>
 
                     {/* Card Footer: Buyers count + Proposals count + Delete */}
-                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-100/80 gap-1.5">
-                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                        <span className="text-[10px] text-slate-500 font-medium">
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 gap-1 text-[10px]">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                        <span className="text-slate-500 font-medium whitespace-nowrap">
                           {comp.contacts.length} {comp.contacts.length === 1 ? 'comprador' : 'compradores'}
                         </span>
                         {proposalCount > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.2 rounded-md shadow-2xs" title={`${proposalCount} proposta(s) comercial(is) emitida(s) para esta empresa`}>
-                            <FileText className="w-2.5 h-2.5" />
-                            <span>{proposalCount} {proposalCount === 1 ? 'proposta' : 'propostas'}</span>
-                          </span>
-                        )}
-                        {proposalCount >= 3 && (
-                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1 py-0.2 rounded" title="Cliente com alto volume de cotações">
-                            ⭐ Frequente
+                          <span 
+                            className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded-md shadow-2xs whitespace-nowrap ${
+                              proposalCount >= 3 
+                                ? 'bg-amber-50 text-amber-900 border border-amber-200' 
+                                : 'bg-sky-50 text-sky-700 border border-sky-200'
+                            }`}
+                            title={`${proposalCount} proposta(s) comercial(is) emitida(s) para esta empresa${proposalCount >= 3 ? ' · Cliente frequente' : ''}`}
+                          >
+                            {proposalCount >= 3 ? <span>⭐</span> : <FileText className="w-2.5 h-2.5" />}
+                            <span>{proposalCount} {proposalCount === 1 ? 'prop.' : 'prop.'}</span>
                           </span>
                         )}
                       </div>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setSelectedCompanyId(comp.id); setCompanyIdToDelete(comp.id); }}
-                        className="text-slate-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition cursor-pointer shrink-0"
+                        className="text-slate-300 hover:text-red-600 p-0.5 rounded hover:bg-red-50 transition cursor-pointer shrink-0"
                         title="Excluir empresa"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
