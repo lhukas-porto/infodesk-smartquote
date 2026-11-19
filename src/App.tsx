@@ -693,7 +693,6 @@ export const App: React.FC = () => {
               if (!remoteItem) {
                 // Item existe apenas no dispositivo: preserva e sincroniza
                 map.set(localItem.id, localItem);
-                syncDirectPurchasesToSupabase([localItem]).catch(() => {});
               } else {
                 // Item existe em ambos: se o item local foi comprado ('purchased'), o local VENCE para não reverter no F5
                 if (localItem.purchaseStatus === 'purchased') {
@@ -704,9 +703,6 @@ export const App: React.FC = () => {
                     shippingPending: localItem.shippingPending ?? remoteItem.shippingPending
                   };
                   map.set(localItem.id, mergedItem);
-                  if (remoteItem.purchaseStatus !== 'purchased') {
-                    syncDirectPurchasesToSupabase([mergedItem]).catch(() => {});
-                  }
                 } else {
                   map.set(localItem.id, {
                     ...remoteItem,
@@ -716,7 +712,9 @@ export const App: React.FC = () => {
                 }
               }
             });
-            syncDirectPurchasesToSupabase(localDirectPurchases).catch(() => {});
+            const mergedList = Array.from(map.values());
+            saveDirectPurchases(mergedList, false);
+            syncDirectPurchasesToSupabase(mergedList).catch(() => {});
           }
         } catch (err) {
           console.warn('Aviso ao sincronizar compras diretas na inicialização:', err);

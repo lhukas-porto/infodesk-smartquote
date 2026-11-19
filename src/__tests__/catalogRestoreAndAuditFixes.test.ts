@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { restoreCatalogFromQuotesAndBackups, saveProducts, getProducts, saveQuotes } from '../utils/storage';
-import { Product, Quote } from '../types';
+import { restoreCatalogFromQuotesAndBackups, saveProducts, getProducts, saveQuotes, deduplicateDirectPurchases } from '../utils/storage';
+import { Product, Quote, ProcurementItem } from '../types';
 import { isGmailTokenExpiringSoon } from '../services/gmailService';
 
 describe('Restauração do Catálogo e Resolução dos 4 Erros da Auditoria', () => {
@@ -131,6 +131,46 @@ describe('Restauração do Catálogo e Resolução dos 4 Erros da Auditoria', ()
 
     assert.ok(executiveSummary.length < 1800, `O tamanho da mensagem (${executiveSummary.length} chars) deve ser inferior a 1.800 chars`);
     assert.ok(executiveSummary.includes('arquivo baixado automaticamente'), 'Deve orientar sobre o PDF em anexo');
+  });
+
+  it('4. deduplicateDirectPurchases deve eliminar IDs duplicados e garantir unicidade absoluta para evitar conflito no Postgres (Erro 21000)', () => {
+    const rawItems: Partial<ProcurementItem>[] = [
+      {
+        id: 'direct-duplicated-id-1',
+        name: 'Item A',
+        quantity: 1,
+        quotedCostPrice: 100,
+        quotedUnitPrice: 150,
+        quotedTotalPrice: 150
+      },
+      {
+        id: 'direct-duplicated-id-1', // MESMO ID
+        name: 'Item B (duplicado acidental)',
+        quantity: 2,
+        quotedCostPrice: 200,
+        quotedUnitPrice: 300,
+        quotedTotalPrice: 600
+      },
+      {
+        id: 'd9b736b4-2b99-4c58-8547-0e62a26c4832', // UUID VÁLIDO
+        name: 'Item C',
+        quantity: 1,
+        quotedCostPrice: 50,
+        quotedUnitPrice: 75,
+        quotedTotalPrice: 75
+      }
+    ];
+
+    const deduped = deduplicateDirectPurchases(rawItems as ProcurementItem[]);
+
+    assert.strictEqual(deduped.length, 3, 'Deve preservar todos os itens');
+
+    const ids = deduped.map(it => it.id);
+    const uniqueIds = new Set(ids);
+    assert.strictEqual(uniqueIds.size, 3, 'Todos os IDs devem ser 100% únicos após deduplicação');
+
+    // Confirma que nenhum id é igual ao outro
+    assert.notStrictEqual(deduped[0].id, deduped[1].id, 'O segundo item duplicado deve ter recebido um novo UUID único');
   });
 
 });

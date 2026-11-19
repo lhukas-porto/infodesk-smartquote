@@ -1904,47 +1904,69 @@ export async function fetchDirectPurchasesFromSupabase(): Promise<import('../typ
 }
 
 export async function syncDirectPurchasesToSupabase(items: import('../types').ProcurementItem[]): Promise<void> {
-  if (!supabase || !items) return;
+  if (!supabase || !items || items.length === 0) return;
   try {
-    const records = items.map(item => ({
-      id: sanitizeToUuid(item.id),
-      quote_id: (item.quoteId && item.quoteId !== 'direct_purchases' && isValidUuid(item.quoteId)) ? item.quoteId : null,
-      quote_code: item.quoteCode || 'COMPRA DIRETA',
-      client_company: item.clientCompany || 'Infodesk (Uso Interno / Estoque)',
-      contact_person: item.contactPerson || null,
-      item_id: sanitizeToUuid(item.itemId || item.id),
-      product_id: (item.productId && isValidUuid(item.productId)) ? item.productId : null,
-      name: item.name,
-      description: null,
-      part_number: item.partNumber || null,
-      ncm: item.ncm || null,
-      image_url: item.imageUrl || null,
-      quantity: item.quantity,
-      unit: item.unit || 'un',
-      quoted_cost_price: item.quotedCostPrice,
-      quoted_unit_price: item.quotedUnitPrice,
-      quoted_total_price: item.quotedTotalPrice,
-      supplier: item.actualSupplier || item.supplier || null,
-      source_url: item.sourceUrl || null,
-      purchase_status: item.purchaseStatus || 'pending',
-      tax_percent: item.taxPercent !== undefined ? item.taxPercent : 9.1,
-      is_direct_purchase: true,
-      actual_cost_price: item.actualCostPrice ?? null,
-      actual_unit_cost_price: item.actualUnitCostPrice ?? null,
-      actual_purchase_url: item.actualPurchaseUrl || null,
-      actual_shipping_cost: item.actualShippingCost ?? 0,
-      payment_method: item.paymentMethod || null,
-      purchased_at: item.purchasedAt || null,
-      purchase_notes: item.purchaseNotes || null,
-      approved_at: item.approvedAt || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }));
+    // Deduplicação estrita por 'id' sanitizado antes de enviar ao Postgres.
+    // Previne o erro PostgreSQL 21000 ("ON CONFLICT DO UPDATE command cannot affect row a second time")
+    // que ocorre quando o array do upsert contém duas ou mais linhas com a mesma chave de conflito.
+    const recordMap = new Map<string, any>();
 
-    if (records.length > 0) {
-      const { error } = await supabase.from('procurement_items').upsert(records, { onConflict: 'id' });
-      if (error) {
-        reportError('Falha ao Sincronizar Compras Diretas no Supabase', error, 'Supabase - procurement_items');
-        throw error;
+    for (const item of items) {
+      if (!item) continue;
+      const cleanId = sanitizeToUuid(item.id);
+
+      const record = {
+        id: cleanId,
+        quote_id: (item.quoteId && item.quoteId !== 'direct_purchases' && isValidUuid(item.quoteId)) ? item.quoteId : null,
+        quote_code: item.quoteCode || 'COMPRA DIRETA',
+        client_company: item.clientCompany || 'Infodesk (Uso Interno / Estoque)',
+        contact_person: item.contactPerson || null,
+        item_id: sanitizeToUuid(item.itemId || item.id),
+        product_id: (item.productId && isValidUuid(item.productId)) ? item.productId : null,
+        name: item.name,
+        description: null,
+        part_number: item.partNumber || null,
+        ncm: item.ncm || null,
+        image_url: item.imageUrl || null,
+        quantity: item.quantity,
+        unit: item.unit || 'un',
+        quoted_cost_price: item.quotedCostPrice,
+        quoted_unit_price: item.quotedUnitPrice,
+        quoted_total_price: item.quotedTotalPrice,
+        supplier: item.actualSupplier || item.supplier || null,
+        source_url: item.sourceUrl || null,
+        purchase_status: item.purchaseStatus || 'pending',
+        tax_percent: item.taxPercent !== undefined ? item.taxPercent : 9.1,
+        is_direct_purchase: true,
+        actual_cost_price: item.actualCostPrice ?? null,
+        actual_unit_cost_price: item.actualUnitCostPrice ?? null,
+        actual_purchase_url: item.actualPurchaseUrl || null,
+        actual_shipping_cost: item.actualShippingCost ?? 0,
+        payment_method: item.paymentMethod || null,
+        purchased_at: item.purchasedAt || null,
+        purchase_notes: item.purchaseNotes || null,
+        approved_at: item.approvedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const existing = recordMap.get(cleanId);
+      // Se já existir no Map, prevalece a versão mais avançada (comprada ou mais recente)
+      if (!existing || record.purchase_status === 'purchased' || record.updated_at >= (existing.updated_at || '')) {
+        recordMap.set(cleanId, record);
+      }
+    }
+
+    const dedupedRecords = Array.from(recordMap.values());
+
+    if (dedupedRecords.length > 0) {
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < dedupedRecords.length; i += BATCH_SIZE) {
+        const chunk = dedupedRecords.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('procurement_items').upsert(chunk, { onConflict: 'id' });
+        if (error) {
+          reportError('Falha ao Sincronizar Compras Diretas no Supabase', error, 'Supabase - procurement_items');
+          throw error;
+        }
       }
     }
   } catch (err) {

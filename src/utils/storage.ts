@@ -1,7 +1,7 @@
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem, QuoteKit } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
 import { normalizeSearchText, normalizeToOfficialCategory } from './aiEmailParser';
-import { sanitizeToUuid } from './uuidUtils';
+import { sanitizeToUuid, generateUuid } from './uuidUtils';
 import { 
   syncRegisteredMetadataToSupabase, 
   syncClientCompaniesToSupabase,
@@ -2058,18 +2058,35 @@ export const resetRegisteredPaymentMethods = (): string[] => {
 // ==========================================
 const DIRECT_PURCHASES_KEY = 'infodesk_direct_purchases';
 
+export const deduplicateDirectPurchases = (items: import('../types').ProcurementItem[]): import('../types').ProcurementItem[] => {
+  if (!items || !Array.isArray(items)) return [];
+  const seenIds = new Set<string>();
+  const result: import('../types').ProcurementItem[] = [];
+
+  for (const item of items) {
+    if (!item) continue;
+    let cleanId = sanitizeToUuid(item.id);
+    if (seenIds.has(cleanId)) {
+      cleanId = generateUuid();
+    }
+    seenIds.add(cleanId);
+    result.push({
+      ...item,
+      id: cleanId,
+      itemId: sanitizeToUuid(item.itemId || cleanId),
+      description: ''
+    });
+  }
+  return result;
+};
+
 export const getDirectPurchases = (): import('../types').ProcurementItem[] => {
   try {
     const raw = localStorage.getItem(DIRECT_PURCHASES_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.map(item => ({
-          ...item,
-          id: sanitizeToUuid(item.id),
-          itemId: sanitizeToUuid(item.itemId || item.id),
-          description: ''
-        }));
+        return deduplicateDirectPurchases(parsed);
       }
     }
   } catch (e) {
@@ -2079,17 +2096,18 @@ export const getDirectPurchases = (): import('../types').ProcurementItem[] => {
 };
 
 export const saveDirectPurchases = (items: import('../types').ProcurementItem[], syncToCloud: boolean = true): void => {
+  const deduped = deduplicateDirectPurchases(items);
   try {
-    localStorage.setItem(DIRECT_PURCHASES_KEY, JSON.stringify(items));
+    localStorage.setItem(DIRECT_PURCHASES_KEY, JSON.stringify(deduped));
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('infodesk_direct_purchases_changed', { detail: items }));
+      window.dispatchEvent(new CustomEvent('infodesk_direct_purchases_changed', { detail: deduped }));
     }
   } catch (e) {
     console.warn('Erro ao salvar compras diretas:', e);
   }
   // Sincroniza em nuvem no Supabase apenas quando solicitado
   if (syncToCloud) {
-    syncDirectPurchasesToSupabase(items).catch(err => {
+    syncDirectPurchasesToSupabase(deduped).catch(err => {
       console.warn('[Storage] Erro ao sincronizar compras diretas com Supabase:', err);
     });
   }
