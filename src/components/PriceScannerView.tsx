@@ -1221,7 +1221,6 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
     const chosenImage = prod.images?.[prod.selectedImageIndex || 0] || prod.imageUrl || '';
     const price = prod.suggestedPrice || (prod.costPrice ? prod.costPrice * 1.35 : 0);
     const cost = prod.costPrice || (prod.suggestedPrice ? prod.suggestedPrice / 1.35 : 0);
-    const fullDesc = buildCompleteProductDescription(prod);
     const directInfo = buildDirectPurchaseUrl(prod.standardizedName, prod.sourceUrl);
 
     if (mode === 'update' && existing) {
@@ -1233,7 +1232,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       const isDuplicate = Boolean(existing);
       const resolved = resolveProductModelAndPartNumber({
         nameOrQuery: prod.standardizedName,
-        description: fullDesc || prod.description,
+        description: '',
         brand: prod.brand,
         category: prod.category,
         scannerModel: prod.model,
@@ -1248,7 +1247,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         partNumber: realPn,
         ncm: cleanNcmCode(prod.ncm || ''),
         name: prod.standardizedName,
-        description: fullDesc || prod.description || '',
+        description: '',
         category: normalizeToOfficialCategory(prod.category || 'Informática, Hardware & Periféricos'),
         costPrice: cost > 0 ? Number(cost.toFixed(2)) : Number(price.toFixed(2)),
         unit: prod.unit || 'Un.',
@@ -1263,7 +1262,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       setSavedInSessionIds(prev => new Set(prev).add(prod.id));
       showToast(isDuplicate 
         ? `Novo registro cadastrado no catálogo${newSku ? ` com código ${newSku}` : ''}!` 
-        : 'Produto salvo no catálogo com ficha técnica completa!');
+        : 'Produto salvo no catálogo com sucesso!');
     }
   };
 
@@ -2463,20 +2462,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
 
 
-                        {/* Technical Specifications Chips */}
-                        {prod.specifications && prod.specifications.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {prod.specifications.map((spec, sIdx) => (
-                              <div
-                                key={sIdx}
-                                className="bg-slate-100/90 border border-slate-200/70 rounded-lg px-2.5 py-1 text-xs text-slate-700 font-medium flex items-center gap-1 shadow-2xs"
-                              >
-                                <strong className="text-slate-900 font-semibold">{spec.label}:</strong>
-                                <span>{spec.value}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+
 
                         {/* SELEÇÃO POR CHECKBOX: CATÁLOGO vs NOVO ACHADO DA IA (REGRA DO LUCAS) */}
                         {existingInCatalog && catalogMatch && (
@@ -3511,12 +3497,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                       )}
                     </div>
 
-                    {/* Descrição resumida */}
-                    {quoteCatalogChoice.discovered.description && (
-                      <p className="text-[11px] text-slate-600 line-clamp-3 bg-white/70 p-2.5 rounded-xl border border-emerald-100 italic">
-                        "{quoteCatalogChoice.discovered.description}"
-                      </p>
-                    )}
+
                   </div>
 
                   <div className="pt-4 mt-3" onClick={(e) => e.stopPropagation()}>

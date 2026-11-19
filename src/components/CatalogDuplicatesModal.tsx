@@ -208,7 +208,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
       const mergedProduct: Product = {
         ...itemA,
         name: bestName,
-        description: bestDesc,
+        description: '',
         partNumber: bestPn,
         sku: bestSku,
         ncm: bestNcm,
@@ -457,11 +457,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                           </div>
                         </div>
 
-                        {itemA.description && (
-                          <p className="mt-2 text-[11px] text-slate-500 line-clamp-2 italic">
-                            "{itemA.description}"
-                          </p>
-                        )}
+
                       </div>
 
                       {/* Botão de Decisão A */}
@@ -529,11 +525,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                           </div>
                         </div>
 
-                        {itemB.description && (
-                          <p className="mt-2 text-[11px] text-slate-500 line-clamp-2 italic">
-                            "{itemB.description}"
-                          </p>
-                        )}
+
                       </div>
 
                       {/* Botão de Decisão B */}

@@ -26,18 +26,28 @@ const ACTIVE_TAB_KEY = 'infodesk_active_tab';
 const MANUAL_ANALYSES_KEY = 'infodesk_manual_analyses';
 const DELETED_QUOTE_CODES_KEY = 'infodesk_deleted_quote_codes';
 
-const CURRENT_CACHE_VERSION = '2026-10-01-v3';
+const CURRENT_CACHE_VERSION = '2026-11-19-no-ficha-v1';
 const CACHE_VERSION_KEY = 'infodesk_cache_version';
 
 export const ensureFreshCacheVersion = (): void => {
   try {
     const saved = localStorage.getItem(CACHE_VERSION_KEY);
     if (saved !== CURRENT_CACHE_VERSION) {
-      // Limpa dados legados e tombstones antigos do cache local para alinhar 100% com a nuvem
+      // Limpa dados legados, fichas técnicas antigas e tombstones do cache local
       localStorage.removeItem('infodesk_deleted_products');
       localStorage.removeItem('infodesk_products');
       localStorage.setItem(CACHE_VERSION_KEY, CURRENT_CACHE_VERSION);
-      console.log('[Storage] Cache version atualizada: alinhamento com Supabase realizado.');
+      console.log('[Storage] Cache version atualizada: alinhamento com Supabase e limpeza de fichas técnicas realizada.');
+    } else {
+      // Higienização preventiva de produtos existentes no localStorage
+      const raw = localStorage.getItem(PRODUCTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.some(p => p.description)) {
+          const sanitized = parsed.map(p => ({ ...p, description: '' }));
+          localStorage.setItem(PRODUCTS_KEY, JSON.stringify(sanitized));
+        }
+      }
     }
   } catch { /* noop */ }
 };
@@ -706,9 +716,7 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
         ...winner,
         id: existing.id || p.id,
         name: (winner.name && winner.name.trim() ? winner.name : (loser.name || '')).trim(),
-        description: (winner.description !== undefined && winner.description !== null && winner.description.trim() !== '')
-          ? winner.description.trim()
-          : (loser.description || ''),
+        description: '',
         partNumber: (winner.partNumber !== undefined && winner.partNumber !== null && winner.partNumber.trim() !== '')
           ? winner.partNumber.trim()
           : (loser.partNumber || ''),
@@ -758,6 +766,7 @@ export const deduplicateProductsList = (products: Product[]): Product[] => {
 
     result.push({
       ...p,
+      description: '',
       imageUrl: resolvedInitialImg,
       createdAt: p.createdAt || p.lastUpdated || new Date().toISOString(),
       category: normalizeToOfficialCategory(p.category)
@@ -841,6 +850,7 @@ export const mergeRemoteProductsWithLocal = (remote: Product[], local: Product[]
         ...rp,
         ...localMatch,
         name: localMatch.name || rp.name,
+        description: '',
         imageUrl: effectiveImageUrl,
         category: localMatch.category ? normalizeToOfficialCategory(localMatch.category) : normalizeToOfficialCategory(rp.category),
         lastUpdated: localMatch.lastUpdated || rp.lastUpdated
@@ -850,6 +860,7 @@ export const mergeRemoteProductsWithLocal = (remote: Product[], local: Product[]
     return {
       ...localMatch,
       ...rp,
+      description: '',
       imageUrl: effectiveImageUrl,
       category: rp.category ? normalizeToOfficialCategory(rp.category) : (localMatch.category ? normalizeToOfficialCategory(localMatch.category) : 'Diversos & Sazonais')
     };
@@ -954,13 +965,14 @@ export const getProducts = (): Product[] => {
         return deduplicateProductsList(parsed)
           .filter(p => !isProductDeleted(p))
           .map(p => {
-            if (!p.imageUrl || !p.imageUrl.trim()) {
-              const cached = findProductImageInCache(p.name, p.partNumber, p.sku);
+            const cleanP: Product = { ...p, description: '' };
+            if (!cleanP.imageUrl || !cleanP.imageUrl.trim()) {
+              const cached = findProductImageInCache(cleanP.name, cleanP.partNumber, cleanP.sku);
               if (cached) {
-                return { ...p, imageUrl: cached };
+                return { ...cleanP, imageUrl: cached };
               }
             }
-            return p;
+            return cleanP;
           });
       }
     } catch (e) { console.error(e); }
@@ -971,7 +983,9 @@ export const getProducts = (): Product[] => {
 export const saveProducts = (products: Product[]): void => {
   if (!products || !Array.isArray(products)) return;
 
-  const deduped = deduplicateProductsList(products).filter(p => !isProductDeleted(p));
+  const deduped = deduplicateProductsList(products)
+    .filter(p => !isProductDeleted(p))
+    .map(p => ({ ...p, description: '' }));
 
   // Proteção preventiva de fotos: indexa todas no cache persistente
   deduped.forEach(p => {

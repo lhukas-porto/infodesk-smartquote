@@ -175,6 +175,7 @@ import {
   deleteUnitFromSupabase,
   deletePaymentMethodFromSupabase,
   deleteProductFromSupabase,
+  clearAllProductDescriptionsInSupabase,
   getCorporateSession,
   signOutCorporateUser,
   onCorporateAuthStateChange
@@ -1009,6 +1010,9 @@ export const App: React.FC = () => {
             }
             return merged;
           });
+
+          // Higienização de Fichas Técnicas: limpa descrições legadas permanentemente no banco Supabase
+          clearAllProductDescriptionsInSupabase().catch(() => {});
         }
 
         // 4. Empresas e Cidades de Frete
@@ -1497,7 +1501,7 @@ export const App: React.FC = () => {
         itemNumber: idx + 1,
         productId: matchedProd?.id,
         name: formatProductSentenceCase(resolved.standardizedName || item.name),
-        description: matchedProd?.description || (item.description ? formatProductSentenceCase(item.description) : '') || '',
+        description: '',
         rawSearchQuery: exactSearchRef,
         partNumber: finalPartNumber,
         ncm: finalNcm,
@@ -1664,7 +1668,7 @@ export const App: React.FC = () => {
         itemNumber: idx + 1,
         productId: matchedProd?.id,
         name: formatProductSentenceCase(resolved.standardizedName || item.name),
-        description: matchedProd?.description || (item.description ? formatProductSentenceCase(item.description) : '') || '',
+        description: '',
         rawSearchQuery: exactSearchRef,
         partNumber: finalPartNumber,
         ncm: finalNcm,

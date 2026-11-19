@@ -988,7 +988,7 @@ export async function fetchProductsFromSupabase(options?: { forceFull?: boolean 
       partNumber: p.part_number || '',
       ncm: p.ncm || '',
       name: p.name,
-      description: p.description || '',
+      description: '',
       category: normalizeToOfficialCategory(p.category || 'Informática, Hardware & Periféricos'),
       costPrice: Number(p.cost_price),
       unit: p.unit || 'Un.',
@@ -1036,7 +1036,7 @@ export async function syncProductToSupabase(product: Product): Promise<void> {
     part_number: rawPn || null,
     ncm: product.ncm || null,
     name: cleanName,
-    description: product.description || '',
+    description: '',
     category: normalizeToOfficialCategory(product.category || 'Informática, Hardware & Periféricos'),
     cost_price: Number(product.costPrice) || 0,
     unit: product.unit || 'Un.',
@@ -1176,7 +1176,7 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
       part_number: (p.partNumber || '').trim() || null,
       ncm: p.ncm || null,
       name: p.name.trim(),
-      description: p.description || '',
+      description: '',
       category: normalizeToOfficialCategory(p.category || 'Informática, Hardware & Periféricos'),
       cost_price: Number(p.costPrice) || 0,
       unit: p.unit || 'Un.',
@@ -1196,6 +1196,26 @@ export async function syncBatchProductsToSupabase(products: Product[]): Promise<
     console.warn('Erro ao sincronizar lote de produtos no Supabase:', err);
   } finally {
     isBatchSyncingProducts = false;
+  }
+}
+
+/**
+ * Limpa permanentemente todas as fichas técnicas legadas / descrições da tabela products no Supabase.
+ */
+export async function clearAllProductDescriptionsInSupabase(): Promise<void> {
+  if (!supabase) return;
+  try {
+    const { error } = await supabase
+      .from('products')
+      .update({ description: '' })
+      .neq('description', '');
+    if (error) {
+      console.warn('[Supabase] Aviso ao limpar descrições de produtos no banco:', error);
+    } else {
+      console.log('[Supabase] Limpeza de descrições/fichas técnicas legadas concluída com sucesso no banco.');
+    }
+  } catch (e) {
+    console.warn('[Supabase] Falha ao executar limpeza de descrições no banco:', e);
   }
 }
 

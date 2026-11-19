@@ -2938,11 +2938,11 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
         dimensions: prod.dimensions || '20cm x 18cm x 7cm',
         suggestedPrice: prod.suggestedPrice || 199.00,
         costPrice: prod.costPrice || 130.00,
-        description: prod.description || '',
-        specifications: prod.specifications || [],
+        description: '',
+        specifications: [],
         quantity: quantity > 0 ? quantity : 1,
         unit: finalUnit,
-        confidence: 'Alta - Ficha Técnica Reconhecida (Catálogo Canônico)'
+        confidence: 'Alta - Identificação Concluída (Catálogo Canônico)'
       };
     }
   }
@@ -3161,11 +3161,11 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
       dimensions,
       suggestedPrice: 0,
       costPrice: 0,
-      description: desc,
-      specifications: specs,
+      description: '',
+      specifications: [],
       quantity: quantity > 0 ? quantity : 1,
       unit: finalUnit,
-      confidence: 'Alta - Ficha Técnica Estruturada'
+      confidence: 'Alta - Identificação Concluída'
     };
   }
 
@@ -3224,11 +3224,11 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
     dimensions: arch.dimensions,
     suggestedPrice: arch.suggestedPrice,
     costPrice: arch.costPrice,
-    description: arch.description(brand, model, cleanQuery),
-    specifications: dynamicSpecs,
+    description: '',
+    specifications: [],
     quantity: quantity > 0 ? quantity : 1,
     unit: finalUnit,
-    confidence: 'Alta - Ficha Técnica Heurística Estruturada'
+    confidence: 'Alta - Identificação Concluída'
   };
 }
 

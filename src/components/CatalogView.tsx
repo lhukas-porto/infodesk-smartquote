@@ -378,7 +378,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             sku,
             partNumber,
             name,
-            description,
+            description: '',
             category,
             costPrice,
             unit,
@@ -631,7 +631,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       sku: unifiedCode || `SKU-${Date.now().toString().slice(-4)}`,
       partNumber: unifiedCode,
       name: cleanName,
-      description: newProd.description?.trim() || '',
+      description: '',
       category: cleanCat ? normalizeToOfficialCategory(cleanCat) : 'Diversos & Sazonais',
       costPrice: Number(newProd.costPrice) || 0,
       shippingCost: shippingCost || 0,
@@ -712,7 +712,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       sku: unifiedCode || updated.sku || `SKU-${Date.now().toString().slice(-4)}`,
       partNumber: unifiedCode,
       name: updated.name.trim(),
-      description: updated.description?.trim() || '',
+      description: '',
       category: cleanCat ? normalizeToOfficialCategory(cleanCat) : 'Diversos & Sazonais',
       costPrice: Number(updated.costPrice) || 0,
       shippingCost: shippingCost || 0,
@@ -1072,7 +1072,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                           <div className="flex items-center gap-1.5">
                             <p className="font-bold text-slate-900 text-xs leading-tight">{p.name}</p>
                             <a
-                              href={p.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(p.name + ' ' + (p.description || ''))}`}
+                              href={p.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(p.name)}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-slate-400 hover:text-sky-600 transition shrink-0"
@@ -1081,9 +1081,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                               <ExternalLink className="w-3 h-3" />
                             </a>
                           </div>
-                          {p.description && (
-                            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{p.description}</p>
-                          )}
                         </div>
                       </div>
                     </td>

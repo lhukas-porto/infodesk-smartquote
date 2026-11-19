@@ -3775,79 +3775,11 @@ export function generateProposalEmailHtml(
 }
 
 /**
- * Constrói a descrição técnica completa combinando o resumo comercial, diferenciais e especificações
+ * Diretriz do Lucas: Ficha técnica e especificações sintéticas foram descontinuadas.
+ * Retorna string vazia para manter o catálogo e orçamentos limpos.
  */
-export function buildCompleteProductDescription(item: {
-  description?: string;
-  specifications?: Array<{ label: string; value: string }> | Record<string, any>;
-  weight?: string;
-  dimensions?: string;
-  brand?: string;
-  model?: string;
-  modelOrCode?: string;
-  partNumber?: string;
-  ncm?: string;
-  category?: string;
-  supplier?: string;
-  observation?: string;
-}): string {
-  const parts: string[] = [];
-
-  if (item.description && item.description.trim()) {
-    parts.push(item.description.trim());
-  }
-
-  const specsList: string[] = [];
-  if (Array.isArray(item.specifications)) {
-    item.specifications.forEach(s => {
-      if (s && s.label && s.value) {
-        specsList.push(`• ${s.label}: ${s.value}`);
-      }
-    });
-  } else if (item.specifications && typeof item.specifications === 'object') {
-    Object.entries(item.specifications).forEach(([k, v]) => {
-      if (k && v && typeof v === 'string') {
-        specsList.push(`• ${k}: ${v}`);
-      }
-    });
-  }
-
-  const brandVal = item.brand;
-  if (brandVal && !specsList.some(s => s.toLowerCase().includes('marca') || s.toLowerCase().includes('fabricante'))) {
-    specsList.push(`• Marca: ${brandVal}`);
-  }
-
-  const modelVal = item.model || item.modelOrCode;
-  if (modelVal && !specsList.some(s => s.toLowerCase().includes('modelo'))) {
-    specsList.push(`• Modelo: ${modelVal}`);
-  }
-
-  const partVal = item.partNumber;
-  if (partVal && !specsList.some(s => s.toLowerCase().includes('part number') || s.toLowerCase().includes('código') || s.toLowerCase().includes('sku'))) {
-    specsList.push(`• Part Number / SKU: ${partVal}`);
-  }
-
-  const ncmVal = item.ncm;
-  if (ncmVal && !specsList.some(s => s.toLowerCase().includes('ncm'))) {
-    specsList.push(`• NCM Fiscal: ${ncmVal}`);
-  }
-
-  if (item.weight && !specsList.some(s => s.toLowerCase().includes('peso'))) {
-    specsList.push(`• Peso aproximado: ${item.weight}`);
-  }
-  if (item.dimensions && !specsList.some(s => s.toLowerCase().includes('dimens'))) {
-    specsList.push(`• Dimensões: ${item.dimensions}`);
-  }
-
-  if (item.observation && !specsList.some(s => s.toLowerCase().includes('observaç'))) {
-    specsList.push(`• Observações: ${item.observation}`);
-  }
-
-  if (specsList.length > 0) {
-    parts.push(`Especificações Técnicas:\n${specsList.join('\n')}`);
-  }
-
-  return parts.join('\n\n').trim();
+export function buildCompleteProductDescription(_item?: any): string {
+  return '';
 }
 
 /**
