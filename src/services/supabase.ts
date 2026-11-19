@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem } from '../types';
 import { deduplicateCompanyContacts, saveProductImageToCache, findProductImageInCache } from '../utils/storage';
 import { extractStoreNameFromUrl, normalizeSearchText, normalizeToOfficialCategory, formatProposalValidityText, normalizeQuoteCode } from '../utils/aiEmailParser';
+import { sanitizeToUuid, isValidUuid } from '../utils/uuidUtils';
 import { reportError } from './errorReporter';
 
 // Chaves de conexão com o Supabase da Infodesk
@@ -512,11 +513,6 @@ export async function searchQuotesInSupabase(searchQuery: string): Promise<Quote
     console.warn('Erro ao pesquisar orçamentos no Supabase:', err);
     return [];
   }
-}
-
-function isValidUuid(val?: string | null): boolean {
-  if (!val || typeof val !== 'string') return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 }
 
 export async function fetchQuoteItemsByQuoteId(quoteId: string, quoteCode?: string): Promise<QuoteItem[]> {
@@ -1880,15 +1876,15 @@ export async function syncDirectPurchasesToSupabase(items: import('../types').Pr
   if (!supabase || !items) return;
   try {
     const records = items.map(item => ({
-      id: item.id,
-      quote_id: (item.quoteId && item.quoteId !== 'direct_purchases' && item.quoteId.length === 36) ? item.quoteId : null,
+      id: sanitizeToUuid(item.id),
+      quote_id: (item.quoteId && item.quoteId !== 'direct_purchases' && isValidUuid(item.quoteId)) ? item.quoteId : null,
       quote_code: item.quoteCode || 'COMPRA DIRETA',
       client_company: item.clientCompany || 'Infodesk (Uso Interno / Estoque)',
       contact_person: item.contactPerson || null,
-      item_id: item.itemId || item.id,
-      product_id: (item.productId && item.productId.length === 36) ? item.productId : null,
+      item_id: sanitizeToUuid(item.itemId || item.id),
+      product_id: (item.productId && isValidUuid(item.productId)) ? item.productId : null,
       name: item.name,
-      description: item.description || null,
+      description: null,
       part_number: item.partNumber || null,
       ncm: item.ncm || null,
       image_url: item.imageUrl || null,

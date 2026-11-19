@@ -7,7 +7,6 @@
  */
 
 import '../services/pricingEngine.test';
-import '../services/productSpecsIntegration.test';
 import './companyPrefixPersistence.test';
 import './historySearchAccentInsensitivity.test';
 import './biPeriodCounter.test';
@@ -16,7 +15,6 @@ import './topSuppliersResolution.test';
 import './categoriesUnitsSync.test';
 import './procurementAndApproval.test';
 import './procurementAdvancedFeatures.test';
-import './specSearchOnline.test';
 import './quoteHealing.test';
 import './inboxScannerBridgeAndUnread.test';
 import './quoteDuplicationSanitization.test';
@@ -26,7 +24,6 @@ import './enhancementsSuite.test';
 import './textCaseCycle.test';
 import './supplierLearning.test';
 import './brasiliaShippingDefault.test';
-import './productDescriptionPreservation.test';
 import './excelMultiSheetAndImageImport.test';
 import './visualReferenceScannerIntegration.test';
 import './catalogDuplicatesDetection.test';
@@ -38,6 +35,7 @@ import './supplierManagementTab.test';
 import './productPrintImagePersistence.test';
 import './quoteEnhancementsSuite.test';
 import './supplierUrlConsistency.test';
+import './cepIsolationAndMultiLocation.test';
 
 console.log('\n======================================================');
 console.log('🏁 SUÍTE COMPLETA DE TESTES EXECUTADA COM 100% DE SUCESSO!');

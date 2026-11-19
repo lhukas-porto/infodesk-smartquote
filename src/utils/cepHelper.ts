@@ -101,89 +101,80 @@ export const formatCep = (raw: string | null | undefined): string => {
 };
 
 /**
- * Recupera o mapa global de CEPs salvos no localStorage
+ * Limpa o cache global legado de CEPs para impedir vazamento entre clientes diferentes
  */
-export const getGlobalLocationCeps = (): Record<string, string> => {
-  if (typeof localStorage === 'undefined') return {};
+export const clearGlobalLocationCepsCache = (): void => {
+  if (typeof localStorage === 'undefined') return;
   try {
-    const raw = localStorage.getItem(GLOBAL_LOCATION_CEPS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-};
-
-/**
- * Salva um CEP no cache global de localidades
- */
-export const setGlobalLocationCep = (location: string, cep: string): void => {
-  if (typeof localStorage === 'undefined' || !location) return;
-  try {
-    const cleanKey = normalizeLocationKey(location);
-    const cityBase = extractCityBaseKey(location);
-    const formatted = formatCep(cep);
-    if (!formatted) return;
-
-    const current = getGlobalLocationCeps();
-    current[cleanKey] = formatted;
-    if (cityBase && cityBase !== cleanKey) {
-      current[cityBase] = formatted;
-    }
-    localStorage.setItem(GLOBAL_LOCATION_CEPS_KEY, JSON.stringify(current));
+    localStorage.removeItem(GLOBAL_LOCATION_CEPS_KEY);
   } catch {
     /* noop */
   }
 };
 
+// Executa limpeza preventiva do cache compartilhado
+clearGlobalLocationCepsCache();
+
+/**
+ * Recupera o mapa global de CEPs (mantido apenas para retrocompatibilidade de leitura vazia)
+ */
+export const getGlobalLocationCeps = (): Record<string, string> => {
+  return {};
+};
+
+/**
+ * Desativado intencionalmente: CEPs pertencem exclusivamente a cada empresa ou à proposta individual
+ */
+export const setGlobalLocationCep = (_location: string, _cep: string): void => {
+  // Blindagem de Isolamento: Não grava mais em escopo global compartilhado
+};
+
 export interface ResolvedLocationCep {
   cep: string | null;
   formatted: string;
-  source: 'company' | 'global_cache' | 'dictionary' | 'none';
+  source: 'quote' | 'company' | 'dictionary' | 'none';
   locationName: string;
 }
 
 /**
- * Resolve o CEP de uma localidade com hierarquia prioritária:
- * 1. Mapeamento específico da empresa cliente vinculada (matchedCompany.locationCeps)
- * 2. Cache global de CEPs já informados pelo usuário anteriormente
- * 3. Dicionário embutido de cidades/capitais brasileiras
+ * Resolve o CEP de uma localidade com isolamento estrito por empresa:
+ * 1. CEP explícito gravado diretamente na cotação atual (quoteCep)
+ * 2. Mapeamento exclusivo no cadastro da empresa cliente vinculada (matchedCompany.locationCeps)
+ * 
+ * NUNCA consulta cache compartilhado, garantindo que o CEP da UBEC jamais apareça para outros clientes.
  */
 export const resolveLocationCep = (
   location: string | null | undefined,
-  company?: ClientCompany | null
+  company?: ClientCompany | null,
+  quoteCep?: string | null
 ): ResolvedLocationCep => {
-  if (!location || !location.trim()) {
+  const rawLoc = (location || '').trim();
+
+  // 1. Prioridade máxima: CEP definido na própria proposta
+  if (quoteCep && quoteCep.trim()) {
+    const formatted = formatCep(quoteCep);
+    if (formatted) {
+      return { cep: formatted, formatted, source: 'quote', locationName: rawLoc };
+    }
+  }
+
+  if (!rawLoc) {
     return { cep: null, formatted: '', source: 'none', locationName: '' };
   }
 
-  const rawLoc = location.trim();
   const key = normalizeLocationKey(rawLoc);
   const cityKey = extractCityBaseKey(rawLoc);
 
-  // 1. Verifica no cadastro da empresa
+  // 2. Mapeamento específico da empresa cliente vinculada
   if (company && company.locationCeps) {
-    const companyCep = company.locationCeps[key] || company.locationCeps[cityKey];
+    const companyCep = company.locationCeps[key] || (cityKey ? company.locationCeps[cityKey] : undefined);
     if (companyCep) {
       const formatted = formatCep(companyCep);
       return { cep: formatted, formatted, source: 'company', locationName: rawLoc };
     }
   }
 
-  // 2. Verifica no cache global
-  const globalCache = getGlobalLocationCeps();
-  const cachedCep = globalCache[key] || globalCache[cityKey];
-  if (cachedCep) {
-    const formatted = formatCep(cachedCep);
-    return { cep: formatted, formatted, source: 'global_cache', locationName: rawLoc };
-  }
-
-  // 3. Verifica no dicionário de capitais e cidades comuns
-  const dictCep = BRAZILIAN_CITIES_BASE_CEPS[key] || BRAZILIAN_CITIES_BASE_CEPS[cityKey];
-  if (dictCep) {
-    const formatted = formatCep(dictCep);
-    return { cep: formatted, formatted, source: 'dictionary', locationName: rawLoc };
-  }
-
+  // Isolamento estrito: Se a empresa não possui este CEP, não assume de outras empresas
   return { cep: null, formatted: '', source: 'none', locationName: rawLoc };
 };
 

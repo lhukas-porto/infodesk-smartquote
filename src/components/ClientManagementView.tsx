@@ -39,7 +39,7 @@ import {
   getCandidateLogosForDomain,
   resolveCompanyCandidates
 } from '../utils/companyLogoResolver';
-import { resolveLocationCep } from '../utils/cepHelper';
+import { resolveLocationCep, formatCep, normalizeLocationKey } from '../utils/cepHelper';
 
 interface ClientManagementViewProps {
   companies: ClientCompany[];
@@ -211,8 +211,11 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   const [editContactPhone, setEditContactPhone] = useState('');
   const [editContactTargetCompanyId, setEditContactTargetCompanyId] = useState<string>('');
 
-  // Location adding
+  // Location adding & CEP editing per location
   const [newLocationName, setNewLocationName] = useState('');
+  const [newLocationCep, setNewLocationCep] = useState('');
+  const [editingLocationCepKey, setEditingLocationCepKey] = useState<string | null>(null);
+  const [editingLocationCepValue, setEditingLocationCepValue] = useState('');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -354,27 +357,69 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   const handleAddLocationToCompany = (companyId: string) => {
     if (!newLocationName.trim()) return;
     const clean = newLocationName.trim();
+    const formattedCep = newLocationCep.trim() ? formatCep(newLocationCep.trim()) : '';
+    const key = normalizeLocationKey(clean);
+
     const updated = companies.map(c => {
       if (c.id === companyId) {
         const existing = Array.isArray(c.locations) ? c.locations : (c.defaultDeliveryLocation ? [c.defaultDeliveryLocation] : []);
-        if (existing.includes(clean)) return c;
-        return { ...c, locations: [...existing, clean], defaultDeliveryLocation: c.defaultDeliveryLocation || clean };
+        const nextLocs = existing.includes(clean) ? existing : [...existing, clean];
+        const nextCeps = { ...(c.locationCeps || {}) };
+        if (formattedCep) {
+          nextCeps[key] = formattedCep;
+        }
+        return {
+          ...c,
+          locations: nextLocs,
+          locationCeps: nextCeps,
+          defaultDeliveryLocation: c.defaultDeliveryLocation || clean
+        };
       }
       return c;
     });
     onSaveCompanies(updated);
     setNewLocationName('');
-    showToast(`Localidade "${clean}" adicionada!`);
+    setNewLocationCep('');
+    showToast(`Localidade "${clean}" ${formattedCep ? `(CEP: ${formattedCep}) ` : ''}adicionada!`);
+  };
+
+  const handleSaveLocationCepInCompany = (companyId: string, locName: string, cepValue: string) => {
+    const formatted = formatCep(cepValue);
+    const key = normalizeLocationKey(locName);
+    const updated = companies.map(c => {
+      if (c.id === companyId) {
+        const nextCeps = { ...(c.locationCeps || {}) };
+        if (formatted) {
+          nextCeps[key] = formatted;
+        } else {
+          delete nextCeps[key];
+        }
+        return { ...c, locationCeps: nextCeps };
+      }
+      return c;
+    });
+    onSaveCompanies(updated);
+    setEditingLocationCepKey(null);
+    setEditingLocationCepValue('');
+    showToast(`CEP da localidade "${locName}" atualizado!`);
   };
 
   const handleRemoveLocation = (companyId: string, locToRemove: string) => {
+    const key = normalizeLocationKey(locToRemove);
     const updated = companies.map(c => {
       if (c.id === companyId) {
         const existing = Array.isArray(c.locations) ? c.locations : [];
         const nextLocs = existing.filter(l => l !== locToRemove);
+        const nextCeps = { ...(c.locationCeps || {}) };
+        delete nextCeps[key];
         let nextDefault = c.defaultDeliveryLocation;
         if (c.defaultDeliveryLocation === locToRemove) nextDefault = nextLocs[0] || 'Brasília - DF';
-        return { ...c, locations: nextLocs.length > 0 ? nextLocs : ['Brasília - DF'], defaultDeliveryLocation: nextDefault || 'Brasília - DF' };
+        return {
+          ...c,
+          locations: nextLocs.length > 0 ? nextLocs : ['Brasília - DF'],
+          locationCeps: nextCeps,
+          defaultDeliveryLocation: nextDefault || 'Brasília - DF'
+        };
       }
       return c;
     });
@@ -896,14 +941,63 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   ).map(loc => {
                     const isDefault = selectedCompany.defaultDeliveryLocation === loc;
                     const resolvedCep = resolveLocationCep(loc, selectedCompany);
+                    const isEditingThisCep = editingLocationCepKey === loc;
+
                     return (
                       <div key={loc} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs border transition ${isDefault ? 'bg-sky-50 border-sky-300 text-sky-950 font-semibold shadow-sm ring-1 ring-sky-200' : 'bg-white border-slate-200 text-slate-700 hover:border-sky-300'}`}>
                         <button type="button" onClick={() => handleSetDefaultLocation(selectedCompany.id, loc)} className={`transition ${isDefault ? 'text-amber-500 font-bold' : 'text-slate-300 hover:text-amber-500'}`} title={isDefault ? 'Destino padrão' : 'Definir como padrão'}>★</button>
                         <span>{loc}</span>
-                        {resolvedCep.cep && (
-                          <span className="text-[10px] font-mono font-bold text-sky-800 bg-sky-100/80 px-1.5 py-0.5 rounded-md border border-sky-200/60" title="CEP para frete">
-                            {resolvedCep.formatted}
-                          </span>
+                        {isEditingThisCep ? (
+                          <div className="flex items-center gap-1 bg-white border border-sky-400 rounded-lg px-1.5 py-0.5">
+                            <input
+                              type="text"
+                              value={editingLocationCepValue}
+                              onChange={(e) => setEditingLocationCepValue(formatCep(e.target.value))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveLocationCepInCompany(selectedCompany.id, loc, editingLocationCepValue);
+                                } else if (e.key === 'Escape') {
+                                  setEditingLocationCepKey(null);
+                                }
+                              }}
+                              maxLength={9}
+                              className="w-20 text-[10px] font-mono font-bold text-slate-900 focus:outline-none"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveLocationCepInCompany(selectedCompany.id, loc, editingLocationCepValue)}
+                              className="text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                              title="Salvar CEP deste local"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingLocationCepKey(null)}
+                              className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                              title="Cancelar"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingLocationCepKey(loc);
+                              setEditingLocationCepValue(resolvedCep.formatted || '');
+                            }}
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md border transition cursor-pointer ${
+                              resolvedCep.cep
+                                ? 'text-sky-800 bg-sky-100/80 border-sky-200/60 hover:bg-sky-200'
+                                : 'text-slate-400 bg-slate-100 border-slate-200 hover:bg-slate-200 hover:text-slate-700'
+                            }`}
+                            title="Clique para cadastrar ou editar o CEP específico deste local"
+                          >
+                            {resolvedCep.cep ? resolvedCep.formatted : '+ CEP'}
+                          </button>
                         )}
                         {isDefault && <span className="text-[9.5px] px-1.5 py-0.5 bg-sky-600 text-white rounded font-bold uppercase tracking-wider">Padrão</span>}
                         <button type="button" onClick={() => handleRemoveLocation(selectedCompany.id, loc)} className="text-slate-400 hover:text-red-500 ml-1 p-0.5 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
@@ -911,11 +1005,31 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     );
                   })}
                 </div>
-                <form onSubmit={(e) => { e.preventDefault(); handleAddLocationToCompany(selectedCompany.id); }} className="flex items-center gap-2 pt-1">
-                  <input type="text" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-sky-500" />
-                  <button type="submit" disabled={!newLocationName.trim()} className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 shrink-0 transition cursor-pointer">
-                    <Plus className="w-3.5 h-3.5" /><span>Adicionar</span>
-                  </button>
+                <form onSubmit={(e) => { e.preventDefault(); handleAddLocationToCompany(selectedCompany.id); }} className="pt-1">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nova Unidade / Local de Entrega</label>
+                      <input 
+                        type="text" 
+                        value={newLocationName} 
+                        onChange={(e) => setNewLocationName(e.target.value)} 
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-sky-500" 
+                      />
+                    </div>
+                    <div className="w-28 sm:w-32">
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">CEP (Opcional)</label>
+                      <input 
+                        type="text" 
+                        value={newLocationCep} 
+                        onChange={(e) => setNewLocationCep(formatCep(e.target.value))} 
+                        maxLength={9}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-sky-500" 
+                      />
+                    </div>
+                    <button type="submit" disabled={!newLocationName.trim()} className="h-[38px] px-3.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 shrink-0 transition cursor-pointer">
+                      <Plus className="w-3.5 h-3.5" /><span>Adicionar</span>
+                    </button>
+                  </div>
                 </form>
               </div>
 

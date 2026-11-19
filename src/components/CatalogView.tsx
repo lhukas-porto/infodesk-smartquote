@@ -11,7 +11,6 @@ import {
   ExternalLink,
   Edit3,
   X,
-  Camera,
   ImagePlus,
   ClipboardPaste,
   ChevronDown,
@@ -55,7 +54,6 @@ import {
 } from '../utils/storage';
 import { CreatableCombobox } from './CreatableCombobox';
 import { ProductEditModal } from './ProductEditModal';
-import { WebImagePickerModal } from './WebImagePickerModal';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { 
   syncProductToSupabase, 
@@ -117,9 +115,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
   // 📸 Image Picker Modal
-  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
-  const [activeImagePickerProduct, setActiveImagePickerProduct] = useState<Product | null>(null);
-
   // Sincronização Retroativa de Fotos: resgata fotos de orçamentos anteriores para produtos sem foto
   useEffect(() => {
     if (quotes && quotes.length > 0 && products.length > 0) {
@@ -134,13 +129,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     }
   }, [quotes]);
 
-  const handleOpenImagePickerForProduct = (product: Product) => {
-    setActiveImagePickerProduct(product);
-    setIsImagePickerOpen(true);
-  };
-
-  const handleSelectImageForProduct = async (imageUrl: string, productOverride?: Product) => {
-    const targetProd = productOverride || activeImagePickerProduct;
+  const handleSaveProductImage = async (imageUrl: string, targetProd: Product) => {
     if (!targetProd) return;
     const cleanImg = (imageUrl || '').trim();
     // Compacta a imagem se for Data URL para garantir permanência ultraleve sem estourar cota
@@ -176,8 +165,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       }
     }
 
-    setIsImagePickerOpen(false);
-    setActiveImagePickerProduct(null);
     setImportStatus(`Foto do produto "${updatedProd.name}" salva com sucesso!`);
     setTimeout(() => setImportStatus(null), 4000);
   };
@@ -198,7 +185,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           const base64 = event.target?.result as string;
           if (base64) {
             const compressed = await compressImageDataUrl(base64);
-            await handleSelectImageForProduct(compressed, targetProd);
+            await handleSaveProductImage(compressed, targetProd);
           }
         };
         reader.readAsDataURL(file);
@@ -1035,25 +1022,18 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                           const effectiveImg = p.imageUrl || findProductImageInCache(p.name, p.partNumber, p.sku);
                           if (!effectiveImg) {
                             return (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenImagePickerForProduct(p)}
-                                title="Sem foto. Clique para buscar na web ou colar imagem (Ctrl+V)"
-                                className="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] rounded-lg border border-dashed border-slate-300 hover:border-sky-500 bg-slate-50 hover:bg-sky-50/70 p-0.5 shadow-2xs shrink-0 flex flex-col items-center justify-center cursor-pointer transition text-slate-400 hover:text-sky-600 group/empty select-none"
+                              <div
+                                title="Sem foto (aperte Ctrl+V com printscreen copiado para colar foto)"
+                                className="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-0.5 shadow-2xs shrink-0 flex items-center justify-center text-slate-300 select-none"
                               >
-                                <Camera className="w-3.5 h-3.5 group-hover/empty:scale-110 transition text-slate-400 group-hover/empty:text-sky-600" />
-                                <span className="text-[7.5px] font-bold tracking-tight uppercase leading-none mt-0.5 text-slate-400 group-hover/empty:text-sky-600">+ Foto</span>
-                              </button>
+                                <Package className="w-3.5 h-3.5 text-slate-300" />
+                              </div>
                             );
                           }
                           return (
                             <div
                               onClick={() => setZoomedImage({ url: effectiveImg, title: p.name })}
-                              onDoubleClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenImagePickerForProduct(p);
-                              }}
-                              title="Clique para ver a foto com ZOOM (duplo clique para alterar)"
+                              title="Clique para ver a foto com ZOOM"
                               className="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs hover:border-sky-500 hover:shadow-md shrink-0 overflow-hidden cursor-pointer transition relative group/cimg select-none"
                             >
                               <img
@@ -1133,13 +1113,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                           title="Adicionar ao Orçamento Atual"
                         >
                           + Orçar
-                        </button>
-                        <button
-                          onClick={() => handleOpenImagePickerForProduct(p)}
-                          className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 rounded-lg transition cursor-pointer active:scale-95"
-                          title="Buscar / Alterar Foto na Web"
-                        >
-                          <Camera className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleOpenEditModal(p)}
@@ -1581,20 +1554,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           await syncProductToSupabase(mergedProd);
         }}
       />
-
-      {/* Modal Inteligente de Busca e Seleção de Imagens para o Produto */}
-      {isImagePickerOpen && activeImagePickerProduct && (
-        <WebImagePickerModal
-          isOpen={isImagePickerOpen}
-          onClose={() => {
-            setIsImagePickerOpen(false);
-            setActiveImagePickerProduct(null);
-          }}
-          productName={`${activeImagePickerProduct.name} ${activeImagePickerProduct.partNumber || ''}`.trim()}
-          currentImageUrl={activeImagePickerProduct.imageUrl || findProductImageInCache(activeImagePickerProduct.name, activeImagePickerProduct.partNumber, activeImagePickerProduct.sku) || ''}
-          onSelectImage={handleSelectImageForProduct}
-        />
-      )}
 
     </div>
   );

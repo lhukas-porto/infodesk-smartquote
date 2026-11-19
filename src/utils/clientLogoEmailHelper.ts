@@ -99,7 +99,7 @@ export async function isImageLoadable(url: string, timeoutMs: number = 2000): Pr
  * Tenta carregar uma URL de imagem no navegador e converter para Data URL Base64.
  * Utiliza fetch direto e proxies CORS públicos caso o servidor de origem restrinja a leitura de bytes pelo navegador.
  */
-async function fetchImageToDataUrl(url: string, timeoutMs: number = 2500): Promise<string | null> {
+export async function fetchImageToDataUrl(url: string, timeoutMs: number = 2500): Promise<string | null> {
   if (!url || !url.startsWith('http')) return null;
 
   // 1. Tenta primeiramente via proxy interno /api/image-proxy (Vercel Serverless / Vite dev middleware)

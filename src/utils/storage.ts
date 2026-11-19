@@ -1,6 +1,7 @@
 import { ClientCompany, ClientContact, CompanySettings, IncomingEmail, Product, Quote, QuoteItem, QuoteKit } from '../types';
 import { defaultCompanySettings, initialClientCompanies, initialEmails, initialProducts, initialSentQuotes } from './mockData';
 import { normalizeSearchText, normalizeToOfficialCategory } from './aiEmailParser';
+import { sanitizeToUuid } from './uuidUtils';
 import { 
   syncRegisteredMetadataToSupabase, 
   syncClientCompaniesToSupabase,
@@ -26,20 +27,22 @@ const ACTIVE_TAB_KEY = 'infodesk_active_tab';
 const MANUAL_ANALYSES_KEY = 'infodesk_manual_analyses';
 const DELETED_QUOTE_CODES_KEY = 'infodesk_deleted_quote_codes';
 
-const CURRENT_CACHE_VERSION = '2026-11-19-no-ficha-v1';
+const CURRENT_CACHE_VERSION = '2026-11-19-cep-isolation-v2';
 const CACHE_VERSION_KEY = 'infodesk_cache_version';
 
 export const ensureFreshCacheVersion = (): void => {
   try {
     const saved = localStorage.getItem(CACHE_VERSION_KEY);
     if (saved !== CURRENT_CACHE_VERSION) {
-      // Limpa dados legados, fichas técnicas antigas e tombstones do cache local
+      // Limpa dados legados, fichas técnicas antigas e cache global compartilhado de CEPs
       localStorage.removeItem('infodesk_deleted_products');
       localStorage.removeItem('infodesk_products');
+      localStorage.removeItem('infodesk_location_ceps');
       localStorage.setItem(CACHE_VERSION_KEY, CURRENT_CACHE_VERSION);
-      console.log('[Storage] Cache version atualizada: alinhamento com Supabase e limpeza de fichas técnicas realizada.');
+      console.log('[Storage] Cache version atualizada: isolamento total de CEPs por cliente e limpeza realizada.');
     } else {
-      // Higienização preventiva de produtos existentes no localStorage
+      // Higienização preventiva
+      localStorage.removeItem('infodesk_location_ceps');
       const raw = localStorage.getItem(PRODUCTS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -2059,7 +2062,14 @@ export const getDirectPurchases = (): import('../types').ProcurementItem[] => {
     const raw = localStorage.getItem(DIRECT_PURCHASES_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => ({
+          ...item,
+          id: sanitizeToUuid(item.id),
+          itemId: sanitizeToUuid(item.itemId || item.id),
+          description: ''
+        }));
+      }
     }
   } catch (e) {
     console.warn('Erro ao carregar compras diretas:', e);
@@ -2104,35 +2114,44 @@ export const recordDeletedDirectPurchaseId = (id: string): void => {
   try {
     const set = getDeletedDirectPurchaseIds();
     set.add(String(id).trim());
+    const uuid = sanitizeToUuid(id);
+    if (uuid) set.add(uuid);
     localStorage.setItem(DELETED_DIRECT_PURCHASE_IDS_KEY, JSON.stringify(Array.from(set)));
   } catch { /* noop */ }
 };
 
 export const saveOrUpdateDirectPurchase = (item: import('../types').ProcurementItem): import('../types').ProcurementItem[] => {
+  const sanitizedItem = {
+    ...item,
+    id: sanitizeToUuid(item.id),
+    itemId: sanitizeToUuid(item.itemId || item.id),
+    description: ''
+  };
   const current = getDirectPurchases();
-  const index = current.findIndex(i => i.id === item.id);
+  const index = current.findIndex(i => i.id === sanitizedItem.id);
   let updated: import('../types').ProcurementItem[];
   if (index >= 0) {
     updated = [...current];
-    updated[index] = item;
+    updated[index] = sanitizedItem;
   } else {
-    updated = [item, ...current];
+    updated = [sanitizedItem, ...current];
   }
   saveDirectPurchases(updated);
-  if (item.purchaseStatus === 'purchased' || item.purchaseStatus === 'delivered') {
+  if (sanitizedItem.purchaseStatus === 'purchased' || sanitizedItem.purchaseStatus === 'delivered') {
     savePurchasedProcurementRecord({
-      itemId: item.itemId || item.id,
-      name: item.name,
-      purchaseStatus: item.purchaseStatus,
-      actualCostPrice: item.actualCostPrice,
-      actualUnitCostPrice: item.actualUnitCostPrice,
-      actualPurchaseUrl: item.actualPurchaseUrl,
-      actualShippingCost: item.actualShippingCost,
-      shippingPending: item.shippingPending,
-      paymentMethod: item.paymentMethod,
-      purchasedAt: item.purchasedAt,
-      purchaseNotes: item.purchaseNotes,
-      actualTaxPercent: item.taxPercent
+      itemId: sanitizedItem.itemId || sanitizedItem.id,
+      name: sanitizedItem.name,
+      productId: sanitizedItem.productId,
+      purchaseStatus: sanitizedItem.purchaseStatus,
+      actualCostPrice: sanitizedItem.actualCostPrice,
+      actualUnitCostPrice: sanitizedItem.actualUnitCostPrice,
+      actualPurchaseUrl: sanitizedItem.actualPurchaseUrl,
+      actualShippingCost: sanitizedItem.actualShippingCost,
+      shippingPending: sanitizedItem.shippingPending,
+      paymentMethod: sanitizedItem.paymentMethod,
+      purchasedAt: sanitizedItem.purchasedAt,
+      purchaseNotes: sanitizedItem.purchaseNotes,
+      actualTaxPercent: sanitizedItem.taxPercent
     });
   }
   return updated;
@@ -2140,13 +2159,18 @@ export const saveOrUpdateDirectPurchase = (item: import('../types').ProcurementI
 
 export const deleteDirectPurchaseItem = (itemId: string): import('../types').ProcurementItem[] => {
   recordDeletedDirectPurchaseId(itemId);
+  const uuid = sanitizeToUuid(itemId);
   const current = getDirectPurchases();
-  const updated = current.filter(i => i.id !== itemId && i.itemId !== itemId);
+  const updated = current.filter(i => i.id !== itemId && i.itemId !== itemId && i.id !== uuid && i.itemId !== uuid);
   saveDirectPurchases(updated);
   removePurchasedProcurementRecord(itemId);
+  if (uuid && uuid !== itemId) removePurchasedProcurementRecord(uuid);
   deleteDirectPurchaseFromSupabase(itemId).catch(err => {
     console.warn('[Storage] Erro ao deletar compra direta no Supabase:', err);
   });
+  if (uuid && uuid !== itemId) {
+    deleteDirectPurchaseFromSupabase(uuid).catch(() => {});
+  }
   return updated;
 };
 
@@ -2156,6 +2180,7 @@ export const deleteDirectPurchaseItem = (itemId: string): import('../types').Pro
 export interface ProcurementPurchaseRecord {
   itemId: string;
   itemNumber?: number;
+  productId?: string;
   quoteId?: string;
   quoteCode?: string;
   clientOrderNumber?: string;

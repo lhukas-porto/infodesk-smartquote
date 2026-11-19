@@ -69,8 +69,8 @@ import {
   isProcurementItemDeleted
 } from '../utils/storage';
 import { normalizeSearchText, extractStoreNameFromUrl, formatCompanyPrefix } from '../utils/aiEmailParser';
+import { generateUuid, sanitizeToUuid, isValidUuid } from '../utils/uuidUtils';
 import { fetchDirectPurchasesFromSupabase } from '../services/supabase';
-import { WebImagePickerModal } from './WebImagePickerModal';
 import { autoFindProductImage } from '../services/imageSearchService';
 import { getStoreBadgeStyle } from './PriceScannerView';
 
@@ -232,9 +232,6 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
   // 4.1 Imagens Comerciais & Autocura
   const [imageVersion, setImageVersion] = useState<number>(0);
   const [purchaseVersion, setPurchaseVersion] = useState<number>(0);
-  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
-  const [imagePickerItem, setImagePickerItem] = useState<ProcurementItem | null>(null);
-  const [imagePickerTargetMode, setImagePickerTargetMode] = useState<'card' | 'modal'>('card');
 
   // Zoom da Foto em Tela Cheia (Lightbox Fiel ao Orçamento)
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
@@ -637,6 +634,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
                 approvedAt: effectiveApprovedAt,
                 itemId: subId,
                 itemNumber: item.itemNumber,
+                productId: item.productId || matchedStockProduct?.id,
                 name: effectiveName,
                 description: effectiveDescription,
                 partNumber: effectivePartNumber,
@@ -723,6 +721,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
               approvedAt: effectiveApprovedAt,
               itemId: itemId,
               itemNumber: item.itemNumber,
+              productId: item.productId || matchedStockProduct?.id,
               name: effectiveName,
               description: effectiveDescription,
               partNumber: effectivePartNumber,
@@ -816,6 +815,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
           list.push({
             ...dp,
+            productId: dp.productId || matchedStock?.id,
             name: effectiveDpName,
             description: effectiveDpDescription,
             partNumber: effectiveDpPartNumber,
@@ -857,6 +857,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
 
         list.push({
           ...dp,
+          productId: dp.productId || matchedStock?.id,
           name: effectiveDpName,
           description: effectiveDpDescription,
           partNumber: effectiveDpPartNumber,
@@ -1668,6 +1669,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       if (isMatch) {
         return {
           ...it,
+          productId: it.productId || activeItemForPurchase.productId,
           clientOrderNumber: effectiveOrderNum || it.clientOrderNumber,
           imageUrl: effectiveImg || it.imageUrl,
           approved: true,
@@ -1699,6 +1701,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
       itemNumber: activeItemForPurchase.splitFromId ? undefined : activeItemForPurchase.itemNumber,
       quoteId: targetQuote.id,
       quoteCode: targetQuote.code,
+      productId: activeItemForPurchase.productId,
       clientOrderNumber: effectiveOrderNum,
       imageUrl: effectiveImg,
       name: activeItemForPurchase.name,
@@ -1733,70 +1736,6 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     setActiveItemForPurchase(null);
     showToast(`Compra de "${activeItemForPurchase.name}" registrada com sucesso!`);
   };
-
-  // 8. Seletor Visual de Imagens Comerciais na Web
-  const handleOpenImagePicker = (item: ProcurementItem, mode: 'card' | 'modal' = 'card') => {
-    setImagePickerItem(item);
-    setImagePickerTargetMode(mode);
-    setIsImagePickerOpen(true);
-  };
-
-  const handleSelectImage = (newUrl: string) => {
-    if (!imagePickerItem) return;
-
-    // Salva no cache central persistente para alimentar propostas, estoque e compras
-    saveProductImageToCache({
-      name: imagePickerItem.name,
-      partNumber: imagePickerItem.partNumber
-    }, newUrl);
-
-    if (imagePickerTargetMode === 'modal') {
-      setPurchaseForm(prev => ({ ...prev, imageUrl: newUrl }));
-      showToast('Foto do produto vinculada ao formulário de compra!');
-    } else {
-      // Aplica direto ao card clicado
-      if (imagePickerItem.purchaseStatus === 'purchased') {
-        savePurchasedProcurementRecord({
-          itemId: imagePickerItem.splitFromId ? imagePickerItem.id : (imagePickerItem.itemId || imagePickerItem.id),
-          itemNumber: imagePickerItem.itemNumber,
-          quoteId: imagePickerItem.quoteId,
-          quoteCode: imagePickerItem.quoteCode,
-          name: imagePickerItem.name,
-          imageUrl: newUrl,
-          purchaseStatus: 'purchased'
-        });
-      }
-
-      if (imagePickerItem.quoteId) {
-        const targetQuote = quotes.find(q => 
-          q.id === imagePickerItem.quoteId || 
-          (q.code && imagePickerItem.quoteCode && q.code.toUpperCase() === imagePickerItem.quoteCode.toUpperCase())
-        );
-        if (targetQuote) {
-          const updatedItems = (targetQuote.items || []).map(qIt => {
-            if (
-              (qIt.id && imagePickerItem.itemId && qIt.id === imagePickerItem.itemId) ||
-              (qIt.itemNumber !== undefined && imagePickerItem.itemNumber !== undefined && qIt.itemNumber === imagePickerItem.itemNumber) ||
-              (qIt.name && imagePickerItem.name && normalizeSearchText(qIt.name) === normalizeSearchText(imagePickerItem.name))
-            ) {
-              return { ...qIt, imageUrl: newUrl, showImage: true };
-            }
-            return qIt;
-          });
-          onUpdateQuote({ ...targetQuote, items: updatedItems });
-        }
-      } else if (imagePickerItem.isDirectPurchase) {
-        saveOrUpdateDirectPurchase({ ...imagePickerItem, imageUrl: newUrl });
-      }
-
-      setImageVersion(v => v + 1);
-      showToast(`Foto de "${imagePickerItem.name}" atualizada com sucesso!`);
-    }
-
-    setIsImagePickerOpen(false);
-    setImagePickerItem(null);
-  };
-
 
   // 1. Desfazer Compra Realizada (retornando o item para o status 'A Comprar')
   const handleDeletePurchase = (item: ProcurementItem) => {
@@ -2101,7 +2040,7 @@ export const ProcurementView: React.FC<ProcurementViewProps> = ({
     const sellingUnit = Number(directPurchaseForm.sellingPrice) > 0
       ? Number(directPurchaseForm.sellingPrice)
       : (selectedStockProduct.sellingPrice || (cost > 0 ? cost : 0));
-    const id = `direct-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const id = generateUuid();
 
     const rawClient = directPurchaseForm.clientCompany.trim();
     const resolvedClient = (rawClient === 'Infodesk (Uso Interno / Estoque)' || !rawClient)
@@ -4528,20 +4467,6 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
-      )}
-
-      {/* Modal de Busca e Seleção de Foto Comercial na Web */}
-      {isImagePickerOpen && imagePickerItem && (
-        <WebImagePickerModal
-          isOpen={true}
-          onClose={() => {
-            setIsImagePickerOpen(false);
-            setImagePickerItem(null);
-          }}
-          productName={imagePickerItem.name || ''}
-          currentImageUrl={imagePickerTargetMode === 'modal' ? (purchaseForm.imageUrl || imagePickerItem.imageUrl || '') : (imagePickerItem.imageUrl || '')}
-          onSelectImage={(newUrl) => handleSelectImage(newUrl)}
-        />
       )}
 
       {/* Modal de Zoom da Foto no Meio da Tela (Fiel à Referência Visual do Orçamento) */}

@@ -1135,10 +1135,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     const clean = loc.trim();
     if (!clean) return;
     const isBsb = isBrasiliaDelivery(clean);
+    const key = normalizeLocationKey(clean);
+    const cityKey = extractCityBaseKey(clean);
+    const companyCep = matchedCompany?.locationCeps?.[key] || (cityKey ? matchedCompany?.locationCeps?.[cityKey] : undefined);
 
     setCurrentQuote(prev => ({
       ...prev,
       deliveryLocation: clean,
+      deliveryCep: companyCep ? formatCep(companyCep) : undefined,
       shippingTerms: `Frete incluso p/ ${clean}.`,
       showShippingInProposal: isBsb ? false : true
     }));
@@ -1189,8 +1193,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   const [isSearchingViaCep, setIsSearchingViaCep] = useState(false);
 
   const resolvedLocationCep = useMemo(() => {
-    return resolveLocationCep(currentQuote.deliveryLocation, matchedCompany);
-  }, [currentQuote.deliveryLocation, matchedCompany]);
+    return resolveLocationCep(currentQuote.deliveryLocation, matchedCompany, currentQuote.deliveryCep);
+  }, [currentQuote.deliveryLocation, matchedCompany, currentQuote.deliveryCep]);
 
   const handleCopyCep = (cepText: string) => {
     if (!cepText) return;
@@ -1209,26 +1213,46 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     }
     const cleanLoc = loc.trim();
     const key = normalizeLocationKey(cleanLoc);
-    const cityKey = extractCityBaseKey(cleanLoc);
 
-    // 1. Salva no cache global de localidades
-    setGlobalLocationCep(cleanLoc, formatted);
+    // 1. Salva na cotação ativa
+    setCurrentQuote(prev => ({
+      ...prev,
+      deliveryCep: formatted
+    }));
 
-    // 2. Se há empresa vinculada, salva nos metadados da empresa e persiste
+    // 2. Se há empresa vinculada, salva nos metadados exclusivos da empresa
     if (matchedCompany) {
       const updatedCeps = { ...(matchedCompany.locationCeps || {}) };
       updatedCeps[key] = formatted;
-      if (cityKey) updatedCeps[cityKey] = formatted;
 
       const updatedCompanies = clientCompanies.map(c =>
         c.id === matchedCompany.id ? { ...c, locationCeps: updatedCeps } : c
       );
       handleUpdateCompanies(updatedCompanies);
+      setLinkNotification(`CEP ${formatted} salvo para ${matchedCompany.name} (${cleanLoc})!`);
+    } else if (currentQuote.clientCompany?.trim()) {
+      const updated = registerOrUpdateClient(
+        currentQuote.clientCompany,
+        currentQuote.contactPerson,
+        currentQuote.clientEmail,
+        currentQuote.clientPhone,
+        cleanLoc,
+        currentQuote.paymentTerms,
+        currentQuote.deliveryDays,
+        currentQuote.warrantyTerms
+      );
+      const companyObj = updated.find(c => c.name.toLowerCase().trim() === currentQuote.clientCompany.toLowerCase().trim());
+      if (companyObj) {
+        companyObj.locationCeps = { ...(companyObj.locationCeps || {}), [key]: formatted };
+      }
+      handleUpdateCompanies(updated);
+      setLinkNotification(`CEP ${formatted} salvo para ${currentQuote.clientCompany} (${cleanLoc})!`);
+    } else {
+      setLinkNotification(`CEP ${formatted} salvo para esta proposta!`);
     }
 
     setIsEditingLocationCep(false);
     setLocationCepInput('');
-    setLinkNotification(`CEP ${formatted} salvo para ${cleanLoc}!`);
     setTimeout(() => setLinkNotification(null), 3500);
   };
 
@@ -3179,6 +3203,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                     );
                                     const defLoc = c.defaultDeliveryLocation || prev.deliveryLocation;
                                     const isBsb = isBrasiliaDelivery(defLoc);
+                                    const locKey = normalizeLocationKey(defLoc);
+                                    const cityKey = extractCityBaseKey(defLoc);
+                                    const compCep = c.locationCeps?.[locKey] || (cityKey ? c.locationCeps?.[cityKey] : undefined);
+
                                     return {
                                       ...prev,
                                       id: isSavedForAnother ? `quote-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : prev.id,
@@ -3188,6 +3216,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                       clientEmail: '',
                                       clientPhone: '',
                                       deliveryLocation: defLoc,
+                                      deliveryCep: compCep ? formatCep(compCep) : undefined,
                                       paymentTerms: c.defaultPaymentTerms || prev.paymentTerms,
                                       deliveryDays: c.defaultDeliveryDays || prev.deliveryDays,
                                       warrantyTerms: c.defaultWarrantyTerms || prev.warrantyTerms,
@@ -3598,6 +3627,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             </div>
                             {companyLocs.map(loc => {
                               const isSelected = queryLower === loc.toLowerCase().trim();
+                              const locKey = normalizeLocationKey(loc);
+                              const cityKey = extractCityBaseKey(loc);
+                              const locCep = matchedCompany?.locationCeps?.[locKey] || (cityKey ? matchedCompany?.locationCeps?.[cityKey] : undefined);
+
                               return (
                                 <button
                                   key={`comp-${loc}`}
@@ -3616,8 +3649,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                       <MapPin className="w-3.5 h-3.5" />
                                     </div>
                                     <div className="min-w-0">
-                                      <div className="text-xs font-bold text-slate-900 truncate">
-                                        {loc}
+                                      <div className="text-xs font-bold text-slate-900 truncate flex items-center gap-1.5">
+                                        <span>{loc}</span>
+                                        {locCep && (
+                                          <span className="text-[9.5px] font-mono font-bold text-sky-800 bg-sky-100 px-1.5 py-0.2 rounded border border-sky-200/80">
+                                            {formatCep(locCep)}
+                                          </span>
+                                        )}
                                       </div>
                                       <div className="text-[10px] text-slate-500 truncate">
                                         Frete incluso p/ {loc}
@@ -4948,22 +4986,6 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                               />
                               <span className="font-semibold text-[10px]">Foto na proposta</span>
                             </label>
-
-                            <button
-                              type="button"
-                              onClick={() => setWebImagePickerItem({
-                                type: 'quote_item',
-                                itemId: item.id,
-                                itemIndex: idx,
-                                productName: item.name,
-                                currentImageUrl: item.imageUrl
-                              })}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded-lg transition cursor-pointer shrink-0"
-                              title="Pesquisar e escolher foto comercial deste item na web"
-                            >
-                              <Search className="w-2.5 h-2.5" />
-                              <span>{item.imageUrl ? 'Trocar Foto' : 'Buscar Foto'}</span>
-                            </button>
                           </div>
 
                           {/* Divisor vertical suave */}

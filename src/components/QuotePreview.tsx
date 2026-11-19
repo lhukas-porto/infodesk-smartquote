@@ -42,6 +42,7 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
   const [copied, setCopied] = useState(false);
   const a4Spacers = useMemo(() => calculateA4ProposalSpacers(quote, settings), [quote, settings]);
   const [downloadingDoc, setDownloadingDoc] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -214,6 +215,28 @@ export const QuotePreview: React.FC<QuotePreviewProps> = ({
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Exportar Excel (.xlsx)</span>
+          </button>
+
+          <button
+            onClick={async () => {
+              try {
+                setDownloadingPdf(true);
+                const { downloadQuotePdf } = await import('../utils/pdfExport');
+                await downloadQuotePdf(quote, settings, currentClientLogo);
+              } catch (err) {
+                console.error('Erro ao gerar PDF da proposta:', err);
+                reportError('Falha ao exportar PDF oficial', err, 'QuotePreview - downloadQuotePdf');
+                alert('Não foi possível gerar o PDF. Você também pode usar a opção Imprimir / PDF.');
+              } finally {
+                setDownloadingPdf(false);
+              }
+            }}
+            disabled={downloadingPdf}
+            className="flex items-center gap-1.5 px-3 py-2 border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 rounded-xl text-xs font-bold transition shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Baixar proposta comercial oficial em PDF idêntica ao e-mail com fotos e formatação exata"
+          >
+            <Download className="w-3.5 h-3.5 text-sky-600" />
+            <span>{downloadingPdf ? 'Gerando PDF...' : 'Exportar PDF'}</span>
           </button>
 
           <button

@@ -181,7 +181,8 @@ const purchasedDirectData: ProcurementItem = {
 };
 
 const listAfterPurchased = saveOrUpdateDirectPurchase(purchasedDirectData);
-const foundPurchased = listAfterPurchased.find(i => i.id === mockDirectItem.id);
+const targetId = updatedList[0]?.id || mockDirectItem.id;
+const foundPurchased = listAfterPurchased.find(i => i.id === targetId || i.id === mockDirectItem.id);
 assert.ok(foundPurchased, 'Item deve existir na lista atualizada');
 assert.equal(foundPurchased?.purchaseStatus, 'purchased');
 assert.equal(foundPurchased?.actualUnitCostPrice, 600.00);

@@ -95,6 +95,7 @@ export interface Quote {
   deliveryDays: string;
   warrantyTerms: string;
   deliveryLocation?: string;
+  deliveryCep?: string; // CEP específico de entrega para cálculo de frete
   shippingTerms?: string;
   showShippingInProposal?: boolean;
   observations?: string;

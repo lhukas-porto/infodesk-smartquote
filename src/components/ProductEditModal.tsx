@@ -21,7 +21,6 @@ import {
 import { CreatableCombobox } from './CreatableCombobox';
 import { validateNcm, formatNcm } from '../utils/ncmValidator';
 import { compressImageDataUrl } from '../utils/imageCompressor';
-import { WebImagePickerModal } from './WebImagePickerModal';
 import { getSettings, findProductImageInCache, saveProductImageToCache } from '../utils/storage';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
 import { getAllRegisteredSuppliers, learnSupplier } from '../services/supplierLearningService';
@@ -155,7 +154,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [shippingInput, setShippingInput] = useState<string>('');
 
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
-  const [isWebImagePickerOpen, setIsWebImagePickerOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -234,7 +232,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       setShippingInput(resolvedShipping > 0 ? formatCurrencyPtBr(resolvedShipping) : '0,00');
 
       setZoomedImage(null);
-      setIsWebImagePickerOpen(false);
     }
   }, [isOpen, product, initialShippingCost]);
 
@@ -541,16 +538,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       </div>
                     )}
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsWebImagePickerOpen(true)}
-                    title="Pesquisar fotos para este produto e escolher qual usar"
-                    className="px-2 py-0.5 rounded text-[9.5px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                  >
-                    <Search className="w-3 h-3" />
-                    Buscar Foto
-                  </button>
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -948,20 +935,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal de Busca e Escolha de Foto Comercial na Web */}
-      {isWebImagePickerOpen && (
-        <WebImagePickerModal
-          isOpen={true}
-          onClose={() => setIsWebImagePickerOpen(false)}
-          productName={draft.name || ''}
-          currentImageUrl={draft.imageUrl || ''}
-          onSelectImage={(newUrl) => {
-            setDraft(prev => ({ ...prev, imageUrl: newUrl }));
-            setIsWebImagePickerOpen(false);
-          }}
-        />
       )}
     </>
   );

@@ -193,9 +193,6 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
     try {
       // Cria a versão mesclada escolhendo os dados mais ricos
       const bestName = (itemA.name.length >= itemB.name.length) ? itemA.name : itemB.name;
-      const bestDesc = (itemA.description && itemA.description.length >= (itemB.description || '').length)
-        ? itemA.description
-        : (itemB.description || itemA.description || '');
       const bestPn = itemA.partNumber || itemB.partNumber || '';
       const bestSku = itemA.sku || itemB.sku || '';
       const bestNcm = itemA.ncm || itemB.ncm || '';
