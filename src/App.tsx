@@ -1074,12 +1074,17 @@ export const App: React.FC = () => {
 
             const mergedContacts = deduplicateCompanyContacts([...cleanRemoteContacts, ...localOnlyContacts]);
             const preservedPrefix = rc.prefix || local?.prefix;
+            const mergedLocationCeps: Record<string, string> = {
+              ...(local?.locationCeps || {}),
+              ...(rc.locationCeps || {})
+            };
 
             return {
               ...rc,
               prefix: (preservedPrefix as 'À' | 'Ao') || (rc.name.trim().toLowerCase().startsWith('ao ') ? 'Ao' : 'À'),
               website: rc.website || local?.website,
               logoUrl: rc.logoUrl || local?.logoUrl,
+              locationCeps: mergedLocationCeps,
               contacts: mergedContacts
             };
           });
@@ -1095,7 +1100,15 @@ export const App: React.FC = () => {
           setClientCompanies(finalCompanies);
           saveClientCompanies(finalCompanies, false);
 
-          if (localOnlyCompanies.length > 0 || finalCompanies.some(c => c.website && !sanitizedRemote.find(rc => rc.id === c.id)?.website)) {
+          if (
+            localOnlyCompanies.length > 0 ||
+            finalCompanies.some(c => 
+              (c.website && !sanitizedRemote.find(rc => rc.id === c.id)?.website) ||
+              (c.locationCeps && Object.keys(c.locationCeps).length > 0 && 
+                JSON.stringify(c.locationCeps) !== JSON.stringify(sanitizedRemote.find(rc => rc.id === c.id)?.locationCeps || {})
+              )
+            )
+          ) {
             syncClientCompaniesToSupabase(finalCompanies).catch(() => {});
           }
         }

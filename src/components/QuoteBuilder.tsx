@@ -1093,13 +1093,19 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
   };
 
   const cleanCompName = (currentQuote.clientCompany || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
-  const matchedCompany = clientCompanies.find(c =>
-    cleanCompName && (
-      c.name.toLowerCase() === cleanCompName ||
-      c.name.toLowerCase().includes(cleanCompName) ||
-      cleanCompName.includes(c.name.toLowerCase())
-    )
-  );
+  const matchedCompany = useMemo(() => {
+    if (!cleanCompName) return undefined;
+    return clientCompanies.find(c => {
+      const rawC = (c.name || '').toLowerCase().trim();
+      const cleanC = rawC.replace(/^(ao|à|a|para)\s+/i, '').trim();
+      return (
+        cleanC === cleanCompName ||
+        cleanC.includes(cleanCompName) ||
+        cleanCompName.includes(cleanC) ||
+        rawC === cleanCompName
+      );
+    });
+  }, [clientCompanies, cleanCompName]);
 
   const effectiveClientLogo = useMemo(() => {
     if (currentQuote.clientLogoUrl) return currentQuote.clientLogoUrl;
@@ -1269,12 +1275,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       alert('Por favor, informe um CEP válido com 8 dígitos.');
       return;
     }
-    const cleanLoc = loc.trim();
+    const cleanLoc = (loc || currentQuote.deliveryLocation || matchedCompany?.defaultDeliveryLocation || 'Brasília').trim();
     const key = normalizeLocationKey(cleanLoc);
+    const cityKey = extractCityBaseKey(cleanLoc);
 
     // 1. Salva na cotação ativa
     setCurrentQuote(prev => ({
       ...prev,
+      deliveryLocation: prev.deliveryLocation || cleanLoc,
       deliveryCep: formatted
     }));
 
@@ -1282,9 +1290,17 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
     if (matchedCompany) {
       const updatedCeps = { ...(matchedCompany.locationCeps || {}) };
       updatedCeps[key] = formatted;
+      if (cityKey && cityKey !== key) {
+        updatedCeps[cityKey] = formatted;
+      }
+
+      const existingLocs = Array.isArray(matchedCompany.locations) ? matchedCompany.locations : [];
+      const updatedLocs = existingLocs.some(l => normalizeLocationKey(l) === key)
+        ? existingLocs
+        : [...existingLocs, cleanLoc];
 
       const updatedCompanies = clientCompanies.map(c =>
-        c.id === matchedCompany.id ? { ...c, locationCeps: updatedCeps } : c
+        c.id === matchedCompany.id ? { ...c, locations: updatedLocs, locationCeps: updatedCeps } : c
       );
       handleUpdateCompanies(updatedCompanies);
       setLinkNotification(`CEP ${formatted} salvo para ${matchedCompany.name} (${cleanLoc})!`);
@@ -1299,9 +1315,16 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         currentQuote.deliveryDays,
         currentQuote.warrantyTerms
       );
-      const companyObj = updated.find(c => c.name.toLowerCase().trim() === currentQuote.clientCompany.toLowerCase().trim());
+      const companyObj = updated.find(c => {
+        const cClean = (c.name || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+        const targetClean = (currentQuote.clientCompany || '').replace(/^(ao|à|a|para)\s+/i, '').trim().toLowerCase();
+        return cClean === targetClean || cClean.includes(targetClean) || targetClean.includes(cClean);
+      });
       if (companyObj) {
         companyObj.locationCeps = { ...(companyObj.locationCeps || {}), [key]: formatted };
+        if (cityKey && cityKey !== key) {
+          companyObj.locationCeps[cityKey] = formatted;
+        }
       }
       handleUpdateCompanies(updated);
       setLinkNotification(`CEP ${formatted} salvo para ${currentQuote.clientCompany} (${cleanLoc})!`);

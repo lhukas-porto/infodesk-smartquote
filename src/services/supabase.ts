@@ -1333,6 +1333,7 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
       let extractedWebsite: string | undefined = c.website ? String(c.website).trim() : undefined;
       let extractedLogoUrl: string | undefined = c.logo_url ? String(c.logo_url).trim() : undefined;
       const cleanLocations: string[] = [];
+      const extractedLocationCeps: Record<string, string> = {};
 
       for (const loc of rawLocations) {
         const item = String(loc || '').trim();
@@ -1343,6 +1344,16 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
         } else if (item.toLowerCase().startsWith('logo:')) {
           const logo = item.replace(/^logo:/i, '').trim();
           if (!extractedLogoUrl && logo) extractedLogoUrl = logo;
+        } else if (item.toLowerCase().startsWith('cep:')) {
+          const rawCepItem = item.substring(4).trim();
+          const colonIdx = rawCepItem.indexOf(':');
+          if (colonIdx > 0) {
+            const locKey = rawCepItem.substring(0, colonIdx).trim().toLowerCase();
+            const cepVal = rawCepItem.substring(colonIdx + 1).trim();
+            if (locKey && cepVal) {
+              extractedLocationCeps[locKey] = cepVal;
+            }
+          }
         } else if (item.startsWith('http://') || item.startsWith('https://')) {
           try {
             const parsed = new URL(item);
@@ -1366,6 +1377,7 @@ export async function fetchClientCompaniesFromSupabase(): Promise<ClientCompany[
         prefix: c.prefix || undefined,
         defaultDeliveryLocation: c.default_delivery_location || cleanLocations[0] || 'Brasília',
         locations: cleanLocations,
+        locationCeps: extractedLocationCeps,
         website: extractedWebsite,
         logoUrl: extractedLogoUrl,
         lastUsed: c.last_used,
@@ -1396,11 +1408,17 @@ export async function syncClientCompaniesToSupabase(companies: ClientCompany[]):
     // Purge defensivo caso comp-terraco esteja no banco
     supabase.from('client_companies').delete().or('id.eq.comp-terraco,name.ilike.%Condomínio Shopping Terraço%').then(() => {});
 
-    // 1. Batch upsert de todas as empresas (com website e logo serializados de forma compatível)
+    // 1. Batch upsert de todas as empresas (com website, logo e locationCeps serializados de forma compatível)
     const companiesPayload = validCompanies.map(comp => {
       const cleanLocs = (comp.locations || [comp.defaultDeliveryLocation || 'Brasília'])
         .map(l => String(l || '').trim())
-        .filter(l => Boolean(l) && !l.toLowerCase().startsWith('website:') && !l.toLowerCase().startsWith('site:') && !l.toLowerCase().startsWith('logo:') && !l.startsWith('http://') && !l.startsWith('https://'));
+        .filter(l => Boolean(l) && 
+          !l.toLowerCase().startsWith('website:') && 
+          !l.toLowerCase().startsWith('site:') && 
+          !l.toLowerCase().startsWith('logo:') && 
+          !l.toLowerCase().startsWith('cep:') && 
+          !l.startsWith('http://') && 
+          !l.startsWith('https://'));
 
       if (cleanLocs.length === 0) cleanLocs.push(comp.defaultDeliveryLocation || 'Brasília');
 
@@ -1410,6 +1428,13 @@ export async function syncClientCompaniesToSupabase(companies: ClientCompany[]):
       }
       if (comp.logoUrl && comp.logoUrl.trim() && comp.logoUrl.startsWith('http')) {
         persistedLocations.push(`logo:${comp.logoUrl.trim()}`);
+      }
+      if (comp.locationCeps && typeof comp.locationCeps === 'object') {
+        for (const [key, val] of Object.entries(comp.locationCeps)) {
+          if (val && String(val).trim()) {
+            persistedLocations.push(`cep:${key.trim().toLowerCase()}:${String(val).trim()}`);
+          }
+        }
       }
 
       return {

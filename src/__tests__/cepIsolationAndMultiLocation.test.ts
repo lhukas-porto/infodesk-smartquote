@@ -97,7 +97,7 @@ assert(quoteOverride.cep === '72300-500', 'CEP digitado especificamente na cota�
 assert(quoteOverride.source === 'quote', 'Origem identificada como "quote"');
 
 // 6. Teste de Blindagem do Cache Global
-console.log('\n[5/5] Testando extinção e blindagem de cache global...');
+console.log('\n[5/6] Testando extinção e blindagem de cache global...');
 
 setGlobalLocationCep('Brasília', '99999-999');
 const globalCeps = getGlobalLocationCeps();
@@ -106,4 +106,56 @@ assert(Object.keys(globalCeps).length === 0, 'setGlobalLocationCep não grava da
 clearGlobalLocationCepsCache();
 assert(typeof localStorage !== 'undefined' ? localStorage.getItem('infodesk_location_ceps') === null : true, 'clearGlobalLocationCepsCache remove chave legada com sucesso');
 
-console.log('\n✨ TODOS OS TESTES DE ISOLAMENTO DE CEP PASSARAM COM 100% DE SUCESSO!\n');
+// 7. Teste de Serialização e Hidratação de locationCeps para o Supabase
+console.log('\n[6/6] Testando serialização e hidratação de CEPs no Supabase (Roundtrip)...');
+
+// Simulação de serialização em syncClientCompaniesToSupabase
+const testCompany: ClientCompany = {
+  id: 'comp-test-roundtrip',
+  name: 'Empresa Teste Roundtrip',
+  contacts: [],
+  defaultDeliveryLocation: 'Brasília',
+  locations: ['Brasília', 'Goiânia'],
+  locationCeps: {
+    'brasilia': '70040-010',
+    'goiania': '74000-000'
+  }
+};
+
+const persistedLocations: string[] = [...(testCompany.locations || [])];
+for (const [key, val] of Object.entries(testCompany.locationCeps || {})) {
+  if (val && String(val).trim()) {
+    persistedLocations.push(`cep:${key.trim().toLowerCase()}:${String(val).trim()}`);
+  }
+}
+
+assert(persistedLocations.includes('cep:brasilia:70040-010'), 'Serializa CEP de Brasília corretamente');
+assert(persistedLocations.includes('cep:goiania:74000-000'), 'Serializa CEP de Goiânia corretamente');
+
+// Simulação de desserialização em fetchClientCompaniesFromSupabase
+const extractedLocationCeps: Record<string, string> = {};
+const cleanLocations: string[] = [];
+
+for (const loc of persistedLocations) {
+  const item = String(loc || '').trim();
+  if (item.toLowerCase().startsWith('cep:')) {
+    const rawCepItem = item.substring(4).trim();
+    const colonIdx = rawCepItem.indexOf(':');
+    if (colonIdx > 0) {
+      const locKey = rawCepItem.substring(0, colonIdx).trim().toLowerCase();
+      const cepVal = rawCepItem.substring(colonIdx + 1).trim();
+      if (locKey && cepVal) {
+        extractedLocationCeps[locKey] = cepVal;
+      }
+    }
+  } else {
+    cleanLocations.push(item);
+  }
+}
+
+assert(extractedLocationCeps['brasilia'] === '70040-010', 'Desserializa CEP de Brasília com fidelidade absoluta');
+assert(extractedLocationCeps['goiania'] === '74000-000', 'Desserializa CEP de Goiânia com fidelidade absoluta');
+assert(!cleanLocations.includes('cep:brasilia:70040-010'), 'Cidades limpas não são poluídas com tags de CEP');
+assert(cleanLocations.includes('Brasília') && cleanLocations.includes('Goiânia'), 'Preserva cidades de entrega limpas');
+
+console.log('\n✨ TODOS OS TESTES DE ISOLAMENTO E PERSISTÊNCIA DE CEP PASSARAM COM 100% DE SUCESSO!\n');

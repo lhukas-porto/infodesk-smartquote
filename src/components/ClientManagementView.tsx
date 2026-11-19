@@ -39,7 +39,7 @@ import {
   getCandidateLogosForDomain,
   resolveCompanyCandidates
 } from '../utils/companyLogoResolver';
-import { resolveLocationCep, formatCep, normalizeLocationKey } from '../utils/cepHelper';
+import { resolveLocationCep, formatCep, normalizeLocationKey, extractCityBaseKey } from '../utils/cepHelper';
 
 interface ClientManagementViewProps {
   companies: ClientCompany[];
@@ -360,6 +360,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
     const clean = newLocationName.trim();
     const formattedCep = newLocationCep.trim() ? formatCep(newLocationCep.trim()) : '';
     const key = normalizeLocationKey(clean);
+    const cityKey = extractCityBaseKey(clean);
 
     const updated = companies.map(c => {
       if (c.id === companyId) {
@@ -368,6 +369,9 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
         const nextCeps = { ...(c.locationCeps || {}) };
         if (formattedCep) {
           nextCeps[key] = formattedCep;
+          if (cityKey && cityKey !== key) {
+            nextCeps[cityKey] = formattedCep;
+          }
         }
         return {
           ...c,
@@ -387,13 +391,18 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
   const handleSaveLocationCepInCompany = (companyId: string, locName: string, cepValue: string) => {
     const formatted = formatCep(cepValue);
     const key = normalizeLocationKey(locName);
+    const cityKey = extractCityBaseKey(locName);
     const updated = companies.map(c => {
       if (c.id === companyId) {
         const nextCeps = { ...(c.locationCeps || {}) };
         if (formatted) {
           nextCeps[key] = formatted;
+          if (cityKey && cityKey !== key) {
+            nextCeps[cityKey] = formatted;
+          }
         } else {
           delete nextCeps[key];
+          if (cityKey) delete nextCeps[cityKey];
         }
         return { ...c, locationCeps: nextCeps };
       }
@@ -407,12 +416,14 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
 
   const handleRemoveLocation = (companyId: string, locToRemove: string) => {
     const key = normalizeLocationKey(locToRemove);
+    const cityKey = extractCityBaseKey(locToRemove);
     const updated = companies.map(c => {
       if (c.id === companyId) {
         const existing = Array.isArray(c.locations) ? c.locations : [];
         const nextLocs = existing.filter(l => l !== locToRemove);
         const nextCeps = { ...(c.locationCeps || {}) };
         delete nextCeps[key];
+        if (cityKey) delete nextCeps[cityKey];
         let nextDefault = c.defaultDeliveryLocation;
         if (c.defaultDeliveryLocation === locToRemove) nextDefault = nextLocs[0] || 'Brasília - DF';
         return {
