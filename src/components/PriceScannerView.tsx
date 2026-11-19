@@ -1749,7 +1749,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               </h1>
             </div>
             <p className="sq-page-subtitle">
-              Pesquise produtos por código, especificações técnicas ou foto e insira diretamente na sua cotação comercial.
+              Varredura de preços por código, texto ou foto para cotação direta.
             </p>
           </div>
         </div>
@@ -2113,7 +2113,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Ficha técnica 360° com especificações, galeria de fotos reais e preços sugeridos de mercado.
+                  Especificações, fotos e preços de mercado prontos para importar.
                 </p>
               </div>
             </div>

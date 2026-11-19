@@ -216,7 +216,7 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
                 <h2 className="sq-page-title text-base md:text-lg">Matriz Multi-Fornecedor & Cesta Inteligente</h2>
               </div>
               <p className="sq-page-subtitle">
-                Compare fornecedores por item, faça split de pedidos e maximize a margem da sua proposta
+                Comparativo de fornecedores e split de pedidos para maximizar margem.
               </p>
             </div>
           </div>

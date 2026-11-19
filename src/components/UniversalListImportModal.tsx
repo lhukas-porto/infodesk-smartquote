@@ -738,7 +738,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                 <span>Importação Inteligente de Listas & Planilhas</span>
               </h3>
               <p className="sq-page-subtitle">
-                Importe planilhas Excel (.xlsx), documentos PDF (.pdf), tabelas CSV ou copie e cole mensagens de cotação
+                Importação automática de planilhas Excel, PDFs ou texto copiado.
               </p>
             </div>
           </div>

@@ -2259,7 +2259,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               <h1 className="sq-page-title">Central de Compras</h1>
             </div>
             <p className="sq-page-subtitle">
-              Acompanhe compras aprovadas de propostas, cadastre novas compras, consulte preços pagos e concilie faturas.
+              Gestão de pedidos, compras aprovadas e conciliação de faturas.
             </p>
           </div>
         </div>
@@ -2352,7 +2352,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
             <span>Balanço Financeiro & Indicadores</span>
           </h2>
           <p className="sq-page-subtitle">
-            Métricas e totais calculados conforme o período de compras selecionado
+            Indicadores consolidados do período selecionado.
           </p>
         </div>
       </div>
@@ -2645,7 +2645,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   Catálogo de Referência de Compras Realizadas
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Consulte os preços unitários pagos, fornecedores e links reais onde comprou para usar como base para novas aquisições.
+                  Histórico de custos reais e fornecedores para balizar novas compras.
                 </p>
               </div>
             </div>
@@ -2942,7 +2942,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   Central de Compras por Fornecedor
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Agrupe os itens da sua cotação por distribuidor (Fujioka, Kabum, etc.) e copie o pedido de compra formatado para enviar no WhatsApp do vendedor.
+                  Itens agrupados por distribuidor com cópia rápida para WhatsApp.
                 </p>
               </div>
             </div>

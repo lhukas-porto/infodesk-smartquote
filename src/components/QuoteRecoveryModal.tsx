@@ -115,7 +115,7 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Restaure orçamentos para os rascunhos ou exclua permanentemente do banco de dados.
+                Restauração de rascunhos ou exclusão definitiva do banco.
               </p>
             </div>
           </div>

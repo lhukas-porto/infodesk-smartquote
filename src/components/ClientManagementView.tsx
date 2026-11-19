@@ -532,7 +532,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
           </div>
           <div>
             <h1 className="sq-page-title">Empresas &amp; Compradores</h1>
-            <p className="sq-page-subtitle">Gestão centralizada de clientes, compradores e locais de entrega.</p>
+            <p className="sq-page-subtitle">Cadastro de empresas, contatos e locais de entrega.</p>
           </div>
         </div>
 

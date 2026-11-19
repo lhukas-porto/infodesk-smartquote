@@ -207,7 +207,7 @@ export const BatchPriceScanModal: React.FC<BatchPriceScanModalProps> = ({
                 <h2 className="sq-page-title">Varredura de Preços em Lote (IA)</h2>
               </div>
               <p className="sq-page-subtitle">
-                Pesquisa concorrente de custos, distribuidores e fotos em tempo real
+                Pesquisa simultânea de custos, distribuidores e fotos em tempo real.
               </p>
             </div>
           </div>

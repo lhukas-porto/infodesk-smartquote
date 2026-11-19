@@ -806,7 +806,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">Catálogo de Produtos</h1>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Gerencie sua base de produtos com preços de custo, códigos e especificações técnicas da Infodesk.
+              Base de produtos, custos de referência e especificações técnicas.
             </p>
           </div>
         </div>

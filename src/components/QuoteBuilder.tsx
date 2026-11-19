@@ -2898,8 +2898,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             {isEditingHistoricalQuote 
-              ? `Alterações feitas aqui serão atualizadas nesta cotação para o cliente ${currentQuote.clientCompany || 'definido'}.`
-              : 'Configure os dados do cliente, custos, alíquota de impostos e margem de lucro da Infodesk.'}
+              ? 'Edição ativa da proposta comercial.'
+              : 'Elaboração e precificação de proposta comercial.'}
           </p>
 
           {/* Pipeline de Estágios Direto no QuoteBuilder */}
@@ -6013,7 +6013,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Margem de Lucro (%)</h3>
-                  <p className="text-xs text-slate-500">Defina o markup global e padrão da Infodesk</p>
+                  <p className="text-xs text-slate-500">Markup aplicado sobre os custos dos produtos</p>
                 </div>
               </div>
               <button
@@ -6053,7 +6053,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-                  💡 Ao aplicar, recalcula todos os preços unitários e totais dos produtos, atualiza o Lucro Líquido Real e grava a nova margem no banco de dados e rascunho.
+                  💡 Recalcula os preços unitários e o lucro líquido da proposta.
                 </p>
               </div>
 
@@ -6104,7 +6104,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Alíquota de Impostos (%)</h3>
-                  <p className="text-xs text-slate-500">Simples Nacional / ICMS embutido da Infodesk</p>
+                  <p className="text-xs text-slate-500">Cálculo de tributos sobre o faturamento</p>
                 </div>
               </div>
               <button

@@ -582,7 +582,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
               </h1>
             </div>
             <p className="sq-page-subtitle">
-              Gerencie as propostas, acompanhe valores em negociação e análises.
+              Pipeline de orçamentos, status de envio e follow-up.
             </p>
           </div>
         </div>

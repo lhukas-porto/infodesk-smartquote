@@ -264,7 +264,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Compare produtos idênticos ou com alta similaridade e decida qual manter, apagar ou mesclar no catálogo.
+                Identificação e mesclagem de produtos duplicados no catálogo.
               </p>
             </div>
           </div>

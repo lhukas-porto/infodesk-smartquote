@@ -420,7 +420,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </h1>
             </div>
             <p className="sq-page-subtitle">
-              Indicadores executivos, margem realizada, mix de departamentos e acompanhamento de oportunidades.
+              Métricas executivas, rentabilidade e oportunidades em aberto.
             </p>
           </div>
         </div>
@@ -843,7 +843,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Radar de Oportunidades Quentes (Follow-up Ativo)
               </h2>
               <p className="text-xs text-slate-500">
-                Cotações prioritárias em negociação para você acionar o cliente e acelerar o fechamento.
+                Cotações prioritárias para acelerar o fechamento.
               </p>
             </div>
           </div>
