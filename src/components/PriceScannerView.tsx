@@ -1892,11 +1892,11 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
         <div className="relative">
           <textarea
-            rows={5}
+            rows={15}
             value={batchRawInput}
             onChange={(e) => setBatchRawInput(e.target.value)}
             onPaste={handleBatchAreaPaste}
-            className="w-full bg-slate-50 border border-slate-300 rounded-2xl p-4 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-mono leading-relaxed resize-y"
+            className="w-full min-h-[300px] bg-slate-50 border border-slate-300 rounded-2xl p-4 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-sky-500 font-mono leading-relaxed resize-y"
           />
 
           {/* Input oculto para anexar fotos dos produtos (suporte a múltiplas fotos) */}
