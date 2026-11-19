@@ -734,9 +734,9 @@ export const App: React.FC = () => {
             return true;
           });
 
-          // Se veio alguma proposta deletada ou de teste no Supabase durante a leitura, expurga imediatamente do banco
+          // Apenas expurga do Supabase propostas que sejam comprovadamente mocks de teste
           remoteQuotes.forEach(rq => {
-            if (isQuoteDeleted(rq)) {
+            if (isBlockedOrTestQuote(rq)) {
               deleteQuoteFromSupabase(rq.code, rq.id).catch(() => {});
             }
           });

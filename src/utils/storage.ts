@@ -52,7 +52,6 @@ export const isBlockedOrTestQuote = (q: { code?: string; clientCompany?: string;
   if (code.includes('empresa teste') || comp.includes('empresa teste')) return true;
   if (code.includes('teste alpha') || code.includes('teste beta')) return true;
   if (code === 'interativa 240826' || code === 'cnc 280826') return true;
-  if (code === 'inframerica 250926' || code === 'inframérica 250926' || code === 'ubec 280926') return true;
   if (q.id === 'quote-interativa-01' || q.id === 'quote-cnc-01') return true;
   return false;
 };
@@ -118,9 +117,6 @@ export const getDeletedQuoteCodes = (): Set<string> => {
   defaultSet.add('EMPRESA TESTE BETA 190926');
   defaultSet.add('INTERATIVA 240826');
   defaultSet.add('CNC 280826');
-  defaultSet.add('INFRAMÉRICA 250926');
-  defaultSet.add('INFRAMERICA 250926');
-  defaultSet.add('UBEC 280926');
 
   try {
     const raw = localStorage.getItem(DELETED_QUOTE_CODES_KEY);
