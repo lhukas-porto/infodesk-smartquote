@@ -4,6 +4,7 @@
 import React, { useState, useMemo } from 'react';
 import { X, Tag, Percent, DollarSign, Calculator, AlertTriangle, Check, ArrowRight, ShieldAlert } from 'lucide-react';
 import { QuoteItem } from '../types';
+import { formatBRL } from '../utils/currencyFormatter';
 
 interface DiscountSimulatorModalProps {
   isOpen: boolean;
@@ -248,10 +249,10 @@ export const DiscountSimulatorModal: React.FC<DiscountSimulatorModalProps> = ({
               <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
                 <span className="text-[10px] text-slate-400 block uppercase font-semibold">Valor Atual</span>
                 <span className="text-sm font-bold font-mono text-slate-800">
-                  R$ {currentTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatBRL(currentTotal)}
                 </span>
                 <span className="text-[10px] text-emerald-600 font-bold block mt-0.5">
-                  Lucro: R$ {currentProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({currentMargin.toFixed(1)}%)
+                  Lucro: {formatBRL(currentProfit)} ({currentMargin.toFixed(1)}%)
                 </span>
               </div>
 
@@ -264,12 +265,12 @@ export const DiscountSimulatorModal: React.FC<DiscountSimulatorModalProps> = ({
               }`}>
                 <span className="text-[10px] text-slate-500 block uppercase font-semibold">Novo Valor Simulado</span>
                 <span className="text-sm font-bold font-mono text-slate-900">
-                  R$ {simulatedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatBRL(simulatedTotal)}
                 </span>
                 <span className={`text-[10px] font-bold block mt-0.5 font-mono ${
                   isMarginCritical ? 'text-rose-700' : isMarginLow ? 'text-amber-700' : 'text-emerald-700'
                 }`}>
-                  Lucro: R$ {simulatedProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({simulatedMargin.toFixed(1)}%)
+                  Lucro: {formatBRL(simulatedProfit)} ({simulatedMargin.toFixed(1)}%)
                 </span>
               </div>
             </div>
@@ -277,7 +278,7 @@ export const DiscountSimulatorModal: React.FC<DiscountSimulatorModalProps> = ({
             <div className="text-xs text-slate-600 flex items-center justify-between pt-1 border-t border-slate-200/80">
               <span>Desconto concedido:</span>
               <span className="font-bold font-mono text-slate-900">
-                -R$ {discountNominal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                -{formatBRL(discountNominal)}
               </span>
             </div>
           </div>

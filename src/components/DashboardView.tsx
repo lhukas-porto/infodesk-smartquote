@@ -27,6 +27,7 @@ import {
 } from '../utils/aiEmailParser';
 import { getClientCompanies } from '../utils/storage';
 import { parseQuoteTimestamp, isSameDay, updateDraftQuotesToToday } from '../utils/dateUtils';
+import { formatBRL } from '../utils/currencyFormatter';
 
 export { parseQuoteTimestamp, isSameDay, updateDraftQuotesToToday };
 
@@ -577,7 +578,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <DollarSign className="w-4 h-4 text-sky-600" />
           </div>
           <div className="text-lg font-bold text-slate-900 font-mono mt-1">
-            R$ {stats.totalQuotedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatBRL(stats.totalQuotedAmount)}
           </div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
             Soma de {stats.totalQuotes} {stats.totalQuotes === 1 ? 'proposta' : 'propostas'}
@@ -593,7 +594,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-lg font-bold text-emerald-700 font-mono mt-1">
-            R$ {stats.totalApprovedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatBRL(stats.totalApprovedAmount)}
           </div>
           <div className="text-[10px] text-emerald-600/80 font-medium mt-0.5 truncate font-mono">
             {stats.approvedCount} pedidos fechados
@@ -612,7 +613,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
           <div className="text-lg font-black text-emerald-700 font-mono mt-1">
-            R$ {stats.approvedGrossProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatBRL(stats.approvedGrossProfit)}
           </div>
           <div className="text-[10px] text-emerald-700/80 font-medium mt-0.5 truncate font-mono">
             Margem: {stats.totalApprovedAmount > 0 ? ((stats.approvedGrossProfit / stats.totalApprovedAmount) * 100).toFixed(1) : stats.averageMargin.toFixed(1)}% aplicada
@@ -644,10 +645,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <Tag className="w-4 h-4 text-sky-600" />
           </div>
           <div className="text-lg font-bold text-sky-700 font-mono mt-1">
-            R$ {stats.averageTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatBRL(stats.averageTicket)}
           </div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
-            Fechado: R$ {stats.approvedAverageTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            Fechado: {formatBRL(stats.approvedAverageTicket)}
           </div>
         </div>
 
@@ -744,7 +745,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <div className="text-right shrink-0">
                         <span className="font-mono font-bold text-xs">{cat.percentage.toFixed(1)}%</span>
                         <p className="text-[10px] opacity-75 font-mono">
-                          R$ {cat.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          {formatBRL(cat.totalAmount)}
                         </p>
                       </div>
                     </div>
@@ -780,11 +781,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="font-bold text-slate-900 truncate group-hover:text-sky-700 transition">{c.company}</p>
-                        <p className="text-[10px] text-slate-400">{c.count} proposta(s) · {c.approvedAmount > 0 ? `R$ ${c.approvedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} fechado` : 'Em prospecção'}</p>
+                        <p className="text-[10px] text-slate-400">{c.count} proposta(s) · {c.approvedAmount > 0 ? `${formatBRL(c.approvedAmount)} fechado` : 'Em prospecção'}</p>
                       </div>
                     </div>
                     <div className="text-right shrink-0 font-mono font-bold text-slate-900">
-                      R$ {c.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatBRL(c.totalAmount)}
                     </div>
                   </div>
                 ))}
@@ -818,7 +819,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                     </div>
                     <div className="text-right shrink-0 font-mono font-bold text-emerald-800">
-                      R$ {s.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatBRL(s.totalAmount)}
                     </div>
                   </div>
                 ))}
@@ -894,7 +895,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                     <div className="flex items-baseline justify-between pt-1">
                       <span className="text-base font-black text-slate-900 font-mono">
-                        R$ {(opp.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatBRL(opp.totalAmount || 0)}
                       </span>
                       <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                         {opp.averageMargin || 35}% margem

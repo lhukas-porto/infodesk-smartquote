@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Product } from '../types';
 import { normalizeSearchText } from '../utils/aiEmailParser';
+import { formatBRL } from '../utils/currencyFormatter';
 
 export interface DuplicatePair {
   id: string;
@@ -220,7 +221,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
       await onDeleteProduct(itemB.id);
 
       setIgnoredPairIds(prev => new Set(prev).add(pairId));
-      showToast(`Produtos mesclados com sucesso em "${bestName}" com custo R$ ${bestCost.toFixed(2)}!`);
+      showToast(`Produtos mesclados com sucesso em "${bestName}" com custo ${formatBRL(bestCost)}!`);
     } catch (err: any) {
       alert(`Erro ao mesclar produtos: ${err?.message || 'Falha na mesclagem'}`);
     } finally {
@@ -446,7 +447,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                           </div>
                           <div>
                             <span className="text-slate-400 block text-[10px]">Custo Atual</span>
-                            <strong className="text-emerald-700 font-bold">R$ {Number(itemA.costPrice || 0).toFixed(2)}</strong>
+                            <strong className="text-emerald-700 font-bold">{formatBRL(itemA.costPrice)}</strong>
                           </div>
                           <div>
                             <span className="text-slate-400 block text-[10px]">Fornecedor</span>
@@ -514,7 +515,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                           </div>
                           <div>
                             <span className="text-slate-400 block text-[10px]">Custo Atual</span>
-                            <strong className="text-emerald-700 font-bold">R$ {Number(itemB.costPrice || 0).toFixed(2)}</strong>
+                            <strong className="text-emerald-700 font-bold">{formatBRL(itemB.costPrice)}</strong>
                           </div>
                           <div>
                             <span className="text-slate-400 block text-[10px]">Fornecedor</span>

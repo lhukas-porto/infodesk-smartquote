@@ -30,6 +30,7 @@ import {
   learnDollarSurcharge,
   predictDollarSurcharge
 } from '../services/dollarSurchargeLearningService';
+import { formatBRL } from '../utils/currencyFormatter';
 
 export interface ProductEditModalProps {
   isOpen: boolean;
@@ -653,12 +654,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     }}
                     onChange={(e) => handleDollarChange(e.target.value)}
                     onBlur={handleDollarBlur}
-                    title={`Preço em dólar americano (Cotação atual: R$ ${effectiveDollarRate.toFixed(2).replace('.', ',')})`}
+                    title={`Preço em dólar americano (Cotação atual: ${formatBRL(effectiveDollarRate)})`}
                     className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
                   />
                   {effectiveDollarRate > 0 && (
                     <p className="text-[9px] text-slate-400 text-center mt-1 font-medium truncate" title="Cotação do dia definida nas Configurações">
-                      US$ = R$ {effectiveDollarRate.toFixed(2).replace('.', ',')}
+                      US$ 1 = {formatBRL(effectiveDollarRate)}
                     </p>
                   )}
                 </div>

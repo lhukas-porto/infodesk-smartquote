@@ -22,6 +22,7 @@ import {
   BatchScanOverallProgress 
 } from '../services/batchScannerService';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
+import { formatBRL } from '../utils/currencyFormatter';
 
 interface BatchPriceScanModalProps {
   isOpen: boolean;
@@ -350,7 +351,7 @@ export const BatchPriceScanModal: React.FC<BatchPriceScanModalProps> = ({
                   {currentStatus === 'cached' && (
                     <span className="px-2.5 py-1 bg-purple-50 text-purple-800 border border-purple-200 rounded-lg text-xs font-bold flex items-center gap-1.5">
                       <Zap className="w-3.5 h-3.5 text-purple-600" />
-                      <span>Cache: R$ {status?.costPrice?.toFixed(2)}</span>
+                      <span>Cache: {formatBRL(status?.costPrice)}</span>
                     </span>
                   )}
 
@@ -358,7 +359,7 @@ export const BatchPriceScanModal: React.FC<BatchPriceScanModalProps> = ({
                     <div className="flex flex-col items-end gap-0.5">
                       <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>R$ {status?.costPrice?.toFixed(2)}</span>
+                        <span>{formatBRL(status?.costPrice)}</span>
                       </span>
                       {(() => {
                         const original = Number(item.costPrice || 0);
@@ -370,7 +371,7 @@ export const BatchPriceScanModal: React.FC<BatchPriceScanModalProps> = ({
                             <span className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${
                               isAumento ? 'text-rose-600' : 'text-emerald-600'
                             }`}>
-                              <span>{isAumento ? '▲ +' : '▼ -'}R$ {Math.abs(diff).toFixed(2)}</span>
+                              <span>{isAumento ? '▲ +' : '▼ -'}{formatBRL(Math.abs(diff))}</span>
                               <span className="text-slate-400 font-normal">({((diff / original) * 100).toFixed(1)}%)</span>
                             </span>
                           );

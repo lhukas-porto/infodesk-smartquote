@@ -1240,7 +1240,7 @@ export function parsePastedProductList(rawText: string): string[] {
  */
 export function formatBRL(val: number): string {
   if (!val || isNaN(val) || val <= 0) return '—';
-  return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return 'R$ ' + Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /**

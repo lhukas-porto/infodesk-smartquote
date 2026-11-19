@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { QuoteItem, SupplierOffer } from '../types';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
+import { formatBRL } from '../utils/currencyFormatter';
 
 interface MultiSupplierMatrixModalProps {
   isOpen: boolean;
@@ -237,14 +238,14 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-emerald-950">
-                  Economia Potencial nos Itens: R$ {potentialSavings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({savingsPercent.toFixed(1)}%)
+                  Economia Potencial nos Itens: {formatBRL(potentialSavings)} ({savingsPercent.toFixed(1)}%)
                 </span>
                 <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-semibold text-[10px]">
                   {activeStrategyResult.supplierCount} {activeStrategyResult.supplierCount === 1 ? 'Fornecedor' : 'Fornecedores'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-600 mt-0.5">
-                Itens: R$ {optimizedTotalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} + Frete Estimado: R$ {activeStrategyResult.estimatedFreight.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} = <strong>Custo Total: R$ {activeStrategyResult.landedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                Itens: {formatBRL(optimizedTotalCost)} + Frete Estimado: {formatBRL(activeStrategyResult.estimatedFreight)} = <strong>Custo Total: {formatBRL(activeStrategyResult.landedTotal)}</strong>
               </p>
             </div>
           </div>
@@ -340,10 +341,10 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
 
                         <div className="flex items-baseline justify-between pt-1">
                           <span className="text-sm font-bold font-mono text-slate-900">
-                            R$ {offer.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            {formatBRL(offer.costPrice)}
                           </span>
                           <span className="text-[10px] text-slate-500 font-mono">
-                            Total: R$ {(offer.costPrice * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            Total: {formatBRL(offer.costPrice * item.quantity)}
                           </span>
                         </div>
 

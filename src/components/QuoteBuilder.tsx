@@ -132,6 +132,7 @@ import { TargetPriceModal } from './TargetPriceModal';
 import { KitsModal } from './KitsModal';
 import { QuoteAuditModal, auditQuote } from './QuoteAuditModal';
 import { QuoteApprovalModal } from './QuoteApprovalModal';
+import { formatBRL } from '../utils/currencyFormatter';
 
 const BUILDER_LOSS_REASONS = [
   'Preço / Concorrente mais barato',
@@ -4215,7 +4216,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                               </div>
                               <div className="text-right shrink-0">
                                 <span className="text-xs font-bold text-emerald-700 font-mono block">
-                                  R$ {p.costPrice.toFixed(2)}
+                                  {formatBRL(p.costPrice)}
                                 </span>
                                 <span className="text-[10px] text-slate-400">Custo Ref.</span>
                               </div>
@@ -4904,10 +4905,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           return (
                             <div
                               className="text-[9.5px] font-mono font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap inline-flex items-center gap-1 shadow-2xs"
-                              title={`Atenção: Prejuízo neste item de R$ ${Math.abs(itemTotalProfit).toFixed(2)}`}
+                              title={`Atenção: Prejuízo neste item de ${formatBRL(Math.abs(itemTotalProfit))}`}
                             >
                               <span>🚨</span>
-                              <span>Prejuízo R$ {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              <span>Prejuízo {formatBRL(itemTotalProfit)}</span>
                             </div>
                           );
                         }
@@ -4916,10 +4917,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           return (
                             <div
                               className="text-[9.5px] font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap inline-flex items-center gap-1 shadow-2xs"
-                              title={`Margem líquida apertada: ${effectiveMargin.toFixed(1)}% | Lucro: R$ ${itemTotalProfit.toFixed(2)}`}
+                              title={`Margem líquida apertada: ${effectiveMargin.toFixed(1)}% | Lucro: ${formatBRL(itemTotalProfit)}`}
                             >
                               <span>⚠️</span>
-                              <span>{effectiveMargin.toFixed(0)}% (+R$ {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })})</span>
+                              <span>{effectiveMargin.toFixed(0)}% (+{formatBRL(itemTotalProfit)})</span>
                             </div>
                           );
                         }
@@ -4931,10 +4932,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                 ? 'text-emerald-800 bg-emerald-50 border-emerald-200' 
                                 : 'text-teal-800 bg-teal-50/70 border-teal-200'
                             }`}
-                            title={`Margem Líquida Saudável: ${effectiveMargin.toFixed(1)}% | Lucro Total: R$ ${itemTotalProfit.toFixed(2)}`}
+                            title={`Margem Líquida Saudável: ${effectiveMargin.toFixed(1)}% | Lucro Total: ${formatBRL(itemTotalProfit)}`}
                           >
                             <span>{isMargemExcelente ? '✨' : '✓'}</span>
-                            <span>+R$ {itemTotalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({effectiveMargin.toFixed(0)}%)</span>
+                            <span>+{formatBRL(itemTotalProfit)} ({effectiveMargin.toFixed(0)}%)</span>
                           </div>
                         );
                       })()}
@@ -5231,10 +5232,10 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                   });
                                 }}
                                 className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-md transition cursor-pointer whitespace-nowrap shrink-0"
-                                title={`Última venda/cotação para ${currentQuote.clientCompany} (${lastPrice.quoteCode}). Clique para aplicar R$ ${lastPrice.lastUnitPrice.toFixed(2)}.`}
+                                title={`Última venda/cotação para ${currentQuote.clientCompany} (${lastPrice.quoteCode}). Clique para aplicar ${formatBRL(lastPrice.lastUnitPrice)}.`}
                               >
                                 <History className="w-2.5 h-2.5 text-amber-600" />
-                                <span>Último p/ cliente: R$ {lastPrice.lastUnitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({daysText})</span>
+                                <span>Último p/ cliente: {formatBRL(lastPrice.lastUnitPrice)} ({daysText})</span>
                               </button>
                             );
                           })()}

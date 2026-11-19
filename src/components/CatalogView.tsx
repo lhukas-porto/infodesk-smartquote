@@ -67,6 +67,7 @@ import {
   normalizeSearchText,
   resolveProductModelAndPartNumber
 } from '../utils/aiEmailParser';
+import { formatBRL } from '../utils/currencyFormatter';
 
 function formatDateTimePtBr(isoString?: string | null): string {
   if (!isoString) return '';
@@ -608,7 +609,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           ? `Código/SKU idêntico (${existingDuplicate.sku})`
           : `Nome idêntico ("${existingDuplicate.name}")`;
 
-      alert(`⚠️ Produto já cadastrado no sistema!\n\nFoi identificado um produto idêntico com base no critério: ${matchReason}.\n\n• Produto: ${existingDuplicate.name}\n• Categoria: ${existingDuplicate.category}\n• SKU: ${existingDuplicate.sku || 'N/A'}\n• Custo Atual: R$ ${existingDuplicate.costPrice.toFixed(2)}\n\nPara evitar itens duplicados no catálogo, localize o produto existente na lista e clique no lápis de edição para atualizar.`);
+      alert(`⚠️ Produto já cadastrado no sistema!\n\nFoi identificado um produto idêntico com base no critério: ${matchReason}.\n\n• Produto: ${existingDuplicate.name}\n• Categoria: ${existingDuplicate.category}\n• SKU: ${existingDuplicate.sku || 'N/A'}\n• Custo Atual: ${formatBRL(existingDuplicate.costPrice)}\n\nPara evitar itens duplicados no catálogo, localize o produto existente na lista e clique no lápis de edição para atualizar.`);
       return;
     }
 
@@ -1098,7 +1099,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                         return (
                           <div className="flex flex-col items-end">
                             <span className="font-mono font-bold text-slate-900 text-xs">
-                              R$ {p.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {formatBRL(p.costPrice)}
                             </span>
                             {p.dollarPrice !== undefined && p.dollarPrice > 0 && (
                               <span 

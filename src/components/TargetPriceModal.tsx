@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Target, X, Check, AlertTriangle, TrendingUp, DollarSign, Calculator } from 'lucide-react';
 import { QuoteItem } from '../types';
 import { calculateMarkupForTargetTotal } from '../services/pricingEngine';
+import { formatBRL } from '../utils/currencyFormatter';
 
 interface TargetPriceModalProps {
   isOpen: boolean;
@@ -143,13 +144,13 @@ export const TargetPriceModal: React.FC<TargetPriceModalProps> = ({
                   <div>
                     <span className="text-slate-500 block text-[11px]">Total Projetado:</span>
                     <span className="font-bold text-slate-800 font-mono">
-                      {calculation.calculatedTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      {formatBRL(calculation.calculatedTotal)}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[11px]">Diferença Arredondamento:</span>
                     <span className={`font-bold font-mono ${calculation.difference === 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                      {calculation.difference > 0 ? `+ R$ ${calculation.difference.toFixed(2)}` : calculation.difference < 0 ? `- R$ ${Math.abs(calculation.difference).toFixed(2)}` : 'R$ 0,00 (Exato)'}
+                      {calculation.difference > 0 ? `+ ${formatBRL(calculation.difference)}` : calculation.difference < 0 ? `- ${formatBRL(Math.abs(calculation.difference))}` : 'R$ 0,00 (Exato)'}
                     </span>
                   </div>
                 </div>
@@ -158,7 +159,7 @@ export const TargetPriceModal: React.FC<TargetPriceModalProps> = ({
                   <div>
                     <span className="text-slate-500 block text-[11px]">Lucro Líquido Real:</span>
                     <span className={`font-bold font-mono ${calculation.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                      {calculation.netProfit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      {formatBRL(calculation.netProfit)}
                     </span>
                   </div>
                   <div>
@@ -193,7 +194,7 @@ export const TargetPriceModal: React.FC<TargetPriceModalProps> = ({
                   </span>
                   <span className="text-[11px] opacity-90 block mt-0.5">
                     {calculation.profitMarginPercent >= 14
-                      ? `Esta cotação garante R$ ${calculation.netProfit.toFixed(2)} de lucro líquido já descontando fretes e impostos.`
+                      ? `Esta cotação garante ${formatBRL(calculation.netProfit)} de lucro líquido já descontando fretes e impostos.`
                       : 'O valor negociado reduz o lucro líquido da operação. Certifique-se com a gerência antes de aprovar.'}
                   </span>
                 </div>

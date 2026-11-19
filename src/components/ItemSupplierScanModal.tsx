@@ -18,6 +18,7 @@ import { getProducts } from '../utils/storage';
 import { findRecentPriceByPartNumber, CachedPriceOffer } from '../services/priceCacheService';
 import { normalizeSearchText } from '../utils/aiEmailParser';
 import { openInNewWindow, sanitizeExternalUrl } from '../utils/windowUtils';
+import { formatBRL } from '../utils/currencyFormatter';
 
 interface ItemSupplierScanModalProps {
   isOpen: boolean;
@@ -213,13 +214,13 @@ export const ItemSupplierScanModal: React.FC<ItemSupplierScanModalProps> = ({
             <div>
               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Custo Atual na Cotação</span>
               <span className="text-base font-bold font-mono text-slate-900">
-                R$ {(item.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatBRL(item.costPrice || 0)}
               </span>
             </div>
             <div className="text-right">
               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Preço de Venda Atual</span>
               <span className="text-base font-bold font-mono text-sky-700">
-                R$ {(item.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatBRL(item.unitPrice || 0)}
               </span>
             </div>
           </div>
@@ -273,7 +274,7 @@ export const ItemSupplierScanModal: React.FC<ItemSupplierScanModalProps> = ({
                           {isCheaper && (
                             <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 flex items-center gap-0.5">
                               <TrendingDown className="w-3 h-3 text-emerald-600" />
-                              Economia de R$ {savings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              Economia de {formatBRL(savings)}
                             </span>
                           )}
                         </div>
@@ -299,7 +300,7 @@ export const ItemSupplierScanModal: React.FC<ItemSupplierScanModalProps> = ({
 
                     <div className="text-right">
                       <span className="text-xs font-extrabold font-mono text-slate-900 block">
-                        R$ {opt.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatBRL(opt.costPrice)}
                       </span>
                     </div>
                   </div>
@@ -388,7 +389,7 @@ export const ItemSupplierScanModal: React.FC<ItemSupplierScanModalProps> = ({
           >
             <Check className="w-4 h-4" />
             <span>
-              Aplicar Custo R$ {selectedOption ? selectedOption.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}
+              Aplicar Custo {formatBRL(selectedOption ? selectedOption.costPrice : 0)}
             </span>
           </button>
         </div>

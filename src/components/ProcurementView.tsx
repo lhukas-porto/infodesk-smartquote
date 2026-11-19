@@ -68,6 +68,7 @@ import {
   isProcurementItemDeleted
 } from '../utils/storage';
 import { normalizeSearchText, extractStoreNameFromUrl, formatCompanyPrefix } from '../utils/aiEmailParser';
+import { formatBRL, formatCurrencyPtBr } from '../utils/currencyFormatter';
 import { generateUuid, sanitizeToUuid, isValidUuid } from '../utils/uuidUtils';
 import { fetchDirectPurchasesFromSupabase } from '../services/supabase';
 import { autoFindProductImage } from '../services/imageSearchService';
@@ -2411,11 +2412,11 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
             <div className="mt-1">
               {stats.saving >= 0 ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md font-mono text-[10px] font-bold shadow-2xs">
-                  <span>✓ Economia de R$ {stats.saving.toFixed(2)} (Lucro Extra)</span>
+                  <span>✓ Economia de {formatBRL(stats.saving)} (Lucro Extra)</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-md font-mono text-[10px] font-bold">
-                  <span>R$ {Math.abs(stats.saving).toFixed(2)} acima do cotado</span>
+                  <span>{formatBRL(Math.abs(stats.saving))} acima do cotado</span>
                 </span>
               )}
             </div>
@@ -2694,7 +2695,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                           Último Unitário
                         </span>
                         <span className="text-base font-mono font-bold text-emerald-700">
-                          R$ {item.lastUnitCost.toFixed(2)}
+                          {formatBRL(item.lastUnitCost)}
                         </span>
                         <span className="text-[10px] text-slate-400 block">
                           /{item.unit}
@@ -2712,7 +2713,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       </span>
                       {item.purchaseCount > 1 && item.minUnitCost !== item.maxUnitCost && (
                         <span className="text-[11px] font-mono text-slate-500">
-                          Faixa: R$ {item.minUnitCost.toFixed(2)} ~ R$ {item.maxUnitCost.toFixed(2)}
+                          Faixa: {formatBRL(item.minUnitCost)} ~ {formatBRL(item.maxUnitCost)}
                         </span>
                       )}
                       {item.lastPurchasedAt && (
@@ -3560,7 +3561,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     />
                     <div className="mt-1 flex items-center justify-between text-[10px]">
                       <span className="text-slate-400">
-                        Cotado: R$ {activeItemForPurchase.quotedCostPrice.toFixed(2)}
+                        Cotado: {formatBRL(activeItemForPurchase.quotedCostPrice)}
                       </span>
                       {purchaseForm.actualUnitCost > 0 && (
                         <span className={`font-semibold font-mono ${
@@ -3569,8 +3570,8 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                             : 'text-amber-600'
                         }`}>
                           {purchaseForm.actualUnitCost <= activeItemForPurchase.quotedCostPrice
-                            ? `(-R$ ${(activeItemForPurchase.quotedCostPrice - purchaseForm.actualUnitCost).toFixed(2)})`
-                            : `(+R$ ${(purchaseForm.actualUnitCost - activeItemForPurchase.quotedCostPrice).toFixed(2)})`}
+                            ? `(-${formatBRL(activeItemForPurchase.quotedCostPrice - purchaseForm.actualUnitCost)})`
+                            : `(+${formatBRL(purchaseForm.actualUnitCost - activeItemForPurchase.quotedCostPrice)})`}
                         </span>
                       )}
                     </div>
@@ -3591,7 +3592,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm font-mono font-bold text-slate-900"
                     />
                     <span className="text-[10px] text-slate-400 mt-1 block">
-                      Cotado Total: R$ {(activeItemForPurchase.quotedCostPrice * activeItemForPurchase.quantity).toFixed(2)}
+                      Cotado Total: {formatBRL(activeItemForPurchase.quotedCostPrice * activeItemForPurchase.quantity)}
                     </span>
                   </div>
 
@@ -3628,7 +3629,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       {purchaseForm.shippingPending 
                         ? '⚠️ Frete a definir' 
                         : (activeItemForPurchase?.quotedShippingCost !== undefined && activeItemForPurchase.quotedShippingCost > 0)
-                          ? `Orçado na proposta: R$ ${activeItemForPurchase.quotedShippingCost.toFixed(2)}`
+                          ? `Orçado na proposta: ${formatBRL(activeItemForPurchase.quotedShippingCost)}`
                           : 'Frete pago da remessa'}
                     </span>
                   </div>
@@ -3727,21 +3728,21 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     <div className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs">
                       <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Custo + Frete</span>
                       <span className="text-xs sm:text-sm font-mono font-bold text-slate-800 block mt-0.5">
-                        R$ {(custo + frete).toFixed(2)}
+                        {formatBRL(custo + frete)}
                       </span>
                     </div>
 
                     <div className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs">
                       <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Imposto ({purchaseForm.taxPercent}%)</span>
                       <span className="text-xs sm:text-sm font-mono font-bold text-amber-700 block mt-0.5">
-                        R$ {imposto.toFixed(2)}
+                        {formatBRL(imposto)}
                       </span>
                     </div>
 
                     <div className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs">
                       <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Lucro Líquido</span>
                       <span className={`text-xs sm:text-sm font-mono font-bold block mt-0.5 ${lucro >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                        {lucro >= 0 ? `+R$ ${lucro.toFixed(2)}` : `-R$ ${Math.abs(lucro).toFixed(2)}`}
+                        {lucro >= 0 ? `+${formatBRL(lucro)}` : formatBRL(lucro)}
                       </span>
                     </div>
 
@@ -4093,7 +4094,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       Custo Total: R$ {custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                     <span className={`font-mono font-bold ${lucro >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                      Lucro Previsto: R$ {lucro.toFixed(2)} ({roi.toFixed(1)}% ROI)
+                      Lucro Previsto: {formatBRL(lucro)} ({roi.toFixed(1)}% ROI)
                     </span>
                   </div>
                 );
@@ -4354,7 +4355,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 <div className="min-w-0 flex-1">
                   <h4 className="text-xs font-bold text-slate-900 line-clamp-1">{itemToSplit.name}</h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Total: <strong className="text-slate-900 font-mono font-bold">{itemToSplit.quantity} {itemToSplit.unit}</strong> • Cotado: <strong className="text-slate-800 font-mono">R$ {itemToSplit.quotedUnitPrice.toFixed(2)}/un</strong>
+                    Total: <strong className="text-slate-900 font-mono font-bold">{itemToSplit.quantity} {itemToSplit.unit}</strong> • Cotado: <strong className="text-slate-800 font-mono">{formatBRL(itemToSplit.quotedUnitPrice)}/un</strong>
                   </p>
                   <p className="text-[10px] text-slate-400">
                     Cliente: {itemToSplit.clientCompany} • Origem: {itemToSplit.quoteCode}
@@ -4411,7 +4412,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     </div>
                   </div>
                   <span className="text-[10px] text-indigo-600/80 block pt-0.5">
-                    Cotado a R$ {(splitFirstPartQty > 0 ? splitCustomPart1Cost / splitFirstPartQty : 0).toFixed(2)}/un
+                    Cotado a {formatBRL(splitFirstPartQty > 0 ? splitCustomPart1Cost / splitFirstPartQty : 0)}/un
                   </span>
                 </div>
 
@@ -4433,7 +4434,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     </div>
                   </div>
                   <span className="text-[10px] text-amber-600/80 block pt-0.5">
-                    Cotado a R$ {((itemToSplit.quantity - splitFirstPartQty) > 0 ? splitCustomPart2Cost / (itemToSplit.quantity - splitFirstPartQty) : 0).toFixed(2)}/un
+                    Cotado a {formatBRL(((itemToSplit.quantity - splitFirstPartQty) > 0 ? splitCustomPart2Cost / (itemToSplit.quantity - splitFirstPartQty) : 0))}/un
                   </span>
                 </div>
               </div>
@@ -4749,11 +4750,11 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
               {/* Custo Total e Valor Unitário Real */}
               <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 font-medium font-mono text-[11px]">
-                Total: <strong>R$ {costPaid.toFixed(2)}</strong>
+                Total: <strong>{formatBRL(costPaid)}</strong>
               </span>
 
               <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200 font-medium font-mono text-[11px]">
-                Unitário: <strong>R$ {unitPaid.toFixed(2)}/un</strong>
+                Unitário: <strong>{formatBRL(unitPaid)}/un</strong>
               </span>
 
               {/* Termômetro Real vs Orçado */}
@@ -4766,14 +4767,14 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                         ? 'bg-rose-50 text-rose-800 border-rose-300'
                         : 'bg-slate-100 text-slate-700 border-slate-200'
                   }`}
-                  title={`Orçado: R$ ${quotedTotalCost.toFixed(2)} | Real: R$ ${costPaid.toFixed(2)}`}
+                  title={`Orçado: ${formatBRL(quotedTotalCost)} | Real: ${formatBRL(costPaid)}`}
                 >
                   <TrendingUp className="w-3 h-3" />
                   <span>
                     {costDelta > 0.01 
-                      ? `+R$ ${costDelta.toFixed(2)} economia` 
+                      ? `+${formatBRL(costDelta)} economia` 
                       : costDelta < -0.01 
-                        ? `-R$ ${Math.abs(costDelta).toFixed(2)} sobrecusto`
+                        ? `-${formatBRL(Math.abs(costDelta))} sobrecusto`
                         : 'No orçado'}
                   </span>
                 </span>
@@ -4783,11 +4784,11 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               {item.shippingPending ? (
                 <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-300 font-bold font-mono text-[11px]" title="Valor do frete pendente de confirmação">
                   <Truck className="w-3 h-3 text-amber-600" />
-                  Frete: {fretePaid > 0 ? `R$ ${fretePaid.toFixed(2)} (Pendente)` : 'Pendente'}
+                  Frete: {fretePaid > 0 ? `${formatBRL(fretePaid)} (Pendente)` : 'Pendente'}
                 </span>
               ) : fretePaid > 0 ? (
                 <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 font-medium font-mono text-[11px]">
-                  Frete: R$ {fretePaid.toFixed(2)}
+                  Frete: {formatBRL(fretePaid)}
                 </span>
               ) : null}
 
@@ -4807,11 +4808,11 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
           ) : (
             <div className="text-xs text-slate-400 flex items-center gap-1.5 flex-wrap">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Cotado a <strong>R$ {item.quotedCostPrice.toFixed(2)}/un</strong> • Aguardando aquisição</span>
+              <span>Cotado a <strong>{formatBRL(item.quotedCostPrice)}/un</strong> • Aguardando aquisição</span>
               {fretePaid > 0 && (
                 <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded-lg border border-amber-200 font-bold font-mono text-[11px]" title="Frete orçado na proposta comercial">
                   <Truck className="w-3 h-3 text-amber-600" />
-                  Frete orçado: R$ {fretePaid.toFixed(2)}
+                  Frete orçado: {formatBRL(fretePaid)}
                 </span>
               )}
               {(item.approvedAt || (item as any).createdAt) && (

@@ -68,6 +68,7 @@ import { auditProductOfferCompatibility } from '../utils/specAuditService';
 import { reportError } from '../services/errorReporter';
 import { getAllRegisteredSuppliers } from '../services/supplierLearningService';
 import { getScannerTieredMarkup } from '../services/pricingEngine';
+import { formatBRL } from '../utils/currencyFormatter';
 
 export interface CatalogMatchInfo {
   product: Product;
@@ -1711,7 +1712,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       const name = (it.name || '').trim();
       const pn = it.partNumber ? ` [Ref: ${it.partNumber.trim()}]` : '';
       const qty = (it.quantity && it.quantity > 0) ? ` | Qtd: ${it.quantity} ${it.unit || 'Un.'}` : '';
-      const cost = (it.costPrice && it.costPrice > 0) ? ` | Custo: R$ ${it.costPrice.toFixed(2)}` : '';
+      const cost = (it.costPrice && it.costPrice > 0) ? ` | Custo: ${formatBRL(it.costPrice)}` : '';
       return `${name}${pn}${qty}${cost}`.trim();
     }).filter(Boolean);
 
@@ -1789,7 +1790,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-amber-800 mt-0.5">
-                  <strong>R$ {recentCachedPrice.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong> via <span className="font-semibold">{recentCachedPrice.supplier}</span> — economize tempo e reaproveite o custo já negociado.
+                  <strong>{formatBRL(recentCachedPrice.costPrice)}</strong> via <span className="font-semibold">{recentCachedPrice.supplier}</span> — economize tempo e reaproveite o custo já negociado.
                 </p>
               </div>
             </div>
@@ -2068,7 +2069,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                     <DollarSign className="w-4 h-4 text-amber-600" />
                   </div>
                   <div className="text-xl font-bold text-slate-900 font-mono">
-                    R$ {totalEstimatedCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatBRL(totalEstimatedCost)}
                   </div>
                   <span className="text-[10px] text-slate-400 font-medium">Base de aquisição aproximada</span>
                 </div>
@@ -2079,7 +2080,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                     <TrendingUp className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div className="text-xl font-bold text-emerald-600 font-mono">
-                    R$ {totalProjectedSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatBRL(totalProjectedSales)}
                   </div>
                   <span className="text-[10px] text-emerald-600/80 font-medium font-mono">Margem média: {currentActiveMargin}%</span>
                 </div>
@@ -2475,13 +2476,13 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                                         <div className="flex items-baseline gap-2 mt-1 text-[11px]">
                                           <span className="text-slate-500 font-medium">Custo:</span>
                                           <strong className="text-slate-900 font-mono">
-                                            R$ {(existingInCatalog.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            {formatBRL(existingInCatalog.costPrice || 0)}
                                           </strong>
                                           {existingInCatalog.sellingPrice && existingInCatalog.sellingPrice > 0 && (
                                             <>
                                               <span className="text-slate-400">·</span>
                                               <span className="text-sky-700 font-bold font-mono">
-                                                Venda: R$ {existingInCatalog.sellingPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                Venda: {formatBRL(existingInCatalog.sellingPrice)}
                                               </span>
                                             </>
                                           )}
@@ -2519,14 +2520,14 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                                           <span className="text-slate-500 font-medium">Custo:</span>
                                           <strong className="text-slate-900 font-mono">
                                             {prod.costPrice
-                                              ? `R$ ${prod.costPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                                              ? formatBRL(prod.costPrice)
                                               : 'Sob Consulta'}
                                           </strong>
                                           {prod.suggestedPrice && prod.suggestedPrice > 0 && (
                                             <>
                                               <span className="text-slate-400">·</span>
                                               <span className="text-emerald-700 font-bold font-mono">
-                                                Sugerido: R$ {prod.suggestedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                Sugerido: {formatBRL(prod.suggestedPrice)}
                                               </span>
                                             </>
                                           )}
@@ -2550,14 +2551,14 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           <div className="flex items-baseline gap-2 flex-wrap">
                             <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight">
                               {prod.suggestedPrice && prod.suggestedPrice > 0
-                                ? `R$ ${prod.suggestedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                ? formatBRL(prod.suggestedPrice)
                                 : (prod.costPrice && prod.costPrice > 0
-                                  ? `R$ ${calculateCommercialUnitPrice(prod.costPrice, effectiveShipping, targetMarginPercent !== null ? targetMarginPercent : getScannerTieredMarkup(prod.costPrice), effectiveTax).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  ? formatBRL(calculateCommercialUnitPrice(prod.costPrice, effectiveShipping, targetMarginPercent !== null ? targetMarginPercent : getScannerTieredMarkup(prod.costPrice), effectiveTax))
                                   : 'Sob Consulta')}
                             </span>
                             {Boolean(prod.costPrice && prod.costPrice > 0) && (
                               <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-lg shadow-2xs">
-                                Custo: R$ {prod.costPrice!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Lucro: {targetMarginPercent !== null ? targetMarginPercent : getScannerTieredMarkup(prod.costPrice!)}%
+                                Custo: {formatBRL(prod.costPrice)} · Lucro: {targetMarginPercent !== null ? targetMarginPercent : getScannerTieredMarkup(prod.costPrice!)}%
                               </span>
                             )}
                           </div>

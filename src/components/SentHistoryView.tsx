@@ -40,6 +40,7 @@ import { searchQuotesInSupabase } from '../services/supabase';
 import { QuoteApprovalModal } from './QuoteApprovalModal';
 import { WhatsAppQuoteModal, WhatsAppMessageMode } from './WhatsAppQuoteModal';
 import { QuoteRecoveryModal } from './QuoteRecoveryModal';
+import { formatBRL } from '../utils/currencyFormatter';
 
 interface SentHistoryViewProps {
   quotes: Quote[];
@@ -593,7 +594,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
               Volume em Propostas
             </span>
             <span className="text-sm font-bold font-mono text-slate-900">
-              R$ {stageStats.all.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {formatBRL(stageStats.all.totalAmount)}
             </span>
           </div>
         </div>
@@ -645,7 +646,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-xs font-bold text-slate-900 mt-1">
-                R$ {card.amount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                {formatBRL(card.amount)}
               </div>
             </button>
           );
@@ -906,7 +907,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                 Você possui {stageStats.draft.count} cotação(ões) em rascunho aguardando envio
               </p>
               <p className="text-[11px] text-amber-700">
-                Total estimado em elaboração: R$ {stageStats.draft.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                Total estimado em elaboração: {formatBRL(stageStats.draft.totalAmount)}
               </p>
             </div>
           </div>
@@ -1118,7 +1119,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                   {/* Direita: Valores Financeiros & Margem com destaque executivo */}
                   <div className="sm:text-right shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 flex sm:flex-col justify-between sm:justify-start items-baseline sm:items-end">
                     <span className="text-base sm:text-lg font-mono font-bold text-emerald-700 block">
-                      R$ {q.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatBRL(q.totalAmount)}
                     </span>
                     <div className="flex items-center sm:justify-end gap-2 text-[11px] text-slate-500 mt-0.5">
                       <span>{q.items?.length || 0} produto(s)</span>
@@ -1353,7 +1354,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
               <div className="flex justify-between">
                 <span>Total:</span>
                 <span className="font-mono font-bold text-emerald-700">
-                  R$ {quoteToDelete.totalAmount?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatBRL(quoteToDelete.totalAmount)}
                 </span>
               </div>
             </div>

@@ -16,6 +16,7 @@ import {
   Building2
 } from 'lucide-react';
 import { Quote, Product, ClientCompany } from '../types';
+import { formatBRL } from '../utils/currencyFormatter';
 
 interface GlobalCommandBarModalProps {
   isOpen: boolean;
@@ -184,7 +185,7 @@ export const GlobalCommandBarModal: React.FC<GlobalCommandBarModalProps> = ({
           id: `quote-${quote.id}`,
           type: 'quote',
           title: `${quote.code || 'Proposta'} • ${quote.clientCompany || 'Cliente sem nome'}${ocBadge}`,
-          subtitle: `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} • ${quote.contactPerson ? `${quote.contactPerson} • ` : ''}${quote.items?.length || 0} item(ns)`,
+          subtitle: `${formatBRL(total)} • ${quote.contactPerson ? `${quote.contactPerson} • ` : ''}${quote.items?.length || 0} item(ns)`,
           badge: quote.clientOrderNumber ? 'Proposta / OC' : 'Proposta',
           icon: <FileText className="w-4 h-4 text-sky-600" />,
           action: () => {
@@ -206,7 +207,7 @@ export const GlobalCommandBarModal: React.FC<GlobalCommandBarModalProps> = ({
           id: `prod-${prod.id}`,
           type: 'product',
           title: prod.name,
-          subtitle: `${prod.partNumber ? `SKU: ${prod.partNumber} • ` : ''}${prod.category || 'Geral'} • Custo: R$ ${(prod.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          subtitle: `${prod.partNumber ? `SKU: ${prod.partNumber} • ` : ''}${prod.category || 'Geral'} • Custo: ${formatBRL(prod.costPrice || 0)}`,
           badge: 'Produto',
           icon: <Package className="w-4 h-4 text-emerald-600" />,
           action: () => {
