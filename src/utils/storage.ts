@@ -15,6 +15,8 @@ import {
   deleteCategoryFromSupabase,
   deleteUnitFromSupabase,
   deletePaymentMethodFromSupabase,
+  deleteQuoteFromSupabase,
+  deleteIncomingEmailFromSupabase,
   uploadBase64ImageToSupabaseStorage
 } from '../services/supabase';
 
@@ -3422,6 +3424,105 @@ export const restoreRecoveredQuote = (quoteToRestore: Quote): Quote => {
     return quoteToRestore;
   }
 };
+
+export const permanentlyDeleteRecoveredCandidate = async (candidate: RecoveredCandidate): Promise<void> => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const q = candidate.quote;
+    const code = q?.code || candidate.code;
+    const id = q?.id || candidate.id;
+
+    // 1. Garante que fique gravado no tombstone permanente para evitar ressurreição por sincronização
+    if (code) recordDeletedQuoteCode(code, id);
+    if (id) recordDeletedQuoteId(id);
+
+    // 2. Remove de infodesk_quotes
+    const rawQuotes = localStorage.getItem(QUOTES_KEY);
+    if (rawQuotes) {
+      try {
+        const list: Quote[] = JSON.parse(rawQuotes);
+        if (Array.isArray(list)) {
+          const next = list.filter(item => {
+            if (id && item.id === id) return false;
+            if (code && item.code && item.code.trim().toUpperCase() === code.trim().toUpperCase()) return false;
+            return true;
+          });
+          localStorage.setItem(QUOTES_KEY, JSON.stringify(next));
+        }
+      } catch {}
+    }
+
+    // 3. Remove chaves de backup infodesk_backup_items_*
+    if (code) {
+      const cleanCode = code.trim();
+      localStorage.removeItem(`infodesk_backup_items_${cleanCode}`);
+      localStorage.removeItem(`infodesk_backup_items_${cleanCode.replace(/\s+/g, '_')}`);
+      localStorage.removeItem(`infodesk_backup_items_${cleanCode.replace(/[\s\-_]/g, '')}`);
+    }
+    if (id) {
+      localStorage.removeItem(`infodesk_backup_items_${id}`);
+    }
+    if (candidate.id && candidate.id.startsWith('backup-')) {
+      const rawKey = candidate.id.replace('backup-', '');
+      localStorage.removeItem(`infodesk_backup_items_${rawKey}`);
+    }
+
+    // Varredura rigorosa para eliminar qualquer fragmento de backup local com o código ou ID
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('infodesk_backup_items_')) {
+        const keySuffix = k.replace('infodesk_backup_items_', '');
+        if ((code && keySuffix.toLowerCase().includes(code.trim().toLowerCase())) || 
+            (id && keySuffix.includes(id))) {
+          localStorage.removeItem(k);
+        }
+      }
+    }
+
+    // 4. Se for o rascunho em edição ativa no editor, limpa
+    try {
+      const rawDraft = localStorage.getItem(CURRENT_DRAFT_QUOTE_KEY);
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft);
+        if ((id && draft?.id === id) || (code && draft?.code === code)) {
+          localStorage.removeItem(CURRENT_DRAFT_QUOTE_KEY);
+        }
+      }
+    } catch {}
+
+    // 5. Se for proveniente de solicitações/análises de entrada, purga do armazenamento local
+    try {
+      const rawAnalyses = localStorage.getItem(MANUAL_ANALYSES_KEY);
+      if (rawAnalyses) {
+        const analyses = JSON.parse(rawAnalyses);
+        if (Array.isArray(analyses)) {
+          const next = analyses.filter((a: any) => {
+            if (a.id === id || a.id === candidate.id) return false;
+            if (code && a.quoteCode === code) return false;
+            return true;
+          });
+          localStorage.setItem(MANUAL_ANALYSES_KEY, JSON.stringify(next));
+        }
+      }
+    } catch {}
+
+    // 6. Exclui de vez do banco de dados oficial (Supabase)
+    await deleteQuoteFromSupabase(code, id);
+    if (candidate.source === 'manual_analyses' || (id && id.startsWith('recov-analysis-'))) {
+      await deleteIncomingEmailFromSupabase(id);
+    }
+  } catch (err) {
+    console.error('Erro ao excluir permanentemente o candidato da lixeira:', err);
+    throw err;
+  }
+};
+
+export const permanentlyDeleteAllRecoveredCandidates = async (candidates: RecoveredCandidate[]): Promise<void> => {
+  for (const cand of candidates) {
+    await permanentlyDeleteRecoveredCandidate(cand);
+  }
+};
+
 
 
 

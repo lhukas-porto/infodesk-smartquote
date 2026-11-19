@@ -4,17 +4,18 @@ import {
   Search,
   Check,
   X,
-  FileText,
-  Clock,
   Layers,
-  Building,
-  Sparkles,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 import { Quote } from '../types';
 import {
   scanAndRecoverDeletedQuotes,
   restoreRecoveredQuote,
+  permanentlyDeleteRecoveredCandidate,
+  permanentlyDeleteAllRecoveredCandidates,
   RecoveredCandidate
 } from '../utils/storage';
 
@@ -28,20 +29,29 @@ export interface QuoteRecoveryModalProps {
 export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
   isOpen,
   onClose,
-  initialSearchTerm = 'WWF',
+  initialSearchTerm = '',
   onRestoreQuote
 }) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [candidates, setCandidates] = useState<RecoveredCandidate[]>([]);
   const [restoredId, setRestoredId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [showConfirmDeleteAll, setShowConfirmDeleteAll] = useState(false);
+  const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      const termToScan = searchTerm || initialSearchTerm;
-      const found = scanAndRecoverDeletedQuotes(termToScan);
+      setSearchTerm(initialSearchTerm || '');
+      const found = scanAndRecoverDeletedQuotes(initialSearchTerm || '');
       setCandidates(found);
+      setRestoredId(null);
+      setConfirmDeleteId(null);
+      setShowConfirmDeleteAll(false);
+      setActionSuccessMessage(null);
     }
-  }, [isOpen]);
+  }, [isOpen, initialSearchTerm]);
 
   const handleSearch = () => {
     const found = scanAndRecoverDeletedQuotes(searchTerm);
@@ -51,7 +61,37 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
   const handleRestore = (candidate: RecoveredCandidate) => {
     const restored = restoreRecoveredQuote(candidate.quote);
     setRestoredId(candidate.id);
+    setActionSuccessMessage(`Proposta "${candidate.code || candidate.clientCompany}" restaurada com sucesso para os Rascunhos!`);
     onRestoreQuote(restored);
+  };
+
+  const handlePermanentDelete = async (candidate: RecoveredCandidate) => {
+    try {
+      setIsDeletingId(candidate.id);
+      await permanentlyDeleteRecoveredCandidate(candidate);
+      setCandidates(prev => prev.filter(c => c.id !== candidate.id));
+      setConfirmDeleteId(null);
+      setActionSuccessMessage(`Proposta "${candidate.code || candidate.clientCompany}" excluída permanentemente do banco de dados e do dispositivo.`);
+    } catch (err) {
+      console.error('Falha ao excluir permanentemente:', err);
+    } finally {
+      setIsDeletingId(null);
+    }
+  };
+
+  const handlePermanentDeleteAll = async () => {
+    if (candidates.length === 0) return;
+    try {
+      setIsDeletingAll(true);
+      await permanentlyDeleteAllRecoveredCandidates(candidates);
+      setCandidates([]);
+      setShowConfirmDeleteAll(false);
+      setActionSuccessMessage('Todos os orçamentos da lixeira foram excluídos de vez do banco de dados.');
+    } catch (err) {
+      console.error('Falha ao esvaziar lixeira:', err);
+    } finally {
+      setIsDeletingAll(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -62,7 +102,7 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
         {/* Cabeçalho */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-200 text-sky-600 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
               <RotateCcw className="w-5 h-5" />
             </div>
             <div>
@@ -70,12 +110,12 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
                 <h2 className="text-sm sm:text-base font-bold text-slate-900">
                   Central de Recuperação de Propostas e Rascunhos
                 </h2>
-                <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold rounded-lg uppercase tracking-wider">
                   Lixeira de Segurança
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Vasculha backups de itens, memórias locais e solicitações de entrada para recuperar propostas excluídas.
+                Restaure orçamentos para os rascunhos ou exclua permanentemente do banco de dados.
               </p>
             </div>
           </div>
@@ -89,11 +129,82 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
           </button>
         </div>
 
+        {/* Feedback de Ação */}
+        {actionSuccessMessage && (
+          <div className="mx-4 mt-3 px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center gap-2 font-medium">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{actionSuccessMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionSuccessMessage(null)}
+              className="text-emerald-600 hover:text-emerald-900 text-xs font-bold"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
+
         {/* Barra de Pesquisa */}
         <div className="p-4 border-b border-slate-100 bg-white">
-          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-            Filtrar por Nome do Cliente, Código ou Produto
-          </label>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700">
+              Filtrar por Nome do Cliente, Código ou Produto
+            </label>
+            {candidates.length > 0 && !showConfirmDeleteAll && (
+              <button
+                type="button"
+                onClick={() => setShowConfirmDeleteAll(true)}
+                className="text-xs font-bold text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-1 cursor-pointer transition"
+                title="Excluir permanentemente todos os orçamentos listados do banco de dados"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Esvaziar Lixeira Permanentemente</span>
+              </button>
+            )}
+          </div>
+
+          {/* Aviso de Confirmação para Esvaziar Toda a Lixeira */}
+          {showConfirmDeleteAll && (
+            <div className="mb-3 p-3 bg-rose-50 border border-rose-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-in fade-in">
+              <div className="flex items-center gap-2 text-rose-800 text-xs font-medium">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>
+                  Tem certeza? Isso vai excluir <strong>definitivamente</strong> todos os itens da lixeira do banco de dados e do dispositivo sem possibilidade de volta.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmDeleteAll(false)}
+                  disabled={isDeletingAll}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-lg transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePermanentDeleteAll}
+                  disabled={isDeletingAll}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  {isDeletingAll ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Excluindo do Banco...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Sim, Excluir Tudo de Vez</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -115,6 +226,19 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
             >
               Pesquisar
             </button>
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setCandidates(scanAndRecoverDeletedQuotes(''));
+                }}
+                className="h-10 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer shrink-0"
+                title="Limpar filtro e listar todos os itens da lixeira"
+              >
+                Limpar
+              </button>
+            )}
           </div>
         </div>
 
@@ -126,36 +250,47 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
                 <AlertCircle className="w-6 h-6" />
               </div>
               <h3 className="text-sm font-bold text-slate-800">
-                Nenhum rascunho ou backup encontrado para "{searchTerm}"
+                {searchTerm
+                  ? `Nenhum rascunho ou backup encontrado para "${searchTerm}"`
+                  : 'Nenhum orçamento encontrado na lixeira de segurança'}
               </h3>
               <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                Tente limpar o termo de busca para listar todos os backups disponíveis ou pesquise pelo nome de um produto da cotação.
+                {searchTerm
+                  ? 'Tente limpar o termo de busca para listar todos os backups disponíveis.'
+                  : 'A lixeira está vazia. Qualquer orçamento excluído futuramente aparecerá aqui para recuperação ou descarte.'}
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setCandidates(scanAndRecoverDeletedQuotes(''));
-                }}
-                className="mt-3 text-xs font-bold text-sky-600 hover:text-sky-800 underline cursor-pointer"
-              >
-                Listar todos os backups locais disponíveis
-              </button>
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setCandidates(scanAndRecoverDeletedQuotes(''));
+                  }}
+                  className="mt-3 text-xs font-bold text-sky-600 hover:text-sky-800 underline cursor-pointer"
+                >
+                  Listar todos os orçamentos da lixeira
+                </button>
+              )}
             </div>
           ) : (
             candidates.map((cand) => {
               const isRestored = restoredId === cand.id;
+              const isConfirmingDelete = confirmDeleteId === cand.id;
+              const isDeletingThis = isDeletingId === cand.id;
+
               return (
                 <div
                   key={cand.id}
                   className={`p-3.5 rounded-2xl border transition ${
                     isRestored
                       ? 'bg-emerald-50/70 border-emerald-300'
+                      : isConfirmingDelete
+                      ? 'bg-rose-50/60 border-rose-300'
                       : 'bg-white border-slate-200 hover:border-sky-300 hover:shadow-xs'
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1 min-w-0">
+                    <div className="space-y-1 min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-xs font-bold px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-lg">
                           {cand.code}
@@ -196,22 +331,59 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
                       )}
                     </div>
 
-                    <div className="shrink-0 flex items-center justify-end">
+                    {/* Ações: Restaurar ou Excluir Permanentemente */}
+                    <div className="shrink-0 flex items-center justify-end gap-2">
                       {isRestored ? (
                         <div className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-xl">
                           <Check className="w-4 h-4" />
                           <span>Restaurado!</span>
                         </div>
+                      ) : isConfirmingDelete ? (
+                        <div className="flex items-center gap-1.5 bg-rose-100 p-1 rounded-xl animate-in fade-in">
+                          <button
+                            type="button"
+                            onClick={() => handlePermanentDelete(cand)}
+                            disabled={isDeletingThis}
+                            className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-xs transition cursor-pointer flex items-center gap-1"
+                            title="Confirmar exclusão definitiva do banco"
+                          >
+                            {isDeletingThis ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                            <span>Excluir de Vez</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            disabled={isDeletingThis}
+                            className="px-2 py-1.5 bg-white hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleRestore(cand)}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer active:scale-95"
-                          title="Restaurar este orçamento para os Rascunhos ativos"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Restaurar Rascunho</span>
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleRestore(cand)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer active:scale-95"
+                            title="Restaurar este orçamento para os Rascunhos ativos"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Restaurar Rascunho</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(cand.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-2 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 font-bold text-xs rounded-xl transition cursor-pointer"
+                            title="Excluir permanentemente do banco de dados (Supabase) e do dispositivo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Excluir do Banco</span>
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -224,7 +396,7 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
         {/* Rodapé */}
         <div className="p-3.5 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between text-xs text-slate-500">
           <span>
-            {candidates.length} proposta(s) encontrada(s) no cofre local de segurança
+            {candidates.length} orçamento(s) na lixeira
           </span>
           <button
             type="button"

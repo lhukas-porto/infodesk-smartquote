@@ -151,7 +151,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
   const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
   const [cloudFeedbackMsg, setCloudFeedbackMsg] = useState<string | null>(null);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState<boolean>(false);
-  const [recoveryInitialSearch, setRecoveryInitialSearch] = useState<string>('WWF');
+  const [recoveryInitialSearch, setRecoveryInitialSearch] = useState<string>('');
 
   const [specificDate, setSpecificDate] = useState<string>(() => {
     const d = new Date();
@@ -868,7 +868,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
           <button
             type="button"
             onClick={() => {
-              setRecoveryInitialSearch(searchTerm || 'WWF');
+              setRecoveryInitialSearch('');
               setIsRecoveryModalOpen(true);
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/90 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer shrink-0"
@@ -972,7 +972,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                setRecoveryInitialSearch(searchTerm || 'WWF');
+                setRecoveryInitialSearch('');
                 setIsRecoveryModalOpen(true);
               }}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 rounded-xl transition cursor-pointer"

@@ -17,6 +17,7 @@ if (typeof globalThis.localStorage === 'undefined' || !globalThis.localStorage.k
 import { 
   scanAndRecoverDeletedQuotes, 
   restoreRecoveredQuote, 
+  permanentlyDeleteRecoveredCandidate,
   saveQuoteItemsBackup,
   recordDeletedQuoteCode,
   recordDeletedQuoteId,
@@ -97,5 +98,40 @@ describe('Central de Recuperação de Propostas e Rascunhos Apagados', () => {
     const allQuotes = getQuotes();
     const foundInList = allQuotes.some(q => q.code === restored.code || q.id === restored.id);
     assert.ok(foundInList, 'Orçamento restaurado deve estar presente em getQuotes()');
+  });
+
+  test('Deve excluir permanentemente candidato da lixeira (banco e armazenamento local)', async () => {
+    const fakeQuote: Quote = {
+      id: 'quote-to-purge-999',
+      code: 'SC 008888',
+      clientCompany: 'Empresa Para Excluir de Vez',
+      contactPerson: 'Fiscal de Teste',
+      date: '2026-11-19',
+      status: 'draft',
+      items: [
+        {
+          id: 'item-purge-1',
+          itemNumber: 1,
+          name: 'Item Temporário Teste Purge',
+          quantity: 1,
+          unitPrice: 100,
+          totalPrice: 100
+        }
+      ],
+      totalAmount: 100
+    } as Quote;
+
+    saveQuoteItemsBackup(fakeQuote.code, fakeQuote.items);
+    saveQuoteItemsBackup(fakeQuote.id, fakeQuote.items);
+
+    const candidatesBefore = scanAndRecoverDeletedQuotes('Purge');
+    const target = candidatesBefore.find(c => c.code.includes('008888') || c.clientCompany.includes('Para Excluir'));
+    assert.ok(target, 'Candidato deve existir na lixeira antes de excluir');
+
+    await permanentlyDeleteRecoveredCandidate(target);
+
+    const candidatesAfter = scanAndRecoverDeletedQuotes('Purge');
+    const stillExists = candidatesAfter.some(c => c.code.includes('008888') || c.id === target.id);
+    assert.strictEqual(stillExists, false, 'Candidato não deve mais existir na lixeira após exclusão permanente');
   });
 });
