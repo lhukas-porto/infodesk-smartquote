@@ -18,7 +18,8 @@ import {
   isExactProductUrl,
   resolveProductModelAndPartNumber,
   sanitizeSupplierName,
-  normalizeToOfficialCategory
+  normalizeToOfficialCategory,
+  KNOWN_BRANDS
 } from '../utils/aiEmailParser';
 import { extractImageFromStoreUrl, extractDirectImageFromUrlPatterns } from './imageExtractorService';
 import { DiscoveredProduct } from '../types';
@@ -3435,18 +3436,21 @@ DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
   6. NUNCA insira prefixos de categoria incorretos! Analise a real natureza física do produto.
   7. NUNCA inclua lixo de OCR ou caracteres truncados (ex: ".º", "1 .º", "º", "* —", frases cortadas como "pacote com").
   8. NUNCA use vírgulas (,) no nome. ATENÇÃO: PRESERVE E USE ACENTUAÇÃO CORRETA DA LÍNGUA PORTUGUESA E CEDILHAS (ex: "Lápis", "Memória", "Válvula", "Eletrônico", "Conexão", "Redutora", "Elétrica", "Proteção"). É ESTRITAMENTE PROIBIDO remover acentos ou retornar nomes desacentuados!
-- "brand": Marca comercial oficial ou "Genérica" se sem marca visível.
-- "manufacturer": Razão social oficial do fabricante ou "Fabricante Nacional / Importado".
+- "brand": Marca comercial oficial do produto.
+  🚨 REGRA MANDATÓRIA DE ENRIQUECIMENTO DE MARCA (REGRA DO LUCAS):
+  Se o item recebido tiver especificação curta ou resumida (ex: 'VENTILADOR DE PE 220V', 'CHALEIRA ELETRICA 1,7 LT', 'PANELA PRESSAO 4,5 L', 'BICICLETA MTB ARO 26'), É TERMINANTEMENTE PROIBIDO rotular a marca como "Genérica" ou deixar vazia!
+  Você DEVE identificar ou atribuir a marca líder comercial do mercado brasileiro que é referência daquele segmento (ex: Mondial, Britânia, Ventisol, Cadence, Tramontina, Caloi, etc.). Se as fotos anexadas exibirem um produto real de marca, adote a marca exata visível.
+- "manufacturer": Razão social oficial do fabricante ou distribuidor oficial (ex: "Mondial Eletrodomésticos S.A.", "Britânia Eletrônicos S.A.", "Ventisol Indústria", "Tramontina S.A. Cutelaria", "Caloi Norte S.A.").
 - "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA - REGRA INFODESK PARA QUALQUER PRODUTO):
-  1. Extraia o MODELO REAL que consta na descrição ou oferta (ex: 'Lark M2S', 'Galaxy S25 FE 5G', 'M170', 'K120', 'CBS250-24T-4G', 'Fury Beast', 'GSR 120-LI', 'Acti9', 'PowerLite E20').
-  2. PROIBIÇÃO ABSOLUTA: NUNCA coloque medidas, capacidades ou voltagens (ex: '256G', '220V', '305M', '32A', '12V', '75G') como o nome do modelo!
-  3. Se não constar explicitamente no texto, identifique nas especificações do fabricante e retorne o modelo comercial de verdade.
+  1. Extraia o MODELO REAL comercial do fabricante (ex: 'Maxi Power 40cm', 'Pratic Inox 1,7L', 'Master Grill Inox', 'Vancouver 4,5L', 'Two Niner 21V', 'Lark M2S', 'Galaxy S25 FE 5G', 'M170', 'K120', 'CBS250-24T-4G', 'Fury Beast', 'GSR 120-LI', 'Acti9', 'PowerLite E20').
+  2. PROIBIÇÃO ABSOLUTA: NUNCA coloque medidas, capacidades ou voltagens isoladas (ex: '256G', '220V', '305M', '32A', '12V', '75G') como o nome do modelo!
+  3. Se não constar explicitamente no texto, deduza o modelo comercial líder correspondente e retorne o modelo de verdade.
 - "partNumber": PART NUMBER / CÓDIGO DE REFERÊNCIA OFICIAL (PRIORIDADE MÁXIMA):
-  1. Extraia o Part Number, Código de Referência, SKU ou P/N se constar na descrição (ex: 'P/N: 920-009599', 'Ref: 23400198', 'Cód: 15724', 'SNV2S/1000G', 'SM-S721B').
+  1. Extraia o Part Number, Código de Referência, SKU ou P/N se constar na descrição ou catálogo do fabricante (ex: 'NV-15', 'V-40-B', 'CE-06', 'S-07', '20582/720', '920-009599', '23400198', 'SNV2S/1000G').
   2. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D', 'E20'), use a sigla/código de referência do modelo como Part Number (ex: 'M2S', 'P2723D', 'E20') para servir como código oficial da peça.
-  3. NUNCA invente códigos artificiais com medidas ou capacidades (ex: PROIBIDO gerar 'SAM-256G', 'LOG-220V', 'COR-305M').
+  3. PROIBIÇÃO ABSOLUTA: NUNCA invente códigos sintéticos por junção de palavras (ex: É EXPRESSAMENTE PROIBIDO gerar 'VENTPE220V', 'CH1700', 'PANPRESS45', 'SAM-256G').
 - "category": Categoria ideal do produto escolhida OBRIGATORIAMENTE entre as 15 categorias oficiais do sistema: ["Informática, Hardware & Periféricos", "Redes, Conectividade & Telefonia", "Áudio, Vídeo & Apresentação", "Monitores, Displays & TVs", "Energia, Nobreaks & Baterias", "Impressão & Automação Comercial", "Papelaria, Artes & Material de Escritório", "Elétrica & Iluminação Tática", "Construção, Acabamento & Marcenaria", "Ferramentas & Instrumentos de Medição", "Equipamentos & Insumos Industriais", "Eletrodomésticos, Refrigeração & Copa", "Limpeza, Higiene & Descartáveis", "Pet Shop & Veterinária", "Diversos & Sazonais"]. ATENÇÃO: Ventosas, fixadores, buchas e suportes pertencem a "Construção, Acabamento & Marcenaria" ou "Equipamentos & Insumos Industriais", NUNCA a "Monitores, Displays & TVs"! NUNCA crie categorias fora desta lista.
-- "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40, 8544.42.00, 8517.62.59).
+- "ncm": NCM oficial formatado com 8 dígitos (ex: 8716.80.00, 8471.70.40, 8544.42.00, 8517.62.59, 8414.51.10, 8516.79.90, 8516.60.00).
 - "ean": Código de barras EAN se conhecido, senão "".
 - "weight": Peso aproximado da embalagem para frete em kg (ex: "14.500 kg", "0.200 kg").
 - "dimensions": Dimensões aproximadas no formato "CxLxA cm" (ex: "80cm x 60cm x 90cm").
@@ -3455,8 +3459,8 @@ DIRETRIZES DE FORMATAÇÃO PARA CADA PRODUTO:
 - "suggestedPrice": Preço sugerido de mercado em Reais (número decimal, ex: 349.90).
 - "costPrice": Preço de custo estimado de atacado/distribuidor em Reais (número decimal, ex: 220.00).
 - "confidence": "Alta"
-- "description": Mantenha SEMPRE string vazia "". É expressamente PROIBIDO gerar parágrafos ou redações comerciais longas para garantir resposta ultrarrápida da IA.
-- "specifications": Array opcional de 2 a 4 especificações técnicas essenciais no formato [{"label": "Nome", "value": "Valor"}].
+- "description": DESCRIÇÃO TÉCNICA EXECUTIVA E COMERCIAL COMPLETA DO PRODUTO (1 a 2 frases objetivas e profissionais com as principais características de potência em Watts, voltagem/tensão, capacidade, materiais e recursos de segurança/uso para integrar a proposta comercial corporativa).
+- "specifications": Array de 4 a 6 especificações técnicas essenciais no formato [{"label": "Característica", "value": "Valor"}] (ex: Potência, Tensão, Capacidade, Material, Velocidades, Dimensões).
 - "supplier": Nome do fornecedor ou marketplace de referência no Brasil (ex: "Mercado Livre", "Amazon Brasil", "Kalunga", "Leroy Merlin", "Fabricante").
 - "buyUrl": URL direta ou de busca no marketplace brasileiro para compra do item.
 - "images": Array com URLs adicionais se conhecidas.
@@ -3477,13 +3481,13 @@ Retorne ESTRITAMENTE um JSON no formato:
       "visualSearchQueryAlt": "Termo alternativo de alta precisão",
       "visualSearchQueryEn": "Termo em inglês para imagens de fabricantes",
       "negativeKeywords": ["palavra1", "palavra2"],
-      "standardizedName": "Nome Comercial Padronizado do Produto",
-      "brand": "Marca Oficial ou Genérica",
+      "standardizedName": "Nome Comercial Padronizado e Completo (ex: Ventilador de Coluna Mondial Maxi Power 40cm 220V Preto)",
+      "brand": "Marca Oficial (ex: Mondial, Tramontina, Britânia)",
       "manufacturer": "Fabricante Oficial",
-      "model": "",
-      "partNumber": "",
+      "model": "Modelo Comercial Real (ex: Maxi Power 40cm)",
+      "partNumber": "Part Number Oficial do Fabricante (ex: NV-15, V-40-B, CE-06)",
       "category": "Uma das categorias oficiais",
-      "ncm": "9504.90.90",
+      "ncm": "8414.51.10",
       "ean": "",
       "weight": "2.500 kg",
       "dimensions": "66cm x 66cm x 8cm",
@@ -3494,9 +3498,10 @@ Retorne ESTRITAMENTE um JSON no formato:
       "confidence": "Alta - Identificado com Fotos e Descrição",
       "supplier": "Mercado Livre",
       "buyUrl": "",
-      "description": "",
+      "description": "Descrição técnica executiva completa com potência, tensão e especificações",
       "specifications": [
-        { "label": "Característica", "value": "Valor" }
+        { "label": "Potência", "value": "140W" },
+        { "label": "Tensão", "value": "220V" }
       ],
       "images": []
     }
@@ -4056,31 +4061,32 @@ Na ferramenta de busca web, utilize prioritariamente o termo acima para encontra
     : '';
 
   const prompt = `Você é o Especialista em Catalogação Técnica e Menor Preço da Infodesk Store e SmartQuote Brasil.
-Com base no produto EXATO já identificado na FASE 1:
-- Produto Canônico: "${discovered.standardizedName}"
-- Marca: "${discovered.brand || ''}" | Modelo: "${discovered.model || ''}" | Part Number: "${discovered.partNumber || ''}"
+Com base no produto identificado na FASE 1:
+- Denominação Inicial: "${discovered.standardizedName}"
+- Marca Inicial: "${discovered.brand || ''}" | Modelo Inicial: "${discovered.model || ''}" | Part Number Inicial: "${discovered.partNumber || ''}"
 - Categoria: "${discovered.category || 'Suprimentos'}"
 ${visualPromptSection}
+${shoppingPromptHint}
 
 SUA MISSÃO NA FASE 2:
 1. ENRIQUECIMENTO TÉCNICO E COMERCIAL COMPLETO (METODOLOGIA INFODESK STORE):
-   - "standardizedName": Nome comercial em português do Brasil, PRESERVANDO estritamente a acentuação correta e cedilhas (ex: "Lápis", "Memória", "Válvula", "Elétrica", "Proteção"). NUNCA desacentue termos em português!
-   - "description": Mantenha string vazia "". É expressamente PROIBIDO gerar parágrafos ou redações comerciais longas para garantir resposta ultrarrápida da IA.
-   - "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA - REGRA INFODESK):
-     1. Extraia prioritariamente o MODELO que já consta na descrição ou título do produto (ex: 'Lark M2S', 'P2723D', 'PowerLite E20', 'MX Keys Mini', 'C9200L').
-     2. Se não constar no título, extraia das ofertas e páginas encontradas no mercado brasileiro.
-     3. Se o item for totalmente genérico, utilize a referência comercial do produto.
-   - "partNumber": PART NUMBER / CÓDIGO DE REFERÊNCIA OFICIAL (PRIORIDADE MÁXIMA):
-     1. Extraia o Part Number ou Código de Referência oficial das ofertas ou da descrição (ex: '920-009599', '23400198', 'SNV2S/1000G').
-     2. Se houver um modelo comercial claro (ex: 'Lark M2S', 'P2723D', 'E20'), use a sigla do modelo como Part Number (ex: 'M2S', 'P2723D', 'E20') para servir como código oficial da peça.
-     3. O produto NUNCA deve ficar sem código de identificação.
-   - "specifications": Array com 4 a 8 especificações técnicas reais do produto no formato [{"label": "...", "value": "..."}] ou objeto {"Característica": "Valor"}.
-   - "ncm": Código NCM oficial de 8 dígitos para classificação fiscal brasileira (ex: 8443.32.31, 8542.31.90, 8471.70.40, 8544.42.00).
+   - "standardizedName": TÍTULO COMERCIAL PADRONIZADO E COMPLETO no formato [Tipo do Produto] [Marca/Fabricante] [Linha/Modelo] [Especificação Chave].
+     🚨 REGRA DE ENRIQUECIMENTO MANDATÓRIA (REGRA DO LUCAS):
+     Se a denominação da Fase 1 for resumida, genérica ou incompleta (ex: "Ventilador de Coluna 220V", "Chaleira Elétrica 1.7L", "Panela de Pressão 4.5L") e você localizou a oferta/marca real no mercado brasileiro (ex: Mondial, Britânia, Ventisol, Cadence, Tramontina), VOCÊ DEVE ENRIQUECER O NOME com todos os dados comerciais oficiais (ex: "Ventilador de Coluna Mondial Maxi Power 40cm 220V Preto", "Chaleira Elétrica Mondial Pratic Inox 1,7L 220V"). PRESERVE rigorosamente acentuação da língua portuguesa e cedilhas!
+   - "brand": Marca comercial oficial encontrada na oferta real (ex: Mondial, Britânia, Ventisol, Tramontina, Caloi). É PROIBIDO manter "Genérica" se uma marca comercial foi identificada na oferta!
+   - "manufacturer": Razão social oficial do fabricante (ex: "Mondial Eletrodomésticos S.A.", "Britânia Eletrônicos S.A.", "Tramontina S.A.").
+   - "description": DESCRIÇÃO TÉCNICA EXECUTIVA E COMERCIAL COMPLETA DO PRODUTO (1 a 2 frases objetivas e profissionais com as principais características de potência em Watts, voltagem/tensão, capacidade, materiais de acabamento e recursos de segurança/uso para integrar a proposta comercial corporativa).
+   - "model": MODELO REAL DO PRODUTO (PRIORIDADE MÁXIMA):
+     Extraia o modelo comercial de verdade da oferta (ex: 'Maxi Power 40cm', 'Pratic Inox 1,7L', 'Master Grill Inox', 'Vancouver 4,5L', 'Lark M2S', 'P2723D', 'PowerLite E20').
+   - "partNumber": PART NUMBER / CÓDIGO DE REFERÊNCIA OFICIAL DO FABRICANTE:
+     Extraia o código oficial da peça da oferta ou do fabricante (ex: 'NV-15', 'V-40-B', 'CE-06', 'S-07', '20582/720', '920-009599'). NUNCA invente códigos sintéticos por junção de palavras (como 'VENTPE220V' ou 'CH1700').
+   - "specifications": Array com 4 a 8 especificações técnicas reais do produto no formato [{"label": "Característica", "value": "Valor"}] (ex: Potência, Tensão, Capacidade, Material, Velocidades, Dimensões).
+   - "ncm": Código NCM oficial de 8 dígitos para classificação fiscal brasileira (ex: 8414.51.10, 8516.79.90, 8471.70.40, 8544.42.00).
    - "ean": Código de barras EAN/GTIN de 13 dígitos numéricos se conhecido no Brasil, senão string vazia "".
-   - "weight": Peso aproximado da embalagem para frete em kg (ex: "1.800 kg", "0.080 kg", "0.150 kg").
-   - "dimensions": Dimensões aproximadas da embalagem em cm no formato "CxLxA cm" (ex: "25cm x 20cm x 18cm").
-   - "costPrice": Preço de custo médio estimado de atacado/distribuidor em Reais (número decimal, ex: 85.00).
-   - "suggestedPrice": Preço de venda sugerido de varejo em Reais (número decimal, ex: 129.90).
+   - "weight": Peso aproximado da embalagem para frete em kg (ex: "4.500 kg", "1.800 kg", "0.200 kg").
+   - "dimensions": Dimensões aproximadas da embalagem em cm no formato "CxLxA cm" (ex: "50cm x 50cm x 140cm").
+   - "costPrice": Preço de custo médio apurado na oferta/distribuidor em Reais (número decimal).
+   - "suggestedPrice": Preço de venda sugerido de varejo em Reais (número decimal).
 
 2. MENOR PREÇO REAL ATIVO NO BRASIL (PRIORIDADE: LINKS PATROCINADOS E GOOGLE SHOPPING):
    - PESQUISE OBRIGATORIAMENTE NA WEB DO GOOGLE BRASIL:
@@ -4100,11 +4106,12 @@ SUA MISSÃO NA FASE 2:
 
 Retorne ESTRITAMENTE um objeto JSON válido:
 {
-  "standardizedName": "${discovered.standardizedName}",
-  "brand": "${discovered.brand || ''}",
-  "model": "${discovered.model || ''}",
-  "partNumber": "${discovered.partNumber || ''}",
-  "ncm": "${(discovered as any).ncm || '8471.70.40'}",
+  "standardizedName": "Nome comercial completo enriquecido com marca e modelo",
+  "brand": "Marca oficial identificada",
+  "manufacturer": "Fabricante oficial",
+  "model": "Modelo comercial real",
+  "partNumber": "Código do fabricante ou part number oficial",
+  "ncm": "${(discovered as any).ncm || '8414.51.10'}",
   "ean": "${(discovered as any).ean || ''}",
   "bestPrice": ${(discovered as any).costPrice && (discovered as any).costPrice !== 65 && (discovered as any).costPrice !== 55 ? (discovered as any).costPrice : 0.0},
   "costPrice": ${(discovered as any).costPrice && (discovered as any).costPrice !== 65 && (discovered as any).costPrice !== 55 ? (discovered as any).costPrice : 0.0},
@@ -4117,9 +4124,10 @@ Retorne ESTRITAMENTE um objeto JSON válido:
   "imageUrl": "",
   "weight": "${(discovered as any).weight || '0.200 kg'}",
   "dimensions": "${(discovered as any).dimensions || '15cm x 10cm x 5cm'}",
-  "description": "",
+  "description": "Descrição técnica executiva completa com potência, tensão e acabamento",
   "specifications": [
-    { "label": "Característica", "value": "Valor" }
+    { "label": "Potência", "value": "140W" },
+    { "label": "Tensão", "value": "220V" }
   ]
 }`;
 
@@ -4193,10 +4201,33 @@ Retorne ESTRITAMENTE um objeto JSON válido:
         observation = 'Item cadastrado com especificações completas (cotação sob consulta).';
       }
 
+      // 1. Enriquecimento de Marca e Fabricante caso a Fase 1 tenha sido genérica
+      let resolvedBrand = (parsed.brand || discovered.brand || '').trim();
+      let resolvedManufacturer = (parsed.manufacturer || (discovered as any).manufacturer || resolvedBrand || 'Fabricante Nacional / Importado').trim();
+      
+      const isOriginalBrandGeneric = !discovered.brand || discovered.brand === 'Genérica' || discovered.brand === 'Generica';
+      if (isOriginalBrandGeneric || !resolvedBrand || resolvedBrand === 'Genérica' || resolvedBrand === 'Generica') {
+        const titleToScan = [shoppingBestOffer?.title, parsed.standardizedName].filter(Boolean).join(' ');
+        const matchedBrand = KNOWN_BRANDS.find(b => new RegExp(`\\b${b}\\b`, 'i').test(titleToScan));
+        if (matchedBrand) {
+          resolvedBrand = matchedBrand.charAt(0).toUpperCase() + matchedBrand.slice(1).toLowerCase();
+          resolvedManufacturer = `${resolvedBrand} Eletrodomésticos / Fabricante Oficial`;
+        }
+      }
+
+      // 2. Enriquecimento do nome comercial se o inicial era vago e encontramos uma oferta real
+      let rawCandidateName = (parsed.standardizedName || '').trim();
+      if ((!rawCandidateName || rawCandidateName.length < 5 || isOriginalBrandGeneric) && shoppingBestOffer?.title) {
+        rawCandidateName = shoppingBestOffer.title;
+      }
+      if (!rawCandidateName) {
+        rawCandidateName = discovered.standardizedName;
+      }
+
       const stdName = sanitizeStandardizedProductName(
-        parsed.standardizedName || discovered.standardizedName,
+        rawCandidateName,
         discovered.category,
-        parsed.brand || discovered.brand
+        resolvedBrand
       );
 
       const preservedPhoto = (discovered as any).customerPhotoUrl || (discovered as any).imageUrl || (discovered as any).images?.[0] || '';
@@ -4272,14 +4303,14 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       const finalWeight = normalizeWeight(parsed.weight || (discovered as any).weight);
       const finalDims = normalizeDimensions(parsed.dimensions || (discovered as any).dimensions);
       const finalEan = (parsed.ean || (discovered as any).ean || '').trim();
-      const finalManufacturer = (parsed.manufacturer || (discovered as any).manufacturer || parsed.brand || discovered.brand || 'Fabricante Nacional / Importado').trim();
+      const finalManufacturer = (resolvedManufacturer || parsed.manufacturer || (discovered as any).manufacturer || resolvedBrand || 'Fabricante Nacional / Importado').trim();
       const finalCostPrice = typeof parsed.costPrice === 'number' && parsed.costPrice > 0 ? parsed.costPrice : ((discovered as any).costPrice || bestPrice);
       const finalSuggested = typeof parsed.suggestedPrice === 'number' && parsed.suggestedPrice > 0 ? parsed.suggestedPrice : (discovered as any).suggestedPrice;
 
       const resolvedCode = resolveProductModelAndPartNumber({
         nameOrQuery: stdName || originalQuery,
         description: finalDescription,
-        brand: parsed.brand || discovered.brand,
+        brand: resolvedBrand || parsed.brand || discovered.brand,
         category: scannedCategory,
         scannerModel: parsed.model || discovered.model,
         scannerPartNumber: parsed.partNumber || discovered.partNumber,
@@ -4290,7 +4321,7 @@ Retorne ESTRITAMENTE um objeto JSON válido:
         id: `scan-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         originalQuery,
         standardizedName: stdName,
-        brand: parsed.brand || discovered.brand,
+        brand: resolvedBrand || parsed.brand || discovered.brand,
         modelOrCode: resolvedCode.model,
         partNumber: resolvedCode.partNumber,
         ncm: scannedNcm,
@@ -4323,7 +4354,19 @@ Retorne ESTRITAMENTE um objeto JSON válido:
 
   // Se os modelos de IA falharam (ex: cota esgotada 429), mas o Google Shopping apurou oferta real:
   if (shoppingBestOffer) {
-    const stdName = discovered.standardizedName.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    let candidateBrand = (discovered.brand || '').trim();
+    if (!candidateBrand || candidateBrand === 'Genérica' || candidateBrand === 'Generica') {
+      const matchedBrand = KNOWN_BRANDS.find(b => new RegExp(`\\b${b}\\b`, 'i').test(shoppingBestOffer.title));
+      if (matchedBrand) {
+        candidateBrand = matchedBrand.charAt(0).toUpperCase() + matchedBrand.slice(1).toLowerCase();
+      }
+    }
+
+    const candidateName = (!discovered.brand || discovered.brand === 'Genérica' || discovered.brand === 'Generica') && shoppingBestOffer.title
+      ? shoppingBestOffer.title
+      : discovered.standardizedName;
+
+    const stdName = sanitizeStandardizedProductName(candidateName, discovered.category, candidateBrand);
     const preservedPhoto = (discovered as any).customerPhotoUrl || (discovered as any).imageUrl || (discovered as any).images?.[0] || '';
     const finalImg = preservedPhoto || shoppingBestOffer.thumbnail || resolveImageForDescription(stdName);
     const scannedNcm = cleanNcmCode((discovered as any).ncm);
@@ -4332,18 +4375,22 @@ Retorne ESTRITAMENTE um objeto JSON válido:
     const resolvedCode = resolveProductModelAndPartNumber({
       nameOrQuery: stdName || originalQuery,
       description: (discovered as any).description,
-      brand: discovered.brand,
+      brand: candidateBrand || discovered.brand,
       category: scannedCategory,
       scannerModel: (discovered as any).model,
       scannerPartNumber: discovered.partNumber,
       scannerOffers: googleShoppingResult.offers
     });
 
+    const fallbackManufacturer = candidateBrand && candidateBrand !== 'Genérica'
+      ? `${candidateBrand} Eletrodomésticos / Fabricante Oficial`
+      : ((discovered as any).manufacturer || 'Fabricante Nacional / Importado');
+
     return {
       id: `scan-shop-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       originalQuery,
       standardizedName: stdName,
-      brand: discovered.brand,
+      brand: candidateBrand || discovered.brand,
       modelOrCode: resolvedCode.model,
       partNumber: resolvedCode.partNumber,
       ncm: scannedNcm,
@@ -4357,14 +4404,14 @@ Retorne ESTRITAMENTE um objeto JSON válido:
       buyUrl: shoppingBestOffer.link,
       imageUrl: finalImg,
       rating: 4.8,
-      description: (discovered as any).description || '',
+      description: sanitizeProductDescription((discovered as any).description || '', stdName),
       specifications: normalizeSpecifications((discovered as any).specifications),
       weight: normalizeWeight((discovered as any).weight),
       dimensions: normalizeDimensions((discovered as any).dimensions),
       suggestedPrice: (discovered as any).suggestedPrice || Number((shoppingBestOffer.price * (1 + (getSettings().defaultMarkupPercent ?? 23.5) / 100)).toFixed(2)),
       costPrice: shoppingBestOffer.price,
       ean: (discovered as any).ean || '',
-      manufacturer: (discovered as any).manufacturer || discovered.brand || 'Fabricante Nacional / Importado',
+      manufacturer: fallbackManufacturer,
       quantity: discovered.quantity || 1,
       unit: discovered.unit || 'Un.',
       allOffers: googleShoppingResult.offers

@@ -37,7 +37,7 @@ export function isMeasurementOrSpecToken(token: string): boolean {
 }
 
 // Marcas comuns conhecidas para ancoragem de modelo
-const KNOWN_BRANDS = [
+export const KNOWN_BRANDS = [
   'HOLLYLAND', 'LOGITECH', 'DELL', 'EPSON', 'FURUKAWA', 'KINGSTON', 'SAMSUNG', 'LG',
   'HP', 'LENOVO', 'ASUS', 'ACER', 'INTELBRAS', 'APC', 'SMS', 'ELGIN', 'PANTUM',
   'HONEYWELL', 'ZEBRA', 'ARGOX', 'BEMATECH', 'BOSCH', 'MAKITA', 'DEWALT', 'GEDORE',
@@ -45,8 +45,30 @@ const KNOWN_BRANDS = [
   'JBL', 'SONY', 'RODE', 'DJI', 'CANON', 'NIKON', 'SANDISK', 'SEAGATE', 'WESTERN DIGITAL', 'WD',
   'CORSAIR', 'HYPERX', 'REDDRAGON', 'MULTILASER', 'TP-LINK', 'D-LINK', 'UBIQUITI', 'MIKROTIK',
   'CISCO', 'FORTINET', 'HIKVISION', 'DAHUA', 'BRASTEMP', 'CONSUL', 'ELECTROLUX', 'VENAX',
+  'MONDIAL', 'BRITANIA', 'BRITÂNIA', 'VENTISOL', 'CADENCE', 'ARNO', 'PHILCO', 'WALITA',
+  'PHILIPS', 'MALLORY', 'CALOI', 'COLLI', 'HOUSTON', 'SOUTH', 'OGGI', 'CLOCK', 'ROCHEDO',
+  'PANEX', 'NIGRO', 'BRINOX', 'OXFORD', 'MIDEA', 'TAIFF', 'GAMA', 'BLACK+DECKER',
   '3M', 'STARRETT', 'VONDER', 'BELGO', 'NORDSON', 'VALCLEI', 'GENEBRE'
 ];
+
+/**
+ * Detecta se um código de peça/modelo é puramente sintético ou truncado de nomes genéricos
+ * (ex: VENTPE220V, CH1700, PANPRESS45, BICMTB26).
+ */
+export function isSyntheticOrVagueCode(code: string | undefined): boolean {
+  if (!code) return true;
+  const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (clean.length < 2) return true;
+  if (/^VENT(?:PE|COL|MESA)?(?:220V|110V|127V)?$/i.test(clean)) return true;
+  if (/^CH(?:AL)?(?:1700|1800|17L|18L)?$/i.test(clean)) return true;
+  if (/^PAN(?:PRESS)?(?:45L|4500)?$/i.test(clean)) return true;
+  if (/^BIC(?:MTB)?(?:26|29)?$/i.test(clean)) return true;
+  if (/(?:220V|110V|127V|BIVOLT)$/i.test(clean) && clean.length <= 11) {
+    const prefix = clean.replace(/(?:220V|110V|127V|BIVOLT)$/i, '');
+    if (/^(VENT|PE|MESA|CH|PAN|BIC|CABO|DISJ|LAMP)/i.test(prefix)) return true;
+  }
+  return false;
+}
 
 /**
  * 1. Extração da própria descrição / texto digitado ou fornecido.
@@ -268,47 +290,15 @@ export function resolveProductModelAndPartNumber(params: {
   // --------------------------------------------------------------------------
   // PRIORIDADE 2: Se o texto trouxe modelo heurístico OU o scanner achou
   // --------------------------------------------------------------------------
-  // 2.1. Se o scanner retornou part number real
   const cleanScannerPn = cleanAlphanumericCode(scannerPartNumber);
-  if (cleanScannerPn && cleanScannerPn.length >= 2) {
-    const finalModel = (scannerModel || '').trim() || fromText.model || cleanScannerPn;
-    return {
-      partNumber: cleanScannerPn,
-      model: finalModel,
-      sku: cleanScannerPn,
-      source: 'scanner_result'
-    };
-  }
+  const isPnSynthetic = isSyntheticOrVagueCode(cleanScannerPn);
 
-  // 2.2. Se o scanner retornou modelo real
-  const cleanScannerModel = (scannerModel || '').trim();
-  if (cleanScannerModel && cleanScannerModel.length >= 2) {
-    const pnFromModel = cleanAlphanumericCode(cleanScannerModel);
-    return {
-      partNumber: pnFromModel || cleanScannerModel,
-      model: cleanScannerModel,
-      sku: pnFromModel || cleanScannerModel,
-      source: 'scanner_result'
-    };
-  }
-
-  // 2.3. Se o texto da descrição achou um modelo heurístico real (ex: "Lark M2S", "P2723D")
-  if (fromText.model && fromText.model.length >= 2) {
-    const cleanPn = cleanAlphanumericCode(fromText.partNumber || fromText.model);
-    return {
-      partNumber: cleanPn || fromText.partNumber || fromText.model,
-      model: fromText.model,
-      sku: cleanPn || fromText.partNumber || fromText.model,
-      source: 'description_heuristic'
-    };
-  }
-
-  // 2.4. Se houver ofertas do Google Shopping, tentar extrair modelo dos títulos das ofertas
+  // 2.1. Se houver ofertas reais do Google Shopping / Scanner, tentar extrair modelo e PN autênticos
   if (Array.isArray(scannerOffers) && scannerOffers.length > 0) {
     for (const offer of scannerOffers) {
       if (!offer.title) continue;
       const fromOffer = extractModelAndPartNumberFromText(offer.title, brand);
-      if (fromOffer.model && fromOffer.model.length >= 2) {
+      if (fromOffer.model && fromOffer.model.length >= 2 && !isSyntheticOrVagueCode(fromOffer.partNumber || fromOffer.model)) {
         const cleanPn = cleanAlphanumericCode(fromOffer.partNumber || fromOffer.model);
         return {
           partNumber: cleanPn || fromOffer.model,
@@ -318,6 +308,40 @@ export function resolveProductModelAndPartNumber(params: {
         };
       }
     }
+  }
+
+  // 2.2. Se o scanner retornou part number real não-sintético
+  if (cleanScannerPn && cleanScannerPn.length >= 2 && !isPnSynthetic) {
+    const finalModel = (scannerModel || '').trim() || fromText.model || cleanScannerPn;
+    return {
+      partNumber: cleanScannerPn,
+      model: finalModel,
+      sku: cleanScannerPn,
+      source: 'scanner_result'
+    };
+  }
+
+  // 2.3. Se o scanner retornou modelo real não-sintético
+  const cleanScannerModel = (scannerModel || '').trim();
+  if (cleanScannerModel && cleanScannerModel.length >= 2 && !isSyntheticOrVagueCode(cleanScannerModel)) {
+    const pnFromModel = cleanAlphanumericCode(cleanScannerModel);
+    return {
+      partNumber: pnFromModel || cleanScannerModel,
+      model: cleanScannerModel,
+      sku: pnFromModel || cleanScannerModel,
+      source: 'scanner_result'
+    };
+  }
+
+  // 2.4. Se o texto da descrição achou um modelo heurístico real (ex: "Lark M2S", "P2723D")
+  if (fromText.model && fromText.model.length >= 2 && !isSyntheticOrVagueCode(fromText.model)) {
+    const cleanPn = cleanAlphanumericCode(fromText.partNumber || fromText.model);
+    return {
+      partNumber: cleanPn || fromText.partNumber || fromText.model,
+      model: fromText.model,
+      sku: cleanPn || fromText.partNumber || fromText.model,
+      source: 'description_heuristic'
+    };
   }
 
   // --------------------------------------------------------------------------

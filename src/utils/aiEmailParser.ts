@@ -1,7 +1,8 @@
 import { 
   resolveProductModelAndPartNumber, 
   extractModelAndPartNumberFromText, 
-  generateFallbackProductCode 
+  generateFallbackProductCode,
+  KNOWN_BRANDS 
 } from './productModelExtractor';
 import { getLearnedSupplierForUrl } from '../services/supplierLearningService';
 
@@ -3775,11 +3776,78 @@ export function generateProposalEmailHtml(
 }
 
 /**
- * Diretriz do Lucas: Ficha técnica e especificações sintéticas foram descontinuadas.
- * Retorna string vazia para manter o catálogo e orçamentos limpos.
+ * Constrói a descrição comercial executiva e técnica completa do produto (Padrão Infodesk Store).
+ * Unifica a redação comercial e especificações técnicas estruturadas (marca, modelo, P/N, NCM, voltagem, dimensões).
  */
-export function buildCompleteProductDescription(_item?: any): string {
-  return '';
+export function buildCompleteProductDescription(item?: {
+  description?: string;
+  specifications?: Array<{ label: string; value: string }> | Record<string, any>;
+  weight?: string;
+  dimensions?: string;
+  brand?: string;
+  model?: string;
+  modelOrCode?: string;
+  partNumber?: string;
+  ncm?: string;
+  category?: string;
+  supplier?: string;
+  observation?: string;
+}): string {
+  if (!item) return '';
+
+  const parts: string[] = [];
+
+  if (item.description && item.description.trim()) {
+    parts.push(item.description.trim());
+  }
+
+  const specsList: string[] = [];
+  if (Array.isArray(item.specifications)) {
+    item.specifications.forEach(s => {
+      if (s && s.label && s.value) {
+        specsList.push(`• ${s.label}: ${s.value}`);
+      }
+    });
+  } else if (item.specifications && typeof item.specifications === 'object') {
+    Object.entries(item.specifications).forEach(([k, v]) => {
+      if (k && v && typeof v === 'string') {
+        specsList.push(`• ${k}: ${v}`);
+      }
+    });
+  }
+
+  const brandVal = (item.brand || '').trim();
+  if (brandVal && brandVal !== 'Genérica' && brandVal !== 'Generica' && !specsList.some(s => s.toLowerCase().includes('marca') || s.toLowerCase().includes('fabricante'))) {
+    specsList.push(`• Marca: ${brandVal}`);
+  }
+
+  const modelVal = (item.model || item.modelOrCode || '').trim();
+  if (modelVal && !specsList.some(s => s.toLowerCase().includes('modelo'))) {
+    specsList.push(`• Modelo: ${modelVal}`);
+  }
+
+  const partVal = (item.partNumber || '').trim();
+  if (partVal && !specsList.some(s => s.toLowerCase().includes('part number') || s.toLowerCase().includes('código') || s.toLowerCase().includes('sku') || s.toLowerCase().includes('ref'))) {
+    specsList.push(`• Part Number / Ref: ${partVal}`);
+  }
+
+  const ncmVal = (item.ncm || '').trim();
+  if (ncmVal && !specsList.some(s => s.toLowerCase().includes('ncm'))) {
+    specsList.push(`• NCM Fiscal: ${ncmVal}`);
+  }
+
+  if (item.weight && item.weight.trim() && !specsList.some(s => s.toLowerCase().includes('peso'))) {
+    specsList.push(`• Peso: ${item.weight.trim()}`);
+  }
+  if (item.dimensions && item.dimensions.trim() && !specsList.some(s => s.toLowerCase().includes('dimens'))) {
+    specsList.push(`• Dimensões: ${item.dimensions.trim()}`);
+  }
+
+  if (specsList.length > 0) {
+    parts.push(`Especificações Técnicas:\n${specsList.join('\n')}`);
+  }
+
+  return parts.join('\n\n').trim();
 }
 
 /**
@@ -4207,6 +4275,7 @@ export function generatePdfOnlyEmailHtml(
 export { 
   resolveProductModelAndPartNumber, 
   extractModelAndPartNumberFromText, 
-  generateFallbackProductCode 
+  generateFallbackProductCode,
+  KNOWN_BRANDS 
 };
 

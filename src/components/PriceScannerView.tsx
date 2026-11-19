@@ -1182,9 +1182,10 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       return;
     } else {
       const isDuplicate = Boolean(existing);
+      const fullDesc = buildCompleteProductDescription(prod);
       const resolved = resolveProductModelAndPartNumber({
         nameOrQuery: prod.standardizedName,
-        description: '',
+        description: fullDesc || prod.description || '',
         brand: prod.brand,
         category: prod.category,
         scannerModel: prod.model,
@@ -1199,7 +1200,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
         partNumber: realPn,
         ncm: cleanNcmCode(prod.ncm || ''),
         name: prod.standardizedName,
-        description: '',
+        description: fullDesc || prod.description || '',
         category: normalizeToOfficialCategory(prod.category || 'Informática, Hardware & Periféricos'),
         costPrice: cost > 0 ? Number(cost.toFixed(2)) : Number(price.toFixed(2)),
         unit: prod.unit || 'Un.',
@@ -1214,7 +1215,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       setSavedInSessionIds(prev => new Set(prev).add(prod.id));
       showToast(isDuplicate 
         ? `Novo registro cadastrado no catálogo${newSku ? ` com código ${newSku}` : ''}!` 
-        : 'Produto salvo no catálogo com sucesso!');
+        : 'Produto salvo no catálogo com ficha técnica completa!');
     }
   };
 
@@ -2394,11 +2395,27 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                             </button>
                           </div>
                         )}
+                        {/* Descrição Técnica Executiva Completa */}
+                        {prod.description && (
+                          <p className="text-xs text-slate-600 leading-relaxed mt-1 mb-2.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/70 font-normal">
+                            {prod.description}
+                          </p>
+                        )}
 
-
-
-
-
+                        {/* Especificações Técnicas Chips */}
+                        {Array.isArray(prod.specifications) && prod.specifications.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {prod.specifications.map((spec, sIdx) => (
+                              <span
+                                key={sIdx}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 border border-slate-200/80 rounded-lg text-[11px] font-medium text-slate-700 shadow-2xs"
+                              >
+                                <strong className="font-semibold text-slate-900">{spec.label}:</strong>
+                                <span>{spec.value}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         {/* SELEÇÃO POR CHECKBOX: CATÁLOGO vs NOVO ACHADO DA IA (REGRA DO LUCAS) */}
                         {existingInCatalog && catalogMatch && (
                           <div className="bg-gradient-to-r from-sky-50/70 via-slate-50 to-emerald-50/70 border border-slate-200 rounded-2xl p-4 my-3.5 space-y-2.5">
@@ -3418,7 +3435,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                       )}
                     </div>
 
-
+                    {/* Descrição resumida */}
+                    {quoteCatalogChoice.discovered.description && (
+                      <p className="text-[11px] text-slate-600 line-clamp-3 bg-white/70 p-2.5 rounded-xl border border-emerald-100 italic">
+                        "{quoteCatalogChoice.discovered.description}"
+                      </p>
+                    )}
                   </div>
 
                   <div className="pt-4 mt-3" onClick={(e) => e.stopPropagation()}>
