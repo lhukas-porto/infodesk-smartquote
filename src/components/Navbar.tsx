@@ -241,14 +241,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={onOpenDraftsHistory}
-                className="group relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white rounded-xl shadow-xs hover:shadow-md transition-all duration-200 border border-amber-400/50 text-xs font-bold cursor-pointer shrink-0 animate-in fade-in"
+                className="group relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-800 active:scale-95 text-white rounded-xl shadow-xs hover:shadow-md transition-all duration-200 border border-red-400/50 text-xs font-bold cursor-pointer shrink-0 animate-in fade-in"
                 title={`Existe${draftsCount > 1 ? 'm' : ''} ${draftsCount} orçamento${draftsCount > 1 ? 's' : ''} em rascunho pendente${draftsCount > 1 ? 's' : ''}. Clique para abrir o histórico filtrado.`}
               >
                 <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-200 opacity-75"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-200 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                 </span>
-                <Clock className="w-3.5 h-3.5 text-amber-100 shrink-0" />
+                <Clock className="w-3.5 h-3.5 text-red-100 shrink-0" />
                 <span className="font-mono tracking-tight text-white drop-shadow-2xs">
                   {draftsCount} <span className="hidden sm:inline">{draftsCount === 1 ? 'Rascunho' : 'Rascunhos'}</span>
                 </span>
@@ -526,20 +526,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
                 className={`w-full flex items-center justify-between p-3 rounded-2xl transition text-left cursor-pointer ${
                   activeTab === 'history'
-                    ? 'bg-amber-50 text-amber-900 border border-amber-200'
-                    : 'bg-amber-50/70 hover:bg-amber-100/70 text-amber-900 border border-amber-200/80'
+                    ? 'bg-red-50 text-red-900 border border-red-200'
+                    : 'bg-red-50/70 hover:bg-red-100/70 text-red-900 border border-red-200/80'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                    <Clock className="w-5 h-5 text-amber-600" />
+                  <div className="w-9 h-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5 text-red-600" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-amber-950">Rascunhos em Elaboração</p>
-                    <p className="text-xs text-amber-700">{draftsCount} orçamento{draftsCount > 1 ? 's' : ''} aguardando envio</p>
+                    <p className="text-xs font-bold text-red-950">Rascunhos Pendentes</p>
+                    <p className="text-xs text-red-700">{draftsCount} orçamento{draftsCount > 1 ? 's' : ''} aguardando envio</p>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-amber-600 shrink-0" />
+                <ChevronRight className="w-4 h-4 text-red-600 shrink-0" />
               </button>
             )}
 
