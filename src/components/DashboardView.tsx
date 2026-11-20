@@ -168,14 +168,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const getPeriodLabel = (p: DatePeriodFilter): string => {
     switch (p) {
       case 'today': return 'Hoje';
-      case '7days': return 'Últimos 7 dias';
+      case '7days': return '7 dias';
       case 'thisMonth': return 'Este Mês';
-      case '30days': return 'Últimos 30 dias';
-      case '90days': return 'Últimos 90 dias';
+      case '30days': return '30 dias';
+      case '90days': return '90 dias';
       case 'custom': return 'Personalizado';
       case 'all': 
       default:
-        return 'Todo o Histórico';
+        return 'Histórico';
     }
   };
 
@@ -545,39 +545,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
 
       {/* ─── 6 CARDS DE MÉTRICAS SUPERIORES (PADRÃO OFICIAL AGENTS.MD) ─── */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
         
         {/* Card 1: Orçamentos Emitidos */}
-        <div className="bg-white border-2 border-sky-500/40 p-4 rounded-2xl shadow-xs relative overflow-hidden bg-gradient-to-br from-white via-white to-sky-50/50">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-sky-600" />
+        <div className="bg-white border-2 border-amber-500/40 p-3 sm:p-3.5 rounded-2xl shadow-xs relative overflow-hidden bg-gradient-to-br from-white via-white to-amber-50/40 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5 shrink-0">
+              <FileText className="w-3.5 h-3.5 text-amber-600" />
               Orçamentos
             </span>
-            <span className="px-1.5 py-0.5 bg-sky-100 text-sky-800 rounded-md text-[10px] font-bold font-mono">
+            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded-md text-[10px] font-bold font-mono whitespace-nowrap shrink-0">
               {getPeriodLabel(period)}
             </span>
           </div>
-          <div className="text-2xl font-black text-slate-900 font-mono mt-1.5 flex items-baseline gap-1.5">
-            <span className="text-sky-700">{stats.totalQuotes}</span>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-1 flex items-baseline gap-1.5 whitespace-nowrap">
+            <span className="text-amber-700">{stats.totalQuotes}</span>
             <span className="text-xs font-semibold text-slate-500 font-sans">
               {stats.totalQuotes === 1 ? 'cotação' : 'cotações'}
             </span>
           </div>
-          <div className="text-[10px] text-slate-500 font-medium mt-1 truncate">
+          <div className="text-[10px] text-slate-500 font-medium mt-1 truncate" title={`${stats.approvedCount} aprovados · ${stats.sentCount + stats.negotiatingCount} em negociação`}>
             {stats.approvedCount} aprovados · {stats.sentCount + stats.negotiatingCount} em negoc.
           </div>
         </div>
 
         {/* Card 2: Volume Cotado Total */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="bg-white border border-slate-200 p-3 sm:p-3.5 rounded-2xl shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">
               Volume Cotado
             </span>
-            <DollarSign className="w-4 h-4 text-sky-600" />
+            <DollarSign className="w-4 h-4 text-amber-600 shrink-0" />
           </div>
-          <div className="text-lg font-bold text-slate-900 font-mono mt-1">
+          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-bold text-slate-900 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.totalQuotedAmount)}>
             {formatBRL(stats.totalQuotedAmount)}
           </div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
@@ -586,14 +586,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 3: Vendas Aprovadas */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">
+        <div className="bg-white border border-slate-200 p-3 sm:p-3.5 rounded-2xl shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 shrink-0">
               Vendas Aprovadas
             </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           </div>
-          <div className="text-lg font-bold text-emerald-700 font-mono mt-1">
+          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-bold text-emerald-700 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.totalApprovedAmount)}>
             {formatBRL(stats.totalApprovedAmount)}
           </div>
           <div className="text-[10px] text-emerald-600/80 font-medium mt-0.5 truncate font-mono">
@@ -602,17 +602,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 4 (NOVO): Lucro Bruto Realizado em R$ */}
-        <div className="bg-white border-2 border-emerald-500/40 p-4 rounded-2xl shadow-xs bg-gradient-to-br from-white via-white to-emerald-50/40">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+        <div className="bg-white border-2 border-emerald-500/40 p-3 sm:p-3.5 rounded-2xl shadow-xs bg-gradient-to-br from-white via-white to-emerald-50/40 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1 shrink-0">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
               Lucro Realizado
             </span>
-            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 rounded-md text-[10px] font-bold font-mono">
+            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 rounded-md text-[10px] font-bold font-mono shrink-0">
               R$
             </span>
           </div>
-          <div className="text-lg font-black text-emerald-700 font-mono mt-1">
+          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-black text-emerald-700 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.approvedGrossProfit)}>
             {formatBRL(stats.approvedGrossProfit)}
           </div>
           <div className="text-[10px] text-emerald-700/80 font-medium mt-0.5 truncate font-mono">
@@ -621,14 +621,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 5: Taxa de Conversão */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="bg-white border border-slate-200 p-3 sm:p-3.5 rounded-2xl shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">
               Conversão
             </span>
-            <Percent className="w-4 h-4 text-purple-600" />
+            <Percent className="w-4 h-4 text-purple-600 shrink-0" />
           </div>
-          <div className="text-lg font-bold text-purple-700 font-mono mt-1">
+          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-bold text-purple-700 font-mono mt-1 whitespace-nowrap">
             {stats.conversionRate.toFixed(1)}%
           </div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
@@ -637,14 +637,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 6: Ticket Médio Comparativo */}
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="bg-white border border-slate-200 p-3 sm:p-3.5 rounded-2xl shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">
               Ticket Médio
             </span>
-            <Tag className="w-4 h-4 text-sky-600" />
+            <Tag className="w-4 h-4 text-amber-600 shrink-0" />
           </div>
-          <div className="text-lg font-bold text-sky-700 font-mono mt-1">
+          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-bold text-slate-900 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.averageTicket)}>
             {formatBRL(stats.averageTicket)}
           </div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
