@@ -35,14 +35,21 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // CORS restrito e seguro para origens oficiais
+  // CORS e validação de origem restrita aos domínios oficiais da Infodesk
   const origin = (req.headers?.origin as string) || '';
+  const referer = (req.headers?.referer as string) || '';
+
   const isAllowedOrigin = 
-    !origin || 
     origin.startsWith('http://localhost:') || 
     origin.startsWith('http://127.0.0.1:') || 
     origin === 'https://infodesk-smartquote.vercel.app' || 
-    (/^https:\/\/infodesk-smartquote[a-z0-9-]*\.vercel\.app$/.test(origin));
+    (/^https:\/\/infodesk-smartquote[a-z0-9-]*\.vercel\.app$/.test(origin)) ||
+    (!origin && (
+      referer.startsWith('http://localhost:') || 
+      referer.startsWith('http://127.0.0.1:') || 
+      referer.startsWith('https://infodesk-smartquote.vercel.app') ||
+      (/^https:\/\/infodesk-smartquote[a-z0-9-]*\.vercel\.app/.test(referer))
+    ));
 
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', isAllowedOrigin ? (origin || '*') : 'null');
@@ -51,6 +58,8 @@ export default async function handler(req: any, res: any) {
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
   );
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -58,6 +67,10 @@ export default async function handler(req: any, res: any) {
 
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Método não permitido. Utilize POST.' });
+  }
+
+  if (!isAllowedOrigin && origin) {
+    return res.status(403).json({ success: false, error: 'Acesso negado: origem não autorizada.' });
   }
 
   try {
@@ -95,12 +108,21 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, error: 'Parâmetro contents é obrigatório.' });
     }
 
-    // A chave é obtida com segurança das variáveis de ambiente do backend
+    // Proteção de tamanho máximo de payload (máx 2MB para análises OCR/imagens)
+    const payloadStr = typeof body === 'string' ? body : JSON.stringify(body);
+    if (payloadStr.length > 2 * 1024 * 1024) {
+      return res.status(413).json({ success: false, error: 'Carga útil excede o limite máximo permitido (2MB).' });
+    }
+
+    // A chave é obtida prioritariamente das variáveis secretas de ambiente do servidor
+    // Apenas se o usuário fornecer uma chave formatada e válida via body, permite fallback
+    const rawClientKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+    const isValidClientKey = /^[A-Za-z0-9_-]{30,70}$/.test(rawClientKey);
+
     const apiKey = 
       process.env.GEMINI_API_KEY || 
       process.env.VITE_GEMINI_API_KEY || 
-      (body.apiKey as string) || 
-      '';
+      (isValidClientKey ? rawClientKey : '');
 
     if (!apiKey) {
       return res.status(500).json({ 

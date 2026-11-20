@@ -3824,7 +3824,7 @@ export function buildCompleteProductDescription(item?: {
 
   const partVal = (item.partNumber || '').trim();
   if (partVal && !specsList.some(s => s.toLowerCase().includes('part number') || s.toLowerCase().includes('código') || s.toLowerCase().includes('sku') || s.toLowerCase().includes('ref'))) {
-    specsList.push(`• Part Number / Ref: ${partVal}`);
+    specsList.push(`• Part Number / SKU: ${partVal}`);
   }
 
   const ncmVal = (item.ncm || '').trim();
@@ -3833,7 +3833,7 @@ export function buildCompleteProductDescription(item?: {
   }
 
   if (item.weight && item.weight.trim() && !specsList.some(s => s.toLowerCase().includes('peso'))) {
-    specsList.push(`• Peso: ${item.weight.trim()}`);
+    specsList.push(`• Peso aproximado: ${item.weight.trim()}`);
   }
   if (item.dimensions && item.dimensions.trim() && !specsList.some(s => s.toLowerCase().includes('dimens'))) {
     specsList.push(`• Dimensões: ${item.dimensions.trim()}`);

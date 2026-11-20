@@ -2091,6 +2091,7 @@ export const deduplicateDirectPurchases = (items: import('../types').Procurement
 };
 
 export const getDirectPurchases = (): import('../types').ProcurementItem[] => {
+  if (typeof localStorage === 'undefined') return [];
   try {
     const raw = localStorage.getItem(DIRECT_PURCHASES_KEY);
     if (raw) {
@@ -2126,6 +2127,7 @@ export const saveDirectPurchases = (items: import('../types').ProcurementItem[],
 const DELETED_DIRECT_PURCHASE_IDS_KEY = 'infodesk_deleted_direct_purchase_ids';
 
 export const getDeletedDirectPurchaseIds = (): Set<string> => {
+  if (typeof localStorage === 'undefined') return new Set<string>();
   try {
     const raw = localStorage.getItem(DELETED_DIRECT_PURCHASE_IDS_KEY);
     if (raw) {

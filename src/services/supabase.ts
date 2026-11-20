@@ -34,7 +34,11 @@ export async function fetchCompanySettingsFromSupabase(): Promise<CompanySetting
   if (!supabase) return null;
   try {
     const { data, error } = await supabase.from('company_settings').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle();
-    if (error || !data) return null;
+    if (error) {
+      reportError('Falha ao Carregar Configurações da Empresa', error, 'Supabase - company_settings');
+      return null;
+    }
+    if (!data) return null;
     return {
       id: data.id,
       companyName: data.company_name,
@@ -63,6 +67,7 @@ export async function fetchCompanySettingsFromSupabase(): Promise<CompanySetting
     };
   } catch (err) {
     console.warn('Erro ao consultar configurações no Supabase:', err);
+    reportError('Falha ao consultar configurações da empresa', err, 'Supabase - fetchCompanySettingsFromSupabase');
     return null;
   }
 }
@@ -870,35 +875,42 @@ export async function deleteQuoteFromSupabase(code?: string, id?: string): Promi
   try {
     // 1. Deleta itens filhos em quote_items primeiro para nunca quebrar FK constraints
     if (id) {
-      await supabase.from('quote_items').delete().eq('quote_id', id);
+      const { error: itemsErr } = await supabase.from('quote_items').delete().eq('quote_id', id);
+      if (itemsErr) throw itemsErr;
     }
 
     if (code) {
       const cleanCode = code.trim();
       const normCode = normalizeQuoteCode(cleanCode);
-      const { data: matchedQuotes } = await supabase
+      const { data: matchedQuotes, error: matchErr } = await supabase
         .from('quotes')
         .select('id')
         .or(`code.eq.${cleanCode},code.ilike.%${cleanCode}%,code.ilike.%${normCode}%`);
 
+      if (matchErr) throw matchErr;
+
       if (matchedQuotes && matchedQuotes.length > 0) {
         const ids = matchedQuotes.map((q: any) => q.id).filter(Boolean);
         if (ids.length > 0) {
-          await supabase.from('quote_items').delete().in('quote_id', ids);
-          await supabase.from('quotes').delete().in('id', ids);
+          const { error: delItemsErr } = await supabase.from('quote_items').delete().in('quote_id', ids);
+          if (delItemsErr) throw delItemsErr;
+          const { error: delQuotesErr } = await supabase.from('quotes').delete().in('id', ids);
+          if (delQuotesErr) throw delQuotesErr;
         }
       }
     }
 
     // 2. Deleta a proposta na tabela quotes por ID direto
     if (id) {
-      await supabase.from('quotes').delete().eq('id', id);
+      const { error: qIdErr } = await supabase.from('quotes').delete().eq('id', id);
+      if (qIdErr) throw qIdErr;
     }
 
     // 3. Deleta a proposta na tabela quotes por código exato e variações
     if (code) {
       const cleanCode = code.trim();
-      await supabase.from('quotes').delete().eq('code', cleanCode);
+      const { error: codeErr } = await supabase.from('quotes').delete().eq('code', cleanCode);
+      if (codeErr) throw codeErr;
       await supabase.from('quotes').delete().ilike('code', `%${cleanCode}%`);
     }
   } catch (err) {
@@ -1500,9 +1512,11 @@ export async function deleteCompanyFromSupabase(companyId: string): Promise<void
   if (!supabase || !companyId) return;
   try {
     // Excluir compradores vinculados primeiro
-    await supabase.from('client_contacts').delete().eq('company_id', companyId);
+    const { error: contactsErr } = await supabase.from('client_contacts').delete().eq('company_id', companyId);
+    if (contactsErr) throw contactsErr;
     // Excluir a empresa
-    await supabase.from('client_companies').delete().eq('id', companyId);
+    const { error: compErr } = await supabase.from('client_companies').delete().eq('id', companyId);
+    if (compErr) throw compErr;
   } catch (err) {
     console.warn('Erro ao deletar empresa do Supabase:', err);
     reportError('Falha ao excluir empresa do banco', err, `Empresa ID: ${companyId}`);
@@ -1512,9 +1526,11 @@ export async function deleteCompanyFromSupabase(companyId: string): Promise<void
 export async function deleteContactFromSupabase(contactId: string, companyId?: string, contactName?: string): Promise<void> {
   if (!supabase || !contactId) return;
   try {
-    await supabase.from('client_contacts').delete().eq('id', contactId);
+    const { error: ctErr } = await supabase.from('client_contacts').delete().eq('id', contactId);
+    if (ctErr) throw ctErr;
     if (companyId && contactName && contactName.trim()) {
-      await supabase.from('client_contacts').delete().eq('company_id', companyId).ilike('name', contactName.trim());
+      const { error: nameErr } = await supabase.from('client_contacts').delete().eq('company_id', companyId).ilike('name', contactName.trim());
+      if (nameErr) throw nameErr;
     }
   } catch (err) {
     console.warn('Erro ao deletar comprador do Supabase:', err);
@@ -1587,9 +1603,11 @@ export async function syncIncomingEmailsToSupabase(emails: IncomingEmail[]): Pro
 export async function deleteIncomingEmailFromSupabase(emailId: string): Promise<void> {
   if (!supabase || !emailId) return;
   try {
-    await supabase.from('incoming_emails').delete().eq('id', emailId);
+    const { error: delErr } = await supabase.from('incoming_emails').delete().eq('id', emailId);
+    if (delErr) throw delErr;
   } catch (err) {
     console.warn('Erro ao excluir e-mail no Supabase:', err);
+    reportError('Falha ao excluir e-mail capturado do banco', err, `Email ID: ${emailId}`);
   }
 }
 
@@ -1768,9 +1786,10 @@ export async function syncRegisteredMetadataToSupabase(categories: string[], uni
 
 export async function deleteCategoryFromSupabase(categoryName: string): Promise<void> {
   if (!supabase || !categoryName) return;
+  const clean = categoryName.trim();
   try {
-    const clean = categoryName.trim();
-    await supabase.from('product_categories').delete().ilike('name', clean);
+    const { error: catErr } = await supabase.from('product_categories').delete().ilike('name', clean);
+    if (catErr) throw catErr;
 
     const { data: existing } = await supabase
       .from('company_settings')
@@ -1781,21 +1800,24 @@ export async function deleteCategoryFromSupabase(categoryName: string): Promise<
 
     if (existing?.id && Array.isArray(existing.registered_categories)) {
       const updated = existing.registered_categories.filter((c: string) => c.toLowerCase() !== clean.toLowerCase());
-      await supabase
+      const { error: updateErr } = await supabase
         .from('company_settings')
         .update({ registered_categories: updated, updated_at: new Date().toISOString() })
         .eq('id', existing.id);
+      if (updateErr) throw updateErr;
     }
   } catch (err) {
     console.warn('Erro ao deletar categoria no Supabase:', err);
+    reportError('Falha ao excluir categoria do banco', err, `Categoria: ${clean}`);
   }
 }
 
 export async function deleteUnitFromSupabase(unitName: string): Promise<void> {
   if (!supabase || !unitName) return;
+  const clean = unitName.trim();
   try {
-    const clean = unitName.trim();
-    await supabase.from('measurement_units').delete().ilike('name', clean);
+    const { error: unitErr } = await supabase.from('measurement_units').delete().ilike('name', clean);
+    if (unitErr) throw unitErr;
 
     const { data: existing } = await supabase
       .from('company_settings')
@@ -1806,13 +1828,15 @@ export async function deleteUnitFromSupabase(unitName: string): Promise<void> {
 
     if (existing?.id && Array.isArray(existing.registered_units)) {
       const updated = existing.registered_units.filter((u: string) => u.toLowerCase() !== clean.toLowerCase());
-      await supabase
+      const { error: updateErr } = await supabase
         .from('company_settings')
         .update({ registered_units: updated, updated_at: new Date().toISOString() })
         .eq('id', existing.id);
+      if (updateErr) throw updateErr;
     }
   } catch (err) {
     console.warn('Erro ao deletar unidade no Supabase:', err);
+    reportError('Falha ao excluir unidade de medida do banco', err, `Unidade: ${clean}`);
   }
 }
 
@@ -1868,11 +1892,13 @@ export async function syncPaymentMethodsToSupabase(methods: string[]): Promise<v
 
 export async function deletePaymentMethodFromSupabase(methodName: string): Promise<void> {
   if (!supabase || !methodName) return;
+  const clean = methodName.trim();
   try {
-    const clean = methodName.trim();
-    await supabase.from('payment_methods').delete().ilike('name', clean);
+    const { error: pmErr } = await supabase.from('payment_methods').delete().ilike('name', clean);
+    if (pmErr) throw pmErr;
   } catch (err) {
     console.warn('Erro ao deletar forma de pagamento no Supabase:', err);
+    reportError('Falha ao excluir forma de pagamento do banco', err, `Forma: ${clean}`);
   }
 }
 
@@ -1888,7 +1914,11 @@ export async function fetchDirectPurchasesFromSupabase(): Promise<import('../typ
       .eq('is_direct_purchase', true)
       .order('created_at', { ascending: false });
 
-    if (error || !data) return null;
+    if (error) {
+      reportError('Falha ao Carregar Compras Diretas do Supabase', error, 'Supabase - procurement_items');
+      return null;
+    }
+    if (!data) return null;
 
     return data.map((d: any) => ({
       id: d.id,
@@ -2003,9 +2033,11 @@ export async function syncDirectPurchasesToSupabase(items: import('../types').Pr
 export async function deleteDirectPurchaseFromSupabase(itemId: string): Promise<void> {
   if (!supabase || !itemId) return;
   try {
-    await supabase.from('procurement_items').delete().or(`id.eq.${itemId},item_id.eq.${itemId}`);
+    const { error: delErr } = await supabase.from('procurement_items').delete().or(`id.eq.${itemId},item_id.eq.${itemId}`);
+    if (delErr) throw delErr;
   } catch (err) {
     console.warn('Erro ao deletar compra direta no Supabase:', err);
+    reportError('Falha ao excluir compra direta no Supabase', err, `Item ID: ${itemId}`);
   }
 }
 
