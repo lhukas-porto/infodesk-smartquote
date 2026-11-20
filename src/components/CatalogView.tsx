@@ -960,66 +960,66 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-800">
-            <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 select-none">
-              <tr>
+            <thead className="bg-slate-100/90 text-slate-700 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 select-none">
+              <tr className="h-10">
                 <th 
                   onClick={() => handleSort('sku')} 
-                  className="px-3 py-2 w-32 cursor-pointer hover:bg-slate-200/60 transition group"
+                  className="px-3.5 py-2.5 w-32 whitespace-nowrap cursor-pointer hover:bg-slate-200/60 transition group text-left"
                   title="Clique para ordenar por Código / SKU"
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 whitespace-nowrap">
                     <span>Código / SKU</span>
                     {sortField === 'sku' ? (
-                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600" /> : <ArrowDown className="w-3 h-3 text-sky-600" />
+                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600 shrink-0" /> : <ArrowDown className="w-3 h-3 text-sky-600 shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition shrink-0" />
                     )}
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('name')} 
-                  className="px-3 py-2 min-w-[280px] cursor-pointer hover:bg-slate-200/60 transition group"
+                  className="px-3.5 py-2.5 min-w-[280px] lg:min-w-[340px] whitespace-nowrap cursor-pointer hover:bg-slate-200/60 transition group text-left"
                   title="Clique para ordenar por Nome do Produto"
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 whitespace-nowrap">
                     <span>Produto</span>
                     {sortField === 'name' ? (
-                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600" /> : <ArrowDown className="w-3 h-3 text-sky-600" />
+                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600 shrink-0" /> : <ArrowDown className="w-3 h-3 text-sky-600 shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition shrink-0" />
                     )}
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('category')} 
-                  className="px-3 py-2 w-36 cursor-pointer hover:bg-slate-200/60 transition group"
+                  className="px-3.5 py-2.5 w-52 lg:w-64 whitespace-nowrap cursor-pointer hover:bg-slate-200/60 transition group text-left"
                   title="Clique para ordenar por Categoria"
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 whitespace-nowrap">
                     <span>Categoria</span>
                     {sortField === 'category' ? (
-                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600" /> : <ArrowDown className="w-3 h-3 text-sky-600" />
+                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600 shrink-0" /> : <ArrowDown className="w-3 h-3 text-sky-600 shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition shrink-0" />
                     )}
                   </div>
                 </th>
-                <th className="px-3 py-2 w-24 text-center">Unidade</th>
+                <th className="px-2.5 py-2.5 w-16 text-center whitespace-nowrap">Unidade</th>
                 <th 
                   onClick={() => handleSort('costPrice')} 
-                  className="px-3 py-2 w-32 text-right cursor-pointer hover:bg-slate-200/60 transition group"
+                  className="px-3.5 py-2.5 w-36 lg:w-44 text-right whitespace-nowrap cursor-pointer hover:bg-slate-200/60 transition group"
                   title="Clique para ordenar por Preço de Custo"
                 >
-                  <div className="flex items-center justify-end gap-1.5">
+                  <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                     <span>Preço Custo (R$)</span>
                     {sortField === 'costPrice' ? (
-                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600" /> : <ArrowDown className="w-3 h-3 text-sky-600" />
+                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-600 shrink-0" /> : <ArrowDown className="w-3 h-3 text-sky-600 shrink-0" />
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                      <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition shrink-0" />
                     )}
                   </div>
                 </th>
-                <th className="px-3 py-2 w-40 text-center whitespace-nowrap">Ações</th>
+                <th className="px-3 py-2.5 w-36 text-center whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1031,10 +1031,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     onPaste={(e) => handlePasteImageOnProductRow(e, p)}
                     className="hover:bg-amber-50/30 transition-colors duration-150 focus:bg-amber-50/40 focus:outline-hidden"
                   >
-                    <td className="px-3 py-2 font-mono font-bold text-amber-900 text-xs tabular-nums">
+                    <td className="px-3.5 py-2 font-mono font-bold text-amber-900 text-xs tabular-nums whitespace-nowrap">
                       {p.sku || p.partNumber || <span className="text-slate-300 font-normal italic">-</span>}
                     </td>
-                    <td className="px-3 py-1.5">
+                    <td className="px-3.5 py-1.5">
                       <div className="flex items-center gap-2.5">
                         {(() => {
                           const effectiveImg = p.imageUrl || findProductImageInCache(p.name, p.partNumber, p.sku);
@@ -1082,15 +1082,15 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-slate-700">
-                      <span className="sq-badge-tag bg-slate-100 text-slate-700 border-slate-200 whitespace-nowrap">
+                    <td className="px-3.5 py-2 text-slate-700 whitespace-nowrap">
+                      <span className="sq-badge-tag bg-slate-100 text-slate-700 border-slate-200 whitespace-nowrap truncate max-w-[220px] lg:max-w-[260px] inline-block" title={p.category}>
                         {p.category}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-center font-medium text-slate-500 text-xs">
+                    <td className="px-2.5 py-2 text-center font-bold text-slate-500 text-xs whitespace-nowrap">
                       {p.unit}
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3.5 py-2 text-right whitespace-nowrap">
                       {(() => {
                         const daysSince = p.lastUpdated
                           ? Math.floor((Date.now() - new Date(p.lastUpdated).getTime()) / (1000 * 60 * 60 * 24))
