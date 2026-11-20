@@ -410,7 +410,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* ─── HEADER EXECUTIVO COM DESIGN SYSTEM OFICIAL ─── */}
       <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
+          <div className="p-3 bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-2xl shadow-sm shrink-0">
             <BarChart3 className="w-6 h-6" />
           </div>
           <div>

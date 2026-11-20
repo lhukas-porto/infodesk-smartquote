@@ -1739,7 +1739,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
       {/* Header da Página Inteira */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
+          <div className="p-3 bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-2xl shadow-sm shrink-0">
             <Search className="w-7 h-7" />
           </div>
           <div>

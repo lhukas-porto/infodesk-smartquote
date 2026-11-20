@@ -2251,7 +2251,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
       {/* 1. Header Oficial do Sistema */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
+          <div className="p-3 bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-2xl shadow-sm shrink-0">
             <ShoppingCart className="w-6 h-6" />
           </div>
           <div className="space-y-0.5">

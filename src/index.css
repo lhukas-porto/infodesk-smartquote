@@ -43,7 +43,7 @@
   }
 
   .sq-section-icon {
-    @apply w-4 h-4 text-blue-700 shrink-0;
+    @apply w-4 h-4 text-amber-600 shrink-0;
   }
 
   /* Cards de Conteúdo */
