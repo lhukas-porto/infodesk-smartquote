@@ -92,11 +92,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <header className="no-print fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-all duration-200">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 relative">
-        <div className="flex items-center justify-between min-h-16 py-2 gap-2 sm:gap-4 lg:gap-6">
+        <div className="w-full max-w-7xl xl:max-w-[1440px] mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between min-h-16 py-2 gap-2 sm:gap-4">
           
           {/* Lado Esquerdo: Marca SmartQuote (clique direciona ao Scanner IA) */}
-          <div className="flex items-center shrink-0 z-10">
+          <div className="flex items-center shrink-0 min-w-0 lg:w-56 xl:w-64">
             <div 
               className="flex items-center cursor-pointer select-none shrink-0 group py-1 active:scale-98 transition-transform" 
               onClick={() => setActiveTab('websearch')}
@@ -107,8 +107,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Centro: Menu de Navegação em Abas (Cápsula Integrada Centralizada) - Desktop */}
-          <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center px-2 pointer-events-auto">
-            <nav className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shrink-0 shadow-2xs">
+          <div className="hidden lg:flex flex-1 justify-center items-center px-1 min-w-0">
+            <nav className="flex items-center gap-0.5 xl:gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shrink-0 shadow-2xs">
               {SHOW_INBOX_TAB && (
                 <button
                   onClick={() => setActiveTab('inbox')}
@@ -236,7 +236,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Lado Direito: Ações auxiliares */}
-          <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 z-10 ml-auto">
+          <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 lg:w-56 xl:w-64">
             {draftsCount > 0 && (
               <button
                 type="button"
