@@ -637,7 +637,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
               }`}
             >
               <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="text-[11px] font-bold text-slate-600 truncate flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-600 truncate flex items-center gap-1.5">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${card.dot}`}></span>
                   <span className="truncate">{card.title}</span>
                 </span>
@@ -664,7 +664,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
               <h4 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 Radar de Follow-up: {followUpRequiredQuotes.length} proposta{followUpRequiredQuotes.length > 1 ? 's' : ''} aguardando retorno há mais de 3 dias!
               </h4>
-              <p className="text-[11px] text-amber-800 mt-0.5">
+              <p className="text-xs text-amber-800 mt-0.5">
                 Total acumulado de <strong>{formatBRL(followUpRequiredQuotes.reduce((acc, q) => acc + (q.totalAmount || 0), 0))}</strong> em negociações que podem esfriar. Envie um lembrete com 1 clique no WhatsApp.
               </p>
             </div>
@@ -696,7 +696,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
               <span className="text-xs font-bold text-slate-800">
                 Período:
               </span>
-              <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-lg text-[11px] font-mono font-bold">
+              <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-lg text-xs font-mono font-bold">
                 {getDateFilterLabel(dateFilter)}
               </span>
             </div>
@@ -935,7 +935,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
               <p className="text-xs font-bold text-amber-950">
                 Você possui {stageStats.draft.count} cotação(ões) em rascunho aguardando envio
               </p>
-              <p className="text-[11px] text-amber-700">
+              <p className="text-xs text-amber-700">
                 Total estimado em elaboração: {formatBRL(stageStats.draft.totalAmount)}
               </p>
             </div>
@@ -992,7 +992,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                   {isSearchingCloud ? 'Consultando Supabase...' : `Pesquisar "${searchTerm}" na Nuvem (Supabase)`}
                 </span>
               </button>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-xs text-slate-400">
                 Se a cotação foi criada em outro dispositivo ou ainda não baixou no navegador, a busca na nuvem localiza e inclui ela imediatamente.
               </p>
             </div>
@@ -1068,14 +1068,14 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                               <span>OC: {q.clientOrderNumber}</span>
                             </span>
                           )}
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
                               <span>{displayDate}</span>
                             </span>
                             {displayTime && (
                               <span 
-                                className="flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[10.5px] font-semibold"
+                                className="flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200/80 px-1.5 py-0.5 rounded font-mono text-[10px] font-semibold"
                                 title={q.sentAt ? `Horário do envio: ${displayTime}` : `Horário de criação: ${displayTime}`}
                               >
                                 <Clock className="w-2.5 h-2.5 text-sky-600 shrink-0" />
@@ -1116,7 +1116,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                                 >
                                   <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
                                   <span>Custos de {ageInDays}d atrás</span>
-                                  <span className="text-[9px] underline font-semibold ml-0.5">Rechecar</span>
+                                  <span className="text-[10px] underline font-semibold ml-0.5">Rechecar</span>
                                 </button>
                               );
                             }
@@ -1150,7 +1150,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                     <span className="text-base sm:text-lg font-mono font-bold text-emerald-700 block">
                       {formatBRL(q.totalAmount)}
                     </span>
-                    <div className="flex items-center sm:justify-end gap-2 text-[11px] text-slate-500 mt-0.5">
+                    <div className="flex items-center sm:justify-end gap-2 text-xs text-slate-500 mt-0.5">
                       <span>{q.items?.length || 0} produto(s)</span>
                       <span>•</span>
                       <span className="font-semibold text-sky-700 font-mono">
@@ -1188,7 +1188,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                               title={`Mover para estágio: ${stage.label}`}
                             >
                               <Icon className={`w-3.5 h-3.5 ${isCurrent ? stage.activeText : 'text-slate-400'}`} />
-                              <span className="text-[11px] sm:text-xs">{stage.shortLabel}</span>
+                              <span className="text-xs sm:text-xs">{stage.shortLabel}</span>
                             </button>
                             {idx < PIPELINE_STAGES.length - 1 && (
                               <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 mx-0.5" />
@@ -1203,7 +1203,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setQuoteForApproval(q)}
-                        className="text-[11px] text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 font-bold px-2.5 py-1 rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        className="text-xs text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 font-bold px-2.5 py-1 rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
                         title="Ver e ajustar itens aprovados desta proposta"
                       >
                         <PackageCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -1222,7 +1222,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                         <button
                           type="button"
                           onClick={() => setQuoteForLoss(q)}
-                          className="text-[11px] text-slate-400 hover:text-rose-600 transition flex items-center gap-1 px-2 py-1 hover:bg-rose-50 rounded-lg cursor-pointer"
+                          className="text-xs text-slate-400 hover:text-rose-600 transition flex items-center gap-1 px-2 py-1 hover:bg-rose-50 rounded-lg cursor-pointer"
                           title="Marcar como proposta perdida e registrar motivo"
                         >
                           <X className="w-3 h-3" />
@@ -1362,7 +1362,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                   Tem certeza que deseja excluir o orçamento <strong className="font-mono text-slate-700">{quoteToDelete.code}</strong> da empresa <strong className="text-slate-700">"{quoteToDelete.clientCompany}"</strong>?
                 </p>
-                <p className="text-[11px] text-rose-600 font-semibold mt-1">
+                <p className="text-xs text-rose-600 font-semibold mt-1">
                   Esta ação não poderá ser desfeita.
                 </p>
               </div>
@@ -1481,7 +1481,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                     <span className="text-xs font-bold text-slate-900">Atualizar custos e links mais recentes</span>
                     <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.2 rounded">Recomendado</span>
                   </div>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
+                  <p className="text-xs text-slate-600 mt-0.5">
                     Recalcula os custos unitários e preços de venda trazendo automaticamente os valores e os links de compra mais recentes do catálogo, compras reais e propostas recentes.
                   </p>
                 </div>
@@ -1503,7 +1503,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                 </div>
                 <div>
                   <span className="text-xs font-bold text-slate-900">Manter custos, preços e links originais</span>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
+                  <p className="text-xs text-slate-600 mt-0.5">
                     Preserva exatamente os mesmos valores unitários, totais e links de quando a cotação foi feita originalmente.
                   </p>
                 </div>
@@ -1554,7 +1554,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                   <h3 className="text-sm font-bold text-slate-900">
                     Registrar Motivo de Perda
                   </h3>
-                  <p className="text-[11px] text-slate-500 font-mono">
+                  <p className="text-xs text-slate-500 font-mono">
                     Proposta {quoteForLoss.code || quoteForLoss.id}
                   </p>
                 </div>
@@ -1598,7 +1598,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
 
               {selectedLossReason === 'Outro motivo' && (
                 <div className="pt-1">
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
                     Descreva o motivo:
                   </label>
                   <input

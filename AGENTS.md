@@ -6,28 +6,28 @@ Toda e qualquer interface criada no SmartQuote DEVE seguir estritamente o padrã
 
 1. **Títulos Principais (H1)**:
    - `text-lg md:text-xl font-bold text-slate-900 tracking-tight` (Classe: `.sq-page-title`).
-   - Badge de código: `px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg` (`.sq-badge-code`).
+   - Badge de código: `px-2.5 py-0.5 bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-bold font-mono uppercase tracking-wider rounded-lg shadow-sm` (`.sq-badge-code`).
    - Subtítulo: `text-xs text-slate-500 mt-0.5` (`.sq-page-subtitle`).
 
 2. **Tópicos de Seções (H2/H3)**:
-   - **SEMPRE EM NEGRITO MARCADO**: `text-sm md:text-base font-bold text-slate-900 flex items-center gap-2` (Classe: `.sq-section-title`).
-   - Sempre acompanhados de ícone colorido de referência (`w-4 h-4 text-sky-600` ou semântico).
+   - **SEMPRE EM NEGRITO MARCADO**: `text-sm font-bold text-slate-900 flex items-center gap-2` (Classe: `.sq-section-title`).
+   - Sempre acompanhados de ícone colorido de referência (`w-4 h-4 text-amber-600` ou semântico).
 
 3. **Botões**:
    - Altura padrão uniforme: ~40px (`py-2.5 px-3.5` a `px-4`).
    - Cantos arredondados: `rounded-xl`.
-   - Peso do texto: `font-bold text-xs sm:text-sm`.
+   - Peso do texto: `font-bold text-xs`.
    - Paleta oficial:
-     - Neutro/Rascunho: `.sq-btn-neutral` (`bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200`)
-     - Excel/Outlined: `.sq-btn-excel` (`bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80`)
-     - Primário Azul: `.sq-btn-primary` (`bg-sky-600 hover:bg-sky-700 text-white shadow-xs`)
-     - Primário Verde: `.sq-btn-emerald` (`bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 text-white shadow-xs`)
+     - Neutro/Rascunho: `.sq-btn-neutral` (`bg-white hover:bg-slate-100 text-slate-700 border border-slate-300`)
+     - Excel/Outlined: `.sq-btn-excel` (`bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300`)
+     - Primário Ouro Âmbar: `.sq-btn-primary` (`bg-amber-600 hover:bg-amber-700 text-white shadow-sm`)
+     - WhatsApp / Sucesso: `.sq-btn-emerald` (`bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm`)
 
 4. **Cards de Métricas (Dashboard Superior)**:
-   - `bg-white border border-slate-200 p-4 rounded-2xl shadow-xs`.
-   - Rótulo superior: `text-[11px] font-semibold uppercase tracking-wider text-slate-500`.
-   - Valor numérico: `text-base font-bold text-slate-900 font-mono`.
-   - Legenda inferior: `text-[10px] text-slate-400 font-medium`.
+   - `bg-white border border-slate-300/80 p-3.5 sm:p-4 rounded-2xl shadow-sm`.
+   - Rótulo superior: `text-[10px] font-bold uppercase tracking-wider text-slate-500` (`.sq-metric-label`).
+   - Valor numérico: `text-base sm:text-lg font-bold text-slate-900 font-mono whitespace-nowrap` (`.sq-metric-value`).
+   - Legenda inferior: `text-[10px] text-slate-400 font-medium` (`.sq-metric-sub`).
 
 5. **Formulários e Inputs**:
    - Rótulos (Labels): `block text-xs font-semibold text-slate-700 mb-1.5` (`.sq-label`).

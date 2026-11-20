@@ -94,7 +94,7 @@ export const ProfitShieldSimulator: React.FC<ProfitShieldSimulatorProps> = ({
                 Margem Segura: {minSafeMargin}%
               </span>
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-xs text-slate-500">
               Teste descontos e custos extras para garantir negociações sempre lucrativas
             </p>
           </div>
@@ -190,7 +190,7 @@ export const ProfitShieldSimulator: React.FC<ProfitShieldSimulatorProps> = ({
             {simulation.status === 'danger' && <XCircle className="w-5 h-5 text-rose-600 shrink-0" />}
             <div>
               <p className="text-xs font-bold">{simulation.statusTitle}</p>
-              <p className="text-[11px] opacity-80">{simulation.statusDesc}</p>
+              <p className="text-xs opacity-80">{simulation.statusDesc}</p>
             </div>
           </div>
 
@@ -219,7 +219,7 @@ export const ProfitShieldSimulator: React.FC<ProfitShieldSimulatorProps> = ({
         {/* Impacto no Bolso */}
         {discountPercent > 0 && (
           <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-xs">
-            <span className="text-[11px] font-medium opacity-80">
+            <span className="text-xs font-medium opacity-80">
               Impacto deste desconto na margem da proposta:
             </span>
             <span className="font-mono font-bold text-amber-800">

@@ -324,12 +324,12 @@ const ItemNameTextarea: React.FC<ItemNameTextareaProps> = React.memo(({
 
       {isAutocompleteOpen && filteredProducts.length > 0 && (
         <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col animate-scaleIn max-h-72">
-          <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
+          <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
             <span className="flex items-center gap-1.5 text-sky-700">
               <Package className="w-3.5 h-3.5 text-sky-600" />
               <span>Produtos no Catálogo ({filteredProducts.length})</span>
             </span>
-            <span className="text-[9.5px] text-slate-400 font-normal lowercase">clique para preencher dados e custo</span>
+            <span className="text-[10px] text-slate-400 font-normal lowercase">clique para preencher dados e custo</span>
           </div>
 
           <div className="p-1 overflow-y-auto divide-y divide-slate-100">
@@ -371,7 +371,7 @@ const ItemNameTextarea: React.FC<ItemNameTextareaProps> = React.memo(({
                   <span className="text-xs font-bold text-emerald-700 font-mono block">
                     R$ {Number(p.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[9px] text-slate-400">Custo Base</span>
+                  <span className="text-[10px] text-slate-400">Custo Base</span>
                 </div>
               </button>
             ))}
@@ -2989,7 +2989,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               <button
                 type="button"
                 onClick={() => setIsApprovalModalOpen(true)}
-                className="text-[11px] text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 font-bold px-2.5 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap"
+                className="text-xs text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 font-bold px-2.5 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap"
                 title="Ver e ajustar itens aprovados desta proposta comercial"
               >
                 <PackageCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -3018,7 +3018,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Custo Produtos</span>
+            <span className="text-[10px] tracking-wider">Custo Produtos</span>
             <DollarSign className="w-4 h-4 text-slate-400" />
           </div>
           <p className="text-base font-bold text-slate-900 font-mono">
@@ -3029,7 +3029,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Frete Total</span>
+            <span className="text-[10px] tracking-wider">Frete Total</span>
             <Truck className="w-4 h-4 text-amber-500" />
           </div>
           <p className="text-base font-bold text-slate-900 font-mono">
@@ -3047,9 +3047,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           title="Clique para editar a alíquota de impostos desta proposta"
         >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-indigo-700 transition">Impostos ({globalTax}%)</span>
+            <span className="text-[10px] tracking-wider group-hover:text-indigo-700 transition">Impostos ({globalTax}%)</span>
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-indigo-500 opacity-0 group-hover:opacity-100 transition font-bold">Editar ✎</span>
+              <span className="text-[10px] text-indigo-500 opacity-0 group-hover:opacity-100 transition font-bold">Editar ✎</span>
               <Receipt className="w-4 h-4 text-indigo-500" />
             </div>
           </div>
@@ -3074,9 +3074,9 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           title="Clique para editar a Margem / Markup (%) de todos os itens"
         >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-sky-700 transition">Lucro Real ({globalMarkup}%)</span>
+            <span className="text-[10px] tracking-wider group-hover:text-sky-700 transition">Lucro Real ({globalMarkup}%)</span>
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition font-bold">Editar ✎</span>
+              <span className="text-[10px] text-sky-600 opacity-0 group-hover:opacity-100 transition font-bold">Editar ✎</span>
               {currentQuote.averageMargin >= 22 && currentQuote.items.length > 0 ? (
                 <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">
                   <Sparkles className="w-3 h-3 text-emerald-600" />
@@ -3110,7 +3110,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
         <div className="bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white border-2 border-emerald-300 p-3.5 rounded-2xl shadow-sm col-span-2 sm:col-span-1 relative group hover:border-emerald-400 transition flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-emerald-800 mb-1">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider">Total Proposta</span>
+              <span className="text-[10px] tracking-wider">Total Proposta</span>
               <DollarSign className="w-4 h-4 text-emerald-600/70 shrink-0" />
             </div>
             <p className="text-xl font-black text-emerald-950 font-mono tracking-tight">
@@ -3134,7 +3134,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 e.stopPropagation();
                 setIsSimulatorOpen(prev => !prev);
               }}
-              className={`flex-1 h-7 px-1.5 rounded-lg text-[10.5px] font-bold transition flex items-center justify-center gap-1 whitespace-nowrap shadow-xs cursor-pointer active:scale-95 ${
+              className={`flex-1 h-7 px-1.5 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1 whitespace-nowrap shadow-xs cursor-pointer active:scale-95 ${
                 isSimulatorOpen
                   ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-500'
                   : 'bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 hover:border-amber-400'
@@ -3150,7 +3150,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 e.stopPropagation();
                 setIsTargetPriceModalOpen(true);
               }}
-              className="flex-1 h-7 px-1.5 rounded-lg text-[10.5px] font-bold transition flex items-center justify-center gap-1 whitespace-nowrap bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 shadow-xs cursor-pointer active:scale-95"
+              className="flex-1 h-7 px-1.5 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1 whitespace-nowrap bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 shadow-xs cursor-pointer active:scale-95"
               title="Ajustar proposta para um Preço Alvo redondo (Reverse Markup)"
             >
               <Target className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -3332,7 +3332,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         return (
                           <div className="p-3.5 text-center text-xs text-slate-500">
                             <p className="font-semibold text-slate-700">Nenhuma empresa cadastrada</p>
-                            <p className="text-[10.5px] text-slate-400 mt-1">
+                            <p className="text-[10px] text-slate-400 mt-1">
                               Cadastre clientes na aba "Clientes" para selecioná-los rapidamente aqui ou continue digitando o nome.
                             </p>
                           </div>
@@ -3343,7 +3343,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         return (
                           <div className="p-3.5 text-center text-xs text-slate-500">
                             <p className="font-semibold text-slate-700">Nenhuma empresa salva como "{currentQuote.clientCompany}"</p>
-                            <p className="text-[10.5px] text-slate-400 mt-1">
+                            <p className="text-[10px] text-slate-400 mt-1">
                               Você pode continuar digitando normalmente para usar essa empresa nesta proposta.
                             </p>
                           </div>
@@ -3425,7 +3425,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                     <div className="text-xs font-bold text-slate-900 group-hover:text-sky-900 truncate">
                                       {c.name}
                                     </div>
-                                    <div className="text-[10.5px] text-slate-500 flex items-center gap-2 truncate">
+                                    <div className="text-[10px] text-slate-500 flex items-center gap-2 truncate">
                                       {c.defaultDeliveryLocation && <span>📍  {c.defaultDeliveryLocation}</span>}
                                       {c.contacts?.length > 0 && (
                                         <span>👥  {c.contacts.length} comprador(es)</span>
@@ -3434,7 +3434,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                   </div>
                                 </div>
 
-                                <span className="text-[10.5px] font-bold text-sky-600 bg-white border border-sky-200 group-hover:bg-sky-600 group-hover:text-white px-2 py-0.5 rounded-md shrink-0 transition">
+                                <span className="text-[10px] font-bold text-sky-600 bg-white border border-sky-200 group-hover:bg-sky-600 group-hover:text-white px-2 py-0.5 rounded-md shrink-0 transition">
                                   Selecionar
                                 </span>
                               </button>
@@ -3523,7 +3523,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         return (
                           <div className="p-3 text-center text-xs text-slate-500">
                             <p className="font-semibold text-slate-700">Nenhum comprador cadastrado com "{currentQuote.contactPerson}"</p>
-                            <p className="text-[10.5px] text-slate-400 mt-1">
+                            <p className="text-[10px] text-slate-400 mt-1">
                               Você pode continuar digitando normalmente para usar este novo comprador.
                             </p>
                           </div>
@@ -3534,7 +3534,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         <div className="pt-0.5 space-y-1">
                           <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                             <span>Compradores da {matchedCompany.name.split('—')[0].split('-')[0].trim()} ({filteredContacts.length})</span>
-                            <span className="text-[9px] font-normal text-slate-400">Clique para selecionar</span>
+                            <span className="text-[10px] font-normal text-slate-400">Clique para selecionar</span>
                           </div>
                           {filteredContacts.map(contact => {
                             const isSelected = currentQuote.contactPerson.toLowerCase().includes(contact.name.toLowerCase());
@@ -3568,14 +3568,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                     <div className="text-xs font-bold text-slate-900 truncate">
                                       {contact.title || 'Sr(a).'} {contact.name}
                                     </div>
-                                    <div className="text-[10.5px] text-slate-500 flex items-center gap-2 truncate">
+                                    <div className="text-[10px] text-slate-500 flex items-center gap-2 truncate">
                                       {contact.email && <span>✉️ {contact.email}</span>}
                                       {contact.phone && <span>📍  {contact.phone}</span>}
                                     </div>
                                   </div>
                                 </div>
 
-                                <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-md shrink-0 transition ${
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 transition ${
                                   isSelected
                                     ? 'bg-sky-600 text-white'
                                     : 'text-sky-600 bg-white border border-sky-200'
@@ -3799,7 +3799,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                   </p>
                                 </div>
                               </div>
-                              <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-sky-600 text-white shrink-0 group-hover:bg-sky-700 shadow-2xs transition">
+                              <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-sky-600 text-white shrink-0 group-hover:bg-sky-700 shadow-2xs transition">
                                 + Cadastrar
                               </span>
                             </button>
@@ -3811,7 +3811,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           <div className="space-y-1">
                             <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                               <span>Destinos de {matchedCompany?.name.split('—')[0].split('-')[0].trim()} ({companyLocs.length})</span>
-                              <span className="text-[9px] font-normal text-slate-400">Clique para selecionar</span>
+                              <span className="text-[10px] font-normal text-slate-400">Clique para selecionar</span>
                             </div>
                             {companyLocs.map(loc => {
                               const isSelected = queryLower === loc.toLowerCase().trim();
@@ -3844,7 +3844,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                       <div className="text-xs font-bold text-slate-900 truncate flex items-center gap-1.5">
                                         <span>{loc}</span>
                                         {locCep && (
-                                          <span className="text-[9.5px] font-mono font-bold text-sky-800 bg-sky-100 px-1.5 py-0.2 rounded border border-sky-200/80">
+                                          <span className="text-[10px] font-mono font-bold text-sky-800 bg-sky-100 px-1.5 py-0.2 rounded border border-sky-200/80">
                                             {formatCep(locCep)}
                                           </span>
                                         )}
@@ -3870,7 +3870,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           <div className="space-y-1 pt-1">
                             <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                               <span>{matchedCompany ? 'Outras Localidades Cadastradas' : 'Localidades Cadastradas'} ({otherLocs.length})</span>
-                              {!matchedCompany && <span className="text-[9px] font-normal text-slate-400">Clique para selecionar</span>}
+                              {!matchedCompany && <span className="text-[10px] font-normal text-slate-400">Clique para selecionar</span>}
                             </div>
                             {otherLocs.map(loc => {
                               const isSelected = queryLower === loc.toLowerCase().trim();
@@ -3920,7 +3920,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           <div className="p-4 text-center text-xs text-slate-500">
                             <MapPin className="w-5 h-5 text-slate-400 mx-auto mb-1" />
                             <p className="font-semibold text-slate-700">Nenhuma localidade encontrada</p>
-                            <p className="text-[10.5px] text-slate-400 mt-0.5">Digite o nome da cidade ou região para cadastrar</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Digite o nome da cidade ou região para cadastrar</p>
                           </div>
                         )}
                       </div>
@@ -4005,11 +4005,11 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       {resolvedLocationCep.formatted}
                     </span>
                   ) : currentQuote.deliveryLocation ? (
-                    <span className="text-[11px] text-amber-700 font-medium italic truncate">
+                    <span className="text-xs text-amber-700 font-medium italic truncate">
                       Sem CEP
                     </span>
                   ) : (
-                    <span className="text-[11px] text-slate-400 truncate">
+                    <span className="text-xs text-slate-400 truncate">
                       —
                     </span>
                   )}
@@ -4021,7 +4021,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       <button
                         type="button"
                         onClick={() => handleCopyCep(resolvedLocationCep.formatted)}
-                        className={`h-7 flex items-center gap-1 px-2 text-[10.5px] font-bold rounded-lg border transition shadow-2xs cursor-pointer ${
+                        className={`h-7 flex items-center gap-1 px-2 text-[10px] font-bold rounded-lg border transition shadow-2xs cursor-pointer ${
                           isCepCopied
                             ? 'bg-emerald-600 border-emerald-600 text-white'
                             : 'bg-white hover:bg-sky-600 text-sky-700 hover:text-white border-sky-300'
@@ -4059,7 +4059,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         setLocationCepInput('');
                         setIsEditingLocationCep(true);
                       }}
-                      className="h-7 flex items-center gap-1 px-2 text-[10.5px] font-bold rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition shadow-2xs cursor-pointer"
+                      className="h-7 flex items-center gap-1 px-2 text-[10px] font-bold rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition shadow-2xs cursor-pointer"
                       title="Cadastrar CEP para esta localidade"
                     >
                       <Plus className="w-3 h-3" />
@@ -4132,7 +4132,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsBatchPriceScanOpen(true)}
-                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 border shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap animate-pulse ${
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap animate-pulse ${
                         ageInDays >= 10
                           ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
                           : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
@@ -4141,7 +4141,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     >
                       <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${ageInDays >= 10 ? 'text-rose-600' : 'text-amber-600'}`} />
                       <span>Custos de {ageInDays}d atrás</span>
-                      <span className="bg-white/80 px-1 py-0.2 rounded text-[9px] font-mono border border-amber-300/60">Revalidar</span>
+                      <span className="bg-white/80 px-1 py-0.2 rounded text-[10px] font-mono border border-amber-300/60">Revalidar</span>
                     </button>
                   );
                 }
@@ -4153,7 +4153,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsDiscountModalOpen(true)}
-                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300/80 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300/80 shadow-2xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
                   title="Simular e aplicar desconto linear ou valor fechado na proposta com proteção de margem"
                 >
                   <Tag className="w-3.5 h-3.5 text-sky-600" />
@@ -4163,7 +4163,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               )}
 
               {currentQuote.items && currentQuote.items.length > 0 && (
-                <span className="text-[11px] text-slate-500 font-medium hidden md:inline shrink-0 whitespace-nowrap">
+                <span className="text-xs text-slate-500 font-medium hidden md:inline shrink-0 whitespace-nowrap">
                   {currentQuote.items.length} {currentQuote.items.length === 1 ? 'item' : 'itens'}
                 </span>
               )}
@@ -4222,7 +4222,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       </div>
                       <div className="flex-1 min-w-0">
                         <span>+ Criar novo item em branco na cotação</span>
-                        <p className="text-[10.5px] font-normal text-slate-500">
+                        <p className="text-[10px] font-normal text-slate-500">
                           {productSearchQuery ? `Ou use "${productSearchQuery}" como descrição inicial` : 'Preenchimento manual de código, custo e fotos'}
                         </p>
                       </div>
@@ -4246,7 +4246,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         return (
                           <div className="p-4 text-center text-xs text-slate-400">
                             <p className="font-semibold text-slate-600">Digite para buscar nos produtos...</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">Ex: "Café", "Cabo", "Intelbras", "0901" ou código do produto.</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Ex: "Café", "Cabo", "Intelbras", "0901" ou código do produto.</p>
                           </div>
                         );
                       }
@@ -4255,7 +4255,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         return (
                           <div className="p-4 text-center text-xs text-slate-500">
                             <p className="font-semibold text-slate-700">Nenhum item encontrado para "{productSearchQuery}"</p>
-                            <p className="text-[11px] text-slate-400 mt-1">
+                            <p className="text-xs text-slate-400 mt-1">
                               Clique no botão <strong className="text-sky-600">+ Criar novo item</strong> acima para adicionar manualmente.
                             </p>
                           </div>
@@ -4294,7 +4294,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                 <p className="text-xs font-bold text-slate-900 truncate group-hover:text-sky-700">
                                   {p.name}
                                 </p>
-                                <div className="flex items-center gap-2 mt-0.5 text-[10.5px] text-slate-500 font-mono">
+                                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 font-mono">
                                   {p.partNumber && <span>Part: {p.partNumber}</span>}
                                   {p.sku && <span>SKU: {p.sku}</span>}
                                   <span className="text-slate-400 font-sans">• {p.unit || 'Un.'}</span>
@@ -4345,7 +4345,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           {currentQuote.items && currentQuote.items.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-2 flex-wrap max-w-full py-0.5 relative z-20">
-                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 shrink-0">
+                <span className="text-xs font-bold text-slate-500 flex items-center gap-1 shrink-0">
                   <Sparkles className="w-3.5 h-3.5 text-sky-600" />
                   <span>Ações em Lote:</span>
                 </span>
@@ -4355,7 +4355,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsQuoteCaseMenuOpen(prev => !prev)}
-                    className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer flex items-center gap-1 border shrink-0 ${
+                    className={`px-2 py-1 rounded-lg text-xs font-semibold transition shadow-2xs cursor-pointer flex items-center gap-1 border shrink-0 ${
                       isQuoteCaseMenuOpen
                         ? 'bg-sky-50 text-sky-700 border-sky-300 ring-1 ring-sky-200'
                         : 'bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border-slate-200'
@@ -4440,7 +4440,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     const updated = currentQuote.items.map(i => ({ ...i, showImage: !allHaveImage }));
                     setCurrentQuote(prev => ({ ...prev, items: updated }));
                   }}
-                  className="px-2.5 py-1 bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-[11px] font-semibold transition shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1 bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 rounded-lg text-xs font-semibold transition shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
                   title="Ativa ou desativa a exibição das fotos na proposta para todos os itens simultaneamente"
                 >
                   {currentQuote.items.every(i => i.showImage) ? 'Ocultar Fotos' : 'Exibir Fotos (Todos)'}
@@ -4451,7 +4451,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
                 {/* Campo Editável de Porcentagem de Lucro para Itens Selecionados */}
                 <div className="flex items-center gap-1.5 bg-sky-50/80 border border-sky-200/80 px-2.5 py-1 rounded-xl shadow-2xs shrink-0">
-                  <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1">
+                  <span className="text-xs font-bold text-sky-900 flex items-center gap-1">
                     <Percent className="w-3.5 h-3.5 text-sky-600" />
                     <span>Lucro:</span>
                   </span>
@@ -4475,7 +4475,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     <button
                       type="button"
                       onClick={() => handleApplyMarkupToSelectedItems(batchMarkupInput)}
-                      className="px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer whitespace-nowrap"
+                      className="px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-2xs transition active:scale-95 cursor-pointer whitespace-nowrap"
                       title={selectedItemIds.length > 0 ? `Aplicar ${batchMarkupInput || formatPercentPtBr(globalMarkup)}% nos ${selectedItemIds.length} item(ns) selecionado(s)` : 'Selecione os itens pelas caixinhas ao lado do número para aplicar'}
                     >
                       Aplicar nos Selecionados {selectedItemIds.length > 0 && `(${selectedItemIds.length})`}
@@ -4489,7 +4489,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                           setWhatsAppInitialMode('items_only');
                           setIsWhatsAppModalOpen(true);
                         }}
-                        className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                        className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold shadow-2xs transition active:scale-95 cursor-pointer flex items-center gap-1 whitespace-nowrap"
                         title="Copiar texto de itens e quantidades dos selecionados para o WhatsApp"
                       >
                         <MessageSquare className="w-3 h-3 text-emerald-600" />
@@ -4509,7 +4509,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 </div>
               </div>
 
-              <div className="text-[11px] text-slate-500 font-medium">
+              <div className="text-xs text-slate-500 font-medium">
                 Dica: Você pode <strong>duplicar</strong> itens e <strong>reordenar</strong> nas setinhas da tabela.
               </div>
             </div>
@@ -4559,7 +4559,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         <p className="text-xs font-bold text-amber-900 mb-1">
                           Proposta com valores cadastrados (R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                         </p>
-                        <p className="text-[11px] text-amber-700 mb-3 leading-relaxed">
+                        <p className="text-xs text-amber-700 mb-3 leading-relaxed">
                           Os produtos estão sendo restaurados automaticamente do histórico comercial.
                         </p>
                         <button
@@ -4606,7 +4606,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
                             title={`Selecionar item ${item.itemNumber || idx + 1} para ações em lote`}
                           />
-                          <span className="text-[11px] font-mono text-slate-600">{item.itemNumber}</span>
+                          <span className="text-[10px] font-mono text-slate-600">{item.itemNumber}</span>
                         </div>
                       </td>
 
@@ -4737,7 +4737,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         >
                           <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1.5 flex items-center justify-between">
                             <span>Unidades</span>
-                            <span className="text-[9px] font-normal text-slate-400">{availableUnits.length} cadastradas</span>
+                            <span className="text-[10px] font-normal text-slate-400">{availableUnits.length} cadastradas</span>
                           </div>
 
                           {/* Campo de busca ou digitação de nova unidade (sem placeholder) */}
@@ -4828,7 +4828,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                                 );
                               })
                             ) : (
-                              <div className="px-2 py-2 text-center text-[11px] text-slate-400">
+                              <div className="px-2 py-2 text-center text-xs text-slate-400">
                                 Nenhuma unidade encontrada
                               </div>
                             )}
@@ -4879,7 +4879,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                       />
                       {item.dollarPrice !== undefined && item.dollarPrice > 0 && (
                         <div
-                          className="text-[9.5px] text-emerald-700 font-mono font-bold leading-tight mt-0.5 truncate cursor-help"
+                          className="text-[10px] text-emerald-700 font-mono font-bold leading-tight mt-0.5 truncate cursor-help"
                           title={`Origem em Dólar: US$ ${item.dollarPrice.toFixed(2)}${item.dollarSurchargePercent ? ` (+${item.dollarSurchargePercent}%)` : ''}`}
                         >
                           US$ {item.dollarPrice.toFixed(2)}{item.dollarSurchargePercent ? ` (+${item.dollarSurchargePercent}%)` : ''}
@@ -4932,7 +4932,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         className="w-full h-8 min-w-[72px] bg-slate-50 border border-slate-300 rounded-lg px-1 text-xs text-center font-mono text-amber-700 font-semibold focus:outline-none focus:border-amber-500 focus:bg-white leading-none"
                       />
                       {item.quantity > 1 && item.shippingCost !== undefined && item.shippingCost > 0 && (
-                        <div className="text-[9px] text-amber-600 font-semibold font-mono tracking-tight mt-0.5">
+                        <div className="text-[10px] text-amber-600 font-semibold font-mono tracking-tight mt-0.5">
                           total R$ {formatCurrencyPtBr(item.shippingCost * item.quantity)}
                         </div>
                       )}
@@ -5000,7 +5000,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         if (isPrejuizo) {
                           return (
                             <div
-                              className="text-[9.5px] font-mono font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap inline-flex items-center gap-1 shadow-2xs"
+                              className="text-[10px] font-mono font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap inline-flex items-center gap-1 shadow-2xs"
                               title={`Atenção: Prejuízo neste item de ${formatBRL(Math.abs(itemTotalProfit))}`}
                             >
                               <span>🚨</span>
@@ -5012,7 +5012,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                         if (isMargemBaixa) {
                           return (
                             <div
-                              className="text-[9.5px] font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap inline-flex items-center gap-1 shadow-2xs"
+                              className="text-[10px] font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap inline-flex items-center gap-1 shadow-2xs"
                               title={`Margem líquida apertada: ${effectiveMargin.toFixed(1)}% | Lucro: ${formatBRL(itemTotalProfit)}`}
                             >
                               <span>⚠️</span>
@@ -5023,7 +5023,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
                         return (
                           <div
-                            className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded mt-1 whitespace-nowrap inline-flex items-center gap-1 border shadow-2xs ${
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded mt-1 whitespace-nowrap inline-flex items-center gap-1 border shadow-2xs ${
                               isMargemExcelente 
                                 ? 'text-emerald-800 bg-emerald-50 border-emerald-200' 
                                 : 'text-teal-800 bg-teal-50/70 border-teal-200'
@@ -5182,7 +5182,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-2 py-0.5 rounded-lg transition cursor-pointer shrink-0"
                             title="Alternar maiúsculas/minúsculas da palavra sob o cursor, da seleção ou do nome completo"
                           >
-                            <span className="font-serif font-bold text-[11px] tracking-tight text-sky-700">Aa</span>
+                            <span className="font-serif font-bold text-xs tracking-tight text-sky-700">Aa</span>
                           </button>
 
                           {/* 3. Salvar/Revisar no Catálogo (Ficha) */}
@@ -5345,7 +5345,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             {currentQuote.items.length > 0 && (
               <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-xs">
                 <tr>
-                  <td colSpan={7} className="p-3 text-right text-slate-600 uppercase tracking-wider text-[11px]">
+                  <td colSpan={7} className="p-3 text-right text-slate-600 -[10px]">
                     Total Geral da Proposta:
                   </td>
                   <td colSpan={2} className="p-3 text-right text-emerald-700 text-sm font-mono font-extrabold">
@@ -5371,7 +5371,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               Condições Gerais de Fornecimento
             </h3>
             {/* Chips de Resumo Visual quando recolhido */}
-            <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
+            <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-semibold">
                 ⏳ {extractValidityDaysNumber(currentQuote.validityDays)} dias validade
               </span>
@@ -5412,7 +5412,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           <div className="space-y-1.5">
             <div className="h-7 flex items-center justify-between">
               <label className="block text-slate-600 font-medium">Validade da Proposta</label>
-              <span className="text-[11px] font-bold text-sky-700 font-mono">
+              <span className="text-xs font-bold text-sky-700 font-mono">
                 {extractValidityDaysNumber(currentQuote.validityDays)} dias
               </span>
             </div>
@@ -5438,7 +5438,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.validityDays}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, validityDays: e.target.value }))}
-              className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
+              className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-xs font-medium"
             />
           </div>
 
@@ -5446,7 +5446,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           <div className="space-y-1.5">
             <div className="h-7 flex items-center justify-between">
               <label className="block text-slate-600 font-medium">Condições de Pagamento</label>
-              <span className="text-[11px] font-bold text-sky-700 font-mono">
+              <span className="text-xs font-bold text-sky-700 font-mono">
                 {currentQuote.paymentTerms?.toLowerCase().includes('faturado')
                   ? 'Faturado'
                   : currentQuote.paymentTerms?.toLowerCase().includes('vista')
@@ -5502,7 +5502,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.paymentTerms}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, paymentTerms: e.target.value }))}
-              className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
+              className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-xs font-medium"
             />
           </div>
 
@@ -5525,7 +5525,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 >
                   <span>⚡ {showDeliveryException ? 'Ocultar Exceção' : (exceptionItemNumbers.length > 0 ? `Exceção ativa (${exceptionItemNumbers.length})` : '+ Regra de Exceção')}</span>
                 </button>
-                <span className="text-[11px] font-bold text-sky-700 font-mono">
+                <span className="text-xs font-bold text-sky-700 font-mono">
                   {extractDeliveryDaysNumber(currentQuote.deliveryDays)} dias
                 </span>
               </div>
@@ -5533,7 +5533,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
             {/* Dias gerais da proposta */}
             <div className="min-h-7 flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10.5px] text-slate-400 font-medium mr-0.5">Padrão:</span>
+              <span className="text-[10px] text-slate-400 font-medium mr-0.5">Padrão:</span>
               {[3, 5, 7, 10, 15, 20, 30].map(days => (
                 <button
                   key={days}
@@ -5561,7 +5561,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               {/* Separador e Campo Editável para prazo personalizado */}
               <span className="w-px h-3.5 bg-slate-200 mx-0.5" />
               <div className="inline-flex items-center gap-1">
-                <span className="text-[10.5px] text-slate-400 font-medium">Outro:</span>
+                <span className="text-[10px] text-slate-400 font-medium">Outro:</span>
                 {(() => {
                   const currentExtracted = extractDeliveryDaysNumber(currentQuote.deliveryDays);
                   const isStandard = [3, 5, 7, 10, 15, 20, 30].includes(currentExtracted);
@@ -5591,7 +5591,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                             }));
                           }
                         }}
-                        className={`w-14 h-6 px-1.5 text-center text-[10.5px] font-bold font-mono rounded-lg border transition ${
+                        className={`w-14 h-6 px-1.5 text-center text-[10px] font-bold font-mono rounded-lg border transition ${
                           isCustomActive
                             ? 'bg-sky-50 border-sky-500 text-sky-800 shadow-2xs ring-1 ring-sky-200'
                             : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-200'
@@ -5609,7 +5609,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
             {showDeliveryException && (
               <div className="p-3 bg-amber-50/80 border border-amber-200/90 rounded-xl space-y-2 animate-in fade-in">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
                     <span>⚠️ Regra de Exceção:</span>
                     <span className="font-normal text-amber-800">Escolha quais itens terão prazo diferente</span>
                   </span>
@@ -5659,13 +5659,13 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                               deliveryDays: phrase
                             }));
                           }}
-                          className={`text-[10.5px] px-2.5 py-1 rounded-lg border font-medium transition flex items-center gap-1.5 cursor-pointer ${
+                          className={`text-[10px] px-2.5 py-1 rounded-lg border font-medium transition flex items-center gap-1.5 cursor-pointer ${
                             isSelected
                               ? 'bg-amber-600 text-white border-amber-700 font-bold shadow-2xs'
                               : 'bg-white hover:bg-amber-100/70 text-slate-700 border-amber-200'
                           }`}
                         >
-                          <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[9.5px]">
+                          <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">
                             {itemNum}
                           </span>
                           <span>{shortName}</span>
@@ -5674,12 +5674,12 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     })}
                   </div>
                 ) : (
-                  <p className="text-[10.5px] text-amber-700 italic">Adicione produtos na cotação para selecionar os itens da exceção.</p>
+                  <p className="text-[10px] text-amber-700 italic">Adicione produtos na cotação para selecionar os itens da exceção.</p>
                 )}
 
                 {/* Prazo para os itens selecionados */}
                 <div className="flex items-center gap-2 pt-1 border-t border-amber-200/60 flex-wrap">
-                  <span className="text-[10.5px] font-bold text-amber-900">Prazo dos itens selecionados:</span>
+                  <span className="text-[10px] font-bold text-amber-900">Prazo dos itens selecionados:</span>
                   {[5, 10, 15, 20, 25, 30, 45].map(d => (
                     <button
                       key={d}
@@ -5731,7 +5731,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.deliveryDays}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, deliveryDays: e.target.value }))}
-              className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
+              className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-xs font-medium"
             />
           </div>
 
@@ -5739,7 +5739,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           <div className="space-y-1.5">
             <div className="h-7 flex items-center justify-between">
               <label className="block text-slate-600 font-medium">Termos de Garantia</label>
-              <span className="text-[11px] font-bold text-sky-700 font-mono">
+              <span className="text-xs font-bold text-sky-700 font-mono">
                 {extractWarrantyMonthsNumber(currentQuote.warrantyTerms)} meses • {extractWarrantyType(currentQuote.warrantyTerms) === 'autorizada' ? 'Rede Autorizada' : 'Balcão'}
               </span>
             </div>
@@ -5809,7 +5809,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               type="text"
               value={currentQuote.warrantyTerms}
               onChange={(e) => setCurrentQuote(prev => ({ ...prev, warrantyTerms: e.target.value }))}
-              className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-[11px] font-medium"
+              className="w-full h-9 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-800 focus:outline-none focus:border-sky-500 text-xs font-medium"
             />
           </div>
 
@@ -5820,7 +5820,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 <Truck className="w-3.5 h-3.5 text-sky-600" />
                 <span>Cláusula de Frete</span>
               </label>
-              <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-semibold text-slate-600 hover:text-slate-900">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs font-semibold text-slate-600 hover:text-slate-900">
                 <input
                   type="checkbox"
                   checked={shouldDisplayShippingInProposal(currentQuote)}
@@ -5887,7 +5887,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               className="text-xs font-semibold text-slate-500 hover:text-sky-600 flex items-center gap-1.5 transition cursor-pointer"
             >
               <span>✎ Personalizar texto de abertura da proposta</span>
-              <span className="text-[10.5px] text-slate-400 font-normal truncate max-w-md hidden sm:inline">
+              <span className="text-[10px] text-slate-400 font-normal truncate max-w-md hidden sm:inline">
                 ({currentQuote.openingText ? `${currentQuote.openingText.slice(0, 55)}...` : 'Padrão formal ativo'})
               </span>
             </button>
@@ -5898,7 +5898,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsOpeningTextOpen(false)}
-                  className="text-[11px] text-slate-400 hover:text-slate-600 font-medium cursor-pointer"
+                  className="text-xs text-slate-400 hover:text-slate-600 font-medium cursor-pointer"
                 >
                   Recolher ▲
                 </button>
@@ -5984,7 +5984,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               <h2 className="text-base sm:text-lg font-black text-[#261f18] uppercase tracking-wide leading-tight font-sans">
                 {zoomedImage.title}
               </h2>
-              <p className="text-[11px] sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
+              <p className="text-xs sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
                 {zoomedImage.itemNumber ? `ITEM ${zoomedImage.itemNumber} • ESPECIFICAÇÃO TÉCNICA` : 'ESPECIFICAÇÃO TÉCNICA'}
               </p>
             </div>
@@ -6003,7 +6003,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               <button
                 type="button"
                 onClick={() => setZoomedImage(null)}
-                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-[13px] font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
               >
                 Fechar
               </button>
@@ -6031,7 +6031,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Checklist Antifalhas da Proposta</h3>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-xs text-slate-500">
                     {validationModal.issues.some(i => i.type === 'error')
                       ? 'Corrija os pontos críticos abaixo antes de prosseguir'
                       : 'Revise os alertas recomendados antes de enviar ao cliente'}
@@ -6089,7 +6089,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   <span>Prosseguir Assim Mesmo</span>
                 </button>
               ) : (
-                <span className="text-[11px] font-bold text-rose-600">
+                <span className="text-xs font-bold text-rose-600">
                   Ajuste os erros críticos acima para liberar o envio
                 </span>
               )}
@@ -6148,14 +6148,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     %
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                <p className="text-xs text-slate-400 mt-2 leading-relaxed">
                   💡 Recalcula os preços unitários e o lucro líquido da proposta.
                 </p>
               </div>
 
               {/* Botões de atalho rápido */}
               <div className="flex items-center gap-2 pt-1">
-                <span className="text-[11px] font-bold text-slate-400">Atalhos:</span>
+                <span className="text-xs font-bold text-slate-400">Atalhos:</span>
                 {[20, 23.5, 25, 30, 35].map(val => (
                   <button
                     key={val}
@@ -6239,14 +6239,14 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     %
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                <p className="text-xs text-slate-400 mt-2 leading-relaxed">
                   💡 Atualiza a alíquota em todos os produtos da cotação, recalcula os preços comerciais e o total de impostos.
                 </p>
               </div>
 
               {/* Botões de atalho rápido */}
               <div className="flex items-center gap-2 pt-1">
-                <span className="text-[11px] font-bold text-slate-400">Atalhos:</span>
+                <span className="text-xs font-bold text-slate-400">Atalhos:</span>
                 {[4, 6, 8.5, 9.1, 12].map(val => (
                   <button
                     key={val}
@@ -6355,7 +6355,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                     R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5 whitespace-nowrap leading-none mt-1">
+                <div className="text-xs text-slate-400 font-medium flex items-center gap-1.5 whitespace-nowrap leading-none mt-1">
                   <span>{currentQuote.items.length} {currentQuote.items.length === 1 ? 'item cotado' : 'itens cotados'}</span>
                   <span>•</span>
                   <span>Margem média de {currentQuote.averageMargin.toFixed(1)}%</span>
@@ -6682,7 +6682,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
                   <h3 className="text-sm font-bold text-slate-900">
                     Registrar Motivo de Perda
                   </h3>
-                  <p className="text-[11px] text-slate-500 font-mono">
+                  <p className="text-xs text-slate-500 font-mono">
                     Proposta {currentQuote.code || currentQuote.id}
                   </p>
                 </div>
@@ -6726,7 +6726,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
               {selectedLossReason === 'Outro motivo' && (
                 <div className="pt-1">
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
                     Descreva o motivo:
                   </label>
                   <input

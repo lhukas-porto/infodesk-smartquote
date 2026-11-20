@@ -259,7 +259,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                 <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                   Detector Inteligente de Produtos Duplicados
                 </h2>
-                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-[11px] font-bold font-mono rounded-full">
+                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-bold font-mono rounded-full">
                   {activePairs.length} {activePairs.length === 1 ? 'SUSPEITO' : 'SUSPEITOS'}
                 </span>
               </div>
@@ -329,7 +329,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
             </button>
           </div>
 
-          <div className="text-[11px] text-slate-400 font-medium">
+          <div className="text-xs text-slate-400 font-medium">
             Total de produtos no catálogo: <strong className="text-slate-700">{products.length}</strong>
           </div>
         </div>
@@ -425,7 +425,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                               <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-bold font-mono rounded">
                                 OPÇÃO A
                               </span>
-                              <span className="text-[11px] font-medium text-slate-500">
+                              <span className="text-xs font-medium text-slate-500">
                                 {itemA.category}
                               </span>
                             </div>
@@ -436,7 +436,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                         </div>
 
                         {/* Metadados A */}
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <div>
                             <span className="text-slate-400 block text-[10px]">Part Number</span>
                             <strong className="text-slate-800 font-mono">{itemA.partNumber || '—'}</strong>
@@ -493,7 +493,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                               <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold font-mono rounded">
                                 OPÇÃO B
                               </span>
-                              <span className="text-[11px] font-medium text-slate-500">
+                              <span className="text-xs font-medium text-slate-500">
                                 {itemB.category}
                               </span>
                             </div>
@@ -504,7 +504,7 @@ export const CatalogDuplicatesModal: React.FC<CatalogDuplicatesModalProps> = ({
                         </div>
 
                         {/* Metadados B */}
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <div>
                             <span className="text-slate-400 block text-[10px]">Part Number</span>
                             <strong className="text-slate-800 font-mono">{itemB.partNumber || '—'}</strong>

@@ -174,7 +174,7 @@ export const KitsModal: React.FC<KitsModalProps> = ({
                         {kit.description && (
                           <p className="text-xs text-slate-500 line-clamp-1">{kit.description}</p>
                         )}
-                        <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-0.5">
+                        <div className="text-xs text-slate-400 flex items-center gap-1.5 pt-0.5">
                           <span className="font-semibold text-sky-700">{kit.items.length} produtos incluídos</span>
                           <span>•</span>
                           <span>Salvo em {new Date(kit.createdAt).toLocaleDateString('pt-BR')}</span>
@@ -269,7 +269,7 @@ export const KitsModal: React.FC<KitsModalProps> = ({
                   {currentQuoteItems.map((it, idx) => (
                     <div key={idx} className="flex items-center justify-between py-0.5 border-b border-slate-100 last:border-0">
                       <span className="truncate pr-2">• {it.name || 'Produto sem nome'}</span>
-                      <span className="font-mono text-[11px] text-slate-500 shrink-0">{it.quantity} {it.unit}</span>
+                      <span className="font-mono text-xs text-slate-500 shrink-0">{it.quantity} {it.unit}</span>
                     </div>
                   ))}
                 </div>

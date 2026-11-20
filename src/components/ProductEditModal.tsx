@@ -476,7 +476,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </span>
                   )}
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-xs text-slate-500">
                   {subtitle}
                 </p>
               </div>
@@ -541,14 +541,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     ) : (
                       <div className="flex flex-col items-center justify-center text-center">
                         <ImagePlus className="w-5 h-5 text-sky-500 group-hover/cimg:scale-110 transition" />
-                        <span className="text-[9px] font-bold text-sky-700 leading-tight mt-0.5">+ Foto</span>
+                        <span className="text-[10px] font-bold text-sky-700 leading-tight mt-0.5">+ Foto</span>
                       </div>
                     )}
                   </div>
                   <button
                     type="button"
                     onClick={() => setIsWebImagePickerOpen(true)}
-                    className="mt-1.5 w-16 inline-flex items-center justify-center gap-1 text-[9px] font-bold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1 py-0.5 rounded-lg transition cursor-pointer text-center shadow-2xs"
+                    className="mt-1.5 w-16 inline-flex items-center justify-center gap-1 text-[10px] font-bold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1 py-0.5 rounded-lg transition cursor-pointer text-center shadow-2xs"
                     title="Pesquisar foto deste produto na internet"
                   >
                     <Camera className="w-2.5 h-2.5 text-sky-600 shrink-0" />
@@ -558,7 +558,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-bold text-slate-700">
+                    <label className="block text-xs font-bold text-slate-700">
                       Nome Padronizado *
                     </label>
                   </div>
@@ -580,7 +580,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {/* Código / SKU / Part Number e NCM */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     Código / SKU / Part Number / Modelo
                   </label>
                   <input
@@ -593,7 +593,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-bold text-slate-700">
+                    <label className="block text-xs font-bold text-slate-700">
                       NCM Fiscal
                     </label>
                     {draft.ncm && (
@@ -640,7 +640,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {/* Preço em Dólar, Acréscimo Fornecedor %, Preço de Custo, Frete Unitário, Custo Total e Unidade */}
               <div className={`grid grid-cols-2 ${showShippingFields ? 'sm:grid-cols-6' : 'sm:grid-cols-4'} gap-3 items-start`}>
                 <div className="flex flex-col">
-                  <label className="h-8 flex items-end justify-center sm:justify-start text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                  <label className="h-8 flex items-end justify-center sm:justify-start text-xs font-bold text-slate-700 mb-1.5 leading-tight">
                     <span>Preço Dólar (US$)</span>
                   </label>
                   <input
@@ -658,14 +658,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     className="w-full h-10 bg-slate-50 border border-slate-300 rounded-xl px-3 text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-500 text-xs text-center"
                   />
                   {effectiveDollarRate > 0 && (
-                    <p className="text-[9px] text-slate-400 text-center mt-1 font-medium truncate" title="Cotação do dia definida nas Configurações">
+                    <p className="text-[10px] text-slate-400 text-center mt-1 font-medium truncate" title="Cotação do dia definida nas Configurações">
                       US$ 1 = {formatBRL(effectiveDollarRate)}
                     </p>
                   )}
                 </div>
 
                 <div className="flex flex-col">
-                  <label className="h-8 flex items-end justify-center sm:justify-start text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                  <label className="h-8 flex items-end justify-center sm:justify-start text-xs font-bold text-slate-700 mb-1.5 leading-tight">
                     <span>Acréscimo (%)</span>
                   </label>
                   <input
@@ -686,7 +686,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     <button
                       type="button"
                       onClick={() => applySuggestedSurcharge(suggestedSurcharge.percent)}
-                      className="text-[9px] text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded px-1.5 py-0.5 mt-1 font-semibold text-center transition cursor-pointer truncate"
+                      className="text-[10px] text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded px-1.5 py-0.5 mt-1 font-semibold text-center transition cursor-pointer truncate"
                       title={`Padrão aprendido para ${suggestedSurcharge.label}: ${suggestedSurcharge.percent}% (${suggestedSurcharge.confidence}). Clique para aplicar.`}
                     >
                       💡 Sugerido: {suggestedSurcharge.percent}%
@@ -695,7 +695,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
 
                 <div className="flex flex-col">
-                  <label className="h-8 flex items-end justify-center sm:justify-start text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                  <label className="h-8 flex items-end justify-center sm:justify-start text-xs font-bold text-slate-700 mb-1.5 leading-tight">
                     <span>Preço de Custo (R$) *</span>
                   </label>
                   <input
@@ -724,7 +724,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 {showShippingFields && (
                   <div className="flex flex-col">
-                    <label className="h-8 flex items-end justify-center sm:justify-start gap-1 text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                    <label className="h-8 flex items-end justify-center sm:justify-start gap-1 text-xs font-bold text-slate-700 mb-1.5 leading-tight">
                       <Truck className="w-3.5 h-3.5 text-amber-600 shrink-0 mb-0.5" />
                       <span>Frete Unitário (R$)</span>
                     </label>
@@ -753,7 +753,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 {showShippingFields && (
                   <div className="flex flex-col">
-                    <label className="h-8 flex items-end justify-center sm:justify-start gap-1 text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                    <label className="h-8 flex items-end justify-center sm:justify-start gap-1 text-xs font-bold text-slate-700 mb-1.5 leading-tight">
                       <Calculator className="w-3.5 h-3.5 text-sky-600 shrink-0 mb-0.5" />
                       <span>Custo Total (R$)</span>
                     </label>
@@ -768,7 +768,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 )}
 
                 <div className="flex flex-col">
-                  <label className="h-8 flex items-end justify-center sm:justify-start text-[11px] font-bold text-slate-700 mb-1.5 leading-tight">
+                  <label className="h-8 flex items-end justify-center sm:justify-start text-xs font-bold text-slate-700 mb-1.5 leading-tight">
                     <span>Unidade</span>
                   </label>
                   <CreatableCombobox
@@ -792,7 +792,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {/* Categoria e Fornecedor */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                 <div className="flex flex-col">
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Categoria
                   </label>
                   <CreatableCombobox
@@ -815,7 +815,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
 
                 <div className="flex flex-col">
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Fornecedor
                   </label>
                   <CreatableCombobox
@@ -835,7 +835,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* Link de Compra / Referência */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Link Direto de Compra ou Referência
                 </label>
                 <div className="flex items-center gap-2">
@@ -851,7 +851,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         supplier: detectedStore || prev.supplier
                       }));
                     }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-[11px] focus:outline-none focus:border-sky-500"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500"
                   />
                   {draft.sourceUrl && (
                     <a
@@ -927,7 +927,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               <h2 className="text-base sm:text-lg font-black text-[#261f18] uppercase tracking-wide leading-tight font-sans">
                 {zoomedImage.title}
               </h2>
-              <p className="text-[11px] sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
+              <p className="text-xs sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
                 ESPECIFICAÇÃO TÉCNICA
               </p>
             </div>
@@ -944,7 +944,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               <button
                 type="button"
                 onClick={() => setZoomedImage(null)}
-                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-[13px] font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
               >
                 Fechar
               </button>

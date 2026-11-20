@@ -299,7 +299,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="relative">
             <Mail className={`w-5 h-5 ${activeTab === 'inbox' ? 'text-amber-400 stroke-[2.5]' : 'stroke-2'}`} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-amber-500 text-slate-900 text-[9px] font-extrabold rounded-full shadow-2xs">
+              <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-amber-500 text-slate-900 text-[10px] font-extrabold rounded-full shadow-2xs">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -339,7 +339,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="relative">
           <ShoppingCart className={`w-5 h-5 ${activeTab === 'purchases' ? 'text-amber-400 stroke-[2.5]' : 'stroke-2'}`} />
           {pendingPurchasesCount > 0 && (
-            <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-amber-500 text-slate-900 text-[9px] font-extrabold rounded-full shadow-2xs animate-pulse">
+            <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-amber-500 text-slate-900 text-[10px] font-extrabold rounded-full shadow-2xs animate-pulse">
               {pendingPurchasesCount > 99 ? '99+' : pendingPurchasesCount}
             </span>
           )}
@@ -448,7 +448,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900">Dashboard & Indicadores</p>
-                  <p className="text-[11px] text-slate-500">Métricas comerciais, conversão e faturamento</p>
+                  <p className="text-xs text-slate-500">Métricas comerciais, conversão e faturamento</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
@@ -469,7 +469,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900">Scanner IA de Produtos</p>
-                  <p className="text-[11px] text-slate-500">Localizar fornecedores e referências com IA</p>
+                  <p className="text-xs text-slate-500">Localizar fornecedores e referências com IA</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
@@ -490,7 +490,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900">Catálogo de Produtos</p>
-                  <p className="text-[11px] text-slate-500">Consulta geral de estoque, NCM e custos base</p>
+                  <p className="text-xs text-slate-500">Consulta geral de estoque, NCM e custos base</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
@@ -511,7 +511,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900">Empresas & Clientes</p>
-                  <p className="text-[11px] text-slate-500">Gestão de CNPJs, compradores e condições</p>
+                  <p className="text-xs text-slate-500">Gestão de CNPJs, compradores e condições</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
@@ -536,7 +536,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <div>
                     <p className="text-xs font-bold text-amber-950">Rascunhos em Elaboração</p>
-                    <p className="text-[11px] text-amber-700">{draftsCount} orçamento{draftsCount > 1 ? 's' : ''} aguardando envio</p>
+                    <p className="text-xs text-amber-700">{draftsCount} orçamento{draftsCount > 1 ? 's' : ''} aguardando envio</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-amber-600 shrink-0" />
@@ -559,7 +559,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-900">Demandas Avulsas & OCR</p>
-                    <p className="text-[11px] text-slate-500">{analysesCount} demanda{analysesCount > 1 ? 's' : ''} em processamento</p>
+                    <p className="text-xs text-slate-500">{analysesCount} demanda{analysesCount > 1 ? 's' : ''} em processamento</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
@@ -581,7 +581,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <div>
                     <p className="text-xs font-bold text-white">Criar Nova Cotação do Zero</p>
-                    <p className="text-[11px] text-sky-100">Iniciar proposta limpa com novo código</p>
+                    <p className="text-xs text-sky-100">Iniciar proposta limpa com novo código</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-white/70 shrink-0" />

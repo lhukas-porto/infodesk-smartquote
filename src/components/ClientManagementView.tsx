@@ -67,7 +67,7 @@ const CompanyLogoBadge: React.FC<{
 
   const sizeClasses = {
     xs: 'w-7 h-7 text-[10px]',
-    sm: 'w-8 h-8 text-[11px]',
+    sm: 'w-8 h-8 text-xs',
     md: 'w-11 h-11 text-sm',
     lg: 'w-14 h-14 text-base'
   }[size];
@@ -554,7 +554,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
               <Building className="w-3.5 h-3.5" />
             </span>
             <div className="leading-tight">
-              <span className="text-[9.5px] uppercase font-bold text-slate-400 block tracking-wider">Empresas</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Empresas</span>
               <span className="text-xs sm:text-sm font-extrabold text-slate-900 font-mono">{totalCompanies}</span>
             </div>
           </div>
@@ -564,7 +564,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
               <Users className="w-3.5 h-3.5" />
             </span>
             <div className="leading-tight">
-              <span className="text-[9.5px] uppercase font-bold text-slate-400 block tracking-wider">Compradores</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Compradores</span>
               <span className="text-xs sm:text-sm font-extrabold text-slate-900 font-mono">{totalContacts}</span>
             </div>
           </div>
@@ -574,7 +574,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
               <MapPin className="w-3.5 h-3.5" />
             </span>
             <div className="leading-tight">
-              <span className="text-[9.5px] uppercase font-bold text-slate-400 block tracking-wider">Praças</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Praças</span>
               <span className="text-xs sm:text-sm font-extrabold text-slate-900 font-mono">{uniqueLocationsCount}</span>
             </div>
           </div>
@@ -663,7 +663,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     </div>
                   )}
                 </div>
-                <span className="text-[9.5px] text-slate-400 block -mt-1">
+                <span className="text-[10px] text-slate-400 block -mt-1">
                   💡 Basta o site principal — o sistema captura o ícone oficial da aba do navegador.
                 </span>
                 <div className="flex justify-end gap-1.5 pt-1">
@@ -712,7 +712,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         </span>
                         {proposalCount > 0 && (
                           <span 
-                            className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded-md shadow-2xs whitespace-nowrap ${
+                            className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded-md shadow-2xs whitespace-nowrap ${
                               proposalCount >= 3 
                                 ? 'bg-amber-50 text-amber-900 border border-amber-200' 
                                 : 'bg-sky-50 text-sky-700 border border-sky-200'
@@ -745,14 +745,14 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
           {/* Rodapé de Paginação Compacto e Moderno (Opção 3) */}
           {filteredCompanies.length > 0 && (
             <div className="pt-3 border-t border-slate-200 flex flex-col gap-2 shrink-0 bg-slate-50/70 rounded-b-xl">
-              <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium px-1">
+              <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
                 <span>
                   {(companyPageSafe - 1) * companyPageSize + 1}–{Math.min(filteredCompanies.length, companyPageSafe * companyPageSize)} de {filteredCompanies.length} empresas
                 </span>
                 <select
                   value={companyPageSize}
                   onChange={(e) => setCompanyPageSize(Number(e.target.value))}
-                  className="bg-white border border-slate-200 text-slate-700 rounded-lg px-2 py-0.5 text-[11px] font-semibold focus:outline-none focus:border-sky-500 cursor-pointer shadow-2xs"
+                  className="bg-white border border-slate-200 text-slate-700 rounded-lg px-2 py-0.5 text-xs font-semibold focus:outline-none focus:border-sky-500 cursor-pointer shadow-2xs"
                   title="Empresas por página"
                 >
                   <option value={15}>15 por pág. (3x5)</option>
@@ -816,7 +816,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nome da Empresa / Órgão</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Nome da Empresa / Órgão</label>
                         <div className="flex gap-1.5">
                           <select
                             value={editCompanyPrefix}
@@ -837,11 +837,11 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Local de Entrega Padrão</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Local de Entrega Padrão</label>
                         <input type="text" value={editCompanyLocation} onChange={(e) => setEditCompanyLocation(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" />
                       </div>
                       <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
                           <Globe className="w-3.5 h-3.5 text-sky-600" />
                           <span>Site da Empresa (captura a logo da aba automaticamente)</span>
                         </label>
@@ -922,7 +922,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         </button>
                         {companyIdToDelete === selectedCompany.id ? (
                           <div className="flex items-center gap-1 bg-red-50 border border-red-200 px-2 py-1 rounded-xl">
-                            <span className="text-[11px] font-bold text-red-700">Excluir?</span>
+                            <span className="text-xs font-bold text-red-700">Excluir?</span>
                             <button type="button" onClick={() => handleDeleteCompanyAction(selectedCompany.id)} className="px-2 py-1 bg-red-600 text-white rounded text-xs font-bold cursor-pointer">Sim</button>
                             <button type="button" onClick={() => setCompanyIdToDelete(null)} className="px-2 py-1 bg-white text-slate-700 border rounded text-xs cursor-pointer">Não</button>
                           </div>
@@ -1013,7 +1013,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                             {resolvedCep.cep ? resolvedCep.formatted : '+ CEP'}
                           </button>
                         )}
-                        {isDefault && <span className="text-[9.5px] px-1.5 py-0.5 bg-sky-600 text-white rounded font-bold uppercase tracking-wider">Padrão</span>}
+                        {isDefault && <span className="text-[10px] px-1.5 py-0.5 bg-sky-600 text-white rounded font-bold uppercase tracking-wider">Padrão</span>}
                         <button type="button" onClick={() => handleRemoveLocation(selectedCompany.id, loc)} className="text-slate-400 hover:text-red-500 ml-1 p-0.5 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                       </div>
                     );
@@ -1022,7 +1022,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                 <form onSubmit={(e) => { e.preventDefault(); handleAddLocationToCompany(selectedCompany.id); }} className="pt-1">
                   <div className="flex items-end gap-2">
                     <div className="flex-1">
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nova Unidade / Local de Entrega</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Nova Unidade / Local de Entrega</label>
                       <input 
                         type="text" 
                         value={newLocationName} 
@@ -1031,7 +1031,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       />
                     </div>
                     <div className="w-28 sm:w-32">
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">CEP (Opcional)</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">CEP (Opcional)</label>
                       <input 
                         type="text" 
                         value={newLocationCep} 
@@ -1056,7 +1056,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nome do Comprador</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Nome do Comprador</label>
                       <div className="flex gap-1.5">
                         <select value={editContactTitle} onChange={(e) => setEditContactTitle(e.target.value as any)} className="text-xs px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-amber-500">
                           <option value="Sr.">Sr.</option><option value="Srta.">Srta.</option><option value="Sra.">Sra.</option><option value="Dr.">Dr.</option><option value="Dra.">Dra.</option>
@@ -1065,17 +1065,17 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-sky-800 mb-1 flex items-center gap-1"><Building className="w-3.5 h-3.5 text-sky-600" /><span>Empresa Vinculada</span></label>
+                      <label className="block text-xs font-bold text-sky-800 mb-1 flex items-center gap-1"><Building className="w-3.5 h-3.5 text-sky-600" /><span>Empresa Vinculada</span></label>
                       <select value={editContactTargetCompanyId} onChange={(e) => setEditContactTargetCompanyId(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border-2 border-sky-300 rounded-lg font-bold text-sky-900 focus:outline-none focus:border-sky-600 shadow-sm cursor-pointer">
                         {companies.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })).map(c => <option key={c.id} value={c.id}>{c.name}{c.id === editingContactCompanyId ? ' (Atual)' : ''}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">E-mail</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail</label>
                       <input type="email" value={editContactEmail} onChange={(e) => setEditContactEmail(e.target.value.toLowerCase())} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-amber-500 text-slate-900 lowercase" />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Telefone</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Telefone</label>
                       <input type="text" maxLength={15} value={maskPhone(editContactPhone)} onChange={(e) => setEditContactPhone(maskPhone(e.target.value))} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-amber-500 text-slate-900" />
                     </div>
                   </div>
@@ -1097,7 +1097,7 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nome Completo</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Nome Completo</label>
                       <div className="flex gap-1.5">
                         <select value={contactTitle} onChange={(e) => setContactTitle(e.target.value as any)} className="text-xs px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-medium focus:outline-none focus:border-sky-500">
                           <option value="Sr.">Sr.</option><option value="Srta.">Srta.</option><option value="Sra.">Sra.</option><option value="Dr.">Dr.</option><option value="Dra.">Dra.</option>
@@ -1106,17 +1106,17 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-sky-800 mb-1 flex items-center gap-1"><Building className="w-3.5 h-3.5 text-sky-600" /><span>Pertence à Empresa</span></label>
+                      <label className="block text-xs font-bold text-sky-800 mb-1 flex items-center gap-1"><Building className="w-3.5 h-3.5 text-sky-600" /><span>Pertence à Empresa</span></label>
                       <select value={contactCompanyId} onChange={(e) => setContactCompanyId(e.target.value)} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 focus:outline-none focus:border-sky-500 cursor-pointer">
                         {companies.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">E-mail</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail</label>
                       <input type="email" required value={contactEmail} onChange={(e) => setContactEmail(e.target.value.toLowerCase())} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900 lowercase" />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Telefone</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Telefone</label>
                       <input type="text" maxLength={15} value={maskPhone(contactPhone)} onChange={(e) => setContactPhone(maskPhone(e.target.value))} className="w-full text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-sky-500 text-slate-900" />
                     </div>
                   </div>
@@ -1208,8 +1208,8 @@ export const ClientManagementView: React.FC<ClientManagementViewProps> = ({
                         </button>
                         {contactIdToDelete === contact.id ? (
                           <div className="flex items-center gap-1 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-lg">
-                            <button type="button" onClick={() => handleDeleteContactAction(contact.id, selectedCompany.id)} className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[10.5px] font-bold cursor-pointer">Sim</button>
-                            <button type="button" onClick={() => setContactIdToDelete(null)} className="px-1.5 py-0.5 bg-white text-slate-700 border rounded text-[10.5px] cursor-pointer">Não</button>
+                            <button type="button" onClick={() => handleDeleteContactAction(contact.id, selectedCompany.id)} className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold cursor-pointer">Sim</button>
+                            <button type="button" onClick={() => setContactIdToDelete(null)} className="px-1.5 py-0.5 bg-white text-slate-700 border rounded text-[10px] cursor-pointer">Não</button>
                           </div>
                         ) : (
                           <button

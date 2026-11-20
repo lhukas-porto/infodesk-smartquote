@@ -288,7 +288,7 @@ export const ItemSupplierScanModal: React.FC<ItemSupplierScanModalProps> = ({
                               e.stopPropagation();
                               openInNewWindow(opt.sourceUrl, e);
                             }}
-                            className="text-[11px] text-sky-600 hover:underline flex items-center gap-1 mt-0.5 cursor-pointer"
+                            className="text-xs text-sky-600 hover:underline flex items-center gap-1 mt-0.5 cursor-pointer"
                             title="Abrir link do fornecedor em nova janela"
                           >
                             <ExternalLink className="w-3 h-3" />
@@ -311,7 +311,7 @@ export const ItemSupplierScanModal: React.FC<ItemSupplierScanModalProps> = ({
 
           {/* Links Rápidos de Pesquisa Direta nos Marketplaces */}
           <div className="pt-2 border-t border-slate-100 space-y-2">
-            <span className="text-[11px] font-semibold text-slate-600 block">
+            <span className="text-xs font-semibold text-slate-600 block">
               Pesquisar em tempo real nos marketplaces externos:
             </span>
             <div className="flex flex-wrap gap-2">

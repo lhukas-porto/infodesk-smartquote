@@ -231,7 +231,7 @@ export const CreatableCombobox: React.FC<CreatableComboboxProps> = ({
             })
           ) : (
             !canAddNew && (
-              <div className="px-3 py-2 text-center text-[11px] text-slate-400">
+              <div className="px-3 py-2 text-center text-xs text-slate-400">
                 Nenhuma opção cadastrada
               </div>
             )

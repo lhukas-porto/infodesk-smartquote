@@ -160,7 +160,7 @@ export const SmartBatchImportModal: React.FC<SmartBatchImportModalProps> = ({
                   IA & Catálogo
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-xs text-slate-400">
                 Cole listas de compras ou editais para cruzar instantaneamente com seu estoque e custos
               </p>
             </div>
@@ -190,7 +190,7 @@ export const SmartBatchImportModal: React.FC<SmartBatchImportModalProps> = ({
 2x Switch Intelbras 24 Portas Gigabit
 8 SSD Kingston NV3 1TB M.2
 4 Roteador Wi-Fi 6 TP-Link Archer`)}
-                className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold"
+                className="text-xs text-amber-600 hover:text-amber-700 font-semibold"
               >
                 Colar Exemplo
               </button>
@@ -208,7 +208,7 @@ export const SmartBatchImportModal: React.FC<SmartBatchImportModalProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
                 <span>Itens Identificados ({parsedRows.length}):</span>
-                <span className="text-[11px] text-slate-500 font-normal">
+                <span className="text-xs text-slate-500 font-normal">
                   {parsedRows.filter(r => r.matchedProduct).length} encontrados no catálogo
                 </span>
               </div>

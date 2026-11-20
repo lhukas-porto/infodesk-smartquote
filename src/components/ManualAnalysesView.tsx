@@ -201,13 +201,13 @@ export const ManualAnalysesView: React.FC<ManualAnalysesViewProps> = ({
                     <p className="text-xs font-semibold text-slate-800 truncate">{a.senderCompany || 'Empresa não identificada'}</p>
                     <p className="text-[10px] text-slate-500 truncate mt-0.5">{a.subject}</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase ${
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase ${
                         isPhoto(a) ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'
                       }`}>
                         {isPhoto(a) ? <Camera className="w-2.5 h-2.5" /> : <FileText className="w-2.5 h-2.5" />}
                         {isPhoto(a) ? 'Foto' : 'Texto'}
                       </span>
-                      <span className="text-[9px] text-slate-400 flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
                         <Package className="w-2.5 h-2.5" />
                         {a.suggestedItems.length} iten{a.suggestedItems.length !== 1 ? 's' : ''}
                       </span>

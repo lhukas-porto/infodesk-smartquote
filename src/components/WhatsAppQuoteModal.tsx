@@ -184,7 +184,7 @@ export const WhatsAppQuoteModal: React.FC<WhatsAppQuoteModalProps> = ({
                 <span>Follow-up Retorno</span>
               </button>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1.5 px-1">
+            <p className="text-xs text-slate-500 mt-1.5 px-1">
               {messageMode === 'distributor_quote' && '🚚 Mensagem padrão para solicitar cotação ao distribuidor (valores unitários, estoque e prazo de entrega).'}
               {messageMode === 'items_only' && '📦 Ideal para cotar com fornecedores (apenas descrição, Part Number, quantidade e unidade, sem valores monetários).'}
               {messageMode === 'full' && '💼 Proposta comercial completa para o cliente (com valor unitário, subtotal, valor final, frete, garantia e prazo).'}
@@ -238,7 +238,7 @@ export const WhatsAppQuoteModal: React.FC<WhatsAppQuoteModalProps> = ({
                   {messageMode === 'distributor_quote' ? 'Cotação Distribuidor' : (messageMode === 'items_only' ? 'Itens & Qtd' : (messageMode === 'followup' ? 'Follow-up' : 'Completa'))}
                 </span>
               </label>
-              <span className="text-[11px] text-slate-500 font-medium">
+              <span className="text-xs text-slate-500 font-medium">
                 {activeItemsCount} produto(s)
               </span>
             </div>

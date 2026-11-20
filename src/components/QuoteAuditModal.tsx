@@ -199,7 +199,7 @@ export const QuoteAuditModal: React.FC<QuoteAuditModalProps> = ({
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-xs font-bold">{iss.title}</h4>
-                    <p className="text-[11px] opacity-90 mt-0.5 leading-relaxed">{iss.description}</p>
+                    <p className="text-xs opacity-90 mt-0.5 leading-relaxed">{iss.description}</p>
                   </div>
                   {iss.itemId && onFocusItem && (
                     <button
@@ -208,7 +208,7 @@ export const QuoteAuditModal: React.FC<QuoteAuditModalProps> = ({
                         onFocusItem(iss.itemId!);
                         onClose();
                       }}
-                      className="px-2 py-1 text-[11px] font-bold rounded-lg bg-white/80 hover:bg-white text-slate-700 border border-slate-200 shadow-2xs shrink-0 self-center"
+                      className="px-2 py-1 text-xs font-bold rounded-lg bg-white/80 hover:bg-white text-slate-700 border border-slate-200 shadow-2xs shrink-0 self-center"
                     >
                       Ver Item
                     </button>

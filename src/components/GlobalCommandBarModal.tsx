@@ -391,7 +391,7 @@ export const GlobalCommandBarModal: React.FC<GlobalCommandBarModalProps> = ({
         </div>
 
         {/* Rodapé com Dicas de Atalho */}
-        <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+        <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
               <kbd className="px-1.5 py-0.5 font-mono bg-white border border-slate-200 rounded text-slate-500 shadow-2xs">↑</kbd>

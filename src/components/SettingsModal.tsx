@@ -610,7 +610,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {activeTab === 'general' && (
           <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs flex-1">
             
-            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-1">
+            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-200 pb-1">
               <Building className="w-3.5 h-3.5" /> Dados Cadastrais da Empresa
             </h3>
 
@@ -709,7 +709,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
+            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
               <Calculator className="w-3.5 h-3.5" /> Parâmetros de Composição de Preço
             </h3>
 
@@ -759,7 +759,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div>
                 <label className="block text-slate-600 font-medium mb-1 flex items-center justify-between">
                   <span>Dólar do Dia (R$)</span>
-                  <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">US$ 1,00</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">US$ 1,00</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">R$</span>
@@ -789,7 +789,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
+            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
               <FileText className="w-3.5 h-3.5" /> Condições Comerciais Padrão das Propostas
             </h3>
 
@@ -891,7 +891,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
+            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
               <Mail className="w-3.5 h-3.5" /> Integração Google Workspace
             </h3>
 
@@ -922,7 +922,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
+            <h3 className="font-bold text-sky-700 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-200 pb-1 pt-3">
               <Sparkles className="w-3.5 h-3.5" /> Scanner de Preços Web (Google Gemini)
             </h3>
 
@@ -1054,7 +1054,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="button"
                     onClick={handleResetCategories}
                     title="Restaurar lista padrão original da Infodesk"
-                    className="text-[10.5px] font-semibold text-slate-500 hover:text-sky-700 flex items-center gap-1 transition cursor-pointer"
+                    className="text-[10px] font-semibold text-slate-500 hover:text-sky-700 flex items-center gap-1 transition cursor-pointer"
                   >
                     <RotateCcw className="w-3 h-3" />
                     Restaurar Padrão
@@ -1087,7 +1087,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type="text"
                       value={searchCategory}
                       onChange={(e) => setSearchCategory(e.target.value)}
-                      className="w-full bg-slate-50/70 border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-sky-500"
+                      className="w-full bg-slate-50/70 border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-sky-500"
                     />
                   </div>
                 )}
@@ -1189,7 +1189,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="button"
                     onClick={handleResetUnits}
                     title="Restaurar lista de unidades padrão original da Infodesk"
-                    className="text-[10.5px] font-semibold text-slate-500 hover:text-sky-700 flex items-center gap-1 transition cursor-pointer"
+                    className="text-[10px] font-semibold text-slate-500 hover:text-sky-700 flex items-center gap-1 transition cursor-pointer"
                   >
                     <RotateCcw className="w-3 h-3" />
                     Restaurar Padrão
@@ -1222,7 +1222,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type="text"
                       value={searchUnit}
                       onChange={(e) => setSearchUnit(e.target.value)}
-                      className="w-full bg-slate-50/70 border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-sky-500 font-mono"
+                      className="w-full bg-slate-50/70 border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-sky-500 font-mono"
                     />
                   </div>
                 )}
@@ -1496,7 +1496,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <form onSubmit={handleAddSupplier} className="bg-slate-50 border border-slate-200/80 p-3 rounded-2xl mb-3 space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
                       Nome do Fornecedor / Loja
                     </label>
                     <input
@@ -1507,14 +1507,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
                       Domínio / Site (Opcional)
                     </label>
                     <input
                       type="text"
                       value={newSupplierDomain}
                       onChange={(e) => setNewSupplierDomain(e.target.value)}
-                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs text-slate-900 font-mono text-[11px] focus:outline-none focus:border-sky-500"
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs text-slate-900 font-mono text-xs focus:outline-none focus:border-sky-500"
                     />
                   </div>
                 </div>
@@ -1561,7 +1561,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         >
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div>
-                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
                                 Nome Correto do Fornecedor
                               </label>
                               <input
@@ -1577,7 +1577,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
                                 Domínio / Site Vinculado
                               </label>
                               <input
@@ -1594,7 +1594,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
 
                           <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
-                            <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-semibold text-slate-700">
+                            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-700">
                               <input
                                 type="checkbox"
                                 checked={editPropagateProducts}

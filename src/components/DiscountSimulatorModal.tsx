@@ -241,7 +241,7 @@ export const DiscountSimulatorModal: React.FC<DiscountSimulatorModalProps> = ({
 
           {/* Comparativo: Antes vs Depois */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
               Impacto Financeiro na Cotação
             </div>
 
@@ -289,7 +289,7 @@ export const DiscountSimulatorModal: React.FC<DiscountSimulatorModalProps> = ({
               <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <div>
                 <strong>Atenção: Margem Negativa (Prejuízo)!</strong>
-                <p className="text-[11px] text-rose-700 mt-0.5">
+                <p className="text-xs text-rose-700 mt-0.5">
                   Com esse desconto, o valor final não cobre os custos de compra e impostos. Ajuste para um desconto menor.
                 </p>
               </div>
@@ -301,7 +301,7 @@ export const DiscountSimulatorModal: React.FC<DiscountSimulatorModalProps> = ({
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <strong>Margem Baixa (menor que 8%)</strong>
-                <p className="text-[11px] text-amber-700 mt-0.5">
+                <p className="text-xs text-amber-700 mt-0.5">
                   Essa contraproposta reduz muito sua rentabilidade. Verifique se vale a pena comercialmente.
                 </p>
               </div>

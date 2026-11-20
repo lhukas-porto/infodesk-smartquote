@@ -87,7 +87,7 @@ export const TargetPriceModal: React.FC<TargetPriceModalProps> = ({
           {/* Card de Resumo Atual */}
           <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
             <div>
-              <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Total Atual Base
               </span>
               <span className="text-base font-bold text-slate-800 font-mono mt-0.5 block">
@@ -95,7 +95,7 @@ export const TargetPriceModal: React.FC<TargetPriceModalProps> = ({
               </span>
             </div>
             <div>
-              <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Itens na Proposta
               </span>
               <span className="text-base font-bold text-slate-800 font-mono mt-0.5 block">
@@ -108,7 +108,7 @@ export const TargetPriceModal: React.FC<TargetPriceModalProps> = ({
           <div>
             <label htmlFor="target-price-input" className="sq-label flex items-center justify-between">
               <span>Valor Total Negociado (Preço Alvo)</span>
-              <span className="text-[11px] text-slate-400 font-normal">Ex: 5000</span>
+              <span className="text-xs text-slate-400 font-normal">Ex: 5000</span>
             </label>
             <div className="relative mt-1">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold font-mono">
@@ -142,13 +142,13 @@ export const TargetPriceModal: React.FC<TargetPriceModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-200/60">
                   <div>
-                    <span className="text-slate-500 block text-[11px]">Total Projetado:</span>
+                    <span className="text-slate-500 block text-xs">Total Projetado:</span>
                     <span className="font-bold text-slate-800 font-mono">
                       {formatBRL(calculation.calculatedTotal)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[11px]">Diferença Arredondamento:</span>
+                    <span className="text-slate-500 block text-xs">Diferença Arredondamento:</span>
                     <span className={`font-bold font-mono ${calculation.difference === 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
                       {calculation.difference > 0 ? `+ ${formatBRL(calculation.difference)}` : calculation.difference < 0 ? `- ${formatBRL(Math.abs(calculation.difference))}` : 'R$ 0,00 (Exato)'}
                     </span>
@@ -157,13 +157,13 @@ export const TargetPriceModal: React.FC<TargetPriceModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-200/60">
                   <div>
-                    <span className="text-slate-500 block text-[11px]">Lucro Líquido Real:</span>
+                    <span className="text-slate-500 block text-xs">Lucro Líquido Real:</span>
                     <span className={`font-bold font-mono ${calculation.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                       {formatBRL(calculation.netProfit)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[11px]">Margem Líquida %:</span>
+                    <span className="text-slate-500 block text-xs">Margem Líquida %:</span>
                     <span className={`font-bold font-mono ${calculation.profitMarginPercent >= 14 ? 'text-emerald-700' : 'text-rose-600'}`}>
                       {calculation.profitMarginPercent}%
                     </span>
@@ -192,7 +192,7 @@ export const TargetPriceModal: React.FC<TargetPriceModalProps> = ({
                         ? 'Margem Saudável (Padrão Comercial)'
                         : 'Atenção: Margem Abaixo do Piso Mínimo Recomendado (14%)'}
                   </span>
-                  <span className="text-[11px] opacity-90 block mt-0.5">
+                  <span className="text-xs opacity-90 block mt-0.5">
                     {calculation.profitMarginPercent >= 14
                       ? `Esta cotação garante ${formatBRL(calculation.netProfit)} de lucro líquido já descontando fretes e impostos.`
                       : 'O valor negociado reduz o lucro líquido da operação. Certifique-se com a gerência antes de aprovar.'}

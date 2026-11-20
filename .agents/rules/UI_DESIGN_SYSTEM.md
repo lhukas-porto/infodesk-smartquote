@@ -18,17 +18,15 @@
 
 ---
 
-## 1. HIERARQUIA TIPOGRÁFICA
+## 1. HIERARQUIA TIPOGRÁFICA OFICIAL (ESCALA HARMÔNICA DE 5 DEGRAUS)
 
-| Elemento | Classes Tailwind / CSS | Exemplo de Aplicação |
-|---|---|---|
-| **Título Principal da Página (H1)** | `text-lg md:text-xl font-bold text-slate-900 tracking-tight` (`.sq-page-title`) | "Nova Proposta Comercial", "Scanner Inteligente de Preços" |
-| **Badge de Identificação / Código** | `px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg` (`.sq-badge-code`) | `COTACAO 160926`, `IA & WEB SEARCH` |
-| **Subtítulo Explicativo** | `text-xs text-slate-500 mt-0.5` (`.sq-page-subtitle`) | "Configure os dados do cliente, custos, alíquota de impostos..." |
-| **Tópicos de Seção (H2 / H3)** | `text-sm md:text-base font-bold text-slate-900 flex items-center gap-2` (`.sq-section-title`) | "Dados do Solicitante & Identificação", "Itens da Cotação" |
-| **Ícones de Tópicos** | `w-4 h-4 text-sky-600 shrink-0` (`.sq-section-icon`) | Ícones de construção, usuário, caminhão, prancheta, lupa |
-| **Rótulos de Campo (Labels)** | `block text-xs font-semibold text-slate-700 mb-1.5` (`.sq-label`) | "Empresa / Órgão", "" |
-| **Textos Auxiliares / Pílulas** | `text-[10px] text-slate-400 font-medium` | "Prefixo: À Ao", "Opcional" |
+| Degrau | Tamanho | Classes Tailwind | Uso Obrigatório |
+|---|---|---|---|
+| **1. Destaque Numérico** | `20px` / `24px` | `text-xl` / `text-2xl font-black font-mono tracking-tight` | Total Geral da Proposta Comercial e métricas financeiras de destaque principal. |
+| **2. Título de Página (H1)** | `18px` | `text-lg md:text-xl font-bold text-slate-900 tracking-tight` (`.sq-page-title`) | Título principal de cada módulo ("Nova Proposta Comercial", "Catálogo de Produtos"). |
+| **3. Tópico de Seção (H2)** | `14px` | `text-sm font-bold text-slate-900 flex items-center gap-2` (`.sq-section-title`) | Títulos de agrupamentos internos sempre acompanhados de ícone colorido (`.sq-section-icon`). |
+| **4. Texto Padrão de Trabalho** | `12px` | `text-xs font-semibold/bold/medium` | **80% do sistema**: nomes de produtos, inputs (`.sq-input`), botões de ação e tabelas. |
+| **5. Micro-dados & Badges** | `10px` | `text-[10px] font-mono/bold/uppercase tracking-wider` | Badges de código (`.sq-badge-code`), tags SKU, NCM, rótulos de métricas (`.sq-metric-label`) e legendas. |
 
 ---
 

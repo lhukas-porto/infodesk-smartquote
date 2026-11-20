@@ -57,7 +57,7 @@
   }
 
   .sq-metric-label {
-    @apply text-[11px] font-bold uppercase tracking-wider text-slate-500;
+    @apply text-[10px] font-bold uppercase tracking-wider text-slate-500;
   }
 
   .sq-metric-value {

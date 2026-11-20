@@ -83,7 +83,7 @@ export const GlobalErrorToaster: React.FC = () => {
                     Falha Operacional
                   </span>
                   {err.context && (
-                    <span className="text-[11px] font-medium text-slate-500 truncate max-w-[200px]" title={err.context}>
+                    <span className="text-xs font-medium text-slate-500 truncate max-w-[200px]" title={err.context}>
                       {err.context}
                     </span>
                   )}
@@ -114,7 +114,7 @@ export const GlobalErrorToaster: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setExpandedDetailsId(expandedDetailsId === err.id ? null : err.id)}
-                className="flex items-center gap-1.5 text-[11px] font-semibold text-rose-700 hover:text-rose-900 transition-colors"
+                className="flex items-center gap-1.5 text-xs font-semibold text-rose-700 hover:text-rose-900 transition-colors"
               >
                 {expandedDetailsId === err.id ? (
                   <>

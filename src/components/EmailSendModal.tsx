@@ -325,7 +325,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 <h2 className="text-base font-bold text-slate-900 tracking-tight">
                   Disparar Proposta Comercial por E-mail
                 </h2>
-                <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-bold font-mono uppercase tracking-wider rounded-lg">
+                <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg">
                   {quote.code}
                 </span>
               </div>
@@ -354,7 +354,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 <span className="flex-1 font-medium">{sendError}</span>
               </div>
               {onSwitchAccount && (
-                <div className="flex items-center gap-2 pt-1 border-t border-rose-200/60 text-[11px]">
+                <div className="flex items-center gap-2 pt-1 border-t border-rose-200/60 text-xs">
                   <span>Escolheu a conta errada ou token expirou?</span>
                   <button
                     type="button"
@@ -384,7 +384,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowCc(true)}
-                    className="text-[11px] text-sky-600 hover:text-sky-800 font-semibold cursor-pointer hover:underline flex items-center gap-0.5"
+                    className="text-xs text-sky-600 hover:text-sky-800 font-semibold cursor-pointer hover:underline flex items-center gap-0.5"
                   >
                     <span>+ Adicionar Cópia (Cc)</span>
                   </button>
@@ -404,7 +404,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                     : 'border-slate-300 hover:border-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-100'
                 } rounded-xl text-xs sm:text-sm text-slate-900 font-medium focus:outline-none transition shadow-2xs`}
               />
-              <div className="h-5 flex items-center text-[10.5px] text-slate-400 mt-1">
+              <div className="h-5 flex items-center text-[10px] text-slate-400 mt-1">
                 <span>Separe múltiplos e-mails por vírgula ou ponto e vírgula</span>
               </div>
             </div>
@@ -426,7 +426,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 readOnly
                 className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium font-mono focus:outline-none select-all"
               />
-              <div className="h-5 flex items-center text-[10.5px] text-slate-400 mt-1">
+              <div className="h-5 flex items-center text-[10px] text-slate-400 mt-1">
                 <span>Disparo verificado com cópia salva em "Itens Enviados"</span>
               </div>
             </div>
@@ -445,7 +445,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                     setCcEmails('');
                     setShowCc(false);
                   }}
-                  className="text-[11px] text-slate-400 hover:text-rose-600 font-semibold cursor-pointer transition flex items-center gap-1"
+                  className="text-xs text-slate-400 hover:text-rose-600 font-semibold cursor-pointer transition flex items-center gap-1"
                 >
                   <X className="w-3 h-3" />
                   <span>Remover Cópia</span>
@@ -467,7 +467,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 <FileText className="w-3.5 h-3.5 text-sky-600" />
                 <span>Assunto do E-mail</span>
               </label>
-              <span className="text-[10.5px] text-slate-400">
+              <span className="text-[10px] text-slate-400">
                 Título oficial que o cliente verá na caixa de entrada
               </span>
             </div>
@@ -486,7 +486,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 <Sparkles className="w-3.5 h-3.5 text-sky-600" />
                 <span>Como deseja enviar esta proposta?</span>
               </label>
-              <span className="text-[10.5px] text-slate-400">
+              <span className="text-[10px] text-slate-400">
                 Escolha o formato ideal para este cliente
               </span>
             </div>
@@ -517,7 +517,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 leading-tight">No corpo do e-mail</p>
-                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">Proposta e tabela completas no corpo, sem anexo</p>
+                  <p className="text-xs text-slate-500 mt-1 leading-snug">Proposta e tabela completas no corpo, sem anexo</p>
                 </div>
               </button>
 
@@ -545,7 +545,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 leading-tight">Corpo + PDF anexo</p>
-                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">Proposta no e-mail e documento oficial em PDF anexo</p>
+                  <p className="text-xs text-slate-500 mt-1 leading-snug">Proposta no e-mail e documento oficial em PDF anexo</p>
                 </div>
               </button>
 
@@ -573,7 +573,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 leading-tight">Apenas PDF anexo</p>
-                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">Mensagem formal no corpo e proposta em PDF</p>
+                  <p className="text-xs text-slate-500 mt-1 leading-snug">Mensagem formal no corpo e proposta em PDF</p>
                 </div>
               </button>
 
@@ -598,7 +598,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                 rows={4}
                 className="w-full bg-white border border-sky-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl p-3 text-xs text-slate-800 font-medium leading-relaxed resize-none focus:outline-none transition shadow-2xs"
               />
-              <div className="p-2.5 bg-white border border-sky-100 rounded-xl text-[11px] text-slate-600 flex items-center justify-between gap-2">
+              <div className="p-2.5 bg-white border border-sky-100 rounded-xl text-xs text-slate-600 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-bold text-sky-800 shrink-0">📎 Anexo Confirmado:</span>
                   <span className="truncate"><strong>Proposta-Comercial-{(quote.code || 'Infodesk').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf</strong></span>
@@ -619,12 +619,12 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                     <span>Formato Duplo Selecionado</span>
                     <span className="px-1.5 py-0.2 bg-sky-200/90 text-sky-900 text-[10px] font-bold rounded font-mono">PDF + HTML</span>
                   </p>
-                  <p className="text-[11px] text-sky-700 truncate">
+                  <p className="text-xs text-sky-700 truncate">
                     A proposta será exibida no corpo do e-mail E o arquivo <strong>Proposta-Comercial-{(quote.code || 'Infodesk').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf</strong> será anexado.
                   </p>
                 </div>
               </div>
-              <span className="text-[10.5px] font-bold text-sky-800 bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 shrink-0 hidden sm:inline-flex items-center gap-1">
+              <span className="text-[10px] font-bold text-sky-800 bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 shrink-0 hidden sm:inline-flex items-center gap-1">
                 📎 Anexo Automático
               </span>
             </div>
@@ -639,12 +639,12 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                     <span>Envio Ágil no Corpo do E-mail</span>
                     <span className="px-1.5 py-0.2 bg-slate-200 text-slate-700 text-[10px] font-bold rounded font-mono">{quote.code}</span>
                   </p>
-                  <p className="text-[11px] text-slate-500 truncate">
+                  <p className="text-xs text-slate-500 truncate">
                     {quote.clientCompany ? `${quote.clientCompany} • ` : ''}{quote.items?.length || 0} produto(s) formatado(s) com fotos e tabela oficial de preços.
                   </p>
                 </div>
               </div>
-              <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shrink-0 hidden sm:inline-flex items-center gap-1">
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shrink-0 hidden sm:inline-flex items-center gap-1">
                 <Check className="w-3 h-3" /> Abertura Instantânea
               </span>
             </div>
@@ -654,7 +654,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
 
         {/* Rodapé do Modal */}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-[11px] text-slate-600">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>
               Conta conectada: <strong className="font-mono text-slate-800">{connectedUserEmail || settings.googleAccountEmail || 'Google Workspace'}</strong>
@@ -667,7 +667,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
                   setSendError(null);
                   await onSwitchAccount();
                 }}
-                className="ml-1 text-[11px] text-sky-600 hover:text-sky-800 hover:underline font-semibold cursor-pointer"
+                className="ml-1 text-xs text-sky-600 hover:text-sky-800 hover:underline font-semibold cursor-pointer"
                 title="Conectar com outra conta Google"
               >
                 (Trocar Conta)
@@ -677,7 +677,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             {sendError && (
-              <span className="text-[11px] text-rose-600 font-semibold truncate max-w-[220px] sm:max-w-xs animate-fadeIn" title={sendError}>
+              <span className="text-xs text-rose-600 font-semibold truncate max-w-[220px] sm:max-w-xs animate-fadeIn" title={sendError}>
                 ⚠️ {sendError}
               </span>
             )}

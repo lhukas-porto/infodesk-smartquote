@@ -29,7 +29,7 @@ const TabLoadingFallback: React.FC = () => (
   <div className="flex flex-col items-center justify-center min-h-[45vh] p-8 text-center animate-in fade-in duration-150">
     <div className="w-9 h-9 border-3 border-sky-100 border-t-sky-600 rounded-full animate-spin mb-3 shadow-xs" />
     <span className="text-xs font-semibold text-slate-700 tracking-wide uppercase">Carregando Módulo</span>
-    <span className="text-[11px] text-slate-400 mt-0.5">Infodesk SmartQuote</span>
+    <span className="text-xs text-slate-400 mt-0.5">Infodesk SmartQuote</span>
   </div>
 );
 import { 

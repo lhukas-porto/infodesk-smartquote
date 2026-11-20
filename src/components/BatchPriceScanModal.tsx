@@ -299,14 +299,14 @@ export const BatchPriceScanModal: React.FC<BatchPriceScanModalProps> = ({
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                      <span className="text-xs font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                         #{item.itemNumber}
                       </span>
                       <h4 className="text-xs sm:text-sm font-bold text-slate-900 line-clamp-1">
                         {item.name || 'Produto sem descrição'}
                       </h4>
                     </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-3">
+                    <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-3">
                       <span>Qtd: <strong className="text-slate-700">{item.quantity} {item.unit || 'Un.'}</strong></span>
                       {status?.supplier && (
                         <span className="flex items-center gap-1 text-slate-600">

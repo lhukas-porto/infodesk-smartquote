@@ -110,7 +110,7 @@ Qualquer dúvida ou ajuste que precisar na proposta, estamos à disposição. Po
                   {quote.code}
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-xs text-slate-400">
                 Resumo executivo pronto para envio direto ao comprador
               </p>
             </div>

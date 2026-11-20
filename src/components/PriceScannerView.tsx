@@ -1867,7 +1867,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                     alt={`Foto ${idx + 1}`}
                     className="w-full h-full object-contain p-1"
                   />
-                  <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-slate-900/70 text-white font-mono text-[9px] font-bold rounded">
+                  <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-slate-900/70 text-white font-mono text-[10px] font-bold rounded">
                     #{idx + 1}
                   </span>
                   <button
@@ -1882,7 +1882,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               ))}
             </div>
 
-            <p className="text-[11px] text-slate-600">
+            <p className="text-xs text-slate-600">
               {batchRawInput.trim()
                 ? `As ${attachedProductPhotos.length} fotos e os produtos descritos no texto serão buscados em conjunto: o scanner trará os produtos de cada foto e também os itens digitados.`
                 : `As fotos ditam o modelo real, acabamento e formato de cada item. O scanner extrairá cada um dos produtos fotografados com ficha técnica completa.`}
@@ -2054,7 +2054,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
                 <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">PRODUTOS IDENTIFICADOS</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">PRODUTOS IDENTIFICADOS</span>
                     <Box className="w-4 h-4 text-sky-600" />
                   </div>
                   <div className="text-xl font-bold text-slate-900 font-mono">
@@ -2065,7 +2065,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
                 <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">CUSTO TOTAL ESTIMADO</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">CUSTO TOTAL ESTIMADO</span>
                     <DollarSign className="w-4 h-4 text-amber-600" />
                   </div>
                   <div className="text-xl font-bold text-slate-900 font-mono">
@@ -2076,7 +2076,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
                 <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">VENDA PROJETADA TOTAL</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">VENDA PROJETADA TOTAL</span>
                     <TrendingUp className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div className="text-xl font-bold text-emerald-600 font-mono">
@@ -2087,7 +2087,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
                 <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">NCM FISCAL & TRIBUTOS</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">NCM FISCAL & TRIBUTOS</span>
                     <ShieldCheck className="w-4 h-4 text-indigo-600" />
                   </div>
                   <div className="text-xl font-bold text-slate-900 font-mono">
@@ -2227,7 +2227,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           </div>
                         )}
                         {currentImg && (
-                          <div className="absolute top-2 left-2 bg-emerald-600 text-white text-[9.5px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                          <div className="absolute top-2 left-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
                             <Check className="w-2.5 h-2.5 stroke-[3]" />
                             <span>Foto do Orçamento</span>
                           </div>
@@ -2237,7 +2237,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                       {/* Thumbnails Row - Escolha de Foto para o Orçamento */}
                       {images.length > 1 && (
                         <div className="w-full max-w-[220px] mt-2.5">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 mb-1">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-1">
                             <span>Escolha a foto para o orçamento:</span>
                             <span className="text-emerald-700 font-extrabold">{activeImgIndex + 1}/{images.length}</span>
                           </div>
@@ -2327,7 +2327,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                                 Item similar detectado no catálogo: <strong>"{existingInCatalog.name}"</strong>
                               </span>
                             </div>
-                            <span className="shrink-0 text-[10.5px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md font-mono">
+                            <span className="shrink-0 text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md font-mono">
                               {catalogMatch.score}% similar
                             </span>
                           </div>
@@ -2394,7 +2394,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                             {prod.specifications.map((spec, sIdx) => (
                               <span
                                 key={sIdx}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 border border-slate-200/80 rounded-lg text-[11px] font-medium text-slate-700 shadow-2xs"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 border border-slate-200/80 rounded-lg text-xs font-medium text-slate-700 shadow-2xs"
                               >
                                 <strong className="font-semibold text-slate-900">{spec.label}:</strong>
                                 <span>{spec.value}</span>
@@ -2414,7 +2414,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                                   <span className="text-xs font-bold text-slate-800">
                                     Item Similar Encontrado no Catálogo ({catalogMatch.score}% compatível)
                                   </span>
-                                  <p className="text-[11px] text-slate-500 font-medium">
+                                  <p className="text-xs text-slate-500 font-medium">
                                     Marque no checkbox qual versão incluir na cotação:
                                   </p>
                                 </div>
@@ -2431,7 +2431,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                                     matchInfo: catalogMatch
                                   });
                                 }}
-                                className="text-[11px] font-bold text-sky-700 hover:text-sky-900 bg-white border border-sky-200 hover:border-sky-300 px-2.5 py-1 rounded-lg transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                                className="text-xs font-bold text-sky-700 hover:text-sky-900 bg-white border border-sky-200 hover:border-sky-300 px-2.5 py-1 rounded-lg transition shadow-2xs flex items-center gap-1 cursor-pointer"
                                 title="Abrir comparação detalhada lado a lado"
                               >
                                 <span>Ver Comparação Completa</span>
@@ -2466,14 +2466,14 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                                             <Database className="w-3 h-3 text-sky-700" />
                                             1. Do Seu Catálogo
                                           </span>
-                                          <span className="font-mono text-[10.5px] font-bold text-slate-600">
+                                          <span className="font-mono text-[10px] font-bold text-slate-600">
                                             {existingInCatalog.sku || existingInCatalog.partNumber}
                                           </span>
                                         </div>
                                         <strong className="block text-xs font-bold text-slate-900 leading-snug line-clamp-1" title={existingInCatalog.name}>
                                           {existingInCatalog.name}
                                         </strong>
-                                        <div className="flex items-baseline gap-2 mt-1 text-[11px]">
+                                        <div className="flex items-baseline gap-2 mt-1 text-xs">
                                           <span className="text-slate-500 font-medium">Custo:</span>
                                           <strong className="text-slate-900 font-mono">
                                             {formatBRL(existingInCatalog.costPrice || 0)}
@@ -2509,14 +2509,14 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                                             <Sparkles className="w-3 h-3 text-emerald-600" />
                                             2. Novo Achado no Scanner
                                           </span>
-                                          <span className="font-mono text-[10.5px] font-bold text-slate-600">
+                                          <span className="font-mono text-[10px] font-bold text-slate-600">
                                             {prod.partNumber || prod.model || 'Novo'}
                                           </span>
                                         </div>
                                         <strong className="block text-xs font-bold text-slate-900 leading-snug line-clamp-1" title={prod.standardizedName}>
                                           {prod.standardizedName}
                                         </strong>
-                                        <div className="flex items-baseline gap-2 mt-1 text-[11px]">
+                                        <div className="flex items-baseline gap-2 mt-1 text-xs">
                                           <span className="text-slate-500 font-medium">Custo:</span>
                                           <strong className="text-slate-900 font-mono">
                                             {prod.costPrice
@@ -2797,18 +2797,18 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                       </h4>
                       <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
                         {item.partNumber && (
-                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-900 border border-indigo-200/80 rounded font-mono text-[11px] font-bold">
+                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-900 border border-indigo-200/80 rounded font-mono text-xs font-bold">
                             PN: {item.partNumber}
                           </span>
                         )}
                         {item.ncm && (
-                          <span className="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-200/80 rounded font-mono text-[11px] font-bold flex items-center gap-1">
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-200/80 rounded font-mono text-xs font-bold flex items-center gap-1">
                             <span>🏷️ NCM:</span>
                             <span>{item.ncm}</span>
                           </span>
                         )}
                         {item.observation && (
-                          <span className="text-slate-500 text-[11px] font-medium">{item.observation}</span>
+                          <span className="text-slate-500 text-xs font-medium">{item.observation}</span>
                         )}
                       </div>
 
@@ -2869,7 +2869,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                             </span>
 
                             {audit.conflictReasons.length > 0 && (
-                              <span className="text-[10.5px] font-bold text-rose-700">
+                              <span className="text-[10px] font-bold text-rose-700">
                                 {audit.conflictReasons[0]}
                               </span>
                             )}
@@ -2892,7 +2892,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                                 href={off.link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className={`px-2 py-0.5 rounded-lg text-[10.5px] font-medium border flex items-center gap-1 transition ${
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-medium border flex items-center gap-1 transition ${
                                   oIdx === 0
                                     ? 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold hover:bg-emerald-100 shadow-2xs'
                                     : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
@@ -2901,9 +2901,9 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                               >
                                 <span>{off.store}:</span>
                                 <strong className={oIdx === 0 ? 'text-emerald-700' : 'text-slate-900'}>{off.priceFormatted}</strong>
-                                {oIdx === 0 && <span className="text-[9px] bg-emerald-600 text-white px-1 rounded-sm font-bold ml-0.5">⭐ Menor</span>}
+                                {oIdx === 0 && <span className="text-[10px] bg-emerald-600 text-white px-1 rounded-sm font-bold ml-0.5">⭐ Menor</span>}
                                 {isPartner && (
-                                  <span className="text-[9px] bg-sky-100 text-sky-800 border border-sky-200 px-1 rounded-sm font-bold ml-0.5" title="Fornecedor parceiro cadastrado">
+                                  <span className="text-[10px] bg-sky-100 text-sky-800 border border-sky-200 px-1 rounded-sm font-bold ml-0.5" title="Fornecedor parceiro cadastrado">
                                     Parceiro
                                   </span>
                                 )}
@@ -2934,12 +2934,12 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                         const storeStyle = getStoreBadgeStyle(item.store);
                         return (
                           <div className="text-xs font-bold flex items-center justify-end gap-1.5 mt-1">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${storeStyle.bg} border ${storeStyle.border} ${storeStyle.text} rounded-md text-[11px]`}>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${storeStyle.bg} border ${storeStyle.border} ${storeStyle.text} rounded-md text-xs`}>
                               <span>{storeStyle.icon}</span>
                               <span>{item.store}</span>
                             </span>
                             {isPartner && (
-                              <span className="text-[9.5px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md" title="Fornecedor parceiro habitual cadastrado nas Configurações">
+                              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md" title="Fornecedor parceiro habitual cadastrado nas Configurações">
                                 🤝 Parceiro
                               </span>
                             )}
@@ -3079,18 +3079,18 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                 {/* Registro Atual no Catálogo */}
                 <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                       <Database className="w-3.5 h-3.5 text-slate-500" />
                       Ficha Atual no Catálogo
                     </span>
-                    <span className="text-[10.5px] font-mono font-bold bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-700">
+                    <span className="text-[10px] font-mono font-bold bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-700">
                       {catalogConflictItem.existing.sku || catalogConflictItem.existing.partNumber}
                     </span>
                   </div>
                   <h4 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">
                     {catalogConflictItem.existing.name}
                   </h4>
-                  <div className="text-[11px] text-slate-600 space-y-1 pt-1 border-t border-slate-200/60 font-medium">
+                  <div className="text-xs text-slate-600 space-y-1 pt-1 border-t border-slate-200/60 font-medium">
                     <div className="flex justify-between">
                       <span className="text-slate-400">Preço de Custo:</span>
                       <strong className="text-slate-900 font-mono">
@@ -3113,18 +3113,18 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                 {/* Nova Informação Escaneada pela IA */}
                 <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                       Nova Ficha Escaneada (IA)
                     </span>
-                    <span className="text-[10.5px] font-mono font-bold bg-white border border-emerald-200 px-2 py-0.5 rounded-md text-emerald-800">
+                    <span className="text-[10px] font-mono font-bold bg-white border border-emerald-200 px-2 py-0.5 rounded-md text-emerald-800">
                       Ref: {catalogConflictItem.discovered.partNumber || 'Nova'}
                     </span>
                   </div>
                   <h4 className="text-xs font-bold text-emerald-950 leading-snug line-clamp-2">
                     {catalogConflictItem.discovered.standardizedName}
                   </h4>
-                  <div className="text-[11px] text-emerald-800 space-y-1 pt-1 border-t border-emerald-200/60 font-medium">
+                  <div className="text-xs text-emerald-800 space-y-1 pt-1 border-t border-emerald-200/60 font-medium">
                     <div className="flex justify-between">
                       <span className="text-emerald-600">Preço Escaneado:</span>
                       <strong className="text-emerald-950 font-mono">
@@ -3247,7 +3247,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           onChange={(e) => setChoiceIncludeCatalog(e.target.checked)}
                           className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer accent-sky-600"
                         />
-                        <span className="px-2.5 py-1 bg-sky-600 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 shadow-2xs uppercase tracking-wider">
+                        <span className="px-2.5 py-1 bg-sky-600 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-2xs uppercase tracking-wider">
                           <Database className="w-3.5 h-3.5" />
                           Opção 1: Do Seu Catálogo
                         </span>
@@ -3275,7 +3275,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                         <h4 className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">
                           {quoteCatalogChoice.existing.name}
                         </h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                        <p className="text-xs text-slate-500 mt-0.5 font-medium">
                           Categoria: {quoteCatalogChoice.existing.category || 'Catálogo Oficial'}
                         </p>
                       </div>
@@ -3313,7 +3313,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
                     {/* Descrição resumida */}
                     {quoteCatalogChoice.existing.description && (
-                      <p className="text-[11px] text-slate-600 line-clamp-3 bg-white/70 p-2.5 rounded-xl border border-sky-100 italic">
+                      <p className="text-xs text-slate-600 line-clamp-3 bg-white/70 p-2.5 rounded-xl border border-sky-100 italic">
                         "{quoteCatalogChoice.existing.description}"
                       </p>
                     )}
@@ -3355,7 +3355,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                           onChange={(e) => setChoiceIncludeDiscovered(e.target.checked)}
                           className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
                         />
-                        <span className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 shadow-2xs uppercase tracking-wider">
+                        <span className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-2xs uppercase tracking-wider">
                           <Sparkles className="w-3.5 h-3.5" />
                           Opção 2: Descoberta IA
                         </span>
@@ -3383,7 +3383,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
                         <h4 className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">
                           {quoteCatalogChoice.discovered.standardizedName}
                         </h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                        <p className="text-xs text-slate-500 mt-0.5 font-medium">
                           Categoria: {quoteCatalogChoice.discovered.category || 'Identificada por IA'}
                         </p>
                       </div>
@@ -3423,7 +3423,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
                     {/* Descrição resumida */}
                     {quoteCatalogChoice.discovered.description && (
-                      <p className="text-[11px] text-slate-600 line-clamp-3 bg-white/70 p-2.5 rounded-xl border border-emerald-100 italic">
+                      <p className="text-xs text-slate-600 line-clamp-3 bg-white/70 p-2.5 rounded-xl border border-emerald-100 italic">
                         "{quoteCatalogChoice.discovered.description}"
                       </p>
                     )}

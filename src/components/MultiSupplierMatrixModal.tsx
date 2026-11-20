@@ -244,7 +244,7 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
                   {activeStrategyResult.supplierCount} {activeStrategyResult.supplierCount === 1 ? 'Fornecedor' : 'Fornecedores'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600 mt-0.5">
+              <p className="text-xs text-slate-600 mt-0.5">
                 Itens: {formatBRL(optimizedTotalCost)} + Frete Estimado: {formatBRL(activeStrategyResult.estimatedFreight)} = <strong>Custo Total: {formatBRL(activeStrategyResult.landedTotal)}</strong>
               </p>
             </div>
@@ -333,7 +333,7 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
                             {offer.supplier}
                           </span>
                           {isSelected && (
-                            <span className="px-1.5 py-0.5 bg-sky-600 text-white text-[9.5px] font-bold rounded flex items-center gap-1 shrink-0">
+                            <span className="px-1.5 py-0.5 bg-sky-600 text-white text-[10px] font-bold rounded flex items-center gap-1 shrink-0">
                               <CheckCircle2 className="w-2.5 h-2.5" /> Eleito
                             </span>
                           )}
@@ -350,7 +350,7 @@ export const MultiSupplierMatrixModal: React.FC<MultiSupplierMatrixModalProps> =
 
                         {/* Indicação explícita de condições desconhecidas */}
                         <div className="pt-1 border-t border-slate-200/60 mt-1">
-                          <span className="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-200/70 px-1.5 py-0.5 rounded inline-block font-medium">
+                          <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200/70 px-1.5 py-0.5 rounded inline-block font-medium">
                             Frete / Pedido Mínimo a Confirmar
                           </span>
                         </div>

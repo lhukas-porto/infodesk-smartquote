@@ -108,7 +108,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               {mode === 'signup' && 'Cadastrar Primeiro Acesso'}
               {mode === 'reset' && 'Redefinir Senha'}
             </span>
-            <span className="text-[11px] font-medium text-slate-500">
+            <span className="text-xs font-medium text-slate-500">
               Ambiente Protegido
             </span>
           </div>
@@ -158,7 +158,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                         setErrorMessage(null);
                         setSuccessMessage(null);
                       }}
-                      className="text-[11px] text-sky-600 hover:text-sky-800 font-semibold transition"
+                      className="text-xs text-sky-600 hover:text-sky-800 font-semibold transition"
                     >
                       Esqueci a senha
                     </button>

@@ -550,7 +550,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 1: Orçamentos Emitidos */}
         <div className="bg-white border-2 border-amber-500/40 p-3 sm:p-3.5 rounded-2xl shadow-xs relative overflow-hidden bg-gradient-to-br from-white via-white to-amber-50/40 flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] tracking-wider text-amber-900 flex items-center gap-1.5 shrink-0">
               <FileText className="w-3.5 h-3.5 text-amber-600" />
               Orçamentos
             </span>
@@ -572,12 +572,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 2: Volume Cotado Total */}
         <div className="bg-white border border-slate-200 p-3 sm:p-3.5 rounded-2xl shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">
+            <span className="text-[10px] tracking-wider text-slate-500 shrink-0">
               Volume Cotado
             </span>
             <DollarSign className="w-4 h-4 text-amber-600 shrink-0" />
           </div>
-          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-bold text-slate-900 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.totalQuotedAmount)}>
+          <div className="text-base sm:text-base xl:text-base 2xl:text-lg font-bold text-slate-900 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.totalQuotedAmount)}>
             {formatBRL(stats.totalQuotedAmount)}
           </div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
@@ -588,12 +588,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 3: Vendas Aprovadas */}
         <div className="bg-white border border-slate-200 p-3 sm:p-3.5 rounded-2xl shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 shrink-0">
+            <span className="text-[10px] tracking-wider text-emerald-600 shrink-0">
               Vendas Aprovadas
             </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           </div>
-          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-bold text-emerald-700 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.totalApprovedAmount)}>
+          <div className="text-base sm:text-base xl:text-base 2xl:text-lg font-bold text-emerald-700 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.totalApprovedAmount)}>
             {formatBRL(stats.totalApprovedAmount)}
           </div>
           <div className="text-[10px] text-emerald-600/80 font-medium mt-0.5 truncate font-mono">
@@ -604,7 +604,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 4 (NOVO): Lucro Bruto Realizado em R$ */}
         <div className="bg-white border-2 border-emerald-500/40 p-3 sm:p-3.5 rounded-2xl shadow-xs bg-gradient-to-br from-white via-white to-emerald-50/40 flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1 shrink-0">
+            <span className="text-[10px] tracking-wider text-emerald-800 flex items-center gap-1 shrink-0">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
               Lucro Realizado
             </span>
@@ -612,7 +612,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               R$
             </span>
           </div>
-          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-black text-emerald-700 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.approvedGrossProfit)}>
+          <div className="text-base sm:text-base xl:text-base 2xl:text-lg font-black text-emerald-700 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.approvedGrossProfit)}>
             {formatBRL(stats.approvedGrossProfit)}
           </div>
           <div className="text-[10px] text-emerald-700/80 font-medium mt-0.5 truncate font-mono">
@@ -623,12 +623,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 5: Taxa de Conversão */}
         <div className="bg-white border border-slate-200 p-3 sm:p-3.5 rounded-2xl shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">
+            <span className="text-[10px] tracking-wider text-slate-500 shrink-0">
               Conversão
             </span>
             <Percent className="w-4 h-4 text-purple-600 shrink-0" />
           </div>
-          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-bold text-purple-700 font-mono mt-1 whitespace-nowrap">
+          <div className="text-base sm:text-base xl:text-base 2xl:text-lg font-bold text-purple-700 font-mono mt-1 whitespace-nowrap">
             {stats.conversionRate.toFixed(1)}%
           </div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
@@ -639,12 +639,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 6: Ticket Médio Comparativo */}
         <div className="bg-white border border-slate-200 p-3 sm:p-3.5 rounded-2xl shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 shrink-0">
+            <span className="text-[10px] tracking-wider text-slate-500 shrink-0">
               Ticket Médio
             </span>
             <Tag className="w-4 h-4 text-amber-600 shrink-0" />
           </div>
-          <div className="text-base sm:text-[17px] xl:text-[15px] 2xl:text-lg font-bold text-slate-900 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.averageTicket)}>
+          <div className="text-base sm:text-base xl:text-base 2xl:text-lg font-bold text-slate-900 font-mono mt-1 whitespace-nowrap tracking-tight" title={formatBRL(stats.averageTicket)}>
             {formatBRL(stats.averageTicket)}
           </div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
@@ -687,7 +687,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span>{stage.label}</span>
                       </span>
                       <span className="font-mono text-slate-600 font-bold">
-                        {stage.count} <span className="text-[11px] text-slate-400 font-sans">({pct.toFixed(0)}%)</span>
+                        {stage.count} <span className="text-xs text-slate-400 font-sans">({pct.toFixed(0)}%)</span>
                       </span>
                     </div>
                     <div className={`h-2.5 w-full ${stage.barBg} rounded-full overflow-hidden`}>
@@ -884,7 +884,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusBadgeColor}`}>
                         {statusLabel}
                       </span>
-                      <span className="text-[11px] font-mono font-bold text-slate-400">
+                      <span className="text-[10px] font-mono font-bold text-slate-400">
                         {opp.code || 'Sem código'}
                       </span>
                     </div>

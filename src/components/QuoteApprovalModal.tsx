@@ -245,7 +245,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
         {/* Dashboard Resumo da Aprovação */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 sm:p-5 bg-slate-50/70 border-b border-slate-200/80">
           <div className="bg-white border border-slate-200 p-3 rounded-2xl shadow-xs">
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
               Itens Aprovados
             </span>
             <div className="mt-1 flex items-baseline gap-1.5">
@@ -260,7 +260,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
           </div>
 
           <div className="bg-white border border-slate-200 p-3 rounded-2xl shadow-xs">
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
               Valor Fechado
             </span>
             <span className="text-lg font-bold text-emerald-700 font-mono block mt-1">
@@ -272,7 +272,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
           </div>
 
           <div className="bg-white border border-slate-200 p-3 rounded-2xl shadow-xs">
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
               Custo Previsto
             </span>
             <span className="text-lg font-bold text-slate-700 font-mono block mt-1">
@@ -284,7 +284,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
           </div>
 
           <div className="bg-white border border-slate-200 p-3 rounded-2xl shadow-xs">
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
               Lucro Estimado
             </span>
             <span className="text-lg font-bold text-sky-700 font-mono block mt-1">
@@ -405,7 +405,7 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
                         >
                           {item.name}
                         </label>
-                        <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                        <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
                           {item.description || item.partNumber || 'Sem descrição adicional'}
                         </p>
                       </div>
@@ -422,14 +422,14 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 pt-2 border-t border-slate-100">
                       {/* Fornecedor Cotado */}
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                      <div className="text-xs text-slate-500 flex items-center gap-1">
                         <span>Fornecedor:</span>
                         <strong className="text-slate-700">{item.supplier || 'Não especificado'}</strong>
                       </div>
 
                       {/* Controle de Quantidade */}
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-slate-500">Qtd aprovada:</span>
+                        <span className="text-xs text-slate-500">Qtd aprovada:</span>
                         <input
                           type="number"
                           min="1"
@@ -441,12 +441,12 @@ export const QuoteApprovalModal: React.FC<QuoteApprovalModalProps> = ({
                             isApproved ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-100 border-slate-200 text-slate-400'
                           }`}
                         />
-                        <span className="text-[11px] text-slate-400">/ {item.quantity} {item.unit || 'un'}</span>
+                        <span className="text-xs text-slate-400">/ {item.quantity} {item.unit || 'un'}</span>
                       </div>
 
                       {/* Preço Unitário & Total */}
                       <div className="ml-auto text-right">
-                        <span className="text-[11px] text-slate-400 block">
+                        <span className="text-xs text-slate-400 block">
                           Unit: R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                         <span className={`text-xs sm:text-sm font-mono font-bold ${isApproved ? 'text-emerald-700' : 'text-slate-400'}`}>

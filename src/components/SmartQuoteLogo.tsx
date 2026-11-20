@@ -108,7 +108,7 @@ export const SmartQuoteLogo: React.FC<SmartQuoteLogoProps> = ({
 }) => {
   const sizeMap = {
     xs: { icon: 20, text: 'text-xs', sub: 'text-[8px]', badge: 'text-[8px] px-1 py-0.2' },
-    sm: { icon: 24, text: 'text-sm', sub: 'text-[9px]', badge: 'text-[9px] px-1.5 py-0.2' },
+    sm: { icon: 24, text: 'text-sm', sub: 'text-[10px]', badge: 'text-[10px] px-1.5 py-0.2' },
     md: { icon: 28, text: 'text-base', sub: 'text-[10px]', badge: 'text-[10px] px-1.5 py-0.5' },
     lg: { icon: 34, text: 'text-lg md:text-xl', sub: 'text-xs', badge: 'text-xs px-2 py-0.5' },
     xl: { icon: 44, text: 'text-2xl sm:text-3xl', sub: 'text-xs sm:text-sm', badge: 'text-xs px-2.5 py-0.5' }

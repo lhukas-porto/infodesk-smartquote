@@ -171,7 +171,7 @@ ${this.state.errorInfo?.componentStack || 'Sem component stack'}`;
 
             {this.state.error && (
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left max-h-32 overflow-y-auto">
-                <p className="text-[11px] font-mono text-red-600 break-words">
+                <p className="text-xs font-mono text-red-600 break-words">
                   {errorMessage}
                 </p>
               </div>

@@ -2362,7 +2362,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         {/* Itens a Comprar */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">
+            <span className="text-xs font-semibold uppercase tracking-wider">
               A Comprar
             </span>
             <Clock className="w-4 h-4 text-amber-500" />
@@ -2381,7 +2381,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         {/* Itens Comprados */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Itens Comprados
             </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -2400,7 +2400,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         {/* Custo Real Desembolsado & Saving */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Custo Real Pago
             </span>
             <DollarSign className="w-4 h-4 text-slate-400" />
@@ -2430,7 +2430,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         {/* Lucro Líquido Realizado */}
         <div className="bg-gradient-to-br from-emerald-50/80 via-teal-50/40 to-white border-2 border-emerald-300/80 p-4 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-600">
               Lucro Líquido Realizado
             </span>
             <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -2504,7 +2504,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {/* Período */}
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+            <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
               <Calendar className="w-3 h-3 text-slate-400" />
               Período
             </label>
@@ -2529,7 +2529,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
           {/* Cliente / Empresa */}
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+            <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
               <Building2 className="w-3 h-3 text-slate-400" />
               Cliente
             </label>
@@ -2547,7 +2547,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
           {/* Forma de Pagamento */}
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+            <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
               <CreditCard className="w-3 h-3 text-slate-400" />
               Forma de Pagamento
             </label>
@@ -2565,7 +2565,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
           {/* Fornecedor */}
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+            <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
               <Filter className="w-3 h-3 text-slate-400" />
               Fornecedor
             </label>
@@ -2680,7 +2680,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         {item.partNumber && (
-                          <span className="text-[10.5px] font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 inline-block mb-1">
+                          <span className="text-[10px] font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 inline-block mb-1">
                             SKU: {item.partNumber}
                           </span>
                         )}
@@ -2712,12 +2712,12 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                         Comprado: <strong className="text-slate-800">{item.purchaseCount}x</strong> ({item.totalQuantity} {item.unit})
                       </span>
                       {item.purchaseCount > 1 && item.minUnitCost !== item.maxUnitCost && (
-                        <span className="text-[11px] font-mono text-slate-500">
+                        <span className="text-xs font-mono text-slate-500">
                           Faixa: {formatBRL(item.minUnitCost)} ~ {formatBRL(item.maxUnitCost)}
                         </span>
                       )}
                       {item.lastPurchasedAt && (
-                        <span className="text-slate-400 text-[11px]">
+                        <span className="text-slate-400 text-xs">
                           Última em: {formatDatePtBr(item.lastPurchasedAt)} ({item.lastClient})
                         </span>
                       )}
@@ -2870,7 +2870,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                           style={{ width: `${group.percentComplete}%` }}
                         />
                       </div>
-                      <span className="text-[11px] font-mono font-bold text-slate-600 shrink-0">
+                      <span className="text-xs font-mono font-bold text-slate-600 shrink-0">
                         {group.purchasedCount}/{group.totalItems} ({group.percentComplete}%)
                       </span>
                     </div>
@@ -2974,12 +2974,12 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                         • {group.items.length} produto(s) ({group.totalQuantity} unidades)
                       </span>
                       {group.pendingCount > 0 && (
-                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                           {group.pendingCount} pendente(s)
                         </span>
                       )}
                       {group.purchasedCount > 0 && (
-                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                           {group.purchasedCount} comprado(s)
                         </span>
                       )}
@@ -3054,7 +3054,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
               {/* Seletor de Itens por Página */}
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-slate-400">Por pág:</span>
+                <span className="text-xs text-slate-400">Por pág:</span>
                 {[25, 50, 100].map(size => (
                   <button
                     key={size}
@@ -3167,16 +3167,16 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                         <h4 className="text-xs sm:text-sm font-bold text-slate-900">
                           {group.displayTitle}
                         </h4>
-                        <span className="text-[11px] font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200 font-mono">
+                        <span className="text-xs font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200 font-mono">
                           {group.items.length} {group.items.length === 1 ? 'item' : 'itens'}
                         </span>
                         {group.purchasedCount > 0 && (
-                          <span className="text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                             {group.purchasedCount} comprado(s)
                           </span>
                         )}
                         {group.pendingCount > 0 && (
-                          <span className="text-[10.5px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                             {group.pendingCount} pendente(s)
                           </span>
                         )}
@@ -3308,17 +3308,17 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     </span>
 
                     {activeItemForPurchase.isDirectPurchase ? (
-                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-bold font-mono rounded-md">
+                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold font-mono rounded-md">
                         COMPRA AVULSA
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold font-mono rounded-md">
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold font-mono rounded-md">
                         {activeItemForPurchase.quoteCode}
                       </span>
                     )}
 
                     {activeItemForPurchase.splitBatchNumber && (
-                      <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold font-mono rounded-md flex items-center gap-1">
+                      <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold font-mono rounded-md flex items-center gap-1">
                         <Scissors className="w-3 h-3 text-indigo-600" />
                         <span>Lote {activeItemForPurchase.splitBatchNumber}/{activeItemForPurchase.splitTotalBatches}</span>
                       </span>
@@ -3397,7 +3397,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                           href={purchaseForm.actualPurchaseUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sky-600 hover:text-sky-800 text-[11px] font-bold inline-flex items-center gap-1 transition"
+                          className="text-sky-600 hover:text-sky-800 text-xs font-bold inline-flex items-center gap-1 transition"
                         >
                           <span>Abrir Link</span>
                           <ExternalLink className="w-3 h-3" />
@@ -3438,7 +3438,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                         <button
                           type="button"
                           onClick={() => setIsAddingNewPaymentMethod(true)}
-                          className="text-[11px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 transition cursor-pointer"
+                          className="text-xs font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 transition cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
                           <span>Nova Forma</span>
@@ -3726,28 +3726,28 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                     <div className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs">
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Custo + Frete</span>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Custo + Frete</span>
                       <span className="text-xs sm:text-sm font-mono font-bold text-slate-800 block mt-0.5">
                         {formatBRL(custo + frete)}
                       </span>
                     </div>
 
                     <div className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs">
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Imposto ({purchaseForm.taxPercent}%)</span>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Imposto ({purchaseForm.taxPercent}%)</span>
                       <span className="text-xs sm:text-sm font-mono font-bold text-amber-700 block mt-0.5">
                         {formatBRL(imposto)}
                       </span>
                     </div>
 
                     <div className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs">
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Lucro Líquido</span>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Lucro Líquido</span>
                       <span className={`text-xs sm:text-sm font-mono font-bold block mt-0.5 ${lucro >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                         {lucro >= 0 ? `+${formatBRL(lucro)}` : formatBRL(lucro)}
                       </span>
                     </div>
 
                     <div className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs">
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Retorno (ROI)</span>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Retorno (ROI)</span>
                       <span className={`text-xs sm:text-sm font-mono font-bold block mt-0.5 ${roi >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
                         {roi.toFixed(1)}%
                       </span>
@@ -3877,7 +3877,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 text-[11px] text-slate-600 mt-1 flex-wrap">
+                        <div className="flex items-center gap-3 text-xs text-slate-600 mt-1 flex-wrap">
                           <span>
                             Estoque atual: <strong className="text-slate-900">{selectedStockProduct.stock ?? 0} {selectedStockProduct.unit}</strong>
                           </span>
@@ -3898,7 +3898,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                     <button
                       type="button"
                       onClick={handleClearSelectedProduct}
-                      className="px-2.5 py-1 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-bold transition shrink-0 cursor-pointer"
+                      className="px-2.5 py-1 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer"
                     >
                       Trocar Produto
                     </button>
@@ -3967,7 +3967,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                           <div className="p-4 text-center">
                             <AlertCircle className="w-5 h-5 text-slate-400 mx-auto mb-1" />
                             <p className="font-bold text-slate-700 text-xs">Nenhum produto encontrado no estoque</p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
+                            <p className="text-xs text-slate-500 mt-0.5">
                               Para comprar este item, cadastre-o primeiro na aba <strong>Base de Produtos</strong>.
                             </p>
                           </div>
@@ -4162,7 +4162,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
               {/* Status Inicial da Compra */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
-                <span className="block text-[11px] font-bold text-slate-700 uppercase">
+                <span className="block text-xs font-bold text-slate-700 uppercase">
                   Status Desta Compra
                 </span>
                 <div className="flex items-center gap-4">
@@ -4354,7 +4354,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 )}
                 <div className="min-w-0 flex-1">
                   <h4 className="text-xs font-bold text-slate-900 line-clamp-1">{itemToSplit.name}</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Total: <strong className="text-slate-900 font-mono font-bold">{itemToSplit.quantity} {itemToSplit.unit}</strong> • Cotado: <strong className="text-slate-800 font-mono">{formatBRL(itemToSplit.quotedUnitPrice)}/un</strong>
                   </p>
                   <p className="text-[10px] text-slate-400">
@@ -4396,18 +4396,18 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-2xl space-y-1.5">
                   <div className="flex items-center justify-between text-indigo-900">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Lote 1 (Imediato)</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">Lote 1 (Imediato)</span>
                     <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md text-[10px] font-bold font-mono">
                       {splitFirstPartQty} {itemToSplit.unit}
                     </span>
                   </div>
                   <div className="space-y-0.5 text-xs text-indigo-900">
                     <div className="flex items-center justify-between">
-                      <span className="text-indigo-700 text-[11px]">Custo Peças:</span>
+                      <span className="text-indigo-700 text-xs">Custo Peças:</span>
                       <strong className="font-mono font-bold">R$ {splitCustomPart1Cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-indigo-700 text-[11px]">Valor Pedido:</span>
+                      <span className="text-indigo-700 text-xs">Valor Pedido:</span>
                       <strong className="font-mono font-bold">R$ {splitCustomPart1Revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                     </div>
                   </div>
@@ -4418,18 +4418,18 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
                 <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-1.5">
                   <div className="flex items-center justify-between text-amber-900">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Lote 2 (Saldo)</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">Lote 2 (Saldo)</span>
                     <span className="px-2 py-0.5 bg-amber-600 text-white rounded-md text-[10px] font-bold font-mono">
                       {itemToSplit.quantity - splitFirstPartQty} {itemToSplit.unit}
                     </span>
                   </div>
                   <div className="space-y-0.5 text-xs text-amber-900">
                     <div className="flex items-center justify-between">
-                      <span className="text-amber-700 text-[11px]">Custo Peças:</span>
+                      <span className="text-amber-700 text-xs">Custo Peças:</span>
                       <strong className="font-mono font-bold">R$ {splitCustomPart2Cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-amber-700 text-[11px]">Valor Pedido:</span>
+                      <span className="text-amber-700 text-xs">Valor Pedido:</span>
                       <strong className="font-mono font-bold">R$ {splitCustomPart2Revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                     </div>
                   </div>
@@ -4494,7 +4494,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               <h2 className="text-base sm:text-lg font-black text-[#261f18] uppercase tracking-wide leading-tight font-sans">
                 {zoomedImage.title}
               </h2>
-              <p className="text-[11px] sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
+              <p className="text-xs sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
                 ESPECIFICAÇÃO TÉCNICA
               </p>
             </div>
@@ -4513,7 +4513,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               <button
                 type="button"
                 onClick={() => setZoomedImage(null)}
-                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-[13px] font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
               >
                 Fechar
               </button>
@@ -4604,7 +4604,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
                 {/* Tag de Origem / Proposta / Compra Direta */}
                 {item.isDirectPurchase ? (
-                  <span className="text-[11px] font-mono font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-md border border-purple-200">
+                  <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-md border border-purple-200">
                     COMPRA AVULSA
                   </span>
                 ) : (
@@ -4614,7 +4614,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                       const q = quotes.find(quote => quote.id === item.quoteId);
                       if (q && onOpenQuote) onOpenQuote(q);
                     }}
-                    className="text-[11px] font-mono font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md border border-slate-200/80 transition cursor-pointer"
+                    className="text-xs font-mono font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md border border-slate-200/80 transition cursor-pointer"
                     title="Ver proposta original"
                   >
                     {item.quoteCode}
@@ -4624,7 +4624,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 {/* Tag de Ordem de Compra do Cliente (se informada) */}
                 {item.clientOrderNumber && (
                   <span 
-                    className="text-[11px] font-mono font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1 shadow-2xs"
+                    className="text-xs font-mono font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1 shadow-2xs"
                     title={`Ordem de Compra / Pedido do Cliente: ${item.clientOrderNumber}`}
                   >
                     <Tag className="w-3 h-3 text-amber-600" />
@@ -4635,7 +4635,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                 {/* Badge de Lote Fracionado (Split) */}
                 {item.splitBatchNumber && (
                   <span 
-                    className="text-[11px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 flex items-center gap-1 shadow-2xs"
+                    className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 flex items-center gap-1 shadow-2xs"
                     title={`Item fracionado em compras separadas: Lote ${item.splitBatchNumber} de ${item.splitTotalBatches}`}
                   >
                     <Scissors className="w-3 h-3 text-indigo-600" />
@@ -4688,12 +4688,12 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   return (
                     <span className="flex items-center gap-1">
                       <span>• Fornecedor:</span>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${storeStyle.bg} border ${storeStyle.border} ${storeStyle.text} rounded-md text-[11px] font-bold`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${storeStyle.bg} border ${storeStyle.border} ${storeStyle.text} rounded-md text-xs font-bold`}>
                         <span>{storeStyle.icon}</span>
                         <span>{item.supplier}</span>
                       </span>
                       {isPurchased && item.quotedSupplier && item.quotedSupplier !== item.supplier && (
-                        <span className="ml-1 text-[11px] text-slate-400 font-normal">
+                        <span className="ml-1 text-xs text-slate-400 font-normal">
                           (Cotado: {item.quotedSupplier})
                         </span>
                       )}
@@ -4701,7 +4701,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   );
                 })()}
                 {item.partNumber && (
-                  <span>• Part Number: <code className="font-mono text-[11px] font-bold text-slate-800">{item.partNumber}</code></span>
+                  <span>• Part Number: <code className="font-mono text-xs font-bold text-slate-800">{item.partNumber}</code></span>
                 )}
               </div>
             </div>
@@ -4720,7 +4720,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
             <div className="mt-1 flex items-center sm:justify-end gap-2 text-xs">
               {isPurchased ? (
-                <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                <div className="flex items-center gap-1.5 font-mono text-xs">
                   <span className="text-emerald-700 font-bold">
                     Lucro: R$ {profit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
@@ -4730,7 +4730,7 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
                   </span>
                 </div>
               ) : (
-                <span className="text-slate-500 text-[11px]">
+                <span className="text-slate-500 text-xs">
                   Custo previsto: R$ {(item.quotedCostPrice * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               )}
@@ -4749,18 +4749,18 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               </span>
 
               {/* Custo Total e Valor Unitário Real */}
-              <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 font-medium font-mono text-[11px]">
+              <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 font-medium font-mono text-xs">
                 Total: <strong>{formatBRL(costPaid)}</strong>
               </span>
 
-              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200 font-medium font-mono text-[11px]">
+              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200 font-medium font-mono text-xs">
                 Unitário: <strong>{formatBRL(unitPaid)}/un</strong>
               </span>
 
               {/* Termômetro Real vs Orçado */}
               {item.actualCostPrice !== undefined && (
                 <span 
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-mono text-[11px] font-bold ${
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-mono text-xs font-bold ${
                     costDelta > 0.01 
                       ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
                       : costDelta < -0.01 
@@ -4782,24 +4782,24 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
 
               {/* Frete */}
               {item.shippingPending ? (
-                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-300 font-bold font-mono text-[11px]" title="Valor do frete pendente de confirmação">
+                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-300 font-bold font-mono text-xs" title="Valor do frete pendente de confirmação">
                   <Truck className="w-3 h-3 text-amber-600" />
                   Frete: {fretePaid > 0 ? `${formatBRL(fretePaid)} (Pendente)` : 'Pendente'}
                 </span>
               ) : fretePaid > 0 ? (
-                <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 font-medium font-mono text-[11px]">
+                <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 font-medium font-mono text-xs">
                   Frete: {formatBRL(fretePaid)}
                 </span>
               ) : null}
 
               {item.purchasedAt && (
-                <span className="text-slate-400 text-[11px]">
+                <span className="text-slate-400 text-xs">
                   Comprado em: {formatDatePtBr(item.purchasedAt)}
                 </span>
               )}
 
               {item.purchaseNotes && (
-                <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-800 px-2 py-0.5 rounded-lg border border-sky-200 text-[11px] font-medium" title={item.purchaseNotes}>
+                <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-800 px-2 py-0.5 rounded-lg border border-sky-200 text-xs font-medium" title={item.purchaseNotes}>
                   <FileText className="w-3 h-3 text-sky-600" />
                   <span className="truncate max-w-[200px]">Obs/NF: {item.purchaseNotes}</span>
                 </span>
@@ -4810,13 +4810,13 @@ Olá! Poderia confirmar a disponibilidade destes itens para faturamento imediato
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Cotado a <strong>{formatBRL(item.quotedCostPrice)}/un</strong> • Aguardando aquisição</span>
               {fretePaid > 0 && (
-                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded-lg border border-amber-200 font-bold font-mono text-[11px]" title="Frete orçado na proposta comercial">
+                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded-lg border border-amber-200 font-bold font-mono text-xs" title="Frete orçado na proposta comercial">
                   <Truck className="w-3 h-3 text-amber-600" />
                   Frete orçado: {formatBRL(fretePaid)}
                 </span>
               )}
               {(item.approvedAt || (item as any).createdAt) && (
-                <span className="text-slate-400 text-[11px] font-normal">
+                <span className="text-slate-400 text-xs font-normal">
                   • Data: {formatDatePtBr(item.approvedAt || (item as any).createdAt)}
                 </span>
               )}

@@ -249,7 +249,7 @@ export const WebImagePickerModal: React.FC<WebImagePickerModalProps> = ({
             </div>
           </form>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 px-1">
+          <div className="flex items-center justify-between text-xs text-slate-500 mt-2 px-1">
             <span>💡 Dica: Você também pode apertar <strong>Ctrl+V</strong> a qualquer momento para colar um print da área de transferência.</span>
             {images.length > 0 && (
               <span className="font-semibold text-slate-700">{images.length} imagem(ns) encontrada(s)</span>
@@ -339,7 +339,7 @@ export const WebImagePickerModal: React.FC<WebImagePickerModalProps> = ({
 
                       {/* Rótulo inferior */}
                       <div className="w-full text-center mt-2 pt-1 border-t border-slate-100">
-                        <span className={`text-[11px] font-bold ${isCurrent ? 'text-emerald-700' : 'text-slate-500 group-hover:text-sky-600'}`}>
+                        <span className={`text-xs font-bold ${isCurrent ? 'text-emerald-700' : 'text-slate-500 group-hover:text-sky-600'}`}>
                           {isCurrent ? '✓ Foto Escolhida' : `Opção #${idx + 1}`}
                         </span>
                       </div>

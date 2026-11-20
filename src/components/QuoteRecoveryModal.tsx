@@ -318,14 +318,14 @@ export const QuoteRecoveryModal: React.FC<QuoteRecoveryModalProps> = ({
                           R$ {cand.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </span>
                         <span className="text-slate-300">•</span>
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-xs text-slate-400">
                           {cand.date}
                         </span>
                       </div>
 
                       {/* Prévia dos itens */}
                       {cand.quote.items && cand.quote.items.length > 0 && (
-                        <p className="text-[11px] text-slate-500 line-clamp-1 italic pt-0.5">
+                        <p className="text-xs text-slate-500 line-clamp-1 italic pt-0.5">
                           Itens: {cand.quote.items.map(i => i.name).filter(Boolean).join(', ')}
                         </p>
                       )}

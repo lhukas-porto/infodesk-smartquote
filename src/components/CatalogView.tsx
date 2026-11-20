@@ -1104,7 +1104,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                             </span>
                             {p.dollarPrice !== undefined && p.dollarPrice > 0 && (
                               <span 
-                                className="inline-flex items-center gap-0.5 text-[9.5px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 mt-0.5 shadow-2xs"
+                                className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 mt-0.5 shadow-2xs"
                                 title={`Preço em Dólar: US$ ${p.dollarPrice.toFixed(2)}${p.dollarSurchargePercent ? ` (+${p.dollarSurchargePercent}%)` : ''}`}
                               >
                                 US$ {p.dollarPrice.toFixed(2)}{p.dollarSurchargePercent ? ` (+${p.dollarSurchargePercent}%)` : ''}
@@ -1112,7 +1112,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                             )}
                             {isStale && (
                               <span 
-                                className="inline-flex items-center gap-1 text-[9.5px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 shadow-2xs"
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 shadow-2xs"
                                 title={`Custo atualizado há ${daysSince} dias (${formatDatePtBr(p.lastUpdated)}). Recomenda-se confirmar com o fornecedor antes de orçar.`}
                               >
                                 <Clock className="w-2.5 h-2.5 text-amber-600" />
@@ -1127,7 +1127,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           onClick={() => onAddToQuote(p)}
-                          className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-[11px] font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+                          className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
                           title="Adicionar ao Orçamento Atual"
                         >
                           + Orçar
@@ -1184,7 +1184,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               <span className="font-bold text-slate-900">{sortedProducts.length}</span> produtos
             </span>
             {sortedProducts.length !== products.length && (
-              <span className="text-[11px] text-slate-400">({products.length} no total)</span>
+              <span className="text-xs text-slate-400">({products.length} no total)</span>
             )}
           </div>
 
@@ -1359,7 +1359,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               <h2 className="text-base sm:text-lg font-black text-[#261f18] uppercase tracking-wide leading-tight font-sans">
                 {zoomedImage.title}
               </h2>
-              <p className="text-[11px] sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
+              <p className="text-xs sm:text-xs font-bold text-[#5c3e1e] uppercase tracking-widest mt-1.5 font-sans">
                 FOTO DO PRODUTO
               </p>
             </div>
@@ -1376,7 +1376,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               <button
                 type="button"
                 onClick={() => setZoomedImage(null)}
-                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-[13px] font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+                className="px-8 py-2 bg-white hover:bg-stone-50 text-[#3d2b1f] border border-[#cfc8be] rounded-md text-xs sm:text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
               >
                 Fechar
               </button>
@@ -1399,7 +1399,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <span>Exportar Catálogo em Planilha XLS</span>
                   </h3>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-xs text-slate-500">
                     Formato oficial para importação no Conta Azul e controle de estoque
                   </p>
                 </div>
@@ -1443,7 +1443,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                         Recomendado
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5">
                       Evita duplicações no Conta Azul exportando apenas a nova remessa de produtos cadastrados.
                     </p>
                   </div>
@@ -1452,7 +1452,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 {exportMode === 'new_since_date' && (
                   <div className="pt-2 pl-7 space-y-3 border-t border-sky-100 mt-2">
                     {lastExportAt && (
-                      <div className="p-2.5 bg-white border border-sky-200 rounded-xl text-[11px] text-sky-800 flex items-center gap-2 shadow-2xs">
+                      <div className="p-2.5 bg-white border border-sky-200 rounded-xl text-xs text-sky-800 flex items-center gap-2 shadow-2xs">
                         <Clock className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                         <span>
                           Sua última exportação foi em <strong>{formatDateTimePtBr(lastExportAt)}</strong>.
@@ -1461,7 +1461,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     )}
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
                         <Calendar className="w-3 h-3 text-sky-600" />
                         <span>Data de corte para exportação</span>
                       </label>
@@ -1504,11 +1504,11 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     <span className="font-bold text-slate-900 text-xs block">
                       Exportar todos os produtos do catálogo
                     </span>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5">
                       Gera a planilha completa com todos os {products.length} itens cadastrados atualmente.
                     </p>
                     {exportMode === 'all' && (
-                      <div className="mt-2 text-slate-700 font-semibold flex items-center gap-1.5 text-[11px]">
+                      <div className="mt-2 text-slate-700 font-semibold flex items-center gap-1.5 text-xs">
                         <Package className="w-3.5 h-3.5 text-slate-500" />
                         <span>Todos os {products.length} produtos serão incluídos na planilha.</span>
                       </div>

@@ -720,7 +720,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
           <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl px-3.5 py-2 text-xs text-indigo-800 flex items-center justify-between gap-2">
             <span className="flex items-center gap-1.5">
               <span className="font-bold">💡 Dica:</span> 
-              <span>Você pode tirar um print na tela (Win+Shift+S) e colar diretamente aqui com <kbd className="px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-[11px] font-mono font-bold text-indigo-900">Ctrl + V</kbd>. A imagem será aberta no Inbox como e-mail HTML!</span>
+              <span>Você pode tirar um print na tela (Win+Shift+S) e colar diretamente aqui com <kbd className="px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-xs font-mono font-bold text-indigo-900">Ctrl + V</kbd>. A imagem será aberta no Inbox como e-mail HTML!</span>
             </span>
           </div>
 
@@ -737,7 +737,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Empresa</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Empresa</label>
                   <input
                     type="text"
                     value={customSenderCompany}
@@ -746,7 +746,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Comprador / Solicitante</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Comprador / Solicitante</label>
                   <input
                     type="text"
                     value={customSenderName}
@@ -755,7 +755,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Telefone</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Telefone</label>
                   <input
                     type="text"
                     value={customSenderPhone}
@@ -764,7 +764,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Local de Entrega</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Local de Entrega</label>
                   <input
                     type="text"
                     value={customDeliveryLocation}
@@ -856,7 +856,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
                       <div className="space-y-2.5 pt-1">
                         <div>
-                          <label className="block text-[11px] font-medium text-slate-700 mb-1">Assunto do E-mail</label>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">Assunto do E-mail</label>
                           <input
                             type="text"
                             value={customSubject}
@@ -867,7 +867,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[11px] font-medium text-slate-700 mb-1">Empresa Solicitante</label>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Empresa Solicitante</label>
                             <input
                               type="text"
                               value={customSenderCompany}
@@ -877,7 +877,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-medium text-slate-700 mb-1">Comprador / Solicitante</label>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Comprador / Solicitante</label>
                             <input
                               type="text"
                               value={customSenderName}
@@ -889,7 +889,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[11px] font-medium text-slate-700 mb-1">Telefone (opcional)</label>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Telefone (opcional)</label>
                             <input
                               type="text"
                               value={customSenderPhone}
@@ -899,7 +899,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-medium text-slate-700 mb-1">Local de Entrega</label>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Local de Entrega</label>
                             <input
                               type="text"
                               value={customDeliveryLocation}
@@ -1000,7 +1000,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
           </div>
 
           {/* Quick Period Filter Pills */}
-          <div className="px-3.5 py-2 bg-slate-50/50 border-b border-slate-200 flex items-center justify-between gap-1 text-[11px]">
+          <div className="px-3.5 py-2 bg-slate-50/50 border-b border-slate-200 flex items-center justify-between gap-1 text-xs">
             <div className="flex items-center gap-1.5 text-slate-500 font-semibold shrink-0">
               <Calendar className="w-3.5 h-3.5 text-sky-600" />
               <span>Período:</span>
@@ -1022,7 +1022,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     type="button"
                     onClick={() => onRefreshEmails?.(p.id as EmailPeriodFilter)}
                     disabled={isSyncing}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition text-[11px] shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg font-bold transition text-xs shrink-0 flex items-center gap-1.5 cursor-pointer ${
                       active
                         ? 'bg-sky-600 text-white shadow-2xs'
                         : p.id === 'unread'
@@ -1036,7 +1036,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     )}
                     <span>{p.label}</span>
                     {p.id === 'unread' && unreadCount > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                         active ? 'bg-white/20 text-white' : 'bg-sky-200 text-sky-900'
                       }`}>
                         {unreadCount}
@@ -1058,7 +1058,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   <p className="text-xs font-bold text-slate-800">
                     {currentPeriod === 'unread' ? 'Nenhum e-mail não lido' : 'Nenhum e-mail na caixa'}
                   </p>
-                  <p className="text-[11px] text-slate-500 mt-1 max-w-[240px] mx-auto">
+                  <p className="text-xs text-slate-500 mt-1 max-w-[240px] mx-auto">
                     {currentPeriod === 'unread'
                       ? 'Todas as mensagens recebidas já foram visualizadas ou estão em dia.'
                       : 'Conecte sua conta do Gmail para carregar cotações reais ou cole uma solicitação avulsa.'}
@@ -1091,7 +1091,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                       {email.subject}
                     </p>
 
-                    <p className="text-[11px] text-slate-500 line-clamp-2 mb-2">
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-2">
                       {email.snippet}
                     </p>
 
@@ -1200,7 +1200,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                       <div>
-                        <label className="block text-[10.5px] font-bold text-slate-700 mb-1">Empresa / Órgão</label>
+                        <label className="block text-[10px] font-bold text-slate-700 mb-1">Empresa / Órgão</label>
                         <input
                           type="text"
                           value={editSenderCompany}
@@ -1210,7 +1210,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-[10.5px] font-bold text-slate-700 mb-1">Nome do Solicitante / Comprador</label>
+                        <label className="block text-[10px] font-bold text-slate-700 mb-1">Nome do Solicitante / Comprador</label>
                         <input
                           type="text"
                           value={editSenderName}
@@ -1220,7 +1220,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-[10.5px] font-medium text-slate-700 mb-1">Telefone / WhatsApp</label>
+                        <label className="block text-[10px] font-medium text-slate-700 mb-1">Telefone / WhatsApp</label>
                         <input
                           type="text"
                           value={editSenderPhone}
@@ -1230,7 +1230,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-[10.5px] font-medium text-slate-700 mb-1">Local de Entrega</label>
+                        <label className="block text-[10px] font-medium text-slate-700 mb-1">Local de Entrega</label>
                         <input
                           type="text"
                           value={editDeliveryLocation}
@@ -1387,7 +1387,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                           <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
                             Item #{idx + 1}
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-500">
+                          <span className="text-xs font-semibold text-slate-500">
                             Texto Capturado para Pesquisa Exata:
                           </span>
                         </div>

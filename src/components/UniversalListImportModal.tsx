@@ -835,7 +835,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                 className="sq-input h-auto py-3 font-mono text-xs leading-relaxed resize-y text-slate-800"
               />
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-[11px] text-slate-500">
+                <span className="text-xs text-slate-500">
                   Dica: Você pode copiar colunas como: Código | Descrição | Quantidade | Unidade | Custo
                 </span>
                 <button
@@ -880,7 +880,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                 className="sq-input h-auto py-3 font-sans text-xs leading-relaxed resize-y text-slate-800"
               />
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                <span className="text-xs text-slate-500 flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                   Nossa IA extrairá produtos, quantidades, códigos e unidades automaticamente.
                 </span>
@@ -947,7 +947,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                     Selecione a aba da planilha que deseja carregar:
                   </span>
                 </div>
-                <span className="text-[11px] text-sky-800 font-medium">
+                <span className="text-xs text-sky-800 font-medium">
                   Aba ativa: <strong>{availableSheets[selectedSheetIndex]?.name}</strong>
                 </span>
               </div>
@@ -1015,7 +1015,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {parsedRows.map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-2 px-3 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                        <td className="py-2 px-3 text-slate-400 font-mono text-xs">{idx + 1}</td>
                         <td className="py-2 px-3 font-mono font-semibold text-sky-700">
                           {row.partNumber || <span className="text-slate-300 italic">-</span>}
                         </td>
@@ -1031,7 +1031,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                             <div className="min-w-0">
                               <div className="truncate font-semibold text-slate-900">{row.name}</div>
                               {row.description && row.description !== row.name && (
-                                <div className="text-[11px] text-slate-500 truncate max-w-sm">
+                                <div className="text-xs text-slate-500 truncate max-w-sm">
                                   {row.description}
                                 </div>
                               )}
@@ -1041,7 +1041,7 @@ export const UniversalListImportModal: React.FC<UniversalListImportModalProps> =
                         <td className="py-2 px-3 text-center font-bold text-slate-700">
                           {row.quantity}
                         </td>
-                        <td className="py-2 px-3 text-center text-slate-500 uppercase text-[11px]">
+                        <td className="py-2 px-3 text-center text-slate-500 uppercase text-xs">
                           {row.unit}
                         </td>
                         <td className="py-2 px-3 text-right font-mono text-slate-700">
