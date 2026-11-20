@@ -1,5 +1,14 @@
-# SMARTQUOTE UI DESIGN SYSTEM — DIRETRIZ VISUAL OBRIGATÓRIA
+# SMARTQUOTE UI DESIGN SYSTEM — IDENTIDADE OFICIAL: PRECISION TECH
 
+> **IDENTIDADE VISUAL OFICIAL: PRECISION TECH (APROVADA PELO LUCAS)**
+> O SmartQuote utiliza exclusivamente o padrão **Precision Tech**:
+> - **Canvas & Superfície**: Branco puro (`#ffffff`) e Slate-50 (`#f8fafc`) para alta luminosidade e legibilidade.
+> - **Azul Elétrico Corporativo**: Sky-600 (`#0284c7`) / Sky-700 (`#0369a1`) para navegação, botões primários e foco.
+> - **Verde Esmeralda**: Emerald-600 (`#059669`) para métricas de margem positiva, exportação e finalização.
+> - **Deep Navy / Tipografia**: Slate-900 (`#0f172a`) e Slate-700 (`#334155`) para contraste cirúrgico.
+> - **Zero Placeholders**: É estritamente proibido o uso do atributo `placeholder` em inputs e textareas.
+> - **Navbar Centralizada**: Layout balanceado sem sobreposição de rascunhos e sem logos antigos.
+>
 > **REGRA DE OURO (VÁLIDA PARA TUDO QUE EXISTE E TUDO QUE FOR CRIADO DAQUI PARA A FRENTE):**
 > Toda e qualquer tela, componente, modal, tabela, card, formulário ou botão do SmartQuote DEVE seguir estritamente o padrão visual estabelecido na tela oficial de **Nova Proposta Comercial**:
 > - Títulos e tópicos sempre marcados em negrito (`font-bold` / `font-black text-slate-900`) com ícone identificador correspondente.
