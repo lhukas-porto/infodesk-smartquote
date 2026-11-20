@@ -458,7 +458,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
         <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn">
           
           {/* Header */}
@@ -871,7 +871,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
             </div>
 
             {/* Footer de Ações Flutuante / Fixo na base */}
-            <div className="p-4 border-t border-slate-200 bg-white/95 backdrop-blur-xs flex items-center justify-between gap-2 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-10">
+            <div className="p-4 border-t border-slate-200 bg-white/95 backdrop-blur-md flex items-center justify-between gap-2 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-10">
               <button
                 type="button"
                 onClick={onClose}
@@ -909,7 +909,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       {/* Modal de Zoom da Foto no Meio da Tela */}
       {zoomedImage && (
         <div 
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
         >
           <div 
             className="relative bg-white rounded-3xl pt-6 pb-7 px-6 sm:px-8 shadow-2xl max-w-md sm:max-w-lg w-full flex flex-col items-center animate-scaleIn border border-slate-100/80"

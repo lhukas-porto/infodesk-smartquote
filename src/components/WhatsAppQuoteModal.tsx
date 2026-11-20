@@ -87,7 +87,7 @@ export const WhatsAppQuoteModal: React.FC<WhatsAppQuoteModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
       <div 
         className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-xl w-full flex flex-col overflow-hidden animate-scaleIn max-h-[94vh]"
         onClick={(e) => e.stopPropagation()}

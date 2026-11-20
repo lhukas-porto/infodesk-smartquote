@@ -91,7 +91,7 @@
   }
 
   .sq-btn-emerald {
-    @apply px-4 py-2.5 bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
+    @apply px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
   }
 
   .sq-btn-amber {
@@ -99,7 +99,51 @@
   }
 
   .sq-btn-cobalt {
-    @apply px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
+    @apply px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
+  }
+
+  /* Micro-elevação Tátil - Cards Estilo Workstation */
+  .sq-card-workstation {
+    @apply bg-white border border-slate-300/80 rounded-2xl p-4 md:p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md;
+  }
+
+  /* Bordas de Acento Superior para Cards de Métricas */
+  .sq-accent-top-amber {
+    @apply border-t-4 border-t-amber-500;
+  }
+
+  .sq-accent-top-emerald {
+    @apply border-t-4 border-t-emerald-500;
+  }
+
+  .sq-accent-top-purple {
+    @apply border-t-4 border-t-purple-500;
+  }
+
+  .sq-accent-top-slate {
+    @apply border-t-4 border-t-slate-700;
+  }
+
+  /* Tabelas Comerciais com Efeito Tabular e Hover Suave */
+  .sq-table-row {
+    @apply transition-colors duration-150 hover:bg-amber-50/40;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sq-badge-tag {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold font-mono uppercase tracking-wider border shadow-sm;
+  }
+
+  /* Modais com Efeito Frosted Glass (Vidro Fosco Executivo) */
+  .sq-modal-overlay {
+    @apply fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in-backdrop;
+  }
+
+  .sq-modal-container {
+    @apply bg-white border border-slate-200/90 rounded-2xl md:rounded-3xl shadow-2xl w-full max-h-[92vh] flex flex-col overflow-hidden;
   }
 }
 
@@ -322,6 +366,23 @@
 
 .animate-fade-in-backdrop {
   animation: fadeInBackdrop 0.18s ease-out forwards;
+}
+
+/* Skeleton Loading com Shimmer Dourado Sutil */
+@keyframes shimmerGold {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.sq-skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #fef3c7 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmerGold 2s infinite ease-in-out;
+  border-radius: 0.75rem;
 }
 
 

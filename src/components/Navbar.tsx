@@ -403,7 +403,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       >
         {/* Backdrop escurecido */}
         <div 
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity animate-fade-in-backdrop cursor-pointer" 
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity animate-fade-in-backdrop cursor-pointer" 
           onClick={() => setIsMobileMenuOpen(false)}
           aria-hidden="true"
         />

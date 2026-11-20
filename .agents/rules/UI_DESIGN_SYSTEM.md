@@ -36,26 +36,39 @@ Todos os botões têm altura uniforme (~38px a 42px), `rounded-xl`, `font-bold t
 
 | Tipo | Classes Tailwind | Uso Recomendado |
 |---|---|---|
-| **Neutro / Rascunho** | `px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs` (`.sq-btn-neutral`) | "Salvar", "Voltar", "Cancelar", "Limpar" |
-| **Secundário / Excel Outlined** | `px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs` (`.sq-btn-excel`) | "Salvar Excel", "Exportar", "Baixar Planilha" |
-| **Primário Azul (Ação Principal)** | `px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs` (`.sq-btn-primary`) | "Visualizar proposta", "Pesquisar", "Identificar Produto" |
-| **Primário Verde (Conclusão / Envio)** | `px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs` (`.sq-btn-emerald`) | "Enviar e-mail", "Finalizar Cotação", "Aprovar" |
+| **Neutro / Rascunho** | `px-3.5 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95` (`.sq-btn-neutral`) | "Salvar", "Voltar", "Cancelar", "Limpar" |
+| **Secundário / Excel Outlined** | `px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95` (`.sq-btn-excel`) | "Salvar Excel", "Exportar", "Baixar Planilha" |
+| **Primário Ouro Âmbar (Ação Principal)** | `px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer active:scale-95` (`.sq-btn-primary`) | "Nova Proposta", "Visualizar", "Identificar Produto" |
+| **Primário Verde Esmeralda (Conclusão / Sucesso)** | `px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer active:scale-95` (`.sq-btn-emerald`) | "Enviar Proposta", "Aprovar Venda", "WhatsApp" |
 
 ---
 
-## 3. CARDS DE MÉTRICAS (DASHBOARD)
+## 3. CARDS DE MÉTRICAS (ESTILO WORKSTATION 3D COM HOVER TÁTIL)
 
-Os cards de resumo financeiro e estatísticas devem seguir sempre esta estrutura:
+Os cards de resumo financeiro e estatísticas devem seguir sempre esta estrutura com acento superior e micro-elevação:
 ```html
-<div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+<div class="sq-accent-top-amber bg-white border border-slate-200/90 p-3.5 rounded-2xl shadow-2xs flex flex-col justify-between transition-all duration-200 hover:-translate-y-1 hover:shadow-md cursor-default">
   <div class="flex items-center justify-between text-slate-500 mb-1">
-    <span class="text-[11px] font-semibold uppercase tracking-wider">CUSTO PRODUTOS</span>
-    <Icon className="w-4 h-4 text-slate-400" />
+    <span class="text-[10px] font-bold uppercase tracking-wider text-amber-900">VOLUME COTADO</span>
+    <DollarSign className="w-4 h-4 text-amber-600" />
   </div>
-  <p class="text-base font-bold text-slate-900 font-mono">R$ 0,00</p>
+  <p class="text-base font-bold text-slate-900 font-mono tabular-nums">R$ 0,00</p>
   <span class="text-[10px] text-slate-400 font-medium">Preço de compra fornecedor</span>
 </div>
 ```
+
+---
+
+## 4. MODAIS EM VIDRO FOSCO & TABELAS TABULARES
+
+- **Modais Frosted Glass**:
+  Overlay em `fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in-backdrop`.
+  Container em `bg-white border border-slate-200/90 rounded-3xl shadow-2xl w-full max-h-[92vh] overflow-hidden`.
+- **Tabelas Comerciais**:
+  Linhas de dados com `.sq-table-row` (`hover:bg-amber-50/30 transition-colors duration-150`).
+  Valores monetários com `.tabular-nums font-mono font-bold`.
+- **Skeleton Loaders**:
+  Utilizar `.sq-skeleton` com animação `@keyframes shimmerGold` para loading suave e sem sensação de travamento.
 
 ---
 

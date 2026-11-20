@@ -628,11 +628,9 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                   setOnlyFollowUpDue(false);
                 }
               }}
-              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+              className={`p-3 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between hover:-translate-y-0.5 ${
                 isSelected
-                  ? card.id === 'followup'
-                    ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-200 shadow-xs'
-                    : 'bg-sky-50/80 border-sky-400 ring-2 ring-sky-200 shadow-xs'
+                  ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-200 shadow-xs'
                   : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 shadow-2xs'
               }`}
             >
@@ -645,7 +643,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                   {card.count}
                 </span>
               </div>
-              <div className="font-mono text-xs font-bold text-slate-900 mt-1">
+              <div className="font-mono text-xs font-bold text-slate-900 mt-1 tabular-nums">
                 {formatBRL(card.amount)}
               </div>
             </button>
@@ -1046,7 +1044,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
             return (
               <div
                 key={q.id}
-                className="bg-white border border-slate-200 hover:border-sky-300 rounded-2xl p-4 shadow-xs transition hover:shadow-sm flex flex-col gap-3 group"
+                className="bg-white border border-slate-200 hover:border-amber-400 rounded-2xl p-4 shadow-2xs transition-all duration-200 hover:shadow-md flex flex-col gap-3 group"
               >
                 {/* 1. Nível Superior: Identificação da Proposta & Cliente à esquerda, Financeiro à direita */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -1056,7 +1054,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
                       const { displayDate, displayTime } = formatQuoteDateTime(q);
                       return (
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
+                          <span className="font-mono text-xs font-bold text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-300 shadow-2xs">
                             {q.code || 'PROPOSTA'}
                           </span>
                           {q.clientOrderNumber && (
@@ -1346,7 +1344,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
 
       {/* Modal Moderno de Confirmação de Exclusão */}
       {quoteToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
           <div 
             className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 space-y-4"
             onClick={(e) => e.stopPropagation()}
@@ -1433,7 +1431,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
 
       {/* Modal Inteligente de Duplicação / Re-cotação (Item 1.B) */}
       {quoteForDuplicate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5">
             <div className="flex items-start justify-between">
               <div>
@@ -1543,7 +1541,7 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
 
       {/* Modal de Registro de Motivo de Perda */}
       {quoteForLoss && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-scaleIn">
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-2">

@@ -285,7 +285,7 @@ export const GlobalCommandBarModal: React.FC<GlobalCommandBarModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-start justify-center pt-12 sm:pt-20 px-3 sm:px-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-12 sm:pt-20 px-3 sm:px-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 

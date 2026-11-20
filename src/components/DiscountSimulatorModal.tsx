@@ -115,9 +115,9 @@ export const DiscountSimulatorModal: React.FC<DiscountSimulatorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
       <div 
-        className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-lg w-full flex flex-col overflow-hidden animate-scaleIn max-h-[92vh]"
+        className="bg-white border border-slate-200/90 rounded-3xl shadow-2xl max-w-lg w-full flex flex-col overflow-hidden animate-scaleIn max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho */}

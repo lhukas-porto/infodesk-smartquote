@@ -1029,9 +1029,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     key={p.id} 
                     tabIndex={0}
                     onPaste={(e) => handlePasteImageOnProductRow(e, p)}
-                    className="hover:bg-slate-50/80 transition focus:bg-sky-50/30 focus:outline-hidden"
+                    className="hover:bg-amber-50/30 transition-colors duration-150 focus:bg-amber-50/40 focus:outline-hidden"
                   >
-                    <td className="px-3 py-2 font-mono font-semibold text-sky-700 text-xs">
+                    <td className="px-3 py-2 font-mono font-bold text-amber-900 text-xs tabular-nums">
                       {p.sku || p.partNumber || <span className="text-slate-300 font-normal italic">-</span>}
                     </td>
                     <td className="px-3 py-1.5">
@@ -1052,7 +1052,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                             <div
                               onClick={() => setZoomedImage({ url: effectiveImg, title: p.name })}
                               title="Clique para ver a foto com ZOOM"
-                              className="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs hover:border-sky-500 hover:shadow-md shrink-0 overflow-hidden cursor-pointer transition relative group/cimg select-none"
+                              className="w-8 h-8 min-w-[32px] max-w-[32px] min-h-[32px] max-h-[32px] rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs hover:border-amber-500 hover:shadow-md shrink-0 overflow-hidden cursor-pointer transition relative group/cimg select-none"
                             >
                               <img
                                 src={effectiveImg}
@@ -1060,7 +1060,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                                 className="w-full h-full max-w-full max-h-full object-contain group-hover/cimg:scale-105 transition duration-200"
                                 onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                               />
-                              <div className="absolute inset-0 bg-sky-950/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-[0.5px]">
+                              <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover/cimg:opacity-100 transition flex items-center justify-center text-white backdrop-blur-md">
                                 <ZoomIn className="w-3 h-3 text-white drop-shadow-sm" />
                               </div>
                             </div>
@@ -1073,7 +1073,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                               href={p.sourceUrl || `https://www.google.com/search?q=${encodeURIComponent(p.name)}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-slate-400 hover:text-sky-600 transition shrink-0"
+                              className="text-slate-400 hover:text-amber-700 transition shrink-0"
                               title="Abrir pesquisa / link do produto na web"
                             >
                               <ExternalLink className="w-3 h-3" />
@@ -1083,7 +1083,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       </div>
                     </td>
                     <td className="px-3 py-2 text-slate-700">
-                      <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-medium border border-slate-200 whitespace-nowrap">
+                      <span className="sq-badge-tag bg-slate-100 text-slate-700 border-slate-200 whitespace-nowrap">
                         {p.category}
                       </span>
                     </td>
@@ -1099,12 +1099,12 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
                         return (
                           <div className="flex flex-col items-end">
-                            <span className="font-mono font-bold text-slate-900 text-xs">
+                            <span className="font-mono font-bold text-slate-900 text-xs tabular-nums">
                               {formatBRL(p.costPrice)}
                             </span>
                             {p.dollarPrice !== undefined && p.dollarPrice > 0 && (
                               <span 
-                                className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 mt-0.5 shadow-2xs"
+                                className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 mt-0.5 shadow-2xs tabular-nums"
                                 title={`Preço em Dólar: US$ ${p.dollarPrice.toFixed(2)}${p.dollarSurchargePercent ? ` (+${p.dollarSurchargePercent}%)` : ''}`}
                               >
                                 US$ {p.dollarPrice.toFixed(2)}{p.dollarSurchargePercent ? ` (+${p.dollarSurchargePercent}%)` : ''}
@@ -1112,7 +1112,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                             )}
                             {isStale && (
                               <span 
-                                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 shadow-2xs"
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 shadow-2xs"
                                 title={`Custo atualizado há ${daysSince} dias (${formatDatePtBr(p.lastUpdated)}). Recomenda-se confirmar com o fornecedor antes de orçar.`}
                               >
                                 <Clock className="w-2.5 h-2.5 text-amber-600" />
@@ -1127,14 +1127,14 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           onClick={() => onAddToQuote(p)}
-                          className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition cursor-pointer active:scale-95 shadow-2xs"
                           title="Adicionar ao Orçamento Atual"
                         >
                           + Orçar
                         </button>
                         <button
                           onClick={() => handleOpenEditModal(p)}
-                          className="p-1 text-slate-500 hover:text-sky-600 hover:bg-sky-50 border border-transparent hover:border-sky-200 rounded-lg transition cursor-pointer active:scale-95"
+                          className="p-1 text-slate-500 hover:text-amber-700 hover:bg-amber-50 border border-transparent hover:border-amber-200 rounded-lg transition cursor-pointer active:scale-95"
                           title="Editar Informações do Produto"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -1162,7 +1162,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       {(searchTerm || selectedCategory !== 'all') && (
                         <button
                           onClick={() => { setSearchTerm(''); setSelectedCategory('all'); }}
-                          className="mt-2 px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-semibold transition cursor-pointer"
+                          className="mt-2 px-3 py-1.5 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 rounded-lg text-xs font-semibold transition cursor-pointer"
                         >
                           Limpar Filtros
                         </button>
@@ -1341,7 +1341,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       {/* Modal de Zoom da Foto na Tabela (Fiel à Referência Visual) */}
       {zoomedImage && (
         <div 
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
         >
           <div 
             className="relative bg-white rounded-3xl pt-6 pb-7 px-6 sm:px-8 shadow-2xl max-w-md sm:max-w-lg w-full flex flex-col items-center animate-scaleIn border border-slate-100/80"
@@ -1387,7 +1387,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
       {/* Modal Inteligente de Exportação de Catálogo XLS (Item 2: Opção B como Padrão Oficial) */}
       {isExportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-scaleIn flex flex-col">
             {/* Header */}
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">

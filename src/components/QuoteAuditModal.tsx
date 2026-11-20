@@ -113,7 +113,7 @@ export const QuoteAuditModal: React.FC<QuoteAuditModalProps> = ({
   const warningCount = issues.filter(i => i.type === 'warning').length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
       <div 
         className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}

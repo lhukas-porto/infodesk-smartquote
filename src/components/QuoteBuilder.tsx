@@ -5962,7 +5962,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       {/* Modal de Zoom da Foto no Meio da Tela (Fiel à Referência Visual) */}
       {zoomedImage && (
         <div 
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
           onClick={() => setZoomedImage(null)}
         >
           <div 
@@ -6015,7 +6015,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       {/* Modal de Validação Pré-Envio / Checklist Antifalhas */}
       {validationModal.isOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
         >
           <div
             className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-scaleIn"
@@ -6100,7 +6100,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
       {/* Modal Interativo de Ajuste e Salvamento da Margem de Lucro (%) */}
       {isMarkupModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-scaleIn">
             <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-sky-50 to-indigo-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -6191,7 +6191,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
       {/* Modal Interativo de Ajuste e Salvamento da Alíquota de Impostos (% Tax) */}
       {isTaxModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-scaleIn">
             <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-purple-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -6671,7 +6671,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
       {/* Modal de Registro de Motivo de Perda (Idêntico ao Histórico) */}
       {isLossModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-scaleIn">
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -6761,7 +6761,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
 
       {/* Notificação Flutuante de Vínculo e Cadastro de Destinos/Compradores */}
       {linkNotification && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/95 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold backdrop-blur-xs border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/95 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold backdrop-blur-md border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
           <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
             <Check className="w-3.5 h-3.5" />
           </div>

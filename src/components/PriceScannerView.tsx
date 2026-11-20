@@ -2982,7 +2982,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
       {/* OCR MODAL DIALOG */}
       {isOcrModalOpen && (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn">
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -3035,7 +3035,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
       {/* MODAL DE CONFLITO / PRODUTO JÁ EXISTENTE NO CATÁLOGO */}
       {catalogConflictItem && (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn">
             <div className="p-5 border-b border-slate-200 bg-sky-50/60 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -3183,7 +3183,7 @@ const PriceScannerViewComponent: React.FC<PriceScannerViewProps> = ({
 
       {/* MODAL DE ESCOLHA ENTRE PRODUTO DO CATÁLOGO E DESCOBERTA DA IA PARA A COTAÇÃO (REGRA DO LUCAS) */}
       {quoteCatalogChoice && (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn">
             {/* Cabeçalho */}
             <div className="p-5 border-b border-slate-200 bg-sky-50/70 flex items-center justify-between">

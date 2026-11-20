@@ -311,7 +311,7 @@ export const EmailSendModal: React.FC<EmailSendModalProps> = ({
   const senderEmail = (connectedUserEmail || 'lucas@infodesk.net.br').toLowerCase();
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
       <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl overflow-hidden shadow-xl animate-scaleIn">
         
         {/* Cabeçalho do Modal */}
