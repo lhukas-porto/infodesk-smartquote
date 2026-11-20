@@ -3107,50 +3107,55 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white border-2 border-emerald-300 p-4 rounded-2xl shadow-sm col-span-2 sm:col-span-1 relative group hover:border-emerald-400 transition">
-          <div className="flex items-center justify-between text-emerald-800 mb-1">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider">Total Proposta</span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsSimulatorOpen(prev => !prev);
-                }}
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 transition shadow-xs cursor-pointer active:scale-95 ${
-                  isSimulatorOpen
-                    ? 'bg-amber-600 text-white border border-amber-600'
-                    : 'bg-white/95 text-amber-800 hover:text-amber-950 hover:bg-amber-100/80 border border-amber-300'
-                }`}
-                title="Abrir Simulador de Cenários e Blindagem de Margem Anti-Prejuízo"
-              >
-                <ShieldCheck className={`w-3 h-3 ${isSimulatorOpen ? 'text-white' : 'text-amber-600'}`} />
-                <span>Simulador</span>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsTargetPriceModalOpen(true);
-                }}
-                className="text-[10px] font-bold text-emerald-800 hover:text-emerald-950 bg-white/95 hover:bg-emerald-100/80 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center gap-1 transition shadow-2xs cursor-pointer active:scale-95"
-                title="Ajustar proposta para um Preço Alvo redondo (Reverse Markup)"
-              >
-                <Target className="w-3 h-3 text-emerald-600" />
-                <span>Preço Alvo</span>
-              </button>
+        <div className="bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white border-2 border-emerald-300 p-3.5 rounded-2xl shadow-sm col-span-2 sm:col-span-1 relative group hover:border-emerald-400 transition flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-emerald-800 mb-1">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider">Total Proposta</span>
+              <DollarSign className="w-4 h-4 text-emerald-600/70 shrink-0" />
+            </div>
+            <p className="text-xl font-black text-emerald-950 font-mono tracking-tight">
+              R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            <div className="flex items-center justify-between text-[10px] text-emerald-700 font-medium pt-0.5">
+              <span>Valor final enviado</span>
+              {currentQuote.optionalTotalAmount && currentQuote.optionalTotalAmount > 0 ? (
+                <span className="font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.2 rounded border border-purple-200" title="Itens adicionais opcionais/upgrades">
+                  +{formatBRL(currentQuote.optionalTotalAmount)} opc.
+                </span>
+              ) : null}
             </div>
           </div>
-          <p className="text-xl font-black text-emerald-950 font-mono tracking-tight">
-            R$ {currentQuote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <div className="flex items-center justify-between text-[10px] text-emerald-700 font-medium pt-0.5">
-            <span>Valor final enviado</span>
-            {currentQuote.optionalTotalAmount && currentQuote.optionalTotalAmount > 0 ? (
-              <span className="font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200" title="Itens adicionais opcionais/upgrades">
-                + R$ {currentQuote.optionalTotalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} opc.
-              </span>
-            ) : null}
+
+          {/* Botões de Ação Rápida Comercial: Simulador & Preço Alvo */}
+          <div className="mt-2.5 pt-2 border-t border-emerald-200/70 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsSimulatorOpen(prev => !prev);
+              }}
+              className={`flex-1 h-7 px-1.5 rounded-lg text-[10.5px] font-bold transition flex items-center justify-center gap-1 whitespace-nowrap shadow-xs cursor-pointer active:scale-95 ${
+                isSimulatorOpen
+                  ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-500'
+                  : 'bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 hover:border-amber-400'
+              }`}
+              title="Abrir Simulador de Cenários e Margem Blindada Anti-Prejuízo"
+            >
+              <ShieldCheck className={`w-3.5 h-3.5 shrink-0 ${isSimulatorOpen ? 'text-white' : 'text-amber-600'}`} />
+              <span>Simulador</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsTargetPriceModalOpen(true);
+              }}
+              className="flex-1 h-7 px-1.5 rounded-lg text-[10.5px] font-bold transition flex items-center justify-center gap-1 whitespace-nowrap bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 shadow-xs cursor-pointer active:scale-95"
+              title="Ajustar proposta para um Preço Alvo redondo (Reverse Markup)"
+            >
+              <Target className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>Preço Alvo</span>
+            </button>
           </div>
         </div>
 
