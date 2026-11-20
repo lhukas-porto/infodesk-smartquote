@@ -1019,7 +1019,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     )}
                   </div>
                 </th>
-                <th className="px-3 py-2 w-36 text-center">Ações</th>
+                <th className="px-3 py-2 w-40 text-center whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1123,25 +1123,26 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                         );
                       })()}
                     </td>
-                    <td className="px-3 py-2 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <td className="px-3 py-1.5 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                         <button
                           onClick={() => onAddToQuote(p)}
-                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition cursor-pointer active:scale-95 shadow-2xs"
+                          className="h-7 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition cursor-pointer active:scale-95 shadow-2xs whitespace-nowrap inline-flex items-center gap-1"
                           title="Adicionar ao Orçamento Atual"
                         >
-                          + Orçar
+                          <Plus className="w-3 h-3 text-amber-700 shrink-0" />
+                          <span>Orçar</span>
                         </button>
                         <button
                           onClick={() => handleOpenEditModal(p)}
-                          className="p-1 text-slate-500 hover:text-amber-700 hover:bg-amber-50 border border-transparent hover:border-amber-200 rounded-lg transition cursor-pointer active:scale-95"
+                          className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-amber-700 hover:bg-amber-50 border border-transparent hover:border-amber-200 rounded-lg transition cursor-pointer active:scale-95 shrink-0"
                           title="Editar Informações do Produto"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteProduct(p.id)}
-                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer active:scale-95"
+                          className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-lg transition cursor-pointer active:scale-95 shrink-0"
                           title="Excluir Produto"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
