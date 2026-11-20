@@ -6776,35 +6776,39 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       )}
 
       {/* Modal de Fechamento Executivo via WhatsApp para o Comprador */}
-      <WhatsAppProposalModal
-        isOpen={isClientWhatsAppModalOpen}
-        onClose={() => setIsClientWhatsAppModalOpen(false)}
-        quote={currentQuote}
-        clientCompanyName={currentQuote.clientCompany}
-        clientContactName={currentQuote.contactPerson}
-        clientContactPhone={currentQuote.clientPhone}
-        deliveryTime={currentQuote.deliveryDays}
-        paymentTerms={currentQuote.paymentTerms}
-      />
+      {isClientWhatsAppModalOpen && (
+        <WhatsAppProposalModal
+          isOpen={isClientWhatsAppModalOpen}
+          onClose={() => setIsClientWhatsAppModalOpen(false)}
+          quote={currentQuote}
+          clientCompanyName={currentQuote.clientCompany}
+          clientContactName={currentQuote.contactPerson}
+          clientContactPhone={currentQuote.clientPhone}
+          deliveryTime={currentQuote.deliveryDays}
+          paymentTerms={currentQuote.paymentTerms}
+        />
+      )}
 
       {/* Modal de Importação em Lote com Auto-Match de Catálogo */}
-      <SmartBatchImportModal
-        isOpen={isBatchImportModalOpen}
-        onClose={() => setIsBatchImportModalOpen(false)}
-        catalogProducts={products || []}
-        defaultMarkup={globalMarkup}
-        defaultTax={globalTax}
-        onImportItems={(newItems) => {
-          const combined = [...(currentQuote.items || []), ...newItems].map((it, idx) => ({
-            ...it,
-            itemNumber: idx + 1
-          }));
-          const totals = recalculateQuote(combined);
-          setCurrentQuote(prev => ({ ...prev, ...totals, items: combined }));
-          saveCurrentDraftQuote({ ...currentQuote, ...totals, items: combined });
-          if (currentQuote.code) saveQuoteItemsBackup(currentQuote.code, combined);
-        }}
-      />
+      {isBatchImportModalOpen && (
+        <SmartBatchImportModal
+          isOpen={isBatchImportModalOpen}
+          onClose={() => setIsBatchImportModalOpen(false)}
+          catalogProducts={products || []}
+          defaultMarkup={globalMarkup}
+          defaultTax={globalTax}
+          onImportItems={(newItems) => {
+            const combined = [...(currentQuote.items || []), ...newItems].map((it, idx) => ({
+              ...it,
+              itemNumber: idx + 1
+            }));
+            const totals = recalculateQuote(combined);
+            setCurrentQuote(prev => ({ ...prev, ...totals, items: combined }));
+            saveCurrentDraftQuote({ ...currentQuote, ...totals, items: combined });
+            if (currentQuote.code) saveQuoteItemsBackup(currentQuote.code, combined);
+          }}
+        />
+      )}
 
     </div>
   );

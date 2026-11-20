@@ -33,8 +33,6 @@ export const SmartBatchImportModal: React.FC<SmartBatchImportModalProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
 
-  if (!isOpen) return null;
-
   // Algoritmo de correspondência fuzzy / substring com o catálogo
   const findBestCatalogMatch = (query: string): { product?: Product; score: number } => {
     if (!query || catalogProducts.length === 0) return { score: 0 };
@@ -71,7 +69,7 @@ export const SmartBatchImportModal: React.FC<SmartBatchImportModalProps> = ({
     return { product: bestProduct, score: Math.round(highestScore) };
   };
 
-  // Parser de linhas de texto coladas
+  // Parser de linhas de texto coladas (Hook chamado incondicionalmente no topo)
   const parsedRows: ParsedImportRow[] = useMemo(() => {
     if (!inputText.trim()) return [];
 
@@ -103,6 +101,8 @@ export const SmartBatchImportModal: React.FC<SmartBatchImportModalProps> = ({
       };
     });
   }, [inputText, catalogProducts]);
+
+  if (!isOpen) return null;
 
   const handleConfirmImport = () => {
     const selectedRows = parsedRows.filter(r => r.selected);
