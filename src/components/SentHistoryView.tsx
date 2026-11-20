@@ -653,6 +653,35 @@ const SentHistoryViewComponent: React.FC<SentHistoryViewProps> = ({
         })}
       </div>
 
+      {/* 🔔 Painel de Resgate de Vendas & Follow-up de Propostas */}
+      {followUpRequiredQuotes.length > 0 && !onlyFollowUpDue && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                Radar de Follow-up: {followUpRequiredQuotes.length} proposta{followUpRequiredQuotes.length > 1 ? 's' : ''} aguardando retorno há mais de 3 dias!
+              </h4>
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                Total acumulado de <strong>{formatBRL(followUpRequiredQuotes.reduce((acc, q) => acc + (q.totalAmount || 0), 0))}</strong> em negociações que podem esfriar. Envie um lembrete com 1 clique no WhatsApp.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setOnlyFollowUpDue(true);
+              setSelectedStageFilter('all');
+            }}
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm shrink-0 active:scale-95 cursor-pointer"
+          >
+            <span>Ver {followUpRequiredQuotes.length} Propostas Pendentes</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Barra de Filtro de Datas & Períodos (Padrão: Hoje / Dia Corrente) */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
