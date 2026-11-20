@@ -30,9 +30,9 @@ export const SmartQuoteIcon: React.FC<SmartQuoteIconProps> = ({
 }) => {
   const [imgError, setImgError] = useState(false);
 
-  // Fallback vetorial SVG caso a imagem raster falhe
-  if (imgError) {
-    const bracketColor = inverted ? '#94a3b8' : '#707e94';
+  // No modo invertido (Navbar Gunmetal Commercial Titanium) ou em caso de erro, renderiza o SVG vetorial nítido
+  if (inverted || imgError) {
+    const bracketColor = inverted ? '#d97706' : '#707e94';
     const sColor = inverted ? '#ffffff' : '#0b1320';
 
     return (

@@ -2892,7 +2892,7 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
       {/* Header Bar with Action Buttons */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="flex items-start sm:items-center gap-3.5">
-          <div className="p-3 bg-gradient-to-br from-sky-500 to-indigo-600 text-white rounded-2xl shadow-sm shrink-0">
+          <div className="p-3 bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-2xl shadow-sm shrink-0">
             <FileText className="w-6 h-6" />
           </div>
           <div>
@@ -2902,8 +2902,8 @@ const QuoteBuilderComponent: React.FC<QuoteBuilderProps> = ({
               </h1>
             <span className={`px-2.5 py-0.5 border text-xs font-bold rounded-lg font-mono ${
               isEditingHistoricalQuote 
-                ? 'bg-amber-50 text-amber-800 border-amber-300' 
-                : 'bg-sky-50 text-sky-700 border-sky-200'
+                ? 'bg-amber-100 text-amber-900 border-amber-400' 
+                : 'bg-amber-50 text-amber-900 border-amber-300'
             }`}>
               {currentQuote.code}
             </span>

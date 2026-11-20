@@ -91,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="no-print fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-all duration-200">
+      <header className="no-print fixed top-0 left-0 right-0 z-40 bg-[#0f172a] border-b border-[#1e293b] shadow-[0_4px_25px_rgba(0,0,0,0.35)] transition-all duration-200">
         <div className="w-full max-w-7xl xl:max-w-[1440px] mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between min-h-16 py-2 gap-2 sm:gap-4">
           
@@ -102,31 +102,31 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab('websearch')}
               title="Scanner IA de Produtos"
             >
-              <SmartQuoteLogo size="md" showBadge={false} showSubtitle={true} className="group-hover:opacity-95 transition-opacity" />
+              <SmartQuoteLogo size="md" showBadge={false} showSubtitle={true} inverted={true} className="group-hover:opacity-95 transition-opacity" />
             </div>
           </div>
 
           {/* Centro: Menu de Navegação em Abas (Cápsula Integrada Centralizada) - Desktop */}
           <div className="hidden lg:flex flex-1 justify-center items-center px-1 min-w-0">
-            <nav className="flex items-center gap-0.5 xl:gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shrink-0 shadow-2xs">
+            <nav className="flex items-center gap-0.5 xl:gap-1 bg-[#1e293b] p-1.5 rounded-xl border border-[#334155] shrink-0 shadow-inner">
               {SHOW_INBOX_TAB && (
                 <button
                   onClick={() => setActiveTab('inbox')}
                   className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                     activeTab === 'inbox'
-                      ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                      ? 'bg-slate-700/80 text-amber-400 border border-amber-500/50 shadow-xs font-bold'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                   }`}
                 >
                   <Mail className="w-3.5 h-3.5" />
                   <span>Inbox</span>
                   {unreadCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 bg-sky-500 text-white text-[10px] font-bold rounded-full">
+                    <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-slate-900 text-[10px] font-bold rounded-full">
                       {unreadCount}
                     </span>
                   )}
                   {analysesCount > 0 && (
-                    <span className="ml-0.5 px-1.5 py-0.2 bg-violet-100 text-violet-700 border border-violet-200 text-[10px] font-bold rounded-full" title={`${analysesCount} demandas avulsas`}>
+                    <span className="ml-0.5 px-1.5 py-0.2 bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold rounded-full" title={`${analysesCount} demandas avulsas`}>
                       {analysesCount}
                     </span>
                   )}
@@ -137,12 +137,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab('websearch')}
                 className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === 'websearch'
-                    ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-slate-700/80 text-amber-400 border border-amber-500/50 shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
                 title="Scanner de Produtos com IA"
               >
-                <Search className="w-3.5 h-3.5 text-sky-600" />
+                <Search className={`w-3.5 h-3.5 ${activeTab === 'websearch' ? 'text-amber-400' : 'text-slate-400'}`} />
                 <span>Scanner IA</span>
               </button>
 
@@ -156,11 +156,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
                 className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === 'builder'
-                    ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-slate-700/80 text-amber-400 border border-amber-500/50 shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
-                <FileText className="w-3.5 h-3.5" />
+                <FileText className={`w-3.5 h-3.5 ${activeTab === 'builder' ? 'text-amber-400' : 'text-slate-400'}`} />
                 <span>Cotação</span>
               </button>
 
@@ -168,11 +168,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab('catalog')}
                 className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === 'catalog'
-                    ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-slate-700/80 text-amber-400 border border-amber-500/50 shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
-                <Package className="w-3.5 h-3.5" />
+                <Package className={`w-3.5 h-3.5 ${activeTab === 'catalog' ? 'text-amber-400' : 'text-slate-400'}`} />
                 <span>Produtos</span>
               </button>
 
@@ -180,12 +180,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab('clients')}
                 className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === 'clients'
-                    ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-slate-700/80 text-amber-400 border border-amber-500/50 shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
                 title="Cadastro e Gestão de Empresas e Compradores"
               >
-                <Users className="w-3.5 h-3.5 text-sky-600" />
+                <Users className={`w-3.5 h-3.5 ${activeTab === 'clients' ? 'text-amber-400' : 'text-slate-400'}`} />
                 <span>Empresas</span>
               </button>
 
@@ -193,12 +193,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab('history')}
                 className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === 'history'
-                    ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-slate-700/80 text-amber-400 border border-amber-500/50 shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
                 title="Histórico completo de propostas salvas e enviadas"
               >
-                <History className="w-3.5 h-3.5 text-sky-600" />
+                <History className={`w-3.5 h-3.5 ${activeTab === 'history' ? 'text-amber-400' : 'text-slate-400'}`} />
                 <span>Histórico</span>
               </button>
 
@@ -206,15 +206,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab('purchases')}
                 className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === 'purchases'
-                    ? 'bg-white text-emerald-700 border border-slate-200 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-slate-700/80 text-amber-400 border border-amber-500/50 shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
                 title="Central de Compras & Gestão de Lucro"
               >
-                <ShoppingCart className="w-3.5 h-3.5 text-emerald-600" />
+                <ShoppingCart className={`w-3.5 h-3.5 ${activeTab === 'purchases' ? 'text-amber-400' : 'text-slate-400'}`} />
                 <span>Compras</span>
                 {pendingPurchasesCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white text-[10px] font-bold rounded-full animate-pulse">
+                  <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-slate-900 text-[10px] font-bold rounded-full animate-pulse">
                     {pendingPurchasesCount}
                   </span>
                 )}
@@ -224,12 +224,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab('dashboard')}
                 className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                   activeTab === 'dashboard'
-                    ? 'bg-white text-sky-700 border border-slate-200 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-slate-700/80 text-amber-400 border border-amber-500/50 shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
                 title="Dashboard Executivo & Indicadores"
               >
-                <BarChart3 className="w-3.5 h-3.5 text-sky-600" />
+                <BarChart3 className={`w-3.5 h-3.5 ${activeTab === 'dashboard' ? 'text-amber-400' : 'text-slate-400'}`} />
                 <span>Dashboard</span>
               </button>
             </nav>
@@ -241,7 +241,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={onOpenDraftsHistory}
-                className="group relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white rounded-xl shadow-xs hover:shadow-md transition-all duration-200 border border-amber-300/50 text-xs font-bold cursor-pointer shrink-0 animate-in fade-in"
+                className="group relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white rounded-xl shadow-xs hover:shadow-md transition-all duration-200 border border-amber-400/50 text-xs font-bold cursor-pointer shrink-0 animate-in fade-in"
                 title={`Existe${draftsCount > 1 ? 'm' : ''} ${draftsCount} orçamento${draftsCount > 1 ? 's' : ''} em rascunho pendente${draftsCount > 1 ? 's' : ''}. Clique para abrir o histórico filtrado.`}
               >
                 <span className="relative flex h-2 w-2 shrink-0">
@@ -257,7 +257,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={openSettings}
-              className="p-2 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition shadow-xs shrink-0 cursor-pointer"
+              className="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition shadow-xs shrink-0 cursor-pointer"
               title="Configurações da Infodesk"
             >
               <Settings className="w-4 h-4" />
@@ -267,10 +267,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={onLogout}
-                className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-slate-600 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl transition shadow-xs text-xs font-semibold shrink-0 cursor-pointer"
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-slate-300 hover:text-rose-400 hover:bg-rose-950/40 border border-slate-700 hover:border-rose-800 rounded-xl transition shadow-xs text-xs font-semibold shrink-0 cursor-pointer"
                 title={`Sessão ativa: ${authenticatedUserEmail || 'Lucas'}. Clique para desconectar com segurança.`}
               >
-                <LogOut className="w-3.5 h-3.5 text-slate-500" />
+                <LogOut className="w-3.5 h-3.5 text-slate-400" />
                 <span className="hidden sm:inline">Sair</span>
               </button>
             )}
@@ -280,10 +280,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
     </header>
 
-    {/* Barra de Navegação Inferior Fixa Nativa para Celular (Mobile Bottom Nav) */}
+    {/* Barra de Navegação Inferior Fixa Nativa para Celular (Mobile Bottom Nav - Commercial Titanium) */}
     <nav 
       aria-label="Navegação Mobile"
-      className="no-print fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 lg:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.06)] px-2 py-1 flex items-center justify-around safe-area-bottom select-none"
+      className="no-print fixed bottom-0 left-0 right-0 z-40 bg-[#0f172a] border-t border-[#1e293b] lg:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.35)] px-2 py-1 flex items-center justify-around safe-area-bottom select-none"
     >
       {/* Inbox (Ocultado temporariamente a pedido do Lucas) */}
       {SHOW_INBOX_TAB && (
@@ -292,14 +292,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={() => handleMobileNavSelect('inbox')}
           className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
             activeTab === 'inbox'
-              ? 'text-sky-600 font-bold bg-sky-50/80'
-              : 'text-slate-500 hover:text-slate-800'
+              ? 'text-amber-400 font-bold bg-slate-800/80'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <div className="relative">
-            <Mail className={`w-5 h-5 ${activeTab === 'inbox' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+            <Mail className={`w-5 h-5 ${activeTab === 'inbox' ? 'text-amber-400 stroke-[2.5]' : 'stroke-2'}`} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-sky-500 text-white text-[9px] font-extrabold rounded-full shadow-2xs">
+              <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-amber-500 text-slate-900 text-[9px] font-extrabold rounded-full shadow-2xs">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -316,11 +316,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClick={() => handleMobileNavSelect('builder')}
         className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
           activeTab === 'builder'
-            ? 'text-sky-600 font-bold bg-sky-50/80'
-            : 'text-slate-500 hover:text-slate-800'
+            ? 'text-amber-400 font-bold bg-slate-800/80'
+            : 'text-slate-400 hover:text-slate-200'
         }`}
       >
-        <FileText className={`w-5 h-5 ${activeTab === 'builder' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+        <FileText className={`w-5 h-5 ${activeTab === 'builder' ? 'text-amber-400 stroke-[2.5]' : 'stroke-2'}`} />
         <span className="text-[10px] tracking-tight mt-1 leading-none">
           Cotação
         </span>
@@ -332,14 +332,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClick={() => handleMobileNavSelect('purchases')}
         className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
           activeTab === 'purchases'
-            ? 'text-emerald-600 font-bold bg-emerald-50/80'
-            : 'text-slate-500 hover:text-slate-800'
+            ? 'text-amber-400 font-bold bg-slate-800/80'
+            : 'text-slate-400 hover:text-slate-200'
         }`}
       >
         <div className="relative">
-          <ShoppingCart className={`w-5 h-5 ${activeTab === 'purchases' ? 'text-emerald-600 stroke-[2.5]' : 'stroke-2'}`} />
+          <ShoppingCart className={`w-5 h-5 ${activeTab === 'purchases' ? 'text-amber-400 stroke-[2.5]' : 'stroke-2'}`} />
           {pendingPurchasesCount > 0 && (
-            <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-amber-500 text-white text-[9px] font-extrabold rounded-full shadow-2xs animate-pulse">
+            <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] text-center bg-amber-500 text-slate-900 text-[9px] font-extrabold rounded-full shadow-2xs animate-pulse">
               {pendingPurchasesCount > 99 ? '99+' : pendingPurchasesCount}
             </span>
           )}
@@ -355,14 +355,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClick={() => handleMobileNavSelect('history')}
         className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
           activeTab === 'history'
-            ? 'text-sky-600 font-bold bg-sky-50/80'
-            : 'text-slate-500 hover:text-slate-800'
+            ? 'text-amber-400 font-bold bg-slate-800/80'
+            : 'text-slate-400 hover:text-slate-200'
         }`}
       >
         <div className="relative">
-          <History className={`w-5 h-5 ${activeTab === 'history' ? 'text-sky-600 stroke-[2.5]' : 'stroke-2'}`} />
+          <History className={`w-5 h-5 ${activeTab === 'history' ? 'text-amber-400 stroke-[2.5]' : 'stroke-2'}`} />
           {draftsCount > 0 && (
-            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white"></span>
+            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-slate-900"></span>
           )}
         </div>
         <span className="text-[10px] tracking-tight mt-1 leading-none">
@@ -376,15 +376,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClick={() => setIsMobileMenuOpen(true)}
         className={`flex-1 min-w-[56px] py-1.5 px-1 flex flex-col items-center justify-center rounded-xl transition-all active:scale-95 relative cursor-pointer ${
           isMoreTabActive || isMobileMenuOpen
-            ? 'text-sky-600 font-bold bg-sky-50/80'
-            : 'text-slate-500 hover:text-slate-800'
+            ? 'text-amber-400 font-bold bg-slate-800/80'
+            : 'text-slate-400 hover:text-slate-200'
         }`}
         title="Mais opções e ferramentas"
       >
         <div className="relative">
           <Menu className="w-5 h-5 stroke-2" />
           {analysesCount > 0 && (
-            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-violet-600 ring-2 ring-white"></span>
+            <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-slate-900"></span>
           )}
         </div>
         <span className="text-[10px] tracking-tight mt-1 leading-none">

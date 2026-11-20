@@ -1,20 +1,20 @@
-# SMARTQUOTE UI DESIGN SYSTEM — IDENTIDADE OFICIAL: PRECISION TECH
+# SMARTQUOTE UI DESIGN SYSTEM — IDENTIDADE OFICIAL: COMMERCIAL TITANIUM
 
-> **IDENTIDADE VISUAL OFICIAL: PRECISION TECH (APROVADA PELO LUCAS)**
-> O SmartQuote utiliza exclusivamente o padrão **Precision Tech**:
-> - **Canvas & Superfície**: Branco puro (`#ffffff`) e Slate-50 (`#f8fafc`) para alta luminosidade e legibilidade.
-> - **Azul Elétrico Corporativo**: Sky-600 (`#0284c7`) / Sky-700 (`#0369a1`) para navegação, botões primários e foco.
-> - **Verde Esmeralda**: Emerald-600 (`#059669`) para métricas de margem positiva, exportação e finalização.
-> - **Deep Navy / Tipografia**: Slate-900 (`#0f172a`) e Slate-700 (`#334155`) para contraste cirúrgico.
-> - **Zero Placeholders**: É estritamente proibido o uso do atributo `placeholder` em inputs e textareas.
-> - **Navbar Centralizada**: Layout balanceado sem sobreposição de rascunhos e sem logos antigos.
+> **IDENTIDADE VISUAL OFICIAL: COMMERCIAL TITANIUM (APROVADA PELO LUCAS)**
+> O SmartQuote utiliza exclusivamente o padrão **Commercial Titanium**:
+> - **Barra Superior (Navbar)**: Dark Gunmetal Navy (`#0f172a` / `#1e293b`), com cápsula de navegação integrada em `#1e293b` e bordas `#334155`.
+> - **Acentos de Navegação & Ícones**: Ouro Âmbar (`#d97706` / `#f59e0b`) nas abas ativas e botões de destaque.
+> - **Canvas & Superfície**: Titânio Quente Escovado (`#eceff3`) com cartões em Branco Puro (`#ffffff`) e bordas sólidas metálicas (`#cbd5e1`).
+> - **Botões Oficiais**: Primário em Ouro Âmbar (`bg-amber-600 hover:bg-amber-700`), Secundário Técnico em Azul Cobalto (`bg-blue-700 hover:bg-blue-800`), e Neutros em Titânio/Branco (`#ffffff` / `#f1f5f9`).
+> - **Zero Placeholders**: É estritamente proibido o uso do atributo `placeholder` em qualquer campo de entrada do sistema.
+> - **Navbar Centralizada**: Menu flutuante distribuído equilibradamente sem logos antigos e com espaço dedicado ao contador de rascunhos.
 >
 > **REGRA DE OURO (VÁLIDA PARA TUDO QUE EXISTE E TUDO QUE FOR CRIADO DAQUI PARA A FRENTE):**
 > Toda e qualquer tela, componente, modal, tabela, card, formulário ou botão do SmartQuote DEVE seguir estritamente o padrão visual estabelecido na tela oficial de **Nova Proposta Comercial**:
 > - Títulos e tópicos sempre marcados em negrito (`font-bold` / `font-black text-slate-900`) com ícone identificador correspondente.
 > - Botões padronizados em altura (~40px), cantos arredondados (`rounded-xl`), texto em negrito (`text-xs font-bold`) e paleta semântica oficial.
-> - Cards de métricas com rótulo superior em caixa alta (`text-[11px] font-semibold uppercase tracking-wider text-slate-500`), valor em destaque (`text-base font-bold text-slate-900 font-mono`) e subtítulo informativo.
-> - Inputs com cantos `rounded-xl`, bordas suaves (`border-slate-200`), fundo limpo e rótulos (`labels`) destacados em `text-xs font-semibold text-slate-700`.
+> - Cards de métricas com rótulo superior em caixa alta (`text-[11px] font-bold uppercase tracking-wider text-slate-500`), valor em destaque (`text-base font-bold text-slate-900 font-mono`) e subtítulo informativo.
+> - Inputs com cantos `rounded-xl`, bordas suaves (`border-slate-300`), fundo limpo e rótulos (`labels`) destacados em `text-xs font-semibold text-slate-700`.
 
 ---
 

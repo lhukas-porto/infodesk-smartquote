@@ -3245,7 +3245,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans print:bg-white print:min-h-0">
+    <div className="min-h-screen bg-[#eceff3] text-slate-900 flex flex-col font-sans print:bg-white print:min-h-0">
       
       <div className="no-print">
         <Navbar

@@ -6,7 +6,7 @@
   body {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     color: #0f172a;
-    background-color: #f8fafc;
+    background-color: #eceff3;
   }
 
   /* REGRA MANDATÓRIA DO LUCAS: Zero placeholders em qualquer campo do sistema */
@@ -20,8 +20,8 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SISTEMA DE DESIGN OFICIAL — SMARTQUOTE (PADRÃO REFERÊNCIA FOTO)
-   Baseado na tela oficial: Nova Proposta Comercial + Métricas + Tópicos em Negrito + Botões de Ação
+   SISTEMA DE DESIGN OFICIAL — SMARTQUOTE (COMMERCIAL TITANIUM)
+   Baseado na tela oficial: Topo Gunmetal + Acentos Ouro Âmbar + Cobalto + Titânio
 ───────────────────────────────────────────────────────────────────────────── */
 @layer components {
   /* Títulos de Página */
@@ -34,7 +34,7 @@
   }
 
   .sq-badge-code {
-    @apply px-2.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold font-mono uppercase tracking-wider rounded-lg;
+    @apply px-2.5 py-0.5 bg-amber-50 text-amber-900 border border-amber-300 text-xs font-bold font-mono uppercase tracking-wider rounded-lg shadow-sm;
   }
 
   /* Tópicos de Seções (Negritos para tópicos de todas as partes) */
@@ -43,21 +43,21 @@
   }
 
   .sq-section-icon {
-    @apply w-4 h-4 text-sky-600 shrink-0;
+    @apply w-4 h-4 text-blue-700 shrink-0;
   }
 
   /* Cards de Conteúdo */
   .sq-card {
-    @apply bg-white border border-slate-200 rounded-2xl p-4 md:p-6 shadow-sm;
+    @apply bg-white border border-slate-300/80 rounded-2xl p-4 md:p-6 shadow-sm;
   }
 
   /* Cards de Métricas / Dashboard Financeiro */
   .sq-metric-card {
-    @apply bg-white border border-slate-200 p-4 rounded-2xl shadow-sm;
+    @apply bg-white border border-slate-300/80 p-4 rounded-2xl shadow-sm;
   }
 
   .sq-metric-label {
-    @apply text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+    @apply text-[11px] font-bold uppercase tracking-wider text-slate-500;
   }
 
   .sq-metric-value {
@@ -74,24 +74,32 @@
   }
 
   .sq-input {
-    @apply w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-100 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 transition outline-none font-sans;
+    @apply w-full h-10 px-3.5 bg-white border border-slate-300 hover:border-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-transparent transition outline-none font-sans;
   }
 
-  /* Padrão de Botões Oficiais */
+  /* Padrão de Botões Oficiais - Commercial Titanium */
   .sq-btn-neutral {
-    @apply px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95;
+    @apply px-3.5 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95;
   }
 
   .sq-btn-excel {
-    @apply px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95;
+    @apply px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95;
   }
 
   .sq-btn-primary {
-    @apply px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
+    @apply px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
   }
 
   .sq-btn-emerald {
-    @apply px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
+    @apply px-4 py-2.5 bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
+  }
+
+  .sq-btn-amber {
+    @apply px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
+  }
+
+  .sq-btn-cobalt {
+    @apply px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-95;
   }
 }
 
