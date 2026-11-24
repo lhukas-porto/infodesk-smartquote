@@ -3,10 +3,11 @@ export const config = {
 };
 
 const ALLOWED_GROQ_MODELS = new Set([
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'qwen/qwen3.8-27b',
   'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant',
-  'mixtral-8x7b-32768',
-  'gemma2-9b-it'
+  'llama-3.1-8b-instant'
 ]);
 
 // Rate limiter em memória por IP (máximo 60 req/min)
@@ -75,8 +76,8 @@ export default async function handler(req: any, res: any) {
       body = {};
     }
 
-    const requestedModel = (body.model as string) || 'llama-3.3-70b-versatile';
-    const model = ALLOWED_GROQ_MODELS.has(requestedModel) ? requestedModel : 'llama-3.3-70b-versatile';
+    const requestedModel = (body.model as string) || 'openai/gpt-oss-120b';
+    const model = ALLOWED_GROQ_MODELS.has(requestedModel) ? requestedModel : 'openai/gpt-oss-120b';
 
     // Rate Limiting defensivo por IP
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'local';

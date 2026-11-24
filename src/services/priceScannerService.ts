@@ -3355,7 +3355,7 @@ async function tryGroqFallback(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [
           {
             role: 'system',
@@ -3388,7 +3388,7 @@ async function tryGroqFallback(
     let list = Array.isArray(parsed.products) ? parsed.products : (parsed.standardizedName ? [parsed] : []);
     if (list.length === 0) return null;
 
-    console.log(`[Groq Fallback] Sucesso! Llama 3.3 70B identificou ${list.length} item(ns) como contingência do Gemini.`);
+    console.log(`[Groq Fallback] Sucesso! GPT-OSS 120B (Groq) identificou ${list.length} item(ns) como contingência do Gemini.`);
 
     // Reconciliação determinística de quantidade e unidade
     if (preParsedQueries.length > 0 && list.length === preParsedQueries.length) {
@@ -3461,7 +3461,7 @@ async function tryGroqFallback(
         unit: normalizeProductUnit(item.unit || preParsedQueries[idx]?.unit || 'Un.'),
         suggestedPrice: typeof item.suggestedPrice === 'number' && item.suggestedPrice > 0 ? item.suggestedPrice : undefined,
         costPrice: typeof item.costPrice === 'number' && item.costPrice > 0 ? item.costPrice : undefined,
-        confidence: 'Alta - Identificado via Groq Llama 3.3 (Meta Contingência)',
+        confidence: 'Alta - Identificado via GPT-OSS 120B (Groq AI Contingência)',
         description: sanitizeProductDescription(item.description, stdName),
         specifications: normalizeSpecifications(item.specifications),
         images: gallery,
