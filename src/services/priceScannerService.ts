@@ -3334,6 +3334,152 @@ export function enrichProductHeuristically(rawQuery: string, quantity: number = 
   };
 }
 
+/**
+ * Contingência Inteligente via Groq Cloud (Llama 3.3 70B da Meta).
+ * Acionada caso o provedor primário (Google Gemini) esteja em pico de demanda ou sem cota.
+ */
+async function tryGroqFallback(
+  prompt: string,
+  rawText: string,
+  imgDataList: Array<{ mimeType: string; base64: string }>,
+  preParsedQueries: any[],
+  customerPhotoUrl?: string
+): Promise<DiscoveredProduct[] | null> {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+
+    const res = await fetch('/api/groq-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'Você é um especialista em catálogo de compras comerciais, suprimentos e peças industriais no Brasil. Retorne estritamente um JSON no formato {"products": [...]}.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.1
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      console.warn(`[Groq Fallback] Proxy retornou status ${res.status}`);
+      return null;
+    }
+
+    const json = await res.json().catch(() => null);
+    const content = json?.choices?.[0]?.message?.content;
+    if (!content) return null;
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    let list = Array.isArray(parsed.products) ? parsed.products : (parsed.standardizedName ? [parsed] : []);
+    if (list.length === 0) return null;
+
+    console.log(`[Groq Fallback] Sucesso! Llama 3.3 70B identificou ${list.length} item(ns) como contingência do Gemini.`);
+
+    // Reconciliação determinística de quantidade e unidade
+    if (preParsedQueries.length > 0 && list.length === preParsedQueries.length) {
+      list.forEach((item: any, i: number) => {
+        const pre = preParsedQueries[i];
+        if (pre && pre.quantity > 1 && (!item.quantity || item.quantity === 1)) {
+          item.quantity = pre.quantity;
+        }
+        if (pre && pre.unit && pre.unit !== 'Un.' && (!item.unit || item.unit === 'Un.')) {
+          item.unit = pre.unit;
+        }
+      });
+    }
+
+    const customerPhotoUrls: string[] = customerPhotoUrl ? [customerPhotoUrl] : [];
+
+    const results: DiscoveredProduct[] = list.map((item: any, idx: number) => {
+      const brand = (item.brand || 'Genérica').trim();
+      const category = normalizeToOfficialCategory(item.category || 'Ferramentas & Instrumentos de Medição');
+      const stdName = sanitizeStandardizedProductName(item.standardizedName || rawText, category, brand);
+      const directPurchase = buildDirectPurchaseUrl(stdName, item.buyUrl || item.sourceUrl, item.supplier || item.store);
+      const resolvedSupplier = sanitizeSupplierName(directPurchase.store || item.supplier || item.store);
+
+      const resolvedCodes = resolveProductModelAndPartNumber({
+        nameOrQuery: stdName || rawText,
+        description: item.description,
+        brand: brand,
+        category: category,
+        scannerModel: item.model,
+        scannerPartNumber: item.partNumber
+      });
+
+      const searchTerms = [
+        brand !== 'Genérica' ? brand : '',
+        resolvedCodes.model,
+        resolvedCodes.partNumber,
+        stdName
+      ].filter(Boolean).join(' ');
+
+      const verifiedSourceUrl = directPurchase.url || 
+        (item.buyUrl && typeof item.buyUrl === 'string' && item.buyUrl.startsWith('http') ? item.buyUrl : '') ||
+        (item.sourceUrl && typeof item.sourceUrl === 'string' && item.sourceUrl.startsWith('http') ? item.sourceUrl : '') ||
+        `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(searchTerms || stdName)}`;
+
+      const verifiedSupplier = resolvedSupplier || 
+        (brand !== 'Genérica' ? `${brand} (Google Shopping)` : 'Google Shopping / E-commerce');
+
+      let gallery: string[] = [];
+      if (Array.isArray(item.images)) {
+        gallery = item.images.filter((u: any) => typeof u === 'string' && u.startsWith('http'));
+      }
+      if (customerPhotoUrls.length > 0) {
+        gallery = [...customerPhotoUrls, ...gallery];
+      }
+
+      return {
+        id: `groq-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+        originalQuery: rawText,
+        standardizedName: stdName,
+        brand: brand,
+        manufacturer: (item.manufacturer || brand || 'Fabricante Nacional / Importado').trim(),
+        model: resolvedCodes.model,
+        partNumber: resolvedCodes.partNumber,
+        category: category,
+        ncm: cleanNcmCode(item.ncm || ''),
+        ean: (item.ean || '').trim(),
+        weight: normalizeWeight(item.weight),
+        dimensions: normalizeDimensions(item.dimensions),
+        quantity: typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : (preParsedQueries[idx]?.quantity || 1),
+        unit: normalizeProductUnit(item.unit || preParsedQueries[idx]?.unit || 'Un.'),
+        suggestedPrice: typeof item.suggestedPrice === 'number' && item.suggestedPrice > 0 ? item.suggestedPrice : undefined,
+        costPrice: typeof item.costPrice === 'number' && item.costPrice > 0 ? item.costPrice : undefined,
+        confidence: 'Alta - Identificado via Groq Llama 3.3 (Meta Contingência)',
+        description: sanitizeProductDescription(item.description, stdName),
+        specifications: normalizeSpecifications(item.specifications),
+        images: gallery,
+        imageUrl: gallery[0] || '',
+        selectedImageIndex: 0,
+        customerPhotoUrl: customerPhotoUrl || undefined,
+        supplier: verifiedSupplier,
+        sourceUrl: verifiedSourceUrl
+      } as DiscoveredProduct;
+    });
+
+    return results;
+  } catch (err: any) {
+    console.warn('[Groq Fallback] Tentativa de contingência falhou:', err?.message);
+    return null;
+  }
+}
+
 export async function phase1DiscoverProductsFromText(
   rawText: string,
   optionsOrKey?: Phase1DiscoveryOptions | string
@@ -3784,6 +3930,15 @@ Retorne ESTRITAMENTE um JSON no formato:
       } catch (e) {
         console.warn(`Tentativa de Fase 1 no modelo ${model} falhou:`, e);
       }
+    }
+
+    // Se a cascata do Gemini falhou ou esgotou tentativas por picos de demanda/cota,
+    // aciona a contingência inteligente gratuita via Groq Cloud (Llama 3.3 70B da Meta)
+    const preParsedQueries = parsePastedProductListWithQty(rawText);
+    const firstPhoto = typeof rawSources[0] === 'string' ? rawSources[0] : undefined;
+    const groqResults = await tryGroqFallback(prompt, rawText, imgDataList, preParsedQueries, firstPhoto);
+    if (groqResults && groqResults.length > 0) {
+      return groqResults;
     }
   }
 

@@ -5,6 +5,7 @@ import geminiProxyHandler from './api/gemini-proxy';
 import imageSearchHandler from './api/image-search';
 import imageProxyHandler from './api/image-proxy';
 import scrapeUrlHandler from './api/scrape-url';
+import groqProxyHandler from './api/groq-proxy';
 
 function googleShoppingPlugin(): Plugin {
   return {
@@ -132,6 +133,36 @@ function scrapeUrlPlugin(): Plugin {
   };
 }
 
+function groqProxyPlugin(): Plugin {
+  return {
+    name: 'groq-proxy-plugin',
+    configureServer(server) {
+      server.middlewares.use('/api/groq-proxy', async (req, res) => {
+        try {
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', (chunk: any) => { body += chunk; });
+            req.on('end', async () => {
+              try {
+                (req as any).body = JSON.parse(body);
+              } catch {
+                (req as any).body = {};
+              }
+              await groqProxyHandler(req, res);
+            });
+          } else {
+            await groqProxyHandler(req, res);
+          }
+        } catch (err: any) {
+          console.error('[Groq Proxy Middleware Error]:', err?.message);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: err?.message }));
+        }
+      });
+    }
+  };
+}
+
 const APP_BUILD_ID = `sq-${Date.now()}`;
 
 function versionManifestPlugin(): Plugin {
@@ -173,6 +204,7 @@ export default defineConfig(({ mode }) => {
       imageSearchPlugin(),
       googleShoppingPlugin(),
       geminiProxyPlugin(),
+      groqProxyPlugin(),
       imageProxyPlugin(),
       scrapeUrlPlugin()
     ],
