@@ -97,10 +97,10 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
  */
 export const MODERN_GEMINI_MODELS = [
   'gemini-flash-lite-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-3.1-flash-lite-preview',
   'gemini-3.5-flash-lite',
   'gemini-3.6-flash',
-  'gemini-3-flash-preview',
-  'gemini-3.5-flash',
   'gemini-flash-latest'
 ];
 
@@ -194,42 +194,55 @@ export async function fetchGeminiWithTimeout(
     }
   }
 
-  // 2. Chamada direta ao endpoint original (fallback e testes unitários Node)
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // 2. Chamada direta ao endpoint original (fallback e testes unitários Node) com retry para 503
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-    clearTimeout(timer);
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
 
-    if (res.status === 429 || res.status === 503) {
-      const is503 = res.status === 503;
-      console.warn(`[Gemini API] Modelo retornou ${res.status} (${is503 ? 'alta demanda temporária' : 'rate limit'}). O scanner tentará o próximo modelo da cascata.`);
-      return { 
-        ok: false, 
-        status: res.status, 
-        errorText: is503 ? 'Alta demanda temporária no Google (503)' : 'Quota exceeded for model (429)', 
-        rateLimited: true 
-      };
+      if (res.status === 503 && attempt < 2) {
+        console.warn('[Gemini API] 503 transitório (alta demanda). Aguardando 1.2s para retry...');
+        await new Promise(r => setTimeout(r, 1200));
+        continue;
+      }
+
+      if (res.status === 429 || res.status === 503) {
+        const is503 = res.status === 503;
+        console.warn(`[Gemini API] Modelo retornou ${res.status} (${is503 ? 'alta demanda temporária' : 'rate limit'}). O scanner tentará o próximo modelo da cascata.`);
+        return { 
+          ok: false, 
+          status: res.status, 
+          errorText: is503 ? 'Alta demanda temporária no Google (503)' : 'Quota exceeded for model (429)', 
+          rateLimited: true 
+        };
+      }
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        return { ok: false, status: res.status, errorText: errText };
+      }
+
+      const data = await res.json().catch(() => null);
+      return { ok: true, status: 200, data };
+    } catch (err: any) {
+      clearTimeout(timer);
+      const isTimeout = err?.name === 'AbortError';
+      if (attempt === 2) {
+        return { ok: false, status: isTimeout ? 408 : 0, errorText: isTimeout ? `Timeout (${timeoutMs / 1000}s excedido)` : err?.message };
+      }
+      await new Promise(r => setTimeout(r, 1000));
     }
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      return { ok: false, status: res.status, errorText: errText };
-    }
-
-    const data = await res.json().catch(() => null);
-    return { ok: true, status: 200, data };
-  } catch (err: any) {
-    clearTimeout(timer);
-    const isTimeout = err?.name === 'AbortError';
-    return { ok: false, status: isTimeout ? 408 : 0, errorText: isTimeout ? `Timeout (${timeoutMs / 1000}s excedido)` : err?.message };
   }
+
+  return { ok: false, status: 503, errorText: 'Falha após retries no endpoint direto' };
 }
 
 /**

@@ -5,11 +5,13 @@ export const config = {
 const ALLOWED_MODELS = new Set([
   'gemini-flash-lite-latest',
   'gemini-flash-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-3.1-flash-lite-preview',
   'gemini-3.5-flash-lite',
   'gemini-3.6-flash',
+  'gemini-3.8-flash',
   'gemini-3-flash-preview',
   'gemini-3.5-flash',
-  'gemini-3.1-flash-lite',
   'gemini-2.5-flash',
   'gemini-2.0-flash',
   'gemini-2.0-flash-exp',
@@ -139,29 +141,54 @@ export default async function handler(req: any, res: any) {
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45000);
+    // Retry com backoff inteligente para absorver picos transitórios de 503 (alta demanda do Google)
+    const maxAttempts = 3;
+    let geminiRes: any;
+    let data: any;
 
-    const geminiRes = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
 
-    clearTimeout(timeout);
+      try {
+        geminiRes = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
 
-    const data = await geminiRes.json();
-    return res.status(geminiRes.status).json(data);
+        // Se o Google retornar 503 (alta demanda momentânea), aguarda 1.2s e re-tenta automaticamente
+        if (geminiRes.status === 503 && attempt < maxAttempts) {
+          console.warn(`[Gemini Proxy] Google 503 em ${model} (tentativa ${attempt}/${maxAttempts}). Aguardando 1.2s para retry...`);
+          await new Promise(r => setTimeout(r, 1200 * attempt));
+          continue;
+        }
+
+        data = await geminiRes.json();
+        return res.status(geminiRes.status).json(data);
+      } catch (err: any) {
+        clearTimeout(timeout);
+        const isTimeout = err?.name === 'AbortError';
+        if (attempt === maxAttempts) {
+          console.error('[Gemini Proxy Error]:', isTimeout ? 'Timeout de 25s excedido' : err?.message);
+          return res.status(isTimeout ? 504 : 500).json({ 
+            success: false, 
+            error: isTimeout ? 'Tempo limite de resposta da IA excedido (25s).' : (err?.message || 'Erro interno no proxy Gemini.') 
+          });
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
   } catch (err: any) {
-    const isTimeout = err?.name === 'AbortError';
-    console.error('[Gemini Proxy Error]:', isTimeout ? 'Timeout de 45s excedido' : err?.message);
-    return res.status(isTimeout ? 504 : 500).json({ 
+    console.error('[Gemini Proxy Critical]:', err?.message);
+    return res.status(500).json({ 
       success: false, 
-      error: isTimeout ? 'Tempo limite de resposta da IA excedido (45s).' : (err?.message || 'Erro interno no proxy Gemini.') 
+      error: err?.message || 'Erro interno no proxy Gemini.' 
     });
   }
 }
