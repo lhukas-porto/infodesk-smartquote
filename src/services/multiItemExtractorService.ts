@@ -1,5 +1,5 @@
 import { extractItemsFromEmailContent, ParsedItem } from '../utils/aiEmailParser';
-import { fetchGeminiWithTimeout } from './priceScannerService';
+import { fetchGeminiWithTimeout, MODERN_GEMINI_MODELS } from './priceScannerService';
 
 export interface ExtractedMultiItem {
   name: string;
@@ -74,12 +74,7 @@ Regras:
 
   const prompt = `Texto da solicitação de cotação:\n"""\n${rawText.slice(0, 12000)}\n"""`;
 
-  const models = [
-    'gemini-3.1-flash-lite',
-    'gemini-3-flash-preview',
-    'gemini-3.5-flash-lite',
-    'gemini-3.6-flash'
-  ];
+  const models = MODERN_GEMINI_MODELS;
 
   for (const model of models) {
     try {

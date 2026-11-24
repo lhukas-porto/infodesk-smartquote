@@ -92,14 +92,16 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de validade
 
 /**
  * Modelos Gemini disponíveis para esta conta.
- * gemini-flash-lite-latest e gemini-3.1-flash-lite respondem em ~3s mesmo em picos de alta demanda.
- * gemini-3.6-flash e 3.5-flash atuam como fallbacks adicionais.
+ * gemini-flash-lite-latest é o modelo oficial do Google de altíssima velocidade (~1s) e resiliência a picos de demanda.
+ * gemini-3.5-flash-lite, gemini-3.6-flash e gemini-flash-latest atuam como fallbacks adicionais.
  */
 export const MODERN_GEMINI_MODELS = [
-  'gemini-3.1-flash-lite',
-  'gemini-3-flash-preview',
+  'gemini-flash-lite-latest',
   'gemini-3.5-flash-lite',
-  'gemini-3.6-flash'
+  'gemini-3.6-flash',
+  'gemini-3-flash-preview',
+  'gemini-3.5-flash',
+  'gemini-flash-latest'
 ];
 
 /**
@@ -205,9 +207,15 @@ export async function fetchGeminiWithTimeout(
     });
     clearTimeout(timer);
 
-    if (res.status === 429) {
-      console.warn('[Gemini API] Modelo retornou 429 (rate limit). O scanner tentará o próximo modelo da cascata.');
-      return { ok: false, status: 429, errorText: 'Quota exceeded for model', rateLimited: true };
+    if (res.status === 429 || res.status === 503) {
+      const is503 = res.status === 503;
+      console.warn(`[Gemini API] Modelo retornou ${res.status} (${is503 ? 'alta demanda temporária' : 'rate limit'}). O scanner tentará o próximo modelo da cascata.`);
+      return { 
+        ok: false, 
+        status: res.status, 
+        errorText: is503 ? 'Alta demanda temporária no Google (503)' : 'Quota exceeded for model (429)', 
+        rateLimited: true 
+      };
     }
 
     if (!res.ok) {
@@ -3341,8 +3349,9 @@ export async function phase1DiscoverProductsFromText(
   }
 
   const modelFailures: string[] = [];
+  const canUseGemini = Boolean(activeKey || (typeof window !== 'undefined'));
 
-  if (activeKey) {
+  if (canUseGemini) {
     const models = MODERN_GEMINI_MODELS;
 
     const photoPrioritySection = imgDataList.length > 0 ? `
@@ -3509,7 +3518,7 @@ Retorne ESTRITAMENTE um JSON no formato:
         break;
       }
       try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey || 'proxy'}`;
         const parts: any[] = [];
         imgDataList.forEach(img => {
           parts.push({
@@ -3527,11 +3536,14 @@ Retorne ESTRITAMENTE um JSON no formato:
             temperature: 0.1,
             responseMimeType: 'application/json'
           }
-        }, 45000);
+        }, 20000);
 
         if (callRes.rateLimited) {
-          modelFailures.push(`${model}: Rate Limit 429 (cota momentânea ou diária excedida)`);
-          console.warn(`[Phase1][${model}] Rate limited (429) no modelo ${model}, tentando próximo da cascata...`);
+          const reason = callRes.status === 503 
+            ? 'Alta demanda temporária no Google (503)' 
+            : 'Rate Limit 429 (cota momentânea ou diária excedida)';
+          modelFailures.push(`${model}: ${reason}`);
+          console.warn(`[Phase1][${model}] ${reason} no modelo ${model}, tentando próximo da cascata...`);
           continue;
         }
 
@@ -3770,7 +3782,7 @@ Retorne ESTRITAMENTE um JSON no formato:
     '| Circuit Breaker ativo:', isGeminiCircuitBreakerActive()
   );
 
-  if (activeKey && !isGeminiCircuitBreakerActive()) {
+  if (canUseGemini && !isGeminiCircuitBreakerActive()) {
     const errorDetails = modelFailures.length > 0
       ? `Modelos testados na cascata:\n${modelFailures.map(f => `• ${f}`).join('\n')}`
       : 'Todos os modelos da cascata falharam ou não retornaram dados válidos.';

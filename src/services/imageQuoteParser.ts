@@ -7,7 +7,7 @@ import {
   extractContactPersonFromText 
 } from '../utils/aiEmailParser';
 import { extractQuoteItemsWithAI } from './multiItemExtractorService';
-import { fetchGeminiWithTimeout } from './priceScannerService';
+import { fetchGeminiWithTimeout, MODERN_GEMINI_MODELS } from './priceScannerService';
 
 export interface ExtractedImageQuoteData {
   senderName: string;
@@ -463,12 +463,7 @@ async function extractWithGeminiVision(
       '  ]\n' +
       '}';
 
-    const modelsToTry = [
-      'gemini-3.1-flash-lite',
-      'gemini-3-flash-preview',
-      'gemini-3.5-flash-lite',
-      'gemini-3.6-flash'
-    ];
+    const modelsToTry = MODERN_GEMINI_MODELS;
     for (const model of modelsToTry) {
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey || ''}`;
